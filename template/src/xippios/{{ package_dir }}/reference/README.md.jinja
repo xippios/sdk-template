@@ -16,7 +16,7 @@ Rules:
   (`/refresh-reference-data`), never typed in by hand; the script also regenerates
   `enums.py`, one `StrEnum` per list, with `xippios.core.reference.render_str_enums`.
 - Every file has a row below naming the endpoint or URL it came from and the date.
-- Reference lookups are tools too (`{{ source_pkg }}_list_<thing>`), so agents can form valid calls.
+- Reference lookups are tools too (`{{ tool_prefix }}_list_<thing>`), so agents can form valid calls.
 
 | File | Origin | Fetched |
 | --- | --- | --- |

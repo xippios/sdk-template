@@ -239,3 +239,20 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
     assert tasks.read_text() == "# my work\n"
     assert (dst / "tests/test_mine.py").exists()
     assert claude.read_text() != "# clobbered\n"
+
+
+def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Path]) -> None:
+    """The MCP tool prefix is the slug with underscores, never the dotted import path."""
+    name, dst = generated
+    slug = str(VARIANTS[name]["source_slug"])
+    prefix = slug.replace("-", "_")
+    dotted = package_dir(VARIANTS[name]).replace("/", ".")
+    for rel in [
+        "README.md",
+        ".claude/commands/add-endpoint.md",
+        f"src/xippios/{package_dir(VARIANTS[name])}/reference/README.md",
+    ]:
+        text = (dst / rel).read_text()
+        assert f"`{prefix}_" in text, rel
+        if "." in dotted:
+            assert f"{dotted}_" not in text, rel

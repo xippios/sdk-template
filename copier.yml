@@ -34,6 +34,11 @@ package_dir:
   default: "{{ import_path | replace('.', '/') }}"
   when: false
 
+tool_prefix:
+  type: str
+  default: "{{ source_slug | replace('-', '_') }}"
+  when: false
+
 source_name:
   type: str
   help: Human-readable name of the source
