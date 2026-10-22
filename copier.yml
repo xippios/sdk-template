@@ -127,7 +127,10 @@ _skip_if_exists:
   - src/xippios/**/models.py
   - src/xippios/**/tasks.py
   - src/xippios/**/tasks_write.py
+  - src/xippios/**/params.py
+  - src/xippios/**/enums.py
   - src/xippios/**/reference/**
+  - scripts/**
   - tests/**
 _message_after_copy: |
 
