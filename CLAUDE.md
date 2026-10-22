@@ -10,7 +10,7 @@ then `README.md` here.
 ```
 copier.yml               questions and copier settings (subdirectory, skip-if-exists, envops)
 template/                what gets generated; *.jinja files are rendered, others copied verbatim
-  src/xippios/{{ source_pkg }}/   the package: _client, models, tasks, api/, mcp, http, reference/
+  src/xippios/{{ package_dir }}/  the package (import_path as directories, ADR-0006): _client, models, tasks, api/, mcp, http, reference/
   tests/                 conftest (plugin), structural task tests, adapter tests, live smoke
   .claude/commands/      add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
   CLAUDE.md.jinja        the contract a session gets in a generated repo; keep it readable by a new engineer

@@ -12,9 +12,26 @@ source_slug:
     Use lowercase letters, digits and single hyphens, e.g. usda-nass
     {% endif %}
 
+import_path:
+  type: str
+  help: >-
+    Import path under xippios. A provider with several APIs nests (usda-nass → usda.nass);
+    a single-API provider stays flat. Override only when a single-API provider's name
+    carries a hyphen (world-bank → world_bank). See conventions §1 and ADR-0006.
+  default: "{{ source_slug | replace('-', '.') }}"
+  validator: >-
+    {% if not (import_path | regex_search('^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$')) %}
+    Dotted lowercase identifiers only, e.g. usda.nass or comtrade
+    {% endif %}
+
 source_pkg:
   type: str
-  default: "{{ source_slug | replace('-', '_') }}"
+  default: "{{ import_path }}"
+  when: false
+
+package_dir:
+  type: str
+  default: "{{ import_path | replace('.', '/') }}"
   when: false
 
 source_name:
@@ -106,11 +123,11 @@ _skip_if_exists:
   - CHANGELOG.md
   - README.md
   - docs/upstream/**
-  - src/xippios/*/api/**
-  - src/xippios/*/models.py
-  - src/xippios/*/tasks.py
-  - src/xippios/*/tasks_write.py
-  - src/xippios/*/reference/**
+  - src/xippios/**/api/**
+  - src/xippios/**/models.py
+  - src/xippios/**/tasks.py
+  - src/xippios/**/tasks_write.py
+  - src/xippios/**/reference/**
   - tests/**
 _message_after_copy: |
 
