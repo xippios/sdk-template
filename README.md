@@ -31,7 +31,10 @@ scripts/new-source.sh usda-nass \
   -d "rate_limit_per_minute=60" -d "domain_topic=agriculture"
 ```
 
-Add `--local-only` to generate and check without touching GitHub.
+Add `--local-only` to generate and check without touching GitHub. The script generates
+from this template's GitHub URL at its latest tag, so `.copier-answers.yml` records a
+source that `copier update` can reach from any machine, and it renames the new
+repository's default branch to `main` when the org setting says otherwise.
 
 ## Questions
 
