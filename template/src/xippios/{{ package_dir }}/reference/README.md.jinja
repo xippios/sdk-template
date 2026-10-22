@@ -12,7 +12,9 @@ rows = load_table("xippios.{{ source_pkg }}", "commodities.csv", Commodity)
 
 Rules:
 
-- Files come from the upstream through `/refresh-reference-data`, never typed in by hand.
+- Files come from the upstream through `scripts/refresh_reference.py`
+  (`/refresh-reference-data`), never typed in by hand; the script also regenerates
+  `enums.py`, one `StrEnum` per list, with `xippios.core.reference.render_str_enums`.
 - Every file has a row below naming the endpoint or URL it came from and the date.
 - Reference lookups are tools too (`{{ source_pkg }}_list_<thing>`), so agents can form valid calls.
 
