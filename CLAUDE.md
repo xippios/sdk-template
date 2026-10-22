@@ -36,6 +36,10 @@ tests/test_template.py   generation variants, ruff on the output, skip-if-exists
   disappears. Mind blank lines in generated Python: the formatter check is strict.
 - Keep `copier.yml` questions mechanical: every answer must come from the upstream
   documentation or the human, never be guessed by a session.
+- `detect-secrets` flags Jinja lines that mention `api_key_location` as if they held a
+  key. Known false positives live in `.secrets.baseline`; after changing such a line, run
+  `uv run --with detect-secrets detect-secrets scan --baseline .secrets.baseline` and
+  commit the updated baseline. Never add a real value to silence it.
 
 ## Commands
 

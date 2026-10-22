@@ -64,7 +64,7 @@ api_key_location:
 api_key_name:
   type: str
   help: Name of the query parameter or header that carries the key
-  default: "{{ 'key' if api_key_location == 'query' else 'X-Api-Key' }}"
+  default: "{{ 'key' if api_key_location == 'query' else 'X-Api-Key' }}"  # pragma: allowlist secret
   when: "{{ api_key_env != '' and api_key_location in ['query', 'header'] }}"
 
 rate_limit_per_minute:

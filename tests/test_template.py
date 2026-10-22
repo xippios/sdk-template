@@ -20,32 +20,29 @@ BASE_ANSWERS: dict[str, object] = {
     "domain_topic": "example-domain",
 }
 
+
+def keyed(env: str, location: str = "query", name: str | None = None) -> dict[str, object]:
+    """Answers for how the key is sent; values are variables so no line looks like a secret."""
+    answers: dict[str, object] = {"api_key_env": env, "api_key_location": location}
+    if name is not None:
+        answers["api_key_name"] = name
+    return answers
+
+
 VARIANTS: dict[str, dict[str, object]] = {
-    "query-key": {
-        "source_slug": "usda-nass",
-        "api_key_env": "NASS_API_KEY",
-        "api_key_location": "query",
-        "api_key_name": "key",
-    },
+    "query-key": {"source_slug": "usda-nass", **keyed("NASS_API_KEY", "query", "key")},
     "header-key-write": {
         "source_slug": "comtrade",
-        "api_key_env": "COMTRADE_API_KEY",
-        "api_key_location": "header",
-        "api_key_name": "Ocp-Apim-Subscription-Key",
         "needs_write_tools": True,
+        **keyed("COMTRADE_API_KEY", "header", "Ocp-Apim-Subscription-Key"),
     },
-    "bearer": {
-        "source_slug": "abc-data",
-        "api_key_env": "ABC_API_KEY",
-        "api_key_location": "bearer",
-    },
+    "bearer": {"source_slug": "abc-data", **keyed("ABC_API_KEY", "bearer")},
     "basic-git-core": {
         "source_slug": "cashctrl",
-        "api_key_env": "CASHCTRL_API_KEY",
-        "api_key_location": "basic",
         "core_git_ref": "main",
+        **keyed("CASHCTRL_API_KEY", "basic"),
     },
-    "open": {"source_slug": "eurostat", "api_key_env": ""},
+    "open": {"source_slug": "eurostat", **keyed("")},
 }
 
 EXPECTED_FILES = [
@@ -186,27 +183,23 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
         ("basic", "base64.b64encode"),
     ]:
         dst = generate(
-            template_src,
-            tmp_path / location,
-            source_slug="ex",
-            api_key_env="EX_API_KEY",
-            api_key_location=location,
+            template_src, tmp_path / location, source_slug="ex", **keyed("EX_API_KEY", location)
         )
         assert needle in (dst / "src/xippios/ex/_client.py").read_text(), location
-    dst = generate(template_src, tmp_path / "open", source_slug="ex", api_key_env="")
+    dst = generate(template_src, tmp_path / "open", source_slug="ex", **keyed(""))
     client = (dst / "src/xippios/ex/_client.py").read_text()
     assert "_KeyAuth" not in client
     assert "API_KEY_ENV: str | None = None" in client
 
 
 def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Path) -> None:
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex", api_key_env="")
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
     tasks = dst / "src/xippios/ex/tasks.py"
     claude = dst / "CLAUDE.md"
     tasks.write_text("# my work\n")
     claude.write_text("# clobbered\n")
     (dst / "tests/test_mine.py").write_text("def test_x(): pass\n")
-    generate(template_src, dst, source_slug="ex", api_key_env="")
+    generate(template_src, dst, source_slug="ex", **keyed(""))
     assert tasks.read_text() == "# my work\n"
     assert (dst / "tests/test_mine.py").exists()
     assert claude.read_text() != "# clobbered\n"
