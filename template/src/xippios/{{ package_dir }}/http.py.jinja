@@ -1,6 +1,7 @@
-"""FastAPI router for {{ source_name }}: ``GET /{{ source_slug }}/<task>`` for every task.
+"""FastAPI router for {{ source_name }}.
 
-No logic lives here (ADR-0001). The consumer mounts it; it is never served standalone.
+``GET /{{ source_slug }}/<task>`` for every task. No logic lives here (ADR-0001). The
+consumer mounts it; it is never served standalone.
 """
 
 from xippios.core.http import router_from_tasks
