@@ -196,6 +196,17 @@ def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:
             assert "{{" not in text, path
 
 
+def test_no_dotted_import_path_used_as_a_directory(generated: tuple[str, Path]) -> None:
+    """A nested import path (usda.nass) must appear as usda/nass wherever a path is meant."""
+    name, dst = generated
+    dotted = package_dir(VARIANTS[name]).replace("/", ".")
+    if "." not in dotted:
+        pytest.skip("flat import path")
+    for path in dst.rglob("*"):
+        if path.is_file() and path.suffix in {".py", ".md", ".toml", ".yml", ".yaml"}:
+            assert f"src/xippios/{dotted}" not in path.read_text(), path
+
+
 def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
     for location, needle in [
         ("query", 'auth = QueryKeyAuth("key", API_KEY_ENV, source=SOURCE)'),

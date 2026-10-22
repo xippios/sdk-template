@@ -9,7 +9,7 @@ Fixtures are recorded through the real client, never typed in by hand. The file 
 1. {% if api_key_env %}Confirm `{{ api_key_env }}` is set in the environment (`[ -n "${{ '{' }}{{ api_key_env }}{{ '}' }}" ] && echo ok`); never print its value.{% else %}No key is needed for this source.{% endif %}
 
 2. Find the request path and parameters for the endpoint in `docs/upstream/` and in the
-   wrapper under `src/xippios/{{ source_pkg }}/api/`. Use the wrapper's parameter names.
+   wrapper under `src/xippios/{{ package_dir }}/api/`. Use the wrapper's parameter names.
 
 3. Record it with a one-off script run through `uv run python`:
 
