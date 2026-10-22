@@ -5,7 +5,9 @@
 #   -d key=value     answer to a question in copier.yml; unspecified questions take defaults
 #   --local-only     generate and run the checks, do not touch GitHub
 #   --dest DIR       where to generate (default: $XIPPIOS_SDK_ROOT or ~/github/sdk, then sdk-<slug>)
-#   --template SRC   template source (default: this repository at its latest tag, or HEAD when untagged)
+#   --template SRC   template source (default: the GitHub repository at its latest tag, so generated
+#                    repos record a URL copier update can reach from any machine; a local path or
+#                    snapshot works too and is what prove.sh passes)
 #
 # Everything that touches GitHub is at the end and runs only without --local-only.
 # Human steps that remain are printed last. This script never tags or merges.
@@ -16,7 +18,7 @@ slug="${1:?usage: new-source.sh <source-slug> [--local-only] [--dest DIR] [-d ke
 shift
 root="${XIPPIOS_SDK_ROOT:-$HOME/github/sdk}"
 dest=""
-template="$here"
+template="https://github.com/xippios/sdk-template.git"
 local_only=0
 data=()
 while [ $# -gt 0 ]; do
@@ -38,7 +40,12 @@ fi
 
 answer() { grep -E "^$1:" "$dest/.copier-answers.yml" | sed -E "s/^$1: *//; s/^'(.*)'$/\1/; s/^\"(.*)\"$/\1/"; }
 
-ref="$(git -C "$template" describe --tags --abbrev=0 2>/dev/null || echo HEAD)"
+if [ -d "$template" ]; then
+  ref="$(git -C "$template" describe --tags --abbrev=0 2>/dev/null || echo HEAD)"
+else
+  ref="$(git ls-remote --tags --refs "$template" 2>/dev/null | sed 's#.*/##' | sort -V | tail -1)"
+  ref="${ref:-HEAD}"
+fi
 echo "==> generating $dest from template ref $ref"
 uv run --project "$here" copier copy --defaults --vcs-ref "$ref" -d "source_slug=$slug" "${data[@]}" "$template" "$dest"
 cd "$dest"
@@ -65,6 +72,19 @@ if [ "$local_only" = 1 ]; then
 fi
 
 echo "==> GitHub repository $repo"
+# Pre-flight, before anything is created: the family and the sdk-main-protection ruleset
+# need the first branch to be main. The ruleset enforces its ci check on branch creation,
+# so main cannot be created afterwards by rename or push; only the org setting can fix it.
+org_default="$(gh api orgs/xippios --jq .default_repository_branch)"
+if [ "$org_default" != "main" ]; then
+  cat >&2 <<MSG
+error: the organisation's default branch is '$org_default', not 'main'.
+A new repository would start on '$org_default', and the sdk-main-protection ruleset blocks
+creating 'main' later. An org admin sets Settings → Repository defaults → default branch
+to 'main', then re-run this command. Nothing was created; $dest is generated and verified.
+MSG
+  exit 1
+fi
 gh repo create "$repo" --public --license Apache-2.0 --description "xippios SDK for $source_name"
 gh repo edit "$repo" --add-topic xippios-sdk --add-topic python --add-topic mcp --add-topic "$domain_topic"
 reviewer="${XIPPIOS_PYPI_REVIEWER:-jdidaskalu}"

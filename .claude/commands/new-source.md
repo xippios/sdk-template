@@ -24,5 +24,7 @@ environment, and opens the scaffold PR. The script is the only thing that touche
    publisher, API key into `.envrc` and as an org secret, review and merge.
 
 The script's `gh repo create` and `gh api -X PUT .../environments/pypi` will each raise a
-permission prompt; that approval is the human gate. Never run those commands outside the
+permission prompt; that approval is the human gate. If the script stops because the org's
+default branch is not `main`, that is an org setting only a human changes; report it and
+stop. Never run those commands outside the
 script, never run `gh secret`, never tag or merge.
