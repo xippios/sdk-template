@@ -1,0 +1,212 @@
+"""Generation tests: variants render, pass ruff, and respect skip-if-exists."""
+
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+import yaml
+from copier import run_copy
+
+ROOT = Path(__file__).resolve().parents[1]
+
+BASE_ANSWERS: dict[str, object] = {
+    "source_name": "Example Data Service",
+    "upstream_url": "https://api.example.org",
+    "upstream_docs_url": "https://api.example.org/docs",
+    "api_base_url": "https://api.example.org/v1",
+    "rate_limit_per_minute": 120,
+    "domain_topic": "example-domain",
+}
+
+VARIANTS: dict[str, dict[str, object]] = {
+    "query-key": {
+        "source_slug": "usda-nass",
+        "api_key_env": "NASS_API_KEY",
+        "api_key_location": "query",
+        "api_key_name": "key",
+    },
+    "header-key-write": {
+        "source_slug": "comtrade",
+        "api_key_env": "COMTRADE_API_KEY",
+        "api_key_location": "header",
+        "api_key_name": "Ocp-Apim-Subscription-Key",
+        "needs_write_tools": True,
+    },
+    "bearer": {
+        "source_slug": "abc-data",
+        "api_key_env": "ABC_API_KEY",
+        "api_key_location": "bearer",
+    },
+    "basic-git-core": {
+        "source_slug": "cashctrl",
+        "api_key_env": "CASHCTRL_API_KEY",
+        "api_key_location": "basic",
+        "core_git_ref": "main",
+    },
+    "open": {"source_slug": "eurostat", "api_key_env": ""},
+}
+
+EXPECTED_FILES = [
+    "src/xippios/{pkg}/__init__.py",
+    "src/xippios/{pkg}/_version.py",
+    "src/xippios/{pkg}/_client.py",
+    "src/xippios/{pkg}/models.py",
+    "src/xippios/{pkg}/tasks.py",
+    "src/xippios/{pkg}/api/__init__.py",
+    "src/xippios/{pkg}/mcp.py",
+    "src/xippios/{pkg}/http.py",
+    "src/xippios/{pkg}/reference/README.md",
+    "tests/conftest.py",
+    "tests/test_tasks.py",
+    "tests/test_adapters.py",
+    "tests/test_live.py",
+    "tests/fixtures/README.md",
+    "docs/upstream/FETCHED.md",
+    "CLAUDE.md",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "pyproject.toml",
+    ".pre-commit-config.yaml",
+    ".secrets.baseline",
+    ".gitignore",
+    ".python-version",
+    ".github/workflows/ci.yml",
+    ".github/workflows/publish.yml",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".claude/settings.json",
+    ".claude/commands/add-endpoint.md",
+    ".claude/commands/record-fixture.md",
+    ".claude/commands/refresh-upstream.md",
+    ".claude/commands/refresh-reference-data.md",
+    ".claude/commands/release-prep.md",
+    ".copier-answers.yml",
+]
+
+
+@pytest.fixture(scope="session")
+def template_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A snapshot of the working tree, so uncommitted template changes are what is tested."""
+    src = tmp_path_factory.mktemp("template-src")
+    shutil.copy(ROOT / "copier.yml", src / "copier.yml")
+    shutil.copytree(ROOT / "template", src / "template")
+    return src
+
+
+def generate(template_src: Path, dst: Path, **answers: object) -> Path:
+    run_copy(
+        str(template_src),
+        str(dst),
+        data={**BASE_ANSWERS, **answers},
+        defaults=True,
+        overwrite=True,
+        quiet=True,
+    )
+    return dst
+
+
+def ruff(dst: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-m", "ruff", *args], cwd=dst, capture_output=True, text=True, check=False
+    )
+
+
+@pytest.fixture(params=sorted(VARIANTS), scope="session")
+def generated(
+    request: pytest.FixtureRequest, template_src: Path, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[str, Path]:
+    name = request.param
+    dst = generate(template_src, tmp_path_factory.mktemp(name) / "repo", **VARIANTS[name])
+    return name, dst
+
+
+def test_layout(generated: tuple[str, Path]) -> None:
+    name, dst = generated
+    answers = VARIANTS[name]
+    pkg = str(answers["source_slug"]).replace("-", "_")
+    for rel in EXPECTED_FILES:
+        assert (dst / rel.format(pkg=pkg)).is_file(), rel
+    assert not (dst / "src/xippios/__init__.py").exists()
+    write = bool(answers.get("needs_write_tools"))
+    pyproject = (dst / "pyproject.toml").read_text()
+    assert (dst / f"src/xippios/{pkg}/tasks_write.py").exists() is write
+    assert (dst / f"src/xippios/{pkg}/mcp_write.py").exists() is write
+    assert ("-mcp-write" in pyproject) is write
+    assert ("[tool.uv.sources]" in pyproject) is bool(answers.get("core_git_ref"))
+
+
+def test_generated_code_is_lint_and_format_clean(generated: tuple[str, Path]) -> None:
+    _, dst = generated
+    check = ruff(dst, "check", ".")
+    assert check.returncode == 0, check.stdout + check.stderr
+    fmt = ruff(dst, "format", "--check", ".")
+    assert fmt.returncode == 0, fmt.stdout + fmt.stderr
+
+
+def test_generated_python_compiles(generated: tuple[str, Path]) -> None:
+    _, dst = generated
+    for path in dst.rglob("*.py"):
+        compile(path.read_text(), str(path), "exec")
+
+
+def test_answers_file_round_trips(generated: tuple[str, Path]) -> None:
+    name, dst = generated
+    answers = yaml.safe_load((dst / ".copier-answers.yml").read_text())
+    assert answers["source_slug"] == VARIANTS[name]["source_slug"]
+    assert answers["api_key_env"] == VARIANTS[name]["api_key_env"]
+    assert "source_pkg" not in answers, "computed answers are derived, never recorded"
+
+
+def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:
+    """Workflow files are copied verbatim and carry GitHub's own ${{ }}; nothing else may."""
+    _, dst = generated
+    for path in dst.rglob("*"):
+        if not path.is_file() or path.suffix not in {
+            ".py",
+            ".md",
+            ".toml",
+            ".yml",
+            ".yaml",
+            ".json",
+        }:
+            continue
+        text = path.read_text()
+        assert "{%" not in text, path
+        if ".github/workflows" not in str(path):
+            assert "{{" not in text, path
+
+
+def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
+    for location, needle in [
+        ("query", 'copy_merge_params({"key": key})'),
+        ("header", 'request.headers["X-Api-Key"] = key'),
+        ("bearer", 'f"Bearer {key}"'),
+        ("basic", "base64.b64encode"),
+    ]:
+        dst = generate(
+            template_src,
+            tmp_path / location,
+            source_slug="ex",
+            api_key_env="EX_API_KEY",
+            api_key_location=location,
+        )
+        assert needle in (dst / "src/xippios/ex/_client.py").read_text(), location
+    dst = generate(template_src, tmp_path / "open", source_slug="ex", api_key_env="")
+    client = (dst / "src/xippios/ex/_client.py").read_text()
+    assert "_KeyAuth" not in client
+    assert "API_KEY_ENV: str | None = None" in client
+
+
+def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Path) -> None:
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", api_key_env="")
+    tasks = dst / "src/xippios/ex/tasks.py"
+    claude = dst / "CLAUDE.md"
+    tasks.write_text("# my work\n")
+    claude.write_text("# clobbered\n")
+    (dst / "tests/test_mine.py").write_text("def test_x(): pass\n")
+    generate(template_src, dst, source_slug="ex", api_key_env="")
+    assert tasks.read_text() == "# my work\n"
+    assert (dst / "tests/test_mine.py").exists()
+    assert claude.read_text() != "# clobbered\n"
