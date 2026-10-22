@@ -45,6 +45,12 @@ VARIANTS: dict[str, dict[str, object]] = {
     "open": {"source_slug": "eurostat", **keyed("")},
     "nested": {"source_slug": "usda-nass", **keyed("NASS_API_KEY", "query", "key")},
     "hyphenated-flat": {"source_slug": "world-bank", "import_path": "world_bank", **keyed("")},
+    "long-name-write": {
+        "source_slug": "fao-faostat-bulk",
+        "source_name": "Food and Agriculture Organization Statistics",
+        "needs_write_tools": True,
+        **keyed("FAOSTAT_API_KEY", "header", "X-Api-Key"),
+    },
 }
 
 

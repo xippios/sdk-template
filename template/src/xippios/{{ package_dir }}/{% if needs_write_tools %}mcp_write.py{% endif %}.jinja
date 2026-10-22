@@ -1,7 +1,8 @@
-"""Write server for {{ source_name }}: ``tasks_write.__all__`` as confirm-gated tools.
+"""Write server for {{ source_name }}.
 
-A separate entry point, ``xippios-{{ source_slug }}-mcp-write``, so read-only clients never
-see write tools (conventions §8). No logic lives here (ADR-0001).
+``tasks_write.__all__`` as confirm-gated tools, behind a separate entry point,
+``xippios-{{ source_slug }}-mcp-write``, so read-only clients never see write tools
+(conventions §8). No logic lives here (ADR-0001).
 """
 
 from xippios.core.mcp import build_server, main
@@ -11,8 +12,9 @@ from xippios.{{ source_pkg }}._client import SOURCE
 from xippios.{{ source_pkg }}._version import __version__
 
 INSTRUCTIONS = (
-    "{{ source_name }} write tools via xippios. Every tool returns a preview unless "
-    "confirm=true is passed. Call it once without confirm, show the preview, then confirm."
+    "{{ source_name }} write tools via xippios. "
+    "Every tool returns a preview unless confirm=true is passed. "
+    "Call it once without confirm, show the preview, then confirm."
 )
 
 server = build_server(
