@@ -72,12 +72,20 @@ if [ "$local_only" = 1 ]; then
 fi
 
 echo "==> GitHub repository $repo"
-gh repo create "$repo" --public --license Apache-2.0 --description "xippios SDK for $source_name"
-default_branch="$(gh api "repos/$repo" --jq .default_branch)"
-if [ "$default_branch" != "main" ]; then
-  # The org's default-branch setting is not main; the family and its ruleset need main.
-  gh api -X POST "repos/$repo/branches/$default_branch/rename" -f new_name=main > /dev/null
+# Pre-flight, before anything is created: the family and the sdk-main-protection ruleset
+# need the first branch to be main. The ruleset enforces its ci check on branch creation,
+# so main cannot be created afterwards by rename or push; only the org setting can fix it.
+org_default="$(gh api orgs/xippios --jq .default_repository_branch)"
+if [ "$org_default" != "main" ]; then
+  cat >&2 <<MSG
+error: the organisation's default branch is '$org_default', not 'main'.
+A new repository would start on '$org_default', and the sdk-main-protection ruleset blocks
+creating 'main' later. An org admin sets Settings → Repository defaults → default branch
+to 'main', then re-run this command. Nothing was created; $dest is generated and verified.
+MSG
+  exit 1
 fi
+gh repo create "$repo" --public --license Apache-2.0 --description "xippios SDK for $source_name"
 gh repo edit "$repo" --add-topic xippios-sdk --add-topic python --add-topic mcp --add-topic "$domain_topic"
 reviewer="${XIPPIOS_PYPI_REVIEWER:-jdidaskalu}"
 reviewer_id="$(gh api "users/$reviewer" --jq .id)"
