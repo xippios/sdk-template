@@ -92,7 +92,8 @@ README, CHANGELOG, upstream snapshot, reference data) are never overwritten.
 ```bash
 uv sync
 uv run pytest           # generates variants into a temp dir and runs ruff on them
-scripts/prove.sh        # full proof: generate sdk-example, uv sync, ruff, mypy, pytest, pre-commit
+scripts/prove.sh        # full proof against the released core: generate, uv sync, ruff, mypy, pytest, pre-commit
+scripts/prove.sh --core-ref main   # against unreleased core
 ```
 
 ## Licence

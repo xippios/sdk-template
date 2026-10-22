@@ -46,8 +46,8 @@ tests/test_template.py   generation variants, ruff on the output, skip-if-exists
 ```bash
 uv sync                         # copier, pytest, ruff, pyyaml
 uv run pytest                   # template tests (fast: generation + ruff on the output)
-scripts/prove.sh                # full proof against sdk-core on main (needs network)
-scripts/prove.sh --core-ref ""  # against the PyPI release
+scripts/prove.sh                  # full proof against the xippios-core release on PyPI
+scripts/prove.sh --core-ref main  # against unreleased core, before a core change lands
 uv run ruff check . && uv run ruff format --check .
 ```
 

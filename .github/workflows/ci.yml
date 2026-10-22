@@ -24,4 +24,4 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pytest
       - name: Prove the template end to end
-        run: scripts/prove.sh --core-ref main
+        run: scripts/prove.sh
