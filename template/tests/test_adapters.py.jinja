@@ -6,8 +6,10 @@ Per-task end-to-end calls belong next to the task's replay test, with
 
 import inspect
 import typing
+from collections.abc import Callable
 
 import pytest
+from fastapi.routing import APIRoute
 from xippios.core.http import is_scalar
 from xippios.core.mcp import tool_name
 
@@ -18,10 +20,10 @@ from xippios.{{ source_pkg }}.mcp import server
 
 pytestmark = pytest.mark.anyio
 
-TASKS = {name: getattr(tasks, name) for name in tasks.__all__}
+TASKS: dict[str, Callable[..., object]] = {name: getattr(tasks, name) for name in tasks.__all__}
 
 
-def _parameters(fn: object) -> dict[str, object]:
+def _parameters(fn: Callable[..., object]) -> dict[str, object]:
     hints = typing.get_type_hints(fn)
     parameters = inspect.signature(fn).parameters.values()
     return {p.name: hints.get(p.name, p.annotation) for p in parameters}
@@ -37,7 +39,7 @@ async def test_mcp_tools_are_the_tasks_with_their_parameters() -> None:
 
 
 async def test_http_routes_are_the_tasks_with_the_right_methods() -> None:
-    routes = {route.path: route for route in router.routes if hasattr(route, "methods")}
+    routes = {route.path: route for route in router.routes if isinstance(route, APIRoute)}
     assert set(routes) == {f"/{SOURCE}/{name}" for name in TASKS}
     for name, fn in TASKS.items():
         scalar_only = all(is_scalar(annotation) for annotation in _parameters(fn).values())
