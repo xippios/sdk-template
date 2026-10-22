@@ -45,8 +45,9 @@ data. If logic appears in `mcp.py` or `http.py`, it belongs in `tasks.py`.
 ## Layout
 
 ```
-src/xippios/{{ source_pkg }}/
+src/xippios/{{ package_dir }}/
   __init__.py      public surface: __version__ and re-exported task functions
+  py.typed         PEP 561 marker; consumers' mypy --strict needs it
   _version.py      __version__ from distribution metadata
   _client.py       the one configured AsyncClient (base URL, key, rate limit)
   models.py        pydantic models mirroring upstream payloads (UpstreamModel)
@@ -65,13 +66,17 @@ tests/
   fixtures/        recorded responses, <endpoint>/<case>.json, never hand-written
   test_tasks.py    structural checks on every task plus per-task replay tests
   test_adapters.py the adapters expose exactly tasks.__all__
+  test_layout.py   namespace levels stay empty; py.typed ships
   test_live.py     @pytest.mark.live smoke tests, one per task
 docs/upstream/     documentation snapshot and FETCHED.md
 .claude/commands/  add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
 ```
 
 `src/xippios/` has **no** `__init__.py`: it is a PEP 420 namespace package shared with
-`xippios-core` and every other source package. Never add one.
+`xippios-core` and every other source package{% if '/' in package_dir %}, and so is every level
+between it and the package (`src/xippios/{{ package_dir.rsplit('/', 1)[0] }}/`){% endif %}.
+Never add one; `tests/test_layout.py` fails if it appears. The import path is
+`xippios.{{ source_pkg }}` (ADR-0006).
 
 ## How to add an endpoint
 

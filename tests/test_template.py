@@ -43,10 +43,19 @@ VARIANTS: dict[str, dict[str, object]] = {
         **keyed("CASHCTRL_API_KEY", "basic"),
     },
     "open": {"source_slug": "eurostat", **keyed("")},
+    "nested": {"source_slug": "usda-nass", **keyed("NASS_API_KEY", "query", "key")},
+    "hyphenated-flat": {"source_slug": "world-bank", "import_path": "world_bank", **keyed("")},
 }
+
+
+def package_dir(answers: dict[str, object]) -> str:
+    import_path = str(answers.get("import_path") or str(answers["source_slug"]).replace("-", "."))
+    return import_path.replace(".", "/")
+
 
 EXPECTED_FILES = [
     "src/xippios/{pkg}/__init__.py",
+    "src/xippios/{pkg}/py.typed",
     "src/xippios/{pkg}/_version.py",
     "src/xippios/{pkg}/_client.py",
     "src/xippios/{pkg}/models.py",
@@ -58,6 +67,7 @@ EXPECTED_FILES = [
     "tests/conftest.py",
     "tests/test_tasks.py",
     "tests/test_adapters.py",
+    "tests/test_layout.py",
     "tests/test_live.py",
     "tests/fixtures/README.md",
     "docs/upstream/FETCHED.md",
@@ -122,10 +132,13 @@ def generated(
 def test_layout(generated: tuple[str, Path]) -> None:
     name, dst = generated
     answers = VARIANTS[name]
-    pkg = str(answers["source_slug"]).replace("-", "_")
+    pkg = package_dir(answers)
     for rel in EXPECTED_FILES:
         assert (dst / rel.format(pkg=pkg)).is_file(), rel
-    assert not (dst / "src/xippios/__init__.py").exists()
+    level = (dst / "src/xippios" / pkg).parent
+    while level != dst / "src":
+        assert not (level / "__init__.py").exists(), level
+        level = level.parent
     write = bool(answers.get("needs_write_tools"))
     pyproject = (dst / "pyproject.toml").read_text()
     assert (dst / f"src/xippios/{pkg}/tasks_write.py").exists() is write
@@ -153,7 +166,9 @@ def test_answers_file_round_trips(generated: tuple[str, Path]) -> None:
     answers = yaml.safe_load((dst / ".copier-answers.yml").read_text())
     assert answers["source_slug"] == VARIANTS[name]["source_slug"]
     assert answers["api_key_env"] == VARIANTS[name]["api_key_env"]
+    assert answers["import_path"] == package_dir(VARIANTS[name]).replace("/", ".")
     assert "source_pkg" not in answers, "computed answers are derived, never recorded"
+    assert "package_dir" not in answers
 
 
 def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:
@@ -194,13 +209,13 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
 
 
 def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Path) -> None:
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
-    tasks = dst / "src/xippios/ex/tasks.py"
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex-api", **keyed(""))
+    tasks = dst / "src/xippios/ex/api/tasks.py"
     claude = dst / "CLAUDE.md"
     tasks.write_text("# my work\n")
     claude.write_text("# clobbered\n")
     (dst / "tests/test_mine.py").write_text("def test_x(): pass\n")
-    generate(template_src, dst, source_slug="ex", **keyed(""))
+    generate(template_src, dst, source_slug="ex-api", **keyed(""))
     assert tasks.read_text() == "# my work\n"
     assert (dst / "tests/test_mine.py").exists()
     assert claude.read_text() != "# clobbered\n"

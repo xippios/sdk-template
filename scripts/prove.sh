@@ -23,14 +23,15 @@ while [ $# -gt 0 ]; do
   shift
 done
 work="$(mktemp -d "${TMPDIR:-/tmp}/sdk-template-prove.XXXXXX")"
-dest="${dest:-$work/sdk-example}"
+dest="${dest:-$work/sdk-example-api}"
 
 # Snapshot the working tree so uncommitted template changes are what gets proven.
 snapshot="$work/template-src"
 mkdir -p "$snapshot"
 cp -r "$here/copier.yml" "$here/template" "$snapshot/"
 
-"$here/scripts/new-source.sh" example --local-only --dest "$dest" --template "$snapshot" \
+# The slug nests (example-api → xippios.example.api) so the proof covers ADR-0006.
+"$here/scripts/new-source.sh" example-api --local-only --dest "$dest" --template "$snapshot" \
   -d "source_name=Example Data Service" \
   -d "upstream_url=https://api.example.org" \
   -d "upstream_docs_url=https://api.example.org/docs" \

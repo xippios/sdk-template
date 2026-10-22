@@ -39,6 +39,7 @@ Add `--local-only` to generate and check without touching GitHub.
 | --- | --- | --- |
 | `source_slug` | provider, plus API when one provider has several; names the repo, the distribution and the import | `usda-nass` |
 | `source_name` | human name | `USDA NASS Quick Stats` |
+| `import_path` | import path under `xippios`; defaults to the slug with dots, so multi-API providers nest (ADR-0006); override for a hyphenated single-API provider | `usda.nass` |
 | `upstream_url` | provider page, linked from the README | `https://quickstats.nass.usda.gov` |
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
 | `api_base_url` | base URL request paths join onto; required, usually not the provider page | `https://quickstats.nass.usda.gov/api` |
@@ -54,9 +55,9 @@ Add `--local-only` to generate and check without touching GitHub.
 
 ```
 sdk-<slug>/
-  src/xippios/<pkg>/   __init__, _version, _client, models, tasks, api/, mcp, http, reference/
-                       (+ tasks_write, mcp_write when needs_write_tools)
-  tests/               conftest, test_tasks, test_adapters, test_live, fixtures/
+  src/xippios/<import path as dirs>/   __init__, py.typed, _version, _client, models, tasks,
+                       api/, mcp, http, reference/ (+ tasks_write, mcp_write when needs_write_tools)
+  tests/               conftest, test_tasks, test_adapters, test_layout, test_live, fixtures/
   docs/upstream/       FETCHED.md
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
   .claude/settings.json  .github/workflows/{ci,publish}.yml  .github/PULL_REQUEST_TEMPLATE.md
