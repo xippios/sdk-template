@@ -177,10 +177,10 @@ def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:
 
 def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
     for location, needle in [
-        ("query", 'copy_merge_params({"key": key})'),
-        ("header", 'request.headers["X-Api-Key"] = key'),
-        ("bearer", 'f"Bearer {key}"'),
-        ("basic", "base64.b64encode"),
+        ("query", 'auth = QueryKeyAuth("key", API_KEY_ENV, source=SOURCE)'),
+        ("header", 'auth = HeaderKeyAuth("X-Api-Key", API_KEY_ENV, source=SOURCE)'),
+        ("bearer", "auth = BearerAuth(API_KEY_ENV, source=SOURCE)"),
+        ("basic", "auth = BasicKeyAuth(API_KEY_ENV, source=SOURCE)"),
     ]:
         dst = generate(
             template_src, tmp_path / location, source_slug="ex", **keyed("EX_API_KEY", location)
@@ -188,8 +188,9 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
         assert needle in (dst / "src/xippios/ex/_client.py").read_text(), location
     dst = generate(template_src, tmp_path / "open", source_slug="ex", **keyed(""))
     client = (dst / "src/xippios/ex/_client.py").read_text()
-    assert "_KeyAuth" not in client
+    assert "Auth" not in client
     assert "API_KEY_ENV: str | None = None" in client
+    assert "client = AsyncClient(config)" in client
 
 
 def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Path) -> None:

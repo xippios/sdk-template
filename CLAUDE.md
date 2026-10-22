@@ -57,6 +57,11 @@ uv run ruff check . && uv run ruff format --check .
   Never commit to `main`.
 - Conventional Commits; PR body is the definition-of-done checklist from sdk-core, ticked
   honestly (items about task functions and fixtures are n/a here; say so).
-- Never create a GitHub repository, tag, merge, release or touch secrets from a session.
-  `scripts/new-source.sh` is run by a human through `/new-source`.
+- `/new-source` is run by a session; `gh repo create` and the environment `PUT` inside
+  `scripts/new-source.sh` are not on the allow list, so the human approves each in the
+  permission prompt. Never run those commands outside the script.
+- Generated repositories record the template tag they were made from; `new-source.sh`
+  uses the latest tag (HEAD only while the template is untagged). Tagging is a human
+  action: ask for a tag when a template change should roll out with `copier update`.
+- Never tag, merge, release or touch secrets from a session.
 - Never read or print `.envrc`, `.env`, or any variable ending in `_API_KEY`.

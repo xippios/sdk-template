@@ -5,7 +5,7 @@
 #   -d key=value     answer to a question in copier.yml; unspecified questions take defaults
 #   --local-only     generate and run the checks, do not touch GitHub
 #   --dest DIR       where to generate (default: $XIPPIOS_SDK_ROOT or ~/github/sdk, then sdk-<slug>)
-#   --template SRC   template source (default: this repository, at --vcs-ref HEAD)
+#   --template SRC   template source (default: this repository at its latest tag, or HEAD when untagged)
 #
 # Everything that touches GitHub is at the end and runs only without --local-only.
 # Human steps that remain are printed last. This script never tags or merges.
@@ -38,8 +38,9 @@ fi
 
 answer() { grep -E "^$1:" "$dest/.copier-answers.yml" | sed -E "s/^$1: *//; s/^'(.*)'$/\1/; s/^\"(.*)\"$/\1/"; }
 
-echo "==> generating $dest"
-uv run --project "$here" copier copy --defaults --vcs-ref HEAD -d "source_slug=$slug" "${data[@]}" "$template" "$dest"
+ref="$(git -C "$template" describe --tags --abbrev=0 2>/dev/null || echo HEAD)"
+echo "==> generating $dest from template ref $ref"
+uv run --project "$here" copier copy --defaults --vcs-ref "$ref" -d "source_slug=$slug" "${data[@]}" "$template" "$dest"
 cd "$dest"
 source_name="$(answer source_name)"
 domain_topic="$(answer domain_topic)"

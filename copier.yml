@@ -37,9 +37,9 @@ upstream_docs_url:
 
 api_base_url:
   type: str
-  help: Base URL that request paths are joined onto
-  default: "{{ upstream_url }}"
-  validator: "{% if not api_base_url.startswith('https://') %}Must start with https://{% endif %}"
+  help: Base URL that request paths are joined onto; usually not the provider page
+  placeholder: https://quickstats.nass.usda.gov/api
+  validator: "{% if not api_base_url.startswith('https://') %}Required; must start with https://{% endif %}"
 
 api_key_env:
   type: str

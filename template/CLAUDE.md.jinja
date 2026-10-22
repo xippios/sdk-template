@@ -123,9 +123,9 @@ uv run xippios-{{ source_slug }}-mcp   # stdio; add --http for streamable HTTP
 - Open the PR with `gh pr create`; the body is the definition-of-done checklist from
   `.github/PULL_REQUEST_TEMPLATE.md`, ticked honestly, with assumptions listed.
 - `ruff` leaves `docs/` alone; never reformat the upstream snapshot.
-- Template updates: `uvx copier update --vcs-ref HEAD` pulls changes from sdk-template
-  into the infrastructure files (answers are in `.copier-answers.yml`; content files such
-  as `tasks.py`, `api/`, `tests/` and `README.md` are never overwritten). Review the diff
+- Template updates: `uvx copier update` pulls the latest sdk-template tag into the
+  infrastructure files (answers are in `.copier-answers.yml`; content files such as
+  `tasks.py`, `api/`, `tests/` and `README.md` are never overwritten). Review the diff
   and open a `chore/template-update` PR.
 - If a convention seems wrong, say so in the PR and follow it anyway; changing it is a
   PR against `sdk-core/docs/conventions.md` plus an ADR.

@@ -23,4 +23,6 @@ environment, and opens the scaffold PR. The script is the only thing that touche
 5. Report the PR URL and repeat the three human steps the script prints: PyPI pending
    publisher, API key into `.envrc` and as an org secret, review and merge.
 
-Never run `gh repo create`, `gh api` or `gh secret` yourself; never tag or merge.
+The script's `gh repo create` and `gh api -X PUT .../environments/pypi` will each raise a
+permission prompt; that approval is the human gate. Never run those commands outside the
+script, never run `gh secret`, never tag or merge.

@@ -15,8 +15,9 @@ that will maintain it.
 From Claude Code in this repository: `/new-source <slug>`. It collects the answers below,
 then runs `scripts/new-source.sh`, which generates the repo, runs every check on it,
 creates `github.com/xippios/sdk-<slug>` with topics and the `pypi` environment, and opens
-the scaffold PR. Three steps stay with a human and are printed at the end: the PyPI
-pending publisher, the API key in `.envrc` and as an org secret, and the review.
+the scaffold PR. The repository creation and the environment call raise permission
+prompts the human approves. Three steps stay with a human and are printed at the end:
+the PyPI pending publisher, the API key in `.envrc` and as an org secret, and the review.
 
 By hand:
 
@@ -40,7 +41,7 @@ Add `--local-only` to generate and check without touching GitHub.
 | `source_name` | human name | `USDA NASS Quick Stats` |
 | `upstream_url` | provider page, linked from the README | `https://quickstats.nass.usda.gov` |
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
-| `api_base_url` | base URL request paths join onto | `https://quickstats.nass.usda.gov/api` |
+| `api_base_url` | base URL request paths join onto; required, usually not the provider page | `https://quickstats.nass.usda.gov/api` |
 | `api_key_env` | environment variable with the key; empty for open APIs | `NASS_API_KEY` |
 | `api_key_location` | `query`, `header`, `bearer` or `basic` | `query` |
 | `api_key_name` | query parameter or header name | `key` |
@@ -71,7 +72,7 @@ are added.
 Template changes roll out with `copier update`, run inside a generated repository:
 
 ```bash
-uvx copier update --vcs-ref HEAD     # or a template tag, e.g. --vcs-ref v0.2.0
+uvx copier update                    # to the latest template tag; --vcs-ref HEAD for main
 git diff                             # review, then open a chore/template-update PR
 ```
 
