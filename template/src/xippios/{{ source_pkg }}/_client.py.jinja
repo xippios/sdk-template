@@ -1,0 +1,54 @@
+"""The configured ``xippios.core`` client for {{ source_name }}.
+
+One ``AsyncClient`` for the whole package: task functions share its rate limiter and
+cache, and the same instance serves the sync facades and the MCP server.
+"""
+
+{% if api_key_env %}
+{% if api_key_location == 'query' %}
+from xippios.core import AsyncClient, ClientConfig, QueryKeyAuth, RateLimit
+{% elif api_key_location == 'header' %}
+from xippios.core import AsyncClient, ClientConfig, HeaderKeyAuth, RateLimit
+{% elif api_key_location == 'bearer' %}
+from xippios.core import AsyncClient, BearerAuth, ClientConfig, RateLimit
+{% else %}
+from xippios.core import AsyncClient, BasicKeyAuth, ClientConfig, RateLimit
+{% endif %}
+{% else %}
+from xippios.core import AsyncClient, ClientConfig, RateLimit
+{% endif %}
+
+from xippios.{{ source_pkg }}._version import __version__
+
+SOURCE = "{{ source_slug }}"
+BASE_URL = "{{ api_base_url }}"
+{% if api_key_env %}
+API_KEY_ENV = "{{ api_key_env }}"  # pragma: allowlist secret (a variable name, not a key)
+{% else %}
+API_KEY_ENV: str | None = None
+{% endif %}
+RATE_LIMIT = RateLimit(per_minute={{ rate_limit_per_minute }})
+
+config = ClientConfig(
+    source=SOURCE,
+    version=__version__,
+    base_url=BASE_URL,
+    rate_limit=RATE_LIMIT,
+)
+{% if api_key_env %}
+# The key is read from the environment on the first request, never at import.
+{% if api_key_location == 'query' %}
+auth = QueryKeyAuth("{{ api_key_name }}", API_KEY_ENV, source=SOURCE)
+{% elif api_key_location == 'header' %}
+auth = HeaderKeyAuth("{{ api_key_name }}", API_KEY_ENV, source=SOURCE)
+{% elif api_key_location == 'bearer' %}
+auth = BearerAuth(API_KEY_ENV, source=SOURCE)
+{% else %}
+auth = BasicKeyAuth(API_KEY_ENV, source=SOURCE)
+{% endif %}
+client = AsyncClient(config, auth=auth)
+{% else %}
+client = AsyncClient(config)
+{% endif %}
+
+__all__ = ["API_KEY_ENV", "BASE_URL", "RATE_LIMIT", "SOURCE", "client", "config"]
