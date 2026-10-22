@@ -3,13 +3,14 @@
 # full check suite on it (uv sync, ruff, mypy, pytest, pre-commit). No GitHub involved.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF] [--keep] [-d key=value ...]
-#   --core-ref REF   git ref of sdk-core to depend on (default: main; "" = PyPI release)
+#   --core-ref REF   git ref of sdk-core to depend on; default "" = the PyPI release,
+#                    e.g. --core-ref main to prove against unreleased core
 #   --keep           leave the generated repository in place
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dest=""
-core_ref="main"
+core_ref=""
 keep=0
 extra=()
 while [ $# -gt 0 ]; do
