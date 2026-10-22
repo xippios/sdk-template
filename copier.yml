@@ -1,0 +1,127 @@
+# Copier template for xippios-<source> repositories. Questions first; copier settings
+# (keys starting with "_") at the end. See README.md for how to use it.
+
+source_slug:
+  type: str
+  help: >-
+    Source slug: the provider and, where one provider has several APIs, the API.
+    Becomes repo sdk-<slug>, distribution xippios-<slug> and import xippios.<slug_with_underscores>.
+  placeholder: usda-nass
+  validator: >-
+    {% if not (source_slug | regex_search('^[a-z0-9]+(-[a-z0-9]+)*$')) %}
+    Use lowercase letters, digits and single hyphens, e.g. usda-nass
+    {% endif %}
+
+source_pkg:
+  type: str
+  default: "{{ source_slug | replace('-', '_') }}"
+  when: false
+
+source_name:
+  type: str
+  help: Human-readable name of the source
+  placeholder: USDA NASS Quick Stats
+  validator: "{% if not source_name %}Required{% endif %}"
+
+upstream_url:
+  type: str
+  help: The provider's page for this API; linked from the README
+  placeholder: https://quickstats.nass.usda.gov
+  validator: "{% if not upstream_url.startswith('https://') %}Must start with https://{% endif %}"
+
+upstream_docs_url:
+  type: str
+  help: Where the API documentation lives; /refresh-upstream snapshots it into docs/upstream/
+  placeholder: https://quickstats.nass.usda.gov/api
+  validator: "{% if not upstream_docs_url.startswith('https://') %}Must start with https://{% endif %}"
+
+api_base_url:
+  type: str
+  help: Base URL that request paths are joined onto
+  default: "{{ upstream_url }}"
+  validator: "{% if not api_base_url.startswith('https://') %}Must start with https://{% endif %}"
+
+api_key_env:
+  type: str
+  help: Environment variable holding the API key, e.g. NASS_API_KEY. Leave empty if the API needs no key.
+  default: ""
+  validator: >-
+    {% if api_key_env and not (api_key_env | regex_search('^[A-Z][A-Z0-9_]*_API_KEY$')) %}
+    Use UPPER_SNAKE_CASE ending in _API_KEY, e.g. NASS_API_KEY
+    {% endif %}
+
+api_key_location:
+  type: str
+  help: How the key is sent
+  choices:
+    query parameter: query
+    request header: header
+    bearer token in the Authorization header: bearer
+    HTTP basic auth with the key as user name: basic
+  default: query
+  when: "{{ api_key_env != '' }}"
+
+api_key_name:
+  type: str
+  help: Name of the query parameter or header that carries the key
+  default: "{{ 'key' if api_key_location == 'query' else 'X-Api-Key' }}"
+  when: "{{ api_key_env != '' and api_key_location in ['query', 'header'] }}"
+
+rate_limit_per_minute:
+  type: int
+  help: The upstream's documented request limit per minute; enforced client-side
+  default: 60
+  validator: "{% if rate_limit_per_minute < 1 %}Must be at least 1{% endif %}"
+
+needs_write_tools:
+  type: bool
+  help: Does this source need tools that write to the upstream? (separate, confirm-gated MCP server)
+  default: false
+
+domain_topic:
+  type: str
+  help: GitHub topic for the domain, e.g. agriculture, trade-data, accounting
+  placeholder: agriculture
+  validator: >-
+    {% if not (domain_topic | regex_search('^[a-z0-9]+(-[a-z0-9]+)*$')) %}
+    Use lowercase letters, digits and single hyphens, e.g. trade-data
+    {% endif %}
+
+core_git_ref:
+  type: str
+  help: >-
+    Development only. A git ref of xippios/sdk-core to depend on while xippios-core is not
+    on PyPI, e.g. main. Leave empty to depend on the published package.
+  default: ""
+
+_min_copier_version: "9.0.0"
+_subdirectory: template
+_templates_suffix: .jinja
+_answers_file: .copier-answers.yml
+_envops:
+  trim_blocks: true
+  lstrip_blocks: true
+# Files a session fills with source-specific content: never overwritten by `copier update`.
+_skip_if_exists:
+  - CHANGELOG.md
+  - README.md
+  - docs/upstream/**
+  - src/xippios/*/api/**
+  - src/xippios/*/models.py
+  - src/xippios/*/tasks.py
+  - src/xippios/*/tasks_write.py
+  - src/xippios/*/reference/**
+  - tests/**
+_message_after_copy: |
+
+  sdk-{{ source_slug }} generated.
+
+  Human steps that remain after the scaffold PR is open:
+    1. PyPI: add a pending trusted publisher for xippios-{{ source_slug }}
+       (owner xippios, repo sdk-{{ source_slug }}, workflow publish.yml, environment pypi).
+  {% if api_key_env %}
+    2. Put {{ api_key_env }} into ~/github/sdk/.envrc and set it as an org secret.
+  {% else %}
+    2. No API key is needed for this source.
+  {% endif %}
+    3. Review the PR (read CLAUDE.md as a new engineer would), merge, tag v0.1.0.

@@ -1,0 +1,85 @@
+"""The configured ``xippios.core`` client for {{ source_name }}.
+
+One ``AsyncClient`` for the whole package: task functions share its rate limiter and
+cache, and the same instance serves the sync facades and the MCP server.
+"""
+
+{% if api_key_env %}
+{% if api_key_location == 'basic' %}
+import base64
+{% endif %}
+from collections.abc import Generator
+
+import httpx
+from xippios.core import AsyncClient, ClientConfig, RateLimit, resolve_api_key
+{% else %}
+from xippios.core import AsyncClient, ClientConfig, RateLimit
+{% endif %}
+
+from xippios.{{ source_pkg }}._version import __version__
+
+SOURCE = "{{ source_slug }}"
+BASE_URL = "{{ api_base_url }}"
+{% if api_key_env %}
+API_KEY_ENV = "{{ api_key_env }}"  # pragma: allowlist secret (a variable name, not a key)
+{% else %}
+API_KEY_ENV: str | None = None
+{% endif %}
+RATE_LIMIT = RateLimit(per_minute={{ rate_limit_per_minute }})
+{% if api_key_env %}
+{% if api_key_location == 'query' %}
+{% set key_where = 'as the ``' ~ api_key_name ~ '`` query parameter' %}
+{% elif api_key_location == 'header' %}
+{% set key_where = 'as the ``' ~ api_key_name ~ '`` header' %}
+{% elif api_key_location == 'bearer' %}
+{% set key_where = 'as a bearer token' %}
+{% else %}
+{% set key_where = 'as the HTTP basic user name' %}
+{% endif %}
+
+
+class _KeyAuth(httpx.Auth):
+    """Attach the key from ``{{ api_key_env }}`` {{ key_where }}.
+
+    The key is resolved on the first request rather than at import, so the package
+    imports without credentials; fixture-backed tests set a placeholder.
+    """
+
+    def __init__(self) -> None:
+        self._key: str | None = None
+
+    def _resolve(self) -> str:
+        if self._key is None:
+            secret = resolve_api_key(API_KEY_ENV, source=SOURCE)
+            self._key = secret.get_secret_value() if secret is not None else ""
+        return self._key
+
+    def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
+        key = self._resolve()
+        {% if api_key_location == 'query' %}
+        request.url = request.url.copy_merge_params({"{{ api_key_name }}": key})
+        {% elif api_key_location == 'header' %}
+        request.headers["{{ api_key_name }}"] = key
+        {% elif api_key_location == 'bearer' %}
+        request.headers["Authorization"] = f"Bearer {key}"
+        {% else %}
+        token = base64.b64encode(f"{key}:".encode()).decode("ascii")
+        request.headers["Authorization"] = f"Basic {token}"
+        {% endif %}
+        yield request
+{% endif %}
+
+
+config = ClientConfig(
+    source=SOURCE,
+    version=__version__,
+    base_url=BASE_URL,
+    rate_limit=RATE_LIMIT,
+)
+{% if api_key_env %}
+client = AsyncClient(config, auth=_KeyAuth())
+{% else %}
+client = AsyncClient(config)
+{% endif %}
+
+__all__ = ["API_KEY_ENV", "BASE_URL", "RATE_LIMIT", "SOURCE", "client", "config"]
