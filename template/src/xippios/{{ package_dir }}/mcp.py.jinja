@@ -12,8 +12,8 @@ from xippios.{{ source_pkg }}._version import __version__
 
 INSTRUCTIONS = (
     "{{ source_name }} via xippios. "
-    "Tools are read-only. Where a {{ tool_prefix }}_list_* tool exists for a parameter, "
-    "call it first to find valid codes, then query."
+    "Tools are read-only. Where list tools ({{ tool_prefix }}_list_*) exist, "
+    "call them first to find valid codes, then query."
 )
 
 server = build_server(

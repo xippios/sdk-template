@@ -333,7 +333,7 @@ def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
     prefix = str(VARIANTS[name]["source_slug"]).replace("-", "_")
     mcp = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/mcp.py").read_text()
     assert "Call the list tools first" not in mcp
-    assert f"Where a {prefix}_list_* tool exists" in mcp
+    assert f"Where list tools ({prefix}_list_*) exist" in mcp
 
 
 def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:
