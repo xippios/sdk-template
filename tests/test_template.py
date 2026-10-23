@@ -223,10 +223,13 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
         dst = generate(
             template_src, tmp_path / location, source_slug="ex", **keyed("EX_API_KEY", location)
         )
-        assert needle in (dst / "src/xippios/ex/_client.py").read_text(), location
+        client = (dst / "src/xippios/ex/_client.py").read_text()
+        assert needle in client, location
+        assert '"SOURCE", "auth", "client"' in client, "the conftest imports auth"
     dst = generate(template_src, tmp_path / "open", source_slug="ex", **keyed(""))
     client = (dst / "src/xippios/ex/_client.py").read_text()
     assert "Auth" not in client
+    assert '"auth"' not in client
     assert "API_KEY_ENV: str | None = None" in client
     assert "client = AsyncClient(config)" in client
 
