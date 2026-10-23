@@ -4,10 +4,10 @@ The snapshot in `docs/upstream/` is the reference for every endpoint wrapper
 (ADR-0003). It is refreshed deliberately, by PR, so changes are visible as diffs.
 
 1. Work on a branch `docs/upstream-<yyyy-mm-dd>`.
-2. If the repository has `scripts/refresh_upstream.py` (a source whose documentation
-   needs a reproducible capture, as sdk-comtrade's ApiDocs does), run it from the
-   repository root as its docstring says, usually `uv run scripts/refresh_upstream.py`,
-   and skip the by-hand fetch. Otherwise fetch the documentation pages from
+2. A source whose documentation needs a reproducible capture keeps
+   `scripts/refresh_upstream.py`. Where it exists, run it from the repository root as its
+   docstring says, usually `uv run scripts/refresh_upstream.py`, and skip the by-hand
+   fetch. Otherwise fetch the documentation pages from
    {{ upstream_docs_url }} (and any pages the arguments name). Save each page under
    `docs/upstream/` as Markdown where the page is HTML (convert, keep headings, tables and
    parameter lists; drop navigation) or as the original file where it is JSON, YAML,
