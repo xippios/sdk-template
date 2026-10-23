@@ -316,3 +316,12 @@ def test_upstream_snapshot_is_kept_byte_for_byte(generated: tuple[str, Path]) ->
     """Git never converts line endings under docs/upstream/: upstream files may carry CRLF."""
     _, dst = generated
     assert (dst / ".gitattributes").read_text() == "docs/upstream/** -text\n"
+
+
+def test_models_use_validation_alias(generated: tuple[str, Path]) -> None:
+    """Adapters serialise by alias: a plain alias would hand agents the upstream spelling."""
+    _, dst = generated
+    plain_alias = re.compile(r"Field\((?:[^)]*[\s,])?alias=")
+    for path in dst.rglob("*.py"):
+        assert not plain_alias.search(path.read_text()), path
+    assert "`Field(validation_alias=...)`" in (dst / ".claude/commands/add-endpoint.md").read_text()
