@@ -22,8 +22,8 @@ def placeholder_api_key(
 ) -> str | None:
     """Every test but a live one sends the placeholder key, whatever the shell holds.
 
-    Setting the variable is not enough: the client's auth resolves the key once per
-    process and caches it, so a live test earlier in the same run would leave the real
+    Setting the variable is not enough: the client's auth resolves the key once per auth
+    object and caches it, so a live test earlier in the same run would leave the real
     key in place. ``auth.key``, through which every ``xippios.core`` auth class reads the
     key, is pinned to the placeholder as well; both come back after the test. Returns
     the placeholder, or ``None`` in a live test, which uses the key in the environment.
