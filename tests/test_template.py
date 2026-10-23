@@ -1,5 +1,7 @@
 """Generation tests: variants render, pass ruff, and respect skip-if-exists."""
 
+import json
+import re
 import shutil
 import subprocess
 import sys
@@ -87,6 +89,7 @@ EXPECTED_FILES = [
     "pyproject.toml",
     ".pre-commit-config.yaml",
     ".secrets.baseline",
+    ".gitattributes",
     ".gitignore",
     ".python-version",
     ".github/workflows/ci.yml",
@@ -220,10 +223,13 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
         dst = generate(
             template_src, tmp_path / location, source_slug="ex", **keyed("EX_API_KEY", location)
         )
-        assert needle in (dst / "src/xippios/ex/_client.py").read_text(), location
+        client = (dst / "src/xippios/ex/_client.py").read_text()
+        assert needle in client, location
+        assert '"SOURCE", "auth", "client"' in client, "the conftest imports auth"
     dst = generate(template_src, tmp_path / "open", source_slug="ex", **keyed(""))
     client = (dst / "src/xippios/ex/_client.py").read_text()
     assert "Auth" not in client
+    assert '"auth"' not in client
     assert "API_KEY_ENV: str | None = None" in client
     assert "client = AsyncClient(config)" in client
 
@@ -256,3 +262,86 @@ def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Pa
         assert f"`{prefix}_" in text, rel
         if "." in dotted:
             assert f"{dotted}_" not in text, rel
+
+
+OPEN_CONFTEST = """import pytest
+
+pytest_plugins = ["xippios.core.testing.plugin"]
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+"""
+
+
+def test_conftest_sends_the_placeholder_unless_live(generated: tuple[str, Path]) -> None:
+    """Keyed: every test but a live one sends the placeholder, whatever the shell holds.
+
+    The variants cover all four ways a key is sent; each auth class reads it through
+    ``key``, which the fixture pins. The open variant has no key handling at all.
+    """
+    name, dst = generated
+    answers = VARIANTS[name]
+    conftest = (dst / "tests/conftest.py").read_text()
+    test_tasks = (dst / "tests/test_tasks.py").read_text()
+    if not answers["api_key_env"]:
+        assert conftest == OPEN_CONFTEST
+        assert "placeholder" not in test_tasks
+        return
+    dotted = package_dir(answers).replace("/", ".")
+    assert f"from xippios.{dotted}._client import API_KEY_ENV, auth" in conftest
+    assert 'if "live" in request.keywords:' in conftest
+    assert "monkeypatch.setenv(API_KEY_ENV, PLACEHOLDER_KEY)" in conftest
+    assert 'monkeypatch.setattr(auth, "key", lambda: PLACEHOLDER_KEY)' in conftest
+    assert "os.environ" not in conftest, "the placeholder must not depend on the shell"
+    assert "def test_replay_tests_send_the_placeholder_key" in test_tasks
+    assert "sent = next(auth.sync_auth_flow(" in test_tasks, "assert on what goes out"
+
+
+def test_secret_detection_skips_the_answers_file(generated: tuple[str, Path]) -> None:
+    """The hook and a baseline rescan exclude the same files, the answers file among them."""
+    _, dst = generated
+    baseline = json.loads((dst / ".secrets.baseline").read_text())
+    (excluded,) = [
+        pattern
+        for entry in baseline["filters_used"]
+        if entry["path"].endswith(".should_exclude_file")
+        for pattern in entry["pattern"]
+    ]
+    config = yaml.safe_load((dst / ".pre-commit-config.yaml").read_text())
+    (hook,) = [h for repo in config["repos"] for h in repo["hooks"] if h["id"] == "detect-secrets"]
+    for name in ["uv.lock", ".copier-answers.yml"]:
+        assert re.search(excluded, name), name
+        assert re.search(hook["exclude"], name), name
+
+
+def test_upstream_snapshot_is_kept_byte_for_byte(generated: tuple[str, Path]) -> None:
+    """Git never converts line endings under docs/upstream/: upstream files may carry CRLF."""
+    _, dst = generated
+    assert (dst / ".gitattributes").read_text() == "docs/upstream/** -text\n"
+
+
+def test_models_use_validation_alias(generated: tuple[str, Path]) -> None:
+    """Adapters serialise by alias: a plain alias would hand agents the upstream spelling."""
+    _, dst = generated
+    plain_alias = re.compile(r"Field\((?:[^)]*[\s,])?alias=")
+    for path in dst.rglob("*.py"):
+        assert not plain_alias.search(path.read_text()), path
+    assert "`Field(validation_alias=...)`" in (dst / ".claude/commands/add-endpoint.md").read_text()
+
+
+def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
+    """A new repository has no list_<thing> tool yet; the wording must hold either way."""
+    name, dst = generated
+    prefix = str(VARIANTS[name]["source_slug"]).replace("-", "_")
+    mcp = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/mcp.py").read_text()
+    assert "Call the list tools first" not in mcp
+    assert f"Where list tools ({prefix}_list_*) exist" in mcp
+
+
+def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:
+    """Belt and braces: no variant of a local env file is ever committed."""
+    _, dst = generated
+    ignored = set((dst / ".gitignore").read_text().splitlines())
+    assert {".env", ".env.*", ".envrc", ".envrc.*"} <= ignored

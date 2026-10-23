@@ -51,4 +51,8 @@ client = AsyncClient(config, auth=auth)
 client = AsyncClient(config)
 {% endif %}
 
+{% if api_key_env %}
+__all__ = ["API_KEY_ENV", "BASE_URL", "RATE_LIMIT", "SOURCE", "auth", "client", "config"]
+{% else %}
 __all__ = ["API_KEY_ENV", "BASE_URL", "RATE_LIMIT", "SOURCE", "client", "config"]
+{% endif %}

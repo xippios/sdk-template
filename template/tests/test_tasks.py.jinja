@@ -1,16 +1,64 @@
 """Structural checks every task must satisfy. Per-task tests with recorded fixtures go below."""
 
+{% if api_key_env and api_key_location == 'basic' %}
+import base64
+{% endif %}
 import inspect
+{% if api_key_env %}
+import os
+{% endif %}
 
+{% if api_key_env %}
+import httpx
+{% endif %}
 import pytest
 
 from xippios.{{ source_pkg }} import __version__, tasks
+{% if api_key_env %}
+from xippios.{{ source_pkg }}._client import API_KEY_ENV, BASE_URL, auth
+
+SHELL_KEY = os.environ.get(API_KEY_ENV)
+"""The key the shell held when the tests were collected, before any fixture; never printed."""
+{% endif %}
 
 TASKS = [getattr(tasks, name) for name in tasks.__all__]
 
 
 def test_package_has_a_version() -> None:
     assert __version__
+{% if api_key_env %}
+
+
+def test_replay_tests_send_the_placeholder_key(placeholder_api_key: str | None) -> None:
+    """A request sent outside a live test carries the placeholder, never the shell's key.
+
+    Every assertion is on a boolean, so a failure says where the key went, never the key.
+    """
+    assert placeholder_api_key is not None
+    env_holds_placeholder = os.environ[API_KEY_ENV] == placeholder_api_key
+    assert env_holds_placeholder, f"{API_KEY_ENV} does not hold the placeholder"
+    sent = next(auth.sync_auth_flow(httpx.Request("GET", BASE_URL)))
+{% if api_key_location == 'query' %}
+    carried = sent.url.params.get(auth.param, "")
+    where = f"the {auth.param} query parameter"
+{% elif api_key_location == 'header' %}
+    carried = sent.headers.get(auth.header, "")
+    where = f"the {auth.header} header"
+{% elif api_key_location == 'bearer' %}
+    carried = sent.headers.get("Authorization", "").removeprefix("Bearer ")
+    where = "the bearer Authorization header"
+{% else %}
+    encoded = sent.headers.get("Authorization", "").removeprefix("Basic ")
+    carried = base64.b64decode(encoded).decode().partition(":")[0]
+    where = "the basic auth user name"
+{% endif %}
+    sends_placeholder = carried == placeholder_api_key
+    assert sends_placeholder, f"{where} does not carry the placeholder"
+    if SHELL_KEY and placeholder_api_key != SHELL_KEY:
+        outgoing = [str(sent.url), *sent.headers.values(), carried]
+        leaked = any(SHELL_KEY in part for part in outgoing)
+        assert not leaked, f"the key in {API_KEY_ENV} went out with the request"
+{% endif %}
 
 
 @pytest.mark.parametrize("task", TASKS, ids=tasks.__all__)
