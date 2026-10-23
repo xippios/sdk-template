@@ -14,7 +14,7 @@ template/                what gets generated; *.jinja files are rendered, others
   tests/                 conftest (plugin), structural task tests, adapter tests, live smoke
   .claude/commands/      add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
   CLAUDE.md.jinja        the contract a session gets in a generated repo; keep it readable by a new engineer
-  .github/, .pre-commit-config.yaml, .secrets.baseline, LICENSE   copied from sdk-core, verbatim
+  .github/, .pre-commit-config.yaml, .secrets.baseline, LICENSE   copied from sdk-core, verbatim but for one exclusion (Rules)
   .gitattributes         docs/upstream/** -text: the snapshot stays byte for byte (CRLF, mixed endings)
 scripts/new-source.sh    generate + checks + GitHub repo + PR (the /new-source command)
 scripts/prove.sh         generate sdk-example from the working tree and run every check on it
@@ -33,9 +33,10 @@ tests/test_template.py   generation variants, ruff on the output, skip-if-exists
 - Workflow files are copied verbatim (no `.jinja`) so GitHub's `${{ }}` never meets Jinja.
 - The verbatim files mirror sdk-core. When sdk-core changes one of them, change it here
   too and bump the template; `copier update` carries it into the generated repos.
-  `.secrets.baseline` deviates from core's by one exclusion, `.copier-answers.yml` in
-  `should_exclude_file`, matching the pre-commit hook's exclude: the answers file names
-  the key's variable, so a baseline rescan would otherwise record it as a keyword hit.
+  Two deviate from core by the same one exclusion, `.copier-answers.yml`, in the
+  detect-secrets hook's `exclude` in `.pre-commit-config.yaml` and in `should_exclude_file`
+  in `.secrets.baseline`, because the answers file names the key's variable and trips the
+  keyword check on commit and on a baseline rescan alike.
 - Jinja renders with `trim_blocks` and `lstrip_blocks`, so a line holding only a block tag
   disappears. Mind blank lines in generated Python: the formatter check is strict.
 - Keep `copier.yml` questions mechanical: every answer must come from the upstream
