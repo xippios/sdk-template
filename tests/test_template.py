@@ -256,3 +256,37 @@ def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Pa
         assert f"`{prefix}_" in text, rel
         if "." in dotted:
             assert f"{dotted}_" not in text, rel
+
+
+OPEN_CONFTEST = """import pytest
+
+pytest_plugins = ["xippios.core.testing.plugin"]
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+"""
+
+
+def test_conftest_sends_the_placeholder_unless_live(generated: tuple[str, Path]) -> None:
+    """Keyed: every test but a live one sends the placeholder, whatever the shell holds.
+
+    The variants cover all four ways a key is sent; each auth class reads it through
+    ``key``, which the fixture pins. The open variant has no key handling at all.
+    """
+    name, dst = generated
+    answers = VARIANTS[name]
+    conftest = (dst / "tests/conftest.py").read_text()
+    test_tasks = (dst / "tests/test_tasks.py").read_text()
+    if not answers["api_key_env"]:
+        assert conftest == OPEN_CONFTEST
+        assert "placeholder" not in test_tasks
+        return
+    dotted = package_dir(answers).replace("/", ".")
+    assert f"from xippios.{dotted}._client import API_KEY_ENV, auth" in conftest
+    assert 'if "live" in request.keywords:' in conftest
+    assert "monkeypatch.setenv(API_KEY_ENV, PLACEHOLDER_KEY)" in conftest
+    assert 'monkeypatch.setattr(auth, "key", lambda: PLACEHOLDER_KEY)' in conftest
+    assert "os.environ" not in conftest, "the placeholder must not depend on the shell"
+    assert "def test_replay_tests_send_the_placeholder_key" in test_tasks

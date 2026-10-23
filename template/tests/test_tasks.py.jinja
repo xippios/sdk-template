@@ -1,16 +1,31 @@
 """Structural checks every task must satisfy. Per-task tests with recorded fixtures go below."""
 
 import inspect
+{% if api_key_env %}
+import os
+{% endif %}
 
 import pytest
 
 from xippios.{{ source_pkg }} import __version__, tasks
+{% if api_key_env %}
+from xippios.{{ source_pkg }}._client import API_KEY_ENV, auth
+{% endif %}
 
 TASKS = [getattr(tasks, name) for name in tasks.__all__]
 
 
 def test_package_has_a_version() -> None:
     assert __version__
+{% if api_key_env %}
+
+
+def test_replay_tests_send_the_placeholder_key(placeholder_api_key: str | None) -> None:
+    """Whatever key the shell holds, a test that is not live sends the placeholder."""
+    assert placeholder_api_key is not None
+    assert os.environ[API_KEY_ENV] == placeholder_api_key
+    assert auth.key() == placeholder_api_key
+{% endif %}
 
 
 @pytest.mark.parametrize("task", TASKS, ids=tasks.__all__)
