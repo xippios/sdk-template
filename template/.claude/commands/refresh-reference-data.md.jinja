@@ -16,7 +16,8 @@ with `xippios.core.reference`. It comes from the upstream, never from memory.
    `uv run ruff format src/xippios/{{ package_dir }}/enums.py && uv run ruff check --fix src/xippios/{{ package_dir }}/enums.py`.
    `render_str_enums` in xippios-core currently writes `__all__` unsorted on one line
    (ruff RUF022 and, past 100 characters, E501); formatting first leaves only the sort
-   for `--fix`. This step goes away when core fixes the rendering.
+   for `--fix`. The fix in core is tracked as row 12 of the family's `COORDINATION.md`
+   queue (`render_str_enums`); drop this step once a core release carries it.
 5. Update the provenance table in `reference/README.md`: file, origin (endpoint or
    URL), fetch date.
 6. If a `list_<thing>` task does not exist yet for this list, add one with
