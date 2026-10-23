@@ -15,6 +15,7 @@ template/                what gets generated; *.jinja files are rendered, others
   .claude/commands/      add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
   CLAUDE.md.jinja        the contract a session gets in a generated repo; keep it readable by a new engineer
   .github/, .pre-commit-config.yaml, .secrets.baseline, LICENSE   copied from sdk-core, verbatim
+  .gitattributes         docs/upstream/** -text: the snapshot stays byte for byte (CRLF, mixed endings)
 scripts/new-source.sh    generate + checks + GitHub repo + PR (the /new-source command)
 scripts/prove.sh         generate sdk-example from the working tree and run every check on it
 tests/test_template.py   generation variants, ruff on the output, skip-if-exists behaviour

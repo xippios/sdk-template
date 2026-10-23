@@ -67,6 +67,7 @@ sdk-<slug>/
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
   .claude/settings.json  .github/workflows/{ci,publish}.yml  .github/PULL_REQUEST_TEMPLATE.md
   CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
+  .gitattributes       docs/upstream/** -text, so upstream files keep their bytes and line endings
 ```
 
 The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit` before

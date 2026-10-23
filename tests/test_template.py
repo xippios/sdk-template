@@ -89,6 +89,7 @@ EXPECTED_FILES = [
     "pyproject.toml",
     ".pre-commit-config.yaml",
     ".secrets.baseline",
+    ".gitattributes",
     ".gitignore",
     ".python-version",
     ".github/workflows/ci.yml",
@@ -309,3 +310,9 @@ def test_secret_detection_skips_the_answers_file(generated: tuple[str, Path]) ->
     for name in ["uv.lock", ".copier-answers.yml"]:
         assert re.search(excluded, name), name
         assert re.search(hook["exclude"], name), name
+
+
+def test_upstream_snapshot_is_kept_byte_for_byte(generated: tuple[str, Path]) -> None:
+    """Git never converts line endings under docs/upstream/: upstream files may carry CRLF."""
+    _, dst = generated
+    assert (dst / ".gitattributes").read_text() == "docs/upstream/** -text\n"
