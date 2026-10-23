@@ -296,6 +296,7 @@ def test_conftest_sends_the_placeholder_unless_live(generated: tuple[str, Path])
     assert 'monkeypatch.setattr(auth, "key", lambda: PLACEHOLDER_KEY)' in conftest
     assert "os.environ" not in conftest, "the placeholder must not depend on the shell"
     assert "def test_replay_tests_send_the_placeholder_key" in test_tasks
+    assert "sent = next(auth.sync_auth_flow(" in test_tasks, "assert on what goes out"
 
 
 def test_secret_detection_skips_the_answers_file(generated: tuple[str, Path]) -> None:
