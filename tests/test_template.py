@@ -1,5 +1,7 @@
 """Generation tests: variants render, pass ruff, and respect skip-if-exists."""
 
+import json
+import re
 import shutil
 import subprocess
 import sys
@@ -290,3 +292,20 @@ def test_conftest_sends_the_placeholder_unless_live(generated: tuple[str, Path])
     assert 'monkeypatch.setattr(auth, "key", lambda: PLACEHOLDER_KEY)' in conftest
     assert "os.environ" not in conftest, "the placeholder must not depend on the shell"
     assert "def test_replay_tests_send_the_placeholder_key" in test_tasks
+
+
+def test_secret_detection_skips_the_answers_file(generated: tuple[str, Path]) -> None:
+    """The hook and a baseline rescan exclude the same files, the answers file among them."""
+    _, dst = generated
+    baseline = json.loads((dst / ".secrets.baseline").read_text())
+    (excluded,) = [
+        pattern
+        for entry in baseline["filters_used"]
+        if entry["path"].endswith(".should_exclude_file")
+        for pattern in entry["pattern"]
+    ]
+    config = yaml.safe_load((dst / ".pre-commit-config.yaml").read_text())
+    (hook,) = [h for repo in config["repos"] for h in repo["hooks"] if h["id"] == "detect-secrets"]
+    for name in ["uv.lock", ".copier-answers.yml"]:
+        assert re.search(excluded, name), name
+        assert re.search(hook["exclude"], name), name

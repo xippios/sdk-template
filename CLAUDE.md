@@ -32,6 +32,9 @@ tests/test_template.py   generation variants, ruff on the output, skip-if-exists
 - Workflow files are copied verbatim (no `.jinja`) so GitHub's `${{ }}` never meets Jinja.
 - The verbatim files mirror sdk-core. When sdk-core changes one of them, change it here
   too and bump the template; `copier update` carries it into the generated repos.
+  `.secrets.baseline` deviates from core's by one exclusion, `.copier-answers.yml` in
+  `should_exclude_file`, matching the pre-commit hook's exclude: the answers file names
+  the key's variable, so a baseline rescan would otherwise record it as a keyword hit.
 - Jinja renders with `trim_blocks` and `lstrip_blocks`, so a line holding only a block tag
   disappears. Mind blank lines in generated Python: the formatter check is strict.
 - Keep `copier.yml` questions mechanical: every answer must come from the upstream
