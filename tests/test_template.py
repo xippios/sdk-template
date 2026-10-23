@@ -325,3 +325,12 @@ def test_models_use_validation_alias(generated: tuple[str, Path]) -> None:
     for path in dst.rglob("*.py"):
         assert not plain_alias.search(path.read_text()), path
     assert "`Field(validation_alias=...)`" in (dst / ".claude/commands/add-endpoint.md").read_text()
+
+
+def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
+    """A new repository has no list_<thing> tool yet; the wording must hold either way."""
+    name, dst = generated
+    prefix = str(VARIANTS[name]["source_slug"]).replace("-", "_")
+    mcp = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/mcp.py").read_text()
+    assert "Call the list tools first" not in mcp
+    assert f"Where a {prefix}_list_* tool exists" in mcp
