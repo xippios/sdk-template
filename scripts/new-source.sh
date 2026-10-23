@@ -100,7 +100,7 @@ git switch -q -c feature/scaffold
 git add -A
 git commit -q -m "chore: scaffold xippios-$slug from sdk-template"
 git push -q -u origin feature/scaffold
-gh pr create --title "feat: scaffold xippios-$slug from sdk-template" \
+gh pr create --title "chore: scaffold xippios-$slug from sdk-template" \
   --body-file .github/PULL_REQUEST_TEMPLATE.md
 
 cat <<MSG
