@@ -334,3 +334,10 @@ def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
     mcp = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/mcp.py").read_text()
     assert "Call the list tools first" not in mcp
     assert f"Where a {prefix}_list_* tool exists" in mcp
+
+
+def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:
+    """Belt and braces: no variant of a local env file is ever committed."""
+    _, dst = generated
+    ignored = set((dst / ".gitignore").read_text().splitlines())
+    assert {".env", ".env.*", ".envrc", ".envrc.*"} <= ignored
