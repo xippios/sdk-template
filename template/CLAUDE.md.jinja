@@ -153,7 +153,10 @@ The API needs no key, so the workflow uses no secret.
 - Template updates: `uvx copier update` pulls the latest sdk-template tag into the
   infrastructure files (answers are in `.copier-answers.yml`; content files such as
   `tasks.py`, `api/`, `tests/` and `README.md` are never overwritten). Review the diff
-  and open a `chore/template-update` PR.
+  and open a `chore/template-update` PR. The template changes to files `copier update`
+  never touches are listed per release under "Hand-apply" in sdk-template's
+  [CHANGELOG](https://github.com/xippios/sdk-template/blob/main/CHANGELOG.md); port them
+  by hand in the same PR.
 - If a convention seems wrong, say so in the PR and follow it anyway; changing it is a
   PR against `sdk-core/docs/conventions.md` plus an ADR.
 
@@ -165,7 +168,7 @@ The API needs no key, so the workflow uses no secret.
 - Never put logic in `mcp.py` or `http.py`; never add a route or tool by hand.
 - Never rename or re-map an upstream concept to another source's (ADR-0003).
 - Never edit `docs/upstream/` by hand; `/refresh-upstream` fetches, a PR reviews.
-- Never add `src/xippios/__init__.py`.
+- Never add `src/xippios/__init__.py`{% if '/' in package_dir %} or `src/xippios/{{ package_dir.rsplit('/', 1)[0] }}/__init__.py`, the provider level{% endif %}.
 - Never tag, merge, release, force-push, or touch `gh secret`. Those are human actions.
 
 ## When something is unclear

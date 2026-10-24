@@ -509,3 +509,20 @@ def test_generated_tests_need_no_key_and_end(generated: tuple[str, Path]) -> Non
     layout = (dst / "tests/test_layout.py").read_text()
     assert "while True" not in layout
     assert 'names.index("xippios")' in layout
+
+
+def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> None:
+    """The http docstring states ADR-0007; the CLAUDE.md names every namespace level."""
+    name, dst = generated
+    pkg = package_dir(VARIANTS[name])
+    http = (dst / f"src/xippios/{pkg}/http.py").read_text()
+    assert "is a ``GET`` with query parameters" in http
+    assert "is a ``POST`` whose JSON body is keyed by parameter name (ADR-0007)" in http
+    claude = (dst / "CLAUDE.md").read_text()
+    if "/" in pkg:
+        provider = pkg.rsplit("/", 1)[0]
+        assert f"or `src/xippios/{provider}/__init__.py`, the provider level" in claude
+    else:
+        assert "the provider level" not in claude
+    assert ".github/workflows/live.yml" in claude
+    assert "Hand-apply" in claude
