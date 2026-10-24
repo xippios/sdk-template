@@ -526,3 +526,15 @@ def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> No
         assert "the provider level" not in claude
     assert ".github/workflows/live.yml" in claude
     assert "Hand-apply" in claude
+
+
+def test_generated_tree_names_no_source_and_no_workspace_file(generated: tuple[str, Path]) -> None:
+    """Nothing source-specific is scaffolded (ADR-0008), nor a workspace-local reference."""
+    _, dst = generated
+    caches = {".ruff_cache", "__pycache__"}
+    for path in dst.rglob("*"):
+        if not path.is_file() or path.name == ".copier-answers.yml" or caches & set(path.parts):
+            continue
+        text = path.read_text()
+        for needle in ["commodity_desc", "corn_2024", "api_GET", "row 12", "COORDINATION"]:
+            assert needle not in text, f"{path}: {needle}"

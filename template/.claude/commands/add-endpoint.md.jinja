@@ -23,10 +23,10 @@ Work on a branch `feature/<operation>`. Follow the three layers (ADR-0001) exact
    `xippios.core.parse(...)`. No defaults beyond upstream's own, no composition.
 
 4. **Task function** in `src/xippios/{{ package_dir }}/tasks.py`: an async function shaped
-   like what a person or agent wants (`get_<thing>(commodity, year)`), composing wrappers,
-   resolving pagination with `xippios.core.paginate_*` and reference lookups, and returning
-   `Result[T]` with full `ResultMeta` (`source`, `endpoint`, `request`, and `published_at`
-   / `vintage` when upstream provides them). Then:
+   like what a person or agent wants (`get_<thing>(...)`, with the parameters a caller
+   thinks in), composing wrappers, resolving pagination with `xippios.core.paginate_*`
+   and reference lookups, and returning `Result[T]` with full `ResultMeta` (`source`,
+   `endpoint`, `request`, and `published_at` / `vintage` when upstream provides them). Then:
    `get_<thing> = sync(get_<thing>_async)`, add `"get_<thing>"` to `__all__`, and
    re-export it from `__init__.py`.
 
