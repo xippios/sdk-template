@@ -16,7 +16,7 @@ that works here; the family rules it points to apply as well.
 {% else %}
 | Credentials | none; the API is open |
 {% endif %}
-| Rate limit | {{ rate_limit_per_minute }} requests per minute, enforced client-side in `_client.py` |
+| Rate limit | {{ rate_limit_per_minute }} requests per minute, burst {{ rate_limit_burst }}; {% if rate_limit_provenance == 'self-imposed' %}a self-imposed pace, upstream documents none{% else %}within the limit documented by upstream{% endif %} (ADR-0010); enforced client-side in `_client.py` |
 | Write tools | {% if needs_write_tools %}yes, in `tasks_write.py`, served by `xippios-{{ source_slug }}-mcp-write`{% else %}no, this package is read-only{% endif %} |
 
 The snapshot in `docs/upstream/` is the reference for names, parameters and semantics.

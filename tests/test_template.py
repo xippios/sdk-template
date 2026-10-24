@@ -38,7 +38,12 @@ VARIANTS: dict[str, dict[str, object]] = {
         "needs_write_tools": True,
         **keyed("COMTRADE_API_KEY", "header", "Ocp-Apim-Subscription-Key"),
     },
-    "bearer": {"source_slug": "abc-data", **keyed("ABC_API_KEY", "bearer")},
+    "bearer": {
+        "source_slug": "abc-data",
+        "rate_limit_burst": 3,
+        "rate_limit_provenance": "self-imposed",
+        **keyed("ABC_API_KEY", "bearer"),
+    },
     "basic-git-core": {
         "source_slug": "cashctrl",
         "core_git_ref": "main",
@@ -345,3 +350,23 @@ def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:
     _, dst = generated
     ignored = set((dst / ".gitignore").read_text().splitlines())
     assert {".env", ".env.*", ".envrc", ".envrc.*"} <= ignored
+
+
+def test_rate_limit_renders_pace_burst_and_provenance(generated: tuple[str, Path]) -> None:
+    """ADR-0010 decision 1: the pace, a burst of 1 unless upstream documents one, and where
+    the pace comes from, in the client and in the contract."""
+    name, dst = generated
+    answers = {**BASE_ANSWERS, **VARIANTS[name]}
+    burst = answers.get("rate_limit_burst", 1)
+    client = (dst / f"src/xippios/{package_dir(answers)}/_client.py").read_text()
+    pace = f"RATE_LIMIT = RateLimit(per_minute={answers['rate_limit_per_minute']}, burst={burst})"
+    assert pace in client
+    claude = (dst / "CLAUDE.md").read_text()
+    row = f"| Rate limit | {answers['rate_limit_per_minute']} requests per minute, burst {burst}; "
+    assert row in claude
+    if answers.get("rate_limit_provenance") == "self-imposed":
+        assert "# A self-imposed pace: upstream documents no limit" in client
+        assert "a self-imposed pace, upstream documents none (ADR-0010)" in claude
+    else:
+        assert "# Paced within the limit upstream documents" in client
+        assert "within the limit documented by upstream (ADR-0010)" in claude

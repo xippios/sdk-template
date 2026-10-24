@@ -91,9 +91,28 @@ api_key_name:
 
 rate_limit_per_minute:
   type: int
-  help: The upstream's documented request limit per minute; enforced client-side
+  help: >-
+    The pace in requests per minute, enforced client-side: the upstream's documented
+    per-minute limit (or its per-second limit times 60), or, where upstream documents
+    none, a self-imposed pace (ADR-0010 decision 1)
   default: 60
   validator: "{% if rate_limit_per_minute < 1 %}Must be at least 1{% endif %}"
+
+rate_limit_burst:
+  type: int
+  help: >-
+    Requests the limiter lets through at once before it paces them. 1 unless the
+    upstream documents a burst (ADR-0010 decision 1)
+  default: 1
+  validator: "{% if rate_limit_burst < 1 %}Must be at least 1{% endif %}"
+
+rate_limit_provenance:
+  type: str
+  help: Where the pace comes from; the generated CLAUDE.md names it (ADR-0010 decision 1)
+  choices:
+    documented by upstream: documented
+    self-imposed, upstream documents no limit: self-imposed
+  default: documented
 
 needs_write_tools:
   type: bool
