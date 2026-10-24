@@ -487,3 +487,16 @@ def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
     assert "from xippios.core.testing import assert_write_tools" not in test, "core 0.1.0 only"
     claude = (dst / "CLAUDE.md").read_text()
     assert "test_tasks_write.py" in claude
+
+
+def test_generated_tests_need_no_key_and_end(generated: tuple[str, Path]) -> None:
+    """The reachability probe sends no key; the namespace walk cannot loop for ever."""
+    _, dst = generated
+    live = (dst / "tests/test_live.py").read_text()
+    assert "httpx.AsyncClient(" in live
+    assert "await http.get(BASE_URL)" in live
+    assert "follow_redirects=True" in live
+    assert "client.request" not in live, "the package's client would send the key"
+    layout = (dst / "tests/test_layout.py").read_text()
+    assert "while True" not in layout
+    assert 'names.index("xippios")' in layout
