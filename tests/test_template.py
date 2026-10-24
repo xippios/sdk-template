@@ -538,3 +538,12 @@ def test_generated_tree_names_no_source_and_no_workspace_file(generated: tuple[s
         text = path.read_text()
         for needle in ["commodity_desc", "corn_2024", "api_GET", "row 12", "COORDINATION"]:
             assert needle not in text, f"{path}: {needle}"
+
+
+def test_generated_baseline_scans_swagger_files(generated: tuple[str, Path]) -> None:
+    """sdk-core dropped is_swagger_file: an upstream Swagger snapshot is scanned too."""
+    _, dst = generated
+    baseline = json.loads((dst / ".secrets.baseline").read_text())
+    filters = {entry["path"] for entry in baseline["filters_used"]}
+    assert "detect_secrets.filters.heuristic.is_swagger_file" not in filters
+    assert baseline["results"] == {}
