@@ -3,16 +3,19 @@
 For every list in ``LISTS`` this writes ``reference/<name>.json`` with the values and
 the fetch date, then regenerates ``enums.py`` with one ``StrEnum`` per list through
 ``xippios.core.reference.render_str_enums``. Fetch through the layer-1 wrappers in
-``api/``, never through a task that might answer from the package. Run from the
-repository root with the API key in the environment::
+``api/``, never through a task that might answer from the package. Only lists that are
+the same for every caller are packaged; a multi-tenant source packages no tenant data
+(ADR-0014). Run from the repository root, with whatever the list endpoints need in the
+environment (a key only where they take one)::
 
     uv run python scripts/refresh_reference.py
 """
 
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from xippios.core import sync
 from xippios.core.reference import render_str_enums
@@ -22,7 +25,7 @@ PACKAGE_DIR = ROOT / "src/xippios/{{ package_dir }}"
 REFERENCE = PACKAGE_DIR / "reference"
 ENUMS = PACKAGE_DIR / "enums.py"
 
-LISTS: dict[str, Callable[[], Awaitable[list[str]]]] = {
+LISTS: dict[str, Callable[[], Coroutine[Any, Any, list[str]]]] = {
     # name of the list, as upstream calls it, to an async fetcher through api/, e.g.
     # "country_code": lambda: api.list_countries(),
 }
