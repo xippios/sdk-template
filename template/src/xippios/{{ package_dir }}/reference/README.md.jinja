@@ -16,9 +16,12 @@ Rules:
   (`/refresh-reference-data`), never typed in by hand; the script also regenerates
   `enums.py`, one `StrEnum` per list, with `xippios.core.reference.render_str_enums`.
 - Every file has a row below naming the endpoint or URL it came from and the date.
-- Each packaged list gets a lookup task, `list_<thing>`, served as the MCP tool
-  `{{ tool_prefix }}_list_<thing>` so agents can form valid calls; `/refresh-reference-data`
-  adds the task where it is missing.
+- Agents get a lookup task for every packaged list so they can form valid calls: one
+  lookup task per list, `list_<thing>`, served as the MCP tool
+  `{{ tool_prefix }}_list_<thing>`, or the upstream's own lookup operation when it serves
+  every list through one; `/refresh-reference-data` adds the task where it is missing.
+- A multi-tenant source packages no tenant data (ADR-0014), only lists that are the same
+  for every tenant, if any.
 
 | File | Origin | Fetched |
 | --- | --- | --- |
