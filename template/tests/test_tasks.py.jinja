@@ -6,6 +6,7 @@ import base64
 import inspect
 {% if api_key_env %}
 import os
+from typing import NamedTuple
 {% endif %}
 
 {% if api_key_env %}
@@ -29,14 +30,22 @@ def test_package_has_a_version() -> None:
 {% if api_key_env %}
 
 
-def test_replay_tests_send_the_placeholder_key(placeholder_api_key: str | None) -> None:
-    """A request sent outside a live test carries the placeholder, never the shell's key.
+class AuthReport(NamedTuple):
+    """What a request through the client's auth carried, as booleans: never a value."""
 
-    Every assertion is on a boolean, so a failure says where the key went, never the key.
+    env_holds_placeholder: bool
+    carries_placeholder: bool
+    carries_shell_key: bool
+    where: str
+
+
+def send_through_auth(placeholder: str) -> AuthReport:
+    """Run a request through the client's auth and report on it, never with a value.
+
+    The request, its URL and its headers stay in this frame, which has returned before the
+    test asserts: a failure, even under ``pytest -l``, cannot print the shell's key.
     """
-    assert placeholder_api_key is not None
-    env_holds_placeholder = os.environ[API_KEY_ENV] == placeholder_api_key
-    assert env_holds_placeholder, f"{API_KEY_ENV} does not hold the placeholder"
+    env_holds_placeholder = os.environ.get(API_KEY_ENV) == placeholder
     sent = next(auth.sync_auth_flow(httpx.Request("GET", BASE_URL)))
 {% if api_key_location == 'query' %}
     carried = sent.url.params.get(auth.param, "")
@@ -52,12 +61,23 @@ def test_replay_tests_send_the_placeholder_key(placeholder_api_key: str | None) 
     carried = base64.b64decode(encoded).decode().partition(":")[0]
     where = "the basic auth user name"
 {% endif %}
-    sends_placeholder = carried == placeholder_api_key
-    assert sends_placeholder, f"{where} does not carry the placeholder"
-    if SHELL_KEY and placeholder_api_key != SHELL_KEY:
+    carries_shell_key = False
+    if SHELL_KEY and placeholder != SHELL_KEY:
         outgoing = [str(sent.url), *sent.headers.values(), carried]
-        leaked = any(SHELL_KEY in part for part in outgoing)
-        assert not leaked, f"the key in {API_KEY_ENV} went out with the request"
+        carries_shell_key = any(SHELL_KEY in part for part in outgoing)
+    return AuthReport(env_holds_placeholder, carried == placeholder, carries_shell_key, where)
+
+
+def test_replay_tests_send_the_placeholder_key(placeholder_api_key: str | None) -> None:
+    """A request sent outside a live test carries the placeholder, never the shell's key.
+
+    Every assertion is on a boolean, so a failure says where the key went, never the key.
+    """
+    assert placeholder_api_key is not None
+    report = send_through_auth(placeholder_api_key)
+    assert report.env_holds_placeholder, f"{API_KEY_ENV} does not hold the placeholder"
+    assert report.carries_placeholder, f"{report.where} does not carry the placeholder"
+    assert not report.carries_shell_key, f"the key in {API_KEY_ENV} went out with the request"
 {% endif %}
 
 
