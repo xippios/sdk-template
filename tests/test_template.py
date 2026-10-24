@@ -102,6 +102,7 @@ EXPECTED_FILES = [
     ".python-version",
     ".github/workflows/ci.yml",
     ".github/workflows/publish.yml",
+    ".github/workflows/live.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".claude/settings.json",
     ".claude/commands/add-endpoint.md",
@@ -192,7 +193,7 @@ def test_answers_file_round_trips(generated: tuple[str, Path]) -> None:
 
 
 def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:
-    """Workflow files are copied verbatim and carry GitHub's own ${{ }}; nothing else may."""
+    """Workflow files carry GitHub's own ${{ }}; nothing else may, and nothing else in them."""
     _, dst = generated
     for path in dst.rglob("*"):
         if not path.is_file() or path.suffix not in {
@@ -206,7 +207,9 @@ def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:
             continue
         text = path.read_text()
         assert "{%" not in text, path
-        if ".github/workflows" not in str(path):
+        if ".github/workflows" in str(path):
+            assert not re.search(r"(?<!\$)\{\{", text), f"{path}: only ${{{{ }}}} may remain"
+        else:
             assert "{{" not in text, path
 
 
@@ -433,3 +436,25 @@ def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
     release_prep = (dst / ".claude/commands/release-prep.md").read_text()
     assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep
     assert release_prep.index("No git-pinned core") < release_prep.index("set `version`")
+
+
+def test_live_workflow_hands_the_key_to_its_one_job(generated: tuple[str, Path]) -> None:
+    """Conventions §10: nightly and on demand; the secret in the live job's env only."""
+    name, dst = generated
+    env_var = str(VARIANTS[name]["api_key_env"])
+    text = (dst / ".github/workflows/live.yml").read_text()
+    workflow = yaml.safe_load(text)
+    triggers = workflow[True]  # YAML 1.1 reads the key `on` as a boolean
+    assert set(triggers) == {"schedule", "workflow_dispatch"}
+    assert workflow["permissions"] == {"contents": "read"}
+    assert "env" not in workflow, "the secret reaches the live job only"
+    (job,) = workflow["jobs"].values()
+    assert job["steps"][-1]["run"] == "uv run pytest -m live"
+    expected_env: dict[str, str] = {"XIPPIOS_LIVE_TESTS": "1"}
+    if env_var:
+        expected_env[env_var] = f"${{{{ secrets.{env_var} }}}}"
+        assert text.count(f"${{{{ secrets.{env_var} }}}}") == 1
+        assert text.count("secrets.") == 1
+    else:
+        assert "secrets." not in text
+    assert job["env"] == expected_env

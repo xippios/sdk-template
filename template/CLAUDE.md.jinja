@@ -73,6 +73,7 @@ tests/
   test_layout.py   namespace levels stay empty; py.typed ships
   test_live.py     @pytest.mark.live smoke tests, one per task
 docs/upstream/     documentation snapshot and FETCHED.md
+.github/workflows/ ci.yml (the required ci check), publish.yml (tag to PyPI), live.yml (nightly live tests)
 .claude/commands/  add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
 ```
 
@@ -128,6 +129,15 @@ uv run mypy
 uv run pre-commit run --all-files
 uv run xippios-{{ source_slug }}-mcp   # stdio; add --http for streamable HTTP
 ```
+
+`.github/workflows/live.yml` runs `uv run pytest -m live` with `XIPPIOS_LIVE_TESTS=1`
+every night at 03:17 UTC and on demand from the Actions tab; pull requests never run
+live tests.
+{% if api_key_env %}
+The key comes from the org secret `{{ api_key_env }}`, which that one job alone sees.
+{% else %}
+The API needs no key, so the workflow uses no secret.
+{% endif %}
 
 ## Workflow rules
 

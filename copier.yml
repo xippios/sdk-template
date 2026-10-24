@@ -178,7 +178,12 @@ _message_after_copy: |
     1. PyPI: add a pending trusted publisher for xippios-{{ source_slug }}
        (owner xippios, repo sdk-{{ source_slug }}, workflow publish.yml, environment pypi).
   {% if api_key_env %}
-    2. Put {{ api_key_env }} into ~/github/sdk/.envrc and set it as an org secret.
+    2. The key, {{ api_key_env }}. If the org secret {{ api_key_env }} exists already (one key
+       shared by several sources, ADR-0009), add sdk-{{ source_slug }} to that secret's
+       repository access in the org settings; never `gh secret set --repos`, which replaces
+       the list. Otherwise put the key into ~/github/sdk/.envrc and create the org secret
+       {{ api_key_env }} with access for sdk-{{ source_slug }}. Either way the nightly
+       .github/workflows/live.yml needs it.
   {% else %}
     2. No API key is needed for this source.
   {% endif %}

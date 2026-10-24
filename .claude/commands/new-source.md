@@ -25,7 +25,11 @@ environment, and opens the scaffold PR. The script is the only thing that touche
 4. If a check fails on the generated repository, the template is at fault: fix it here,
    remove the generated directory, and run again. Do not patch the generated repo by hand.
 5. Report the PR URL and repeat the three human steps the script prints: PyPI pending
-   publisher, API key into `.envrc` and as an org secret, review and merge.
+   publisher; the API key (if the org secret named by `api_key_env` exists already, a
+   key shared by several sources, ADR-0009, the new repository is added to that
+   secret's repository access in the org settings, never with `gh secret set --repos`,
+   which replaces the list; otherwise the key goes into `.envrc` and a new org secret;
+   the nightly `live.yml` needs it either way); review and merge.
 
 The script's `gh repo create` and `gh api -X PUT .../environments/pypi` will each raise a
 permission prompt; that approval is the human gate. If the script stops because the org's
