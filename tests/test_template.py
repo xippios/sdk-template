@@ -168,6 +168,7 @@ def test_layout(generated: tuple[str, Path]) -> None:
     assert ("[tool.uv.sources]" in pyproject) is bool(answers.get("core_git_ref"))
     tool = tomllib.loads(pyproject)["tool"]
     assert tool["mypy"]["files"] == ["src", "tests", "scripts"], "scripts/ is type-checked"
+    assert tool["hatch"]["build"]["targets"]["sdist"]["exclude"] == ["tests/fixtures"]
 
 
 def test_generated_code_is_lint_and_format_clean(generated: tuple[str, Path]) -> None:

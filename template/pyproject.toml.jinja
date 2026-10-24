@@ -69,6 +69,7 @@ packages = ["src/xippios"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src", "tests", "docs", "README.md", "CHANGELOG.md", "LICENSE"]
+exclude = ["tests/fixtures"]
 
 [tool.ruff]
 line-length = 100
