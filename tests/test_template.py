@@ -416,3 +416,20 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path]) -> None:
         assert "# pragma: allowlist secret" in rev
         assert "until it is on PyPI" not in pyproject
         assert "uvx copier update --defaults --vcs-ref=:current: -d core_git_ref=" in pyproject
+
+
+def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
+    """A release cannot carry a git-pinned core; the build job says so before building."""
+    _, dst = generated
+    workflow = yaml.safe_load((dst / ".github/workflows/publish.yml").read_text())
+    names = [
+        step.get("name") or step.get("run") or step.get("uses")
+        for step in workflow["jobs"]["build"]["steps"]
+    ]
+    guard = names.index("Refuse a git-pinned xippios-core")
+    assert names[guard + 1] == "uv build"
+    (step,) = [s for s in workflow["jobs"]["build"]["steps"] if s.get("name") == names[guard]]
+    assert "[tool\\.uv\\.sources\\]" in step["run"]
+    release_prep = (dst / ".claude/commands/release-prep.md").read_text()
+    assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep
+    assert release_prep.index("No git-pinned core") < release_prep.index("set `version`")
