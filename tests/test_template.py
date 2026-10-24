@@ -164,6 +164,7 @@ def test_layout(generated: tuple[str, Path]) -> None:
     pyproject = (dst / "pyproject.toml").read_text()
     assert (dst / f"src/xippios/{pkg}/tasks_write.py").exists() is write
     assert (dst / f"src/xippios/{pkg}/mcp_write.py").exists() is write
+    assert (dst / "tests/test_tasks_write.py").exists() is write
     assert ("-mcp-write" in pyproject) is write
     assert ("[tool.uv.sources]" in pyproject) is bool(answers.get("core_git_ref"))
     tool = tomllib.loads(pyproject)["tool"]
@@ -461,3 +462,28 @@ def test_live_workflow_hands_the_key_to_its_one_job(generated: tuple[str, Path])
     else:
         assert "secrets." not in text
     assert job["env"] == expected_env
+
+
+def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
+    """Conventions §8, with core 0.1.0 only until core 0.2.0's assert_write_tools."""
+    name, dst = generated
+    write = bool(VARIANTS[name].get("needs_write_tools"))
+    changelog = (dst / "CHANGELOG.md").read_text()
+    slug = VARIANTS[name]["source_slug"]
+    assert (f"`xippios-{slug}-mcp-write`" in changelog) is write
+    if not write:
+        return
+    test = (dst / "tests/test_tasks_write.py").read_text()
+    for needle in [
+        "tool_name(SOURCE, fn)",
+        "await write_server.list_tools()",
+        "await server.list_tools()",
+        "isinstance(route, APIRoute)",
+        'confirm.name == "confirm"',
+        "confirm.default is False",
+        "assert_write_tools",
+    ]:
+        assert needle in test, needle
+    assert "from xippios.core.testing import assert_write_tools" not in test, "core 0.1.0 only"
+    claude = (dst / "CLAUDE.md").read_text()
+    assert "test_tasks_write.py" in claude

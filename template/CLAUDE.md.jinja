@@ -71,6 +71,9 @@ tests/
   test_tasks.py    structural checks on every task plus per-task replay tests
   test_adapters.py the adapters expose exactly tasks.__all__
   test_layout.py   namespace levels stay empty; py.typed ships
+{% if needs_write_tools %}
+  test_tasks_write.py  the write server serves exactly tasks_write.__all__, each confirm-gated
+{% endif %}
   test_live.py     @pytest.mark.live smoke tests, one per task
 docs/upstream/     documentation snapshot and FETCHED.md
 .github/workflows/ ci.yml (the required ci check), publish.yml (tag to PyPI), live.yml (nightly live tests)
