@@ -128,11 +128,25 @@ domain_topic:
     Use lowercase letters, digits and single hyphens, e.g. trade-data
     {% endif %}
 
+core_version:
+  type: str
+  help: >-
+    The xippios-core release the package depends on, rendered as xippios-core~=<version>
+    (that minor, any later patch). Raised when the source adopts a new core minor
+    (conventions §12).
+  default: "0.1.0"
+  validator: >-
+    {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+$')) %}
+    Use a release version, e.g. 0.1.0
+    {% endif %}
+
 core_git_ref:
   type: str
   help: >-
-    Development only. A git ref of xippios/sdk-core to depend on while xippios-core is not
-    on PyPI, e.g. main. Leave empty to depend on the published package.
+    Development only. A git ref of xippios/sdk-core to depend on for a core change that is
+    not released yet, e.g. main. Leave empty to depend on the release named by
+    core_version. Removing the pin before a release means raising core_version to the
+    release that carries the change.
   default: ""
 
 _min_copier_version: "9.0.0"

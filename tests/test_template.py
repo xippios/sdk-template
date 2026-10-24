@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -43,6 +44,7 @@ VARIANTS: dict[str, dict[str, object]] = {
         "source_slug": "abc-data",
         "rate_limit_burst": 3,
         "rate_limit_provenance": "self-imposed",
+        "core_version": "0.2.0",
         **keyed("ABC_API_KEY", "bearer"),
     },
     "basic-git-core": {
@@ -390,3 +392,27 @@ def test_client_exports_one_sorted_name_per_line(generated: tuple[str, Path]) ->
     start = lines.index("__all__ = [")
     assert lines[start + 1 : start + 1 + len(names)] == [f'    "{n}",' for n in names]
     assert lines[start + 1 + len(names)] == "]"
+
+
+def test_core_dependency_is_one_minor(generated: tuple[str, Path]) -> None:
+    """Conventions §12: one core minor, the extras likewise; a git pin keeps the bound.
+
+    uv takes a pinned core from ``[tool.uv.sources]`` and does not check the bound against
+    it, so the bound stays ``~=``; the pin's ``rev`` line is allowlisted for detect-secrets.
+    """
+    name, dst = generated
+    answers = VARIANTS[name]
+    version = str(answers.get("core_version", "0.1.0"))
+    pyproject = (dst / "pyproject.toml").read_text()
+    project = tomllib.loads(pyproject)["project"]
+    assert project["dependencies"] == [f"xippios-core~={version}"]
+    assert project["optional-dependencies"] == {
+        extra: [f"xippios-core[{extra}]~={version}"] for extra in ["mcp", "http", "testing"]
+    }
+    assert ">=0.1.0" not in pyproject
+    if answers.get("core_git_ref"):
+        (rev,) = [line for line in pyproject.splitlines() if line.startswith("xippios-core = {")]
+        assert f'rev = "{answers["core_git_ref"]}" }}' in rev
+        assert "# pragma: allowlist secret" in rev
+        assert "until it is on PyPI" not in pyproject
+        assert "uvx copier update --defaults --vcs-ref=:current: -d core_git_ref=" in pyproject
