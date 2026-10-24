@@ -1,5 +1,6 @@
 """Generation tests: variants render, pass ruff, and respect skip-if-exists."""
 
+import ast
 import json
 import re
 import shutil
@@ -230,7 +231,7 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
         )
         client = (dst / "src/xippios/ex/_client.py").read_text()
         assert needle in client, location
-        assert '"SOURCE", "auth", "client"' in client, "the conftest imports auth"
+        assert '    "auth",\n' in client, "the conftest imports auth"
     dst = generate(template_src, tmp_path / "open", source_slug="ex", **keyed(""))
     client = (dst / "src/xippios/ex/_client.py").read_text()
     assert "Auth" not in client
@@ -370,3 +371,22 @@ def test_rate_limit_renders_pace_burst_and_provenance(generated: tuple[str, Path
     else:
         assert "# Paced within the limit upstream documents" in client
         assert "within the limit documented by upstream (ADR-0010)" in claude
+
+
+def test_client_exports_one_sorted_name_per_line(generated: tuple[str, Path]) -> None:
+    """One name per line, so a source's extra export never conflicts on copier update."""
+    name, dst = generated
+    client = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/_client.py").read_text()
+    (node,) = [
+        node
+        for node in ast.parse(client).body
+        if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "__all__"
+    ]
+    assert isinstance(node.value, ast.List)
+    names = [str(ast.literal_eval(element)) for element in node.value.elts]
+    upper = [n for n in names if n.isupper()]
+    assert names == sorted(upper) + sorted(set(names) - set(upper)), "isort-style, as RUF022"
+    lines = client.splitlines()
+    start = lines.index("__all__ = [")
+    assert lines[start + 1 : start + 1 + len(names)] == [f'    "{n}",' for n in names]
+    assert lines[start + 1 + len(names)] == "]"
