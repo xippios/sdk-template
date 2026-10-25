@@ -521,6 +521,18 @@ def test_adopt_release_walks_the_adoption_checklist(generated: tuple[str, Path])
     assert (keyed_line in text) is bool(VARIANTS[name]["api_key_env"])
 
 
+def test_reference_data_has_both_enum_paths(generated: tuple[str, Path]) -> None:
+    """ADR-0008 amendment: StrEnum for value lists, IntEnum for integer ids, as rendered."""
+    name, dst = generated
+    script = (dst / "scripts/refresh_reference.py").read_text()
+    for call in ["render_str_enums(values,", "id_name_pairs(records,", "render_int_enums(pairs,"]:
+        assert call in script, call
+    command = (dst / ".claude/commands/refresh-reference-data.md").read_text()
+    assert "ruff format" not in command, "core 0.2.0 renders enums.py ruff-clean"
+    enums = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/enums.py").read_text()
+    assert enums.startswith('"""StrEnums for packaged value lists (conventions, section 3).')
+
+
 def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Path]) -> None:
     """Conventions §10: nightly and on demand; the secret in the pytest step's env only."""
     name, dst = generated
