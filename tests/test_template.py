@@ -50,7 +50,7 @@ VARIANTS: dict[str, dict[str, object]] = {
         "source_slug": "abc-data",
         "rate_limit_burst": 3,
         "rate_limit_provenance": "self-imposed",
-        "core_version": "0.2.0",
+        "core_version": "0.3.0",
         **keyed("ABC_API_KEY", "bearer"),
     },
     "basic-git-core": {
@@ -259,16 +259,19 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
 
 
 def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Path) -> None:
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex-api", **keyed(""))
-    tasks = dst / "src/xippios/ex/api/tasks.py"
-    claude = dst / "CLAUDE.md"
-    tasks.write_text("# my work\n")
-    claude.write_text("# clobbered\n")
-    (dst / "tests/test_mine.py").write_text("def test_x(): pass\n")
-    generate(template_src, dst, source_slug="ex-api", **keyed(""))
-    assert tasks.read_text() == "# my work\n"
-    assert (dst / "tests/test_mine.py").exists()
-    assert claude.read_text() != "# clobbered\n"
+    """A source's files survive a re-render; the template's own are rendered again."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex-data", **keyed(""))
+    pkg = "src/xippios/ex/data"
+    mine = [f"{pkg}/{name}" for name in ["tasks.py", "_client.py", "__init__.py"]]
+    mine.append("tests/test_tasks.py")
+    templates = ["CLAUDE.md", "tests/conftest.py"]
+    for rel in [*mine, *templates]:
+        (dst / rel).write_text("# edited\n")
+    generate(template_src, dst, source_slug="ex-data", **keyed(""))
+    for rel in mine:
+        assert (dst / rel).read_text() == "# edited\n", f"{rel} is the source's"
+    for rel in templates:
+        assert (dst / rel).read_text() != "# edited\n", f"{rel} is the template's"
 
 
 def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Path]) -> None:
@@ -440,7 +443,7 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Pat
     """
     name, dst = generated
     answers = VARIANTS[name]
-    version = str(answers.get("core_version", "0.1.0"))
+    version = str(answers.get("core_version", "0.2.0"))
     pyproject = (dst / "pyproject.toml").read_text()
     project = tomllib.loads(pyproject)["project"]
     assert project["dependencies"] == [f"xippios-core~={version}"]

@@ -146,13 +146,14 @@ domain_topic:
 core_version:
   type: str
   help: >-
-    The xippios-core release the package depends on, rendered as xippios-core~=<version>
-    (that minor, any later patch). Raised when the source adopts a new core minor
-    (conventions §12).
-  default: "0.1.0"
+    The xippios-core release the package depends on, rendered as xippios-core~=<version>,
+    the extras likewise: that minor, any later patch. The family names the minor's .0
+    (xippios-core~=0.2.0, ADR-0018) and raises it when the source adopts a new core minor
+    in its adoption PR (conventions §12, §15).
+  default: "0.2.0"
   validator: >-
     {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+$')) %}
-    Use a release version, e.g. 0.1.0
+    Use a release version, e.g. 0.2.0
     {% endif %}
 
 core_git_ref:
@@ -172,10 +173,14 @@ _envops:
   trim_blocks: true
   lstrip_blocks: true
 # Files a session fills with source-specific content: never overwritten by `copier update`.
+# Every other rendered file is the template's and updates with it, tests/conftest.py,
+# tests/test_layout.py and tests/test_adapters.py among them.
 _skip_if_exists:
   - CHANGELOG.md
   - README.md
   - docs/upstream/**
+  - src/xippios/**/__init__.py
+  - src/xippios/**/_client.py
   - src/xippios/**/api/**
   - src/xippios/**/models.py
   - src/xippios/**/tasks.py
@@ -184,7 +189,10 @@ _skip_if_exists:
   - src/xippios/**/enums.py
   - src/xippios/**/reference/**
   - scripts/**
-  - tests/**
+  - tests/test_tasks.py
+  - tests/test_tasks_write.py
+  - tests/test_live.py
+  - tests/fixtures/**
 _message_after_copy: |
 
   sdk-{{ source_slug }} generated.
