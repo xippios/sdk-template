@@ -39,6 +39,21 @@ tool_prefix:
   default: "{{ source_slug | replace('-', '_') }}"
   when: false
 
+# When the nightly live.yml starts: a fold of the slug's characters onto the 300 minutes
+# from 01:00 to 05:59 UTC, so sources that share a key (ADR-0009) do not start together
+# and each repository keeps its time across updates. Computed, never recorded; the
+# generated live.yml and CLAUDE.md read .cron and .time.
+live_schedule:
+  type: yaml
+  default: >-
+    {%- set ns = namespace(n=0) -%}
+    {%- for c in source_slug -%}
+    {%- set ns.n = (ns.n * 37 + 'abcdefghijklmnopqrstuvwxyz0123456789-'.index(c) + 1) % 300 -%}
+    {%- endfor -%}
+    {cron: "{{ ns.n % 60 }} {{ 1 + ns.n // 60 }} * * *",
+    time: "{{ '%02d:%02d' | format(1 + ns.n // 60, ns.n % 60) }}"}
+  when: false
+
 source_name:
   type: str
   help: Human-readable name of the source
@@ -91,9 +106,28 @@ api_key_name:
 
 rate_limit_per_minute:
   type: int
-  help: The upstream's documented request limit per minute; enforced client-side
+  help: >-
+    The pace in requests per minute, enforced client-side: the upstream's documented
+    per-minute limit (or its per-second limit times 60), or, where upstream documents
+    none, a self-imposed pace (ADR-0010 decision 1)
   default: 60
   validator: "{% if rate_limit_per_minute < 1 %}Must be at least 1{% endif %}"
+
+rate_limit_burst:
+  type: int
+  help: >-
+    Requests the limiter lets through at once before it paces them. 1 unless the
+    upstream documents a burst (ADR-0010 decision 1)
+  default: 1
+  validator: "{% if rate_limit_burst < 1 %}Must be at least 1{% endif %}"
+
+rate_limit_provenance:
+  type: str
+  help: Where the pace comes from; the generated CLAUDE.md names it (ADR-0010 decision 1)
+  choices:
+    documented by upstream: documented
+    self-imposed, upstream documents no limit: self-imposed
+  default: documented
 
 needs_write_tools:
   type: bool
@@ -109,11 +143,25 @@ domain_topic:
     Use lowercase letters, digits and single hyphens, e.g. trade-data
     {% endif %}
 
+core_version:
+  type: str
+  help: >-
+    The xippios-core release the package depends on, rendered as xippios-core~=<version>
+    (that minor, any later patch). Raised when the source adopts a new core minor
+    (conventions §12).
+  default: "0.1.0"
+  validator: >-
+    {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+$')) %}
+    Use a release version, e.g. 0.1.0
+    {% endif %}
+
 core_git_ref:
   type: str
   help: >-
-    Development only. A git ref of xippios/sdk-core to depend on while xippios-core is not
-    on PyPI, e.g. main. Leave empty to depend on the published package.
+    Development only. A git ref of xippios/sdk-core to depend on for a core change that is
+    not released yet, e.g. main. Leave empty to depend on the release named by
+    core_version. Removing the pin before a release means raising core_version to the
+    release that carries the change.
   default: ""
 
 _min_copier_version: "9.0.0"
@@ -145,7 +193,12 @@ _message_after_copy: |
     1. PyPI: add a pending trusted publisher for xippios-{{ source_slug }}
        (owner xippios, repo sdk-{{ source_slug }}, workflow publish.yml, environment pypi).
   {% if api_key_env %}
-    2. Put {{ api_key_env }} into ~/github/sdk/.envrc and set it as an org secret.
+    2. The key, {{ api_key_env }}. If the org secret {{ api_key_env }} exists already (one key
+       shared by several sources, ADR-0009), add sdk-{{ source_slug }} to that secret's
+       repository access in the org settings; never `gh secret set --repos`, which replaces
+       the list. Otherwise put the key into ~/github/sdk/.envrc and create the org secret
+       {{ api_key_env }} with access for sdk-{{ source_slug }}. Either way the nightly
+       .github/workflows/live.yml needs it.
   {% else %}
     2. No API key is needed for this source.
   {% endif %}

@@ -14,11 +14,13 @@ template/                what gets generated; *.jinja files are rendered, others
   tests/                 conftest (plugin), structural task tests, adapter tests, live smoke
   .claude/commands/      add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
   CLAUDE.md.jinja        the contract a session gets in a generated repo; keep it readable by a new engineer
-  .github/, .pre-commit-config.yaml, .secrets.baseline, LICENSE   copied from sdk-core, verbatim but for one exclusion (Rules)
+  .github/, .pre-commit-config.yaml, .secrets.baseline, LICENSE   copied from sdk-core, verbatim but for the deviations in Rules
+  .github/workflows/live.yml.jinja   the nightly live workflow, the one rendered workflow (Rules)
   .gitattributes         docs/upstream/** -text: the snapshot stays byte for byte (CRLF, mixed endings)
 scripts/new-source.sh    generate + checks + GitHub repo + PR (the /new-source command)
 scripts/prove.sh         generate sdk-example from the working tree and run every check on it
 tests/test_template.py   generation variants, ruff on the output, skip-if-exists behaviour
+CHANGELOG.md             template releases, each with its Hand-apply list (Rules)
 .claude/commands/new-source.md
 ```
 
@@ -30,26 +32,41 @@ tests/test_template.py   generation variants, ruff on the output, skip-if-exists
 - Files a session fills with source content (`tasks.py`, `models.py`, `api/`, `tests/`,
   `README.md`, `CHANGELOG.md`, `docs/upstream/`, `reference/`) are listed in
   `_skip_if_exists` so `copier update` never overwrites them. Infrastructure files are not.
-- Workflow files are copied verbatim (no `.jinja`) so GitHub's `${{ }}` never meets Jinja.
+- Workflow files are copied verbatim (no `.jinja`) so GitHub's `${{ }}` never meets Jinja,
+  with one exception: `live.yml.jinja` is rendered, because the secret its pytest step
+  reads is named by the `api_key_env` answer and its start time comes from
+  `live_schedule`, a hidden answer `copier.yml` computes from the slug. It writes GitHub's
+  own expressions as `{{ '${{' }}` and `{{ '}}' }}`; `tests/test_template.py` checks that
+  no Jinja survives, that a keyed source names its secret exactly once, on the pytest
+  step, and that an open one names none.
 - The verbatim files mirror sdk-core. When sdk-core changes one of them, change it here
   too and bump the template; `copier update` carries it into the generated repos.
-  Two deviate from core by the same one exclusion, `.copier-answers.yml`, in the
-  detect-secrets hook's `exclude` in `.pre-commit-config.yaml` and in `should_exclude_file`
-  in `.secrets.baseline`, because the answers file names the key's variable and trips the
-  keyword check on commit and on a baseline rescan alike.
+  Two carry the exclusion of `.copier-answers.yml`, in the detect-secrets hook's
+  `exclude` in `.pre-commit-config.yaml` and in `should_exclude_file` in
+  `.secrets.baseline`, because the answers file names the key's variable and trips the
+  keyword check on commit and on a baseline rescan alike; sdk-core's `main` carries the
+  same exclusion (e1ea7d2, not released yet). `publish.yml` deviates by one step: before
+  `uv build` it refuses a `pyproject.toml` that has `[tool.uv.sources]`, since a source
+  that pins core to git cannot be published (conventions §12); core has no pin to guard.
+- Every template release has an entry in `CHANGELOG.md` (Keep a Changelog), and every
+  entry ends with a `### Hand-apply` list: one bullet per generated file under
+  `_skip_if_exists` that the release changes, `` - `<path>` — <what> — <why> ``, because
+  `copier update` never touches those files once they exist. A PR that changes such a
+  file adds its bullet under Unreleased; a change that matters to new repositories only
+  (a scaffold's starting text) says so instead of a bullet.
 - Jinja renders with `trim_blocks` and `lstrip_blocks`, so a line holding only a block tag
   disappears. Mind blank lines in generated Python: the formatter check is strict.
 - Keep `copier.yml` questions mechanical: every answer must come from the upstream
   documentation or the human, never be guessed by a session.
 - `detect-secrets` flags Jinja lines that mention `api_key_location` as if they held a
   key. Known false positives live in `.secrets.baseline`; after changing such a line, run
-  `uv run --with detect-secrets detect-secrets scan --baseline .secrets.baseline` and
-  commit the updated baseline. Never add a real value to silence it.
+  `uv run detect-secrets scan --baseline .secrets.baseline` and commit the updated
+  baseline. Never add a real value to silence it.
 
 ## Commands
 
 ```bash
-uv sync                         # copier, pytest, ruff, pyyaml
+uv sync                         # copier, pytest, ruff, pyyaml, detect-secrets
 uv run pytest                   # template tests (fast: generation + ruff on the output)
 scripts/prove.sh                  # full proof against the xippios-core release on PyPI
 scripts/prove.sh --core-ref main  # against unreleased core, before a core change lands

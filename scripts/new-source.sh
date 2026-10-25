@@ -110,7 +110,14 @@ Done. Human steps that remain:
      (owner xippios, repository sdk-$slug, workflow publish.yml, environment pypi).
 MSG
 if [ -n "$api_key_env" ]; then
-  echo "  2. Put $api_key_env into ~/github/sdk/.envrc and set it as an org secret (gh secret set, by a human)."
+  cat <<MSG
+  2. The key, $api_key_env. If the org secret $api_key_env exists already (one key
+     shared by several sources, ADR-0009), add sdk-$slug to that secret's
+     repository access in the org settings; never \`gh secret set --repos\`, which replaces
+     the list. Otherwise put the key into ~/github/sdk/.envrc and create the org secret
+     $api_key_env with access for sdk-$slug. Either way the nightly
+     .github/workflows/live.yml needs it.
+MSG
 else
   echo "  2. No API key is needed for this source."
 fi

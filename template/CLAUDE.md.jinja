@@ -16,7 +16,7 @@ that works here; the family rules it points to apply as well.
 {% else %}
 | Credentials | none; the API is open |
 {% endif %}
-| Rate limit | {{ rate_limit_per_minute }} requests per minute, enforced client-side in `_client.py` |
+| Rate limit | {{ rate_limit_per_minute }} requests per minute, burst {{ rate_limit_burst }}; {% if rate_limit_provenance == 'self-imposed' %}a self-imposed pace, upstream documents none{% else %}within the limit documented by upstream{% endif %} (ADR-0010); enforced client-side in `_client.py` |
 | Write tools | {% if needs_write_tools %}yes, in `tasks_write.py`, served by `xippios-{{ source_slug }}-mcp-write`{% else %}no, this package is read-only{% endif %} |
 
 The snapshot in `docs/upstream/` is the reference for names, parameters and semantics.
@@ -71,8 +71,12 @@ tests/
   test_tasks.py    structural checks on every task plus per-task replay tests
   test_adapters.py the adapters expose exactly tasks.__all__
   test_layout.py   namespace levels stay empty; py.typed ships
+{% if needs_write_tools %}
+  test_tasks_write.py  the write server serves exactly tasks_write.__all__, each confirm-gated
+{% endif %}
   test_live.py     @pytest.mark.live smoke tests, one per task
 docs/upstream/     documentation snapshot and FETCHED.md
+.github/workflows/ ci.yml (the required ci check), publish.yml (tag to PyPI), live.yml (nightly live tests)
 .claude/commands/  add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
 ```
 
@@ -129,6 +133,19 @@ uv run pre-commit run --all-files
 uv run xippios-{{ source_slug }}-mcp   # stdio; add --http for streamable HTTP
 ```
 
+`.github/workflows/live.yml` runs `uv run pytest -m live` with `XIPPIOS_LIVE_TESTS=1`
+nightly at {{ live_schedule.time }} UTC, a time derived from the slug so that sources sharing a key never
+start together, and on demand from the Actions tab; pull requests never run live tests.
+{% if needs_write_tools %}
+Every `live` test runs, write tests included, so a live write test acts only on data kept
+for testing (a multi-tenant source's test tenant, ADR-0014) and cleans up after itself.
+{% endif %}
+{% if api_key_env %}
+Only its `uv run pytest -m live` step sees the key, from the org secret `{{ api_key_env }}`.
+{% else %}
+The API needs no key, so the workflow uses no secret.
+{% endif %}
+
 ## Workflow rules
 
 - Branch from `main` as `feature/<topic>`, `fix/<topic>`, `chore/<topic>` or `docs/<topic>`.
@@ -140,7 +157,10 @@ uv run xippios-{{ source_slug }}-mcp   # stdio; add --http for streamable HTTP
 - Template updates: `uvx copier update` pulls the latest sdk-template tag into the
   infrastructure files (answers are in `.copier-answers.yml`; content files such as
   `tasks.py`, `api/`, `tests/` and `README.md` are never overwritten). Review the diff
-  and open a `chore/template-update` PR.
+  and open a `chore/template-update` PR. The template changes to files `copier update`
+  never touches are listed per release under "Hand-apply" in sdk-template's
+  [CHANGELOG](https://github.com/xippios/sdk-template/blob/main/CHANGELOG.md); port them
+  by hand in the same PR.
 - If a convention seems wrong, say so in the PR and follow it anyway; changing it is a
   PR against `sdk-core/docs/conventions.md` plus an ADR.
 
@@ -152,7 +172,7 @@ uv run xippios-{{ source_slug }}-mcp   # stdio; add --http for streamable HTTP
 - Never put logic in `mcp.py` or `http.py`; never add a route or tool by hand.
 - Never rename or re-map an upstream concept to another source's (ADR-0003).
 - Never edit `docs/upstream/` by hand; `/refresh-upstream` fetches, a PR reviews.
-- Never add `src/xippios/__init__.py`.
+- Never add `src/xippios/__init__.py`{% if '/' in package_dir %} or `src/xippios/{{ package_dir.rsplit('/', 1)[0] }}/__init__.py`, the provider level{% endif %}.
 - Never tag, merge, release, force-push, or touch `gh secret`. Those are human actions.
 
 ## When something is unclear

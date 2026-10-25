@@ -18,13 +18,13 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "xippios-core>=0.1.0",
+  "xippios-core~={{ core_version }}",
 ]
 
 [project.optional-dependencies]
-mcp = ["xippios-core[mcp]>=0.1.0"]
-http = ["xippios-core[http]>=0.1.0"]
-testing = ["xippios-core[testing]>=0.1.0"]
+mcp = ["xippios-core[mcp]~={{ core_version }}"]
+http = ["xippios-core[http]~={{ core_version }}"]
+testing = ["xippios-core[testing]~={{ core_version }}"]
 
 [project.scripts]
 xippios-{{ source_slug }}-mcp = "xippios.{{ source_pkg }}.mcp:run"
@@ -51,9 +51,13 @@ dev = [
 {% if core_git_ref %}
 
 [tool.uv.sources]
-# Development only: xippios-core from git until it is on PyPI. Remove this block
-# (re-run copier with core_git_ref="") once the published package is available.
-xippios-core = { git = "https://github.com/xippios/sdk-core.git", rev = "{{ core_git_ref }}" }
+# Development only: xippios-core from git, for a core change that is not released yet.
+# While the pin is set, uv takes core from it and ignores the version bound above.
+# Before a release, remove the pin and raise core_version to the release that carries
+# the change, then uv lock:
+#   uvx copier update --defaults --vcs-ref=:current: -d core_git_ref= -d core_version=X.Y.Z
+# /release-prep and publish.yml refuse a pinned release.
+xippios-core = { git = "https://github.com/xippios/sdk-core.git", rev = "{{ core_git_ref }}" }  # pragma: allowlist secret (a git ref, not a key)
 {% endif %}
 
 [build-system]
@@ -64,7 +68,9 @@ build-backend = "hatchling.build"
 packages = ["src/xippios"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "docs", "README.md", "CHANGELOG.md", "LICENSE"]
+# Anchored: hatch reads gitignore-style patterns, so a bare README.md would match
+# tests/fixtures/README.md as well. The sdist ships no tests; they live in the repository.
+include = ["/src", "/docs", "/README.md", "/CHANGELOG.md", "/LICENSE"]
 
 [tool.ruff]
 line-length = 100
@@ -97,7 +103,7 @@ quote-style = "double"
 strict = true
 python_version = "3.12"
 plugins = ["pydantic.mypy"]
-files = ["src", "tests"]
+files = ["src", "tests", "scripts"]
 mypy_path = "src"
 namespace_packages = true
 explicit_package_bases = true

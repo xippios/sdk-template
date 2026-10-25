@@ -1,10 +1,13 @@
 """Generation tests: variants render, pass ruff, and respect skip-if-exists."""
 
+import ast
+import hashlib
 import json
 import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -23,6 +26,11 @@ BASE_ANSWERS: dict[str, object] = {
 }
 
 
+# A stand-in for a 40-character sdk-core commit, never fetched: hex of high entropy, as a
+# real SHA is, computed so that no literal in this file looks like a secret.
+FAKE_CORE_SHA = hashlib.sha1(b"a fixed stand-in for an sdk-core commit").hexdigest()
+
+
 def keyed(env: str, location: str = "query", name: str | None = None) -> dict[str, object]:
     """Answers for how the key is sent; values are variables so no line looks like a secret."""
     answers: dict[str, object] = {"api_key_env": env, "api_key_location": location}
@@ -38,10 +46,16 @@ VARIANTS: dict[str, dict[str, object]] = {
         "needs_write_tools": True,
         **keyed("COMTRADE_API_KEY", "header", "Ocp-Apim-Subscription-Key"),
     },
-    "bearer": {"source_slug": "abc-data", **keyed("ABC_API_KEY", "bearer")},
+    "bearer": {
+        "source_slug": "abc-data",
+        "rate_limit_burst": 3,
+        "rate_limit_provenance": "self-imposed",
+        "core_version": "0.2.0",
+        **keyed("ABC_API_KEY", "bearer"),
+    },
     "basic-git-core": {
         "source_slug": "cashctrl",
-        "core_git_ref": "main",
+        "core_git_ref": FAKE_CORE_SHA,
         **keyed("CASHCTRL_API_KEY", "basic"),
     },
     "open": {"source_slug": "eurostat", **keyed("")},
@@ -94,6 +108,7 @@ EXPECTED_FILES = [
     ".python-version",
     ".github/workflows/ci.yml",
     ".github/workflows/publish.yml",
+    ".github/workflows/live.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".claude/settings.json",
     ".claude/commands/add-endpoint.md",
@@ -155,8 +170,14 @@ def test_layout(generated: tuple[str, Path]) -> None:
     pyproject = (dst / "pyproject.toml").read_text()
     assert (dst / f"src/xippios/{pkg}/tasks_write.py").exists() is write
     assert (dst / f"src/xippios/{pkg}/mcp_write.py").exists() is write
+    assert (dst / "tests/test_tasks_write.py").exists() is write
     assert ("-mcp-write" in pyproject) is write
     assert ("[tool.uv.sources]" in pyproject) is bool(answers.get("core_git_ref"))
+    tool = tomllib.loads(pyproject)["tool"]
+    assert tool["mypy"]["files"] == ["src", "tests", "scripts"], "scripts/ is type-checked"
+    sdist = tool["hatch"]["build"]["targets"]["sdist"]
+    assert sdist == {"include": ["/src", "/docs", "/README.md", "/CHANGELOG.md", "/LICENSE"]}
+    assert "tests" not in json.dumps(sdist), "the sdist ships no tests; they live in the repo"
 
 
 def test_generated_code_is_lint_and_format_clean(generated: tuple[str, Path]) -> None:
@@ -181,10 +202,11 @@ def test_answers_file_round_trips(generated: tuple[str, Path]) -> None:
     assert answers["import_path"] == package_dir(VARIANTS[name]).replace("/", ".")
     assert "source_pkg" not in answers, "computed answers are derived, never recorded"
     assert "package_dir" not in answers
+    assert "live_schedule" not in answers
 
 
 def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:
-    """Workflow files are copied verbatim and carry GitHub's own ${{ }}; nothing else may."""
+    """Workflow files carry GitHub's own ${{ }}; nothing else may, and nothing else in them."""
     _, dst = generated
     for path in dst.rglob("*"):
         if not path.is_file() or path.suffix not in {
@@ -198,7 +220,9 @@ def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:
             continue
         text = path.read_text()
         assert "{%" not in text, path
-        if ".github/workflows" not in str(path):
+        if ".github/workflows" in str(path):
+            assert not re.search(r"(?<!\$)\{\{", text), f"{path}: only ${{{{ }}}} may remain"
+        else:
             assert "{{" not in text, path
 
 
@@ -225,7 +249,7 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
         )
         client = (dst / "src/xippios/ex/_client.py").read_text()
         assert needle in client, location
-        assert '"SOURCE", "auth", "client"' in client, "the conftest imports auth"
+        assert '    "auth",\n' in client, "the conftest imports auth"
     dst = generate(template_src, tmp_path / "open", source_slug="ex", **keyed(""))
     client = (dst / "src/xippios/ex/_client.py").read_text()
     assert "Auth" not in client
@@ -296,7 +320,16 @@ def test_conftest_sends_the_placeholder_unless_live(generated: tuple[str, Path])
     assert 'monkeypatch.setattr(auth, "key", lambda: PLACEHOLDER_KEY)' in conftest
     assert "os.environ" not in conftest, "the placeholder must not depend on the shell"
     assert "def test_replay_tests_send_the_placeholder_key" in test_tasks
-    assert "sent = next(auth.sync_auth_flow(" in test_tasks, "assert on what goes out"
+    functions = {
+        node.name: node for node in ast.parse(test_tasks).body if isinstance(node, ast.FunctionDef)
+    }
+    helper = ast.unparse(functions["send_through_auth"])
+    assert "auth.sync_auth_flow(httpx.Request(" in helper, "assert on what goes out"
+    test = ast.unparse(functions["test_replay_tests_send_the_placeholder_key"])
+    for name in ["httpx", "sync_auth_flow", "SHELL_KEY", "os.environ", ".url", ".headers"]:
+        assert name not in test, f"{name}: pytest -l would print the test's frame"
+    assert functions["send_through_auth"].returns is not None
+    assert ast.unparse(functions["send_through_auth"].returns) == "AuthReport"
 
 
 def test_secret_detection_skips_the_answers_file(generated: tuple[str, Path]) -> None:
@@ -345,3 +378,249 @@ def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:
     _, dst = generated
     ignored = set((dst / ".gitignore").read_text().splitlines())
     assert {".env", ".env.*", ".envrc", ".envrc.*"} <= ignored
+
+
+def test_rate_limit_renders_pace_burst_and_provenance(generated: tuple[str, Path]) -> None:
+    """ADR-0010 decision 1: the pace, a burst of 1 unless upstream documents one, and where
+    the pace comes from, in the client and in the contract."""
+    name, dst = generated
+    answers = {**BASE_ANSWERS, **VARIANTS[name]}
+    burst = answers.get("rate_limit_burst", 1)
+    client = (dst / f"src/xippios/{package_dir(answers)}/_client.py").read_text()
+    pace = f"RATE_LIMIT = RateLimit(per_minute={answers['rate_limit_per_minute']}, burst={burst})"
+    assert pace in client
+    claude = (dst / "CLAUDE.md").read_text()
+    row = f"| Rate limit | {answers['rate_limit_per_minute']} requests per minute, burst {burst}; "
+    assert row in claude
+    if answers.get("rate_limit_provenance") == "self-imposed":
+        assert "# A self-imposed pace: upstream documents no limit" in client
+        assert "a self-imposed pace, upstream documents none (ADR-0010)" in claude
+    else:
+        assert "# Paced within the limit upstream documents" in client
+        assert "within the limit documented by upstream (ADR-0010)" in claude
+
+
+def test_client_exports_one_sorted_name_per_line(generated: tuple[str, Path]) -> None:
+    """One name per line, so a source's extra export never conflicts on copier update."""
+    name, dst = generated
+    client = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/_client.py").read_text()
+    (node,) = [
+        node
+        for node in ast.parse(client).body
+        if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "__all__"
+    ]
+    assert isinstance(node.value, ast.List)
+    names = [str(ast.literal_eval(element)) for element in node.value.elts]
+    upper = [n for n in names if n.isupper()]
+    assert names == sorted(upper) + sorted(set(names) - set(upper)), "isort-style, as RUF022"
+    lines = client.splitlines()
+    start = lines.index("__all__ = [")
+    assert lines[start + 1 : start + 1 + len(names)] == [f'    "{n}",' for n in names]
+    assert lines[start + 1 + len(names)] == "]"
+
+
+def detect_secrets_hook(directory: Path, *files: str) -> subprocess.CompletedProcess[str]:
+    """The generated repository's detect-secrets hook, on ``files`` in ``directory``."""
+    hook = [sys.executable, "-m", "detect_secrets.pre_commit_hook"]
+    return subprocess.run(
+        [*hook, "--baseline", ".secrets.baseline", *files],
+        cwd=directory,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Path) -> None:
+    """Conventions §12: one core minor, the extras likewise; a git pin keeps the bound.
+
+    uv takes a pinned core from ``[tool.uv.sources]`` and does not check the bound against
+    it, so the bound stays ``~=``; the pin's ``rev`` line is allowlisted for detect-secrets,
+    which a 40-character commit SHA trips without the pragma.
+    """
+    name, dst = generated
+    answers = VARIANTS[name]
+    version = str(answers.get("core_version", "0.1.0"))
+    pyproject = (dst / "pyproject.toml").read_text()
+    project = tomllib.loads(pyproject)["project"]
+    assert project["dependencies"] == [f"xippios-core~={version}"]
+    assert project["optional-dependencies"] == {
+        extra: [f"xippios-core[{extra}]~={version}"] for extra in ["mcp", "http", "testing"]
+    }
+    assert ">=0.1.0" not in pyproject
+    if answers.get("core_git_ref"):
+        (rev,) = [line for line in pyproject.splitlines() if line.startswith("xippios-core = {")]
+        assert f'rev = "{answers["core_git_ref"]}" }}' in rev
+        assert "# pragma: allowlist secret" in rev
+        assert "until it is on PyPI" not in pyproject
+        assert "uvx copier update --defaults --vcs-ref=:current: -d core_git_ref=" in pyproject
+        if len(str(answers["core_git_ref"])) == 40:
+            shutil.copy(dst / ".secrets.baseline", tmp_path / ".secrets.baseline")
+            (tmp_path / "pyproject.toml").write_text(pyproject)
+            (tmp_path / "unmarked.toml").write_text(
+                pyproject.replace(rev, rev.split("  # pragma")[0])
+            )
+            hook = detect_secrets_hook(tmp_path, "pyproject.toml")
+            assert hook.returncode == 0, hook.stdout + hook.stderr
+            control = detect_secrets_hook(tmp_path, "unmarked.toml")
+            assert control.returncode == 1, "without the pragma the SHA must be flagged"
+            assert "Hex High Entropy String" in control.stdout, control.stdout
+
+
+def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
+    """A release cannot carry a git-pinned core; the build job says so before building."""
+    _, dst = generated
+    workflow = yaml.safe_load((dst / ".github/workflows/publish.yml").read_text())
+    names = [
+        step.get("name") or step.get("run") or step.get("uses")
+        for step in workflow["jobs"]["build"]["steps"]
+    ]
+    guard = names.index("Refuse a pyproject with [tool.uv.sources]")
+    assert names[guard + 1] == "uv build"
+    (step,) = [s for s in workflow["jobs"]["build"]["steps"] if s.get("name") == names[guard]]
+    assert "[tool\\.uv\\.sources\\]" in step["run"]
+    release_prep = (dst / ".claude/commands/release-prep.md").read_text()
+    assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep
+    assert release_prep.index("No git-pinned core") < release_prep.index("set `version`")
+
+
+def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Path]) -> None:
+    """Conventions §10: nightly and on demand; the secret in the pytest step's env only."""
+    name, dst = generated
+    answers = VARIANTS[name]
+    env_var = str(answers["api_key_env"])
+    text = (dst / ".github/workflows/live.yml").read_text()
+    workflow = yaml.safe_load(text)
+    triggers = workflow[True]  # YAML 1.1 reads the key `on` as a boolean
+    assert set(triggers) == {"schedule", "workflow_dispatch"}
+    assert workflow["permissions"] == {"contents": "read"}
+    assert "env" not in workflow, "the secret reaches the pytest step only"
+    (job,) = workflow["jobs"].values()
+    assert "env" not in job, "the secret reaches the pytest step only"
+    *setup, pytest_step = job["steps"]
+    assert pytest_step["run"] == "uv run pytest -m live", "every live test, write tests too"
+    assert all("env" not in step for step in setup), "checkout and uv sync never see it"
+    expected_env: dict[str, str] = {"XIPPIOS_LIVE_TESTS": "1"}
+    if env_var:
+        expected_env[env_var] = f"${{{{ secrets.{env_var} }}}}"
+        assert text.count(f"${{{{ secrets.{env_var} }}}}") == 1
+        assert text.count("secrets.") == 1
+    else:
+        assert "secrets." not in text
+    assert pytest_step["env"] == expected_env
+    claude = (dst / "CLAUDE.md").read_text()
+    if env_var:
+        step = "Only its `uv run pytest -m live` step sees the key"
+        assert f"{step}, from the org secret `{env_var}`." in claude
+    write_note = "Every `live` test runs, write tests included"
+    assert (write_note in claude) is bool(answers.get("needs_write_tools"))
+
+
+def live_start(dst: Path) -> tuple[int, int]:
+    """(hour, minute) of the nightly live run, checked against its cron and the CLAUDE.md."""
+    workflow = yaml.safe_load((dst / ".github/workflows/live.yml").read_text())
+    (schedule,) = workflow[True]["schedule"]
+    match = re.fullmatch(r"(\d{1,2}) (\d) \* \* \*", schedule["cron"])
+    assert match, schedule["cron"]
+    minute, hour = int(match[1]), int(match[2])
+    assert 0 <= minute <= 59, schedule["cron"]
+    assert 1 <= hour <= 5, f"{schedule['cron']}: inside the night window, 01:00 to 05:59 UTC"
+    assert f"nightly at {hour:02d}:{minute:02d} UTC" in (dst / "CLAUDE.md").read_text()
+    return hour, minute
+
+
+def test_live_workflow_runs_inside_the_night_window(generated: tuple[str, Path]) -> None:
+    _, dst = generated
+    live_start(dst)
+
+
+def test_sources_sharing_a_key_start_at_stable_different_times(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """ADR-0009: usda-psd, usda-esr and usda-gats share one key and one gateway quota; their
+    nightly runs never start together, and a render keeps a repository's time."""
+    shared = keyed("DATA_GOV_API_KEY", "query", "api_key")
+    starts = {
+        slug: live_start(generate(template_src, tmp_path / slug, source_slug=slug, **shared))
+        for slug in ["usda-psd", "usda-esr", "usda-gats"]
+    }
+    assert len(set(starts.values())) == 3, starts
+    again = generate(template_src, tmp_path / "again", source_slug="usda-psd", **shared)
+    assert live_start(again) == starts["usda-psd"], "stable across renders"
+
+
+def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
+    """Conventions §8, with core 0.1.0 only until core 0.2.0's assert_write_tools."""
+    name, dst = generated
+    write = bool(VARIANTS[name].get("needs_write_tools"))
+    changelog = (dst / "CHANGELOG.md").read_text()
+    slug = VARIANTS[name]["source_slug"]
+    assert (f"`xippios-{slug}-mcp-write`" in changelog) is write
+    if not write:
+        return
+    test = (dst / "tests/test_tasks_write.py").read_text()
+    for needle in [
+        "tool_name(SOURCE, fn)",
+        "await write_server.list_tools()",
+        "await server.list_tools()",
+        "isinstance(route, APIRoute)",
+        'confirm.name == "confirm"',
+        "confirm.default is False",
+        "assert_write_tools",
+    ]:
+        assert needle in test, needle
+    assert "from xippios.core.testing import assert_write_tools" not in test, "core 0.1.0 only"
+    claude = (dst / "CLAUDE.md").read_text()
+    assert "test_tasks_write.py" in claude
+
+
+def test_generated_tests_need_no_key_and_end(generated: tuple[str, Path]) -> None:
+    """The reachability probe sends no key; the namespace walk cannot loop for ever."""
+    name, dst = generated
+    live = (dst / "tests/test_live.py").read_text()
+    assert ("the key's quota" in live) is bool(VARIANTS[name]["api_key_env"]), "keyed only"
+    assert "httpx.AsyncClient(" in live
+    assert "await http.get(BASE_URL)" in live
+    assert "follow_redirects=True" in live
+    assert "client.request" not in live, "the package's client would send the key"
+    layout = (dst / "tests/test_layout.py").read_text()
+    assert "while True" not in layout
+    assert 'names.index("xippios")' in layout
+
+
+def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> None:
+    """The http docstring states ADR-0007; the CLAUDE.md names every namespace level."""
+    name, dst = generated
+    pkg = package_dir(VARIANTS[name])
+    http = (dst / f"src/xippios/{pkg}/http.py").read_text()
+    assert "is a ``GET`` with query parameters" in http
+    assert "is a ``POST`` whose JSON body is keyed by parameter name (ADR-0007)" in http
+    claude = (dst / "CLAUDE.md").read_text()
+    if "/" in pkg:
+        provider = pkg.rsplit("/", 1)[0]
+        assert f"or `src/xippios/{provider}/__init__.py`, the provider level" in claude
+    else:
+        assert "the provider level" not in claude
+    assert ".github/workflows/live.yml" in claude
+    assert "Hand-apply" in claude
+
+
+def test_generated_tree_names_no_source_and_no_workspace_file(generated: tuple[str, Path]) -> None:
+    """Nothing source-specific is scaffolded (ADR-0008), nor a workspace-local reference."""
+    _, dst = generated
+    caches = {".ruff_cache", "__pycache__"}
+    for path in dst.rglob("*"):
+        if not path.is_file() or path.name == ".copier-answers.yml" or caches & set(path.parts):
+            continue
+        text = path.read_text()
+        for needle in ["commodity_desc", "corn_2024", "api_GET", "row 12", "COORDINATION"]:
+            assert needle not in text, f"{path}: {needle}"
+
+
+def test_generated_baseline_scans_swagger_files(generated: tuple[str, Path]) -> None:
+    """sdk-core dropped is_swagger_file: an upstream Swagger snapshot is scanned too."""
+    _, dst = generated
+    baseline = json.loads((dst / ".secrets.baseline").read_text())
+    filters = {entry["path"] for entry in baseline["filters_used"]}
+    assert "detect_secrets.filters.heuristic.is_swagger_file" not in filters
+    assert baseline["results"] == {}

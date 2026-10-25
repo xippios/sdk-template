@@ -17,7 +17,10 @@ then runs `scripts/new-source.sh`, which generates the repo, runs every check on
 creates `github.com/xippios/sdk-<slug>` with topics and the `pypi` environment, and opens
 the scaffold PR. The repository creation and the environment call raise permission
 prompts the human approves. Three steps stay with a human and are printed at the end:
-the PyPI pending publisher, the API key in `.envrc` and as an org secret, and the review.
+the PyPI pending publisher; the API key, which the nightly `live.yml` reads from an org
+secret (for a key several sources share, ADR-0009, the new repository is added to the
+existing secret's repository access, never with `gh secret set --repos`, which replaces
+the list; a new key goes into `.envrc` and a new org secret); and the review.
 
 By hand:
 
@@ -28,7 +31,8 @@ scripts/new-source.sh usda-nass \
   -d "upstream_docs_url=https://quickstats.nass.usda.gov/api" \
   -d "api_base_url=https://quickstats.nass.usda.gov/api" \
   -d "api_key_env=NASS_API_KEY" -d "api_key_location=query" -d "api_key_name=key" \
-  -d "rate_limit_per_minute=60" -d "domain_topic=agriculture"
+  -d "rate_limit_per_minute=30" -d "rate_limit_provenance=self-imposed" \
+  -d "domain_topic=agriculture"
 ```
 
 Add `--local-only` to generate and check without touching GitHub. The script generates
@@ -51,10 +55,13 @@ afterwards by rename or push.
 | `api_key_env` | environment variable with the key; empty for open APIs | `NASS_API_KEY` |
 | `api_key_location` | `query`, `header`, `bearer` or `basic` | `query` |
 | `api_key_name` | query parameter or header name | `key` |
-| `rate_limit_per_minute` | upstream's documented limit, enforced client-side | `60` |
+| `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, or a self-imposed pace where upstream documents none (ADR-0010) | `30` |
+| `rate_limit_burst` | requests let through at once before the pace applies; `1` unless upstream documents a burst | `1` |
+| `rate_limit_provenance` | `documented` or `self-imposed`: where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
 | `needs_write_tools` | adds `tasks_write.py` and the confirm-gated write server | `false` |
 | `domain_topic` | GitHub topic for the domain | `agriculture` |
-| `core_git_ref` | development only: depend on sdk-core at a git ref while it is not on PyPI | `main` |
+| `core_version` | the xippios-core release depended on, rendered `xippios-core~=<version>` (one core minor, conventions §12); default the current PyPI release | `0.1.0` |
+| `core_git_ref` | development only: depend on sdk-core at a git ref for an unreleased core change; removing it before a release raises `core_version` to the release that carries the change | `main` |
 
 ## What gets generated
 
@@ -63,16 +70,20 @@ sdk-<slug>/
   src/xippios/<import path as dirs>/   __init__, py.typed, _version, _client, models, tasks,
                        api/, mcp, http, reference/ (+ tasks_write, mcp_write when needs_write_tools)
   tests/               conftest, test_tasks, test_adapters, test_layout, test_live, fixtures/
+                       (+ test_tasks_write when needs_write_tools)
   docs/upstream/       FETCHED.md
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
-  .claude/settings.json  .github/workflows/{ci,publish}.yml  .github/PULL_REQUEST_TEMPLATE.md
+  .claude/settings.json  .github/workflows/{ci,publish,live}.yml  .github/PULL_REQUEST_TEMPLATE.md
   CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
   .gitattributes       docs/upstream/** -text, so upstream files keep their bytes and line endings
 ```
 
 The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit` before
 any endpoint is added; `tests/test_adapters.py` then keeps the adapters honest as tasks
-are added.
+are added, and `tests/test_tasks_write.py` the write server. `live.yml` runs every `live`
+test, write tests included, every night and on demand. Its start time derives from the
+slug, between 01:00 and 05:59 UTC, so sources that share a key do not start together;
+only its pytest step sees the key, from the org secret named by `api_key_env`.
 
 ## Updating generated repositories
 
@@ -84,9 +95,15 @@ git diff                             # review, then open a chore/template-update
 ```
 
 Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, for
-example `-d core_git_ref=` once `xippios-core` is on PyPI. Files listed under
-`_skip_if_exists` in `copier.yml` (the task layer, models, endpoint wrappers, tests,
-README, CHANGELOG, upstream snapshot, reference data) are never overwritten.
+example `-d core_git_ref= -d core_version=0.2.0` to drop a core pin for the release that
+carries the change (`--vcs-ref=:current:` changes the answers without moving the
+template). Files listed under `_skip_if_exists` in `copier.yml` (the task layer, models,
+endpoint wrappers, tests, scripts, README, CHANGELOG, upstream snapshot, reference data)
+are never overwritten once they exist, so a template fix to one of them does not reach
+existing repositories by itself. [CHANGELOG.md](CHANGELOG.md) lists those fixes per
+release under **Hand-apply**: path, change, reason. Port each one by hand in the same
+`chore/template-update` PR; a new file under those patterns is created by the update
+where the repository has none of that name.
 
 ## Developing the template
 

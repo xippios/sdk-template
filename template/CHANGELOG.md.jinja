@@ -10,4 +10,8 @@ All notable changes to this project are documented here. The format follows
 
 - Scaffold from [sdk-template](https://github.com/xippios/sdk-template): configured
   client for {{ source_name }}, empty task layer, MCP server and FastAPI router
-  wired to it, test harness, CI and publishing.
+  wired to it, test harness, CI, the nightly live tests and publishing.
+{% if needs_write_tools %}
+  The write server, `xippios-{{ source_slug }}-mcp-write`, serves the empty
+  `tasks_write.py` as confirm-gated tools.
+{% endif %}

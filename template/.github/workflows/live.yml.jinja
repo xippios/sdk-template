@@ -1,0 +1,40 @@
+# Nightly live smoke tests (conventions §10): every test marked `live` against the real
+# upstream, on a schedule and on demand, never on a pull request.
+{% if needs_write_tools %}
+# The write tests run too: they act only on data kept for testing and clean up after
+# themselves.
+{% endif %}
+# Rendered by the template (the one workflow that is): the secret it names is the source's
+# key variable, and its start time derives from the slug.
+name: Live
+
+on:
+  schedule:
+    # {{ live_schedule.time }} UTC, staggered from the slug (live_schedule in sdk-template's copier.yml)
+    # so that sources sharing a key do not start together.
+    - cron: "{{ live_schedule.cron }}"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: live
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --frozen
+      - run: uv run pytest -m live
+{% if api_key_env %}
+        # The key, from the org secret, for this step only: checkout, setup-uv and uv sync
+        # never see it.
+{% endif %}
+        env:
+          XIPPIOS_LIVE_TESTS: "1"
+{% if api_key_env %}
+          {{ api_key_env }}: {{ '${{' }} secrets.{{ api_key_env }} {{ '}}' }}
+{% endif %}

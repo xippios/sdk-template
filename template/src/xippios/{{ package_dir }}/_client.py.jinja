@@ -27,7 +27,12 @@ API_KEY_ENV = "{{ api_key_env }}"  # pragma: allowlist secret (a variable name, 
 {% else %}
 API_KEY_ENV: str | None = None
 {% endif %}
-RATE_LIMIT = RateLimit(per_minute={{ rate_limit_per_minute }})
+{% if rate_limit_provenance == 'self-imposed' %}
+# A self-imposed pace: upstream documents no limit (ADR-0010 decision 1).
+{% else %}
+# Paced within the limit upstream documents (ADR-0010 decision 1).
+{% endif %}
+RATE_LIMIT = RateLimit(per_minute={{ rate_limit_per_minute }}, burst={{ rate_limit_burst }})
 
 config = ClientConfig(
     source=SOURCE,
@@ -51,8 +56,14 @@ client = AsyncClient(config, auth=auth)
 client = AsyncClient(config)
 {% endif %}
 
+__all__ = [
+    "API_KEY_ENV",
+    "BASE_URL",
+    "RATE_LIMIT",
+    "SOURCE",
 {% if api_key_env %}
-__all__ = ["API_KEY_ENV", "BASE_URL", "RATE_LIMIT", "SOURCE", "auth", "client", "config"]
-{% else %}
-__all__ = ["API_KEY_ENV", "BASE_URL", "RATE_LIMIT", "SOURCE", "client", "config"]
+    "auth",
 {% endif %}
+    "client",
+    "config",
+]
