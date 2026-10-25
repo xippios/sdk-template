@@ -80,8 +80,10 @@ sdk-<slug>/
 
 The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit` before
 any endpoint is added; `tests/test_adapters.py` then keeps the adapters honest as tasks
-are added, and `tests/test_tasks_write.py` the write server. `live.yml` runs the `live`
-tests every night and on demand, with the key from the org secret named by `api_key_env`.
+are added, and `tests/test_tasks_write.py` the write server. `live.yml` runs every `live`
+test, write tests included, every night and on demand. Its start time derives from the
+slug, between 01:00 and 05:59 UTC, so sources that share a key do not start together;
+only its pytest step sees the key, from the org secret named by `api_key_env`.
 
 ## Updating generated repositories
 

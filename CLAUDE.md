@@ -33,10 +33,12 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   `README.md`, `CHANGELOG.md`, `docs/upstream/`, `reference/`) are listed in
   `_skip_if_exists` so `copier update` never overwrites them. Infrastructure files are not.
 - Workflow files are copied verbatim (no `.jinja`) so GitHub's `${{ }}` never meets Jinja,
-  with one exception: `live.yml.jinja` is rendered, because the secret it hands its one
-  job is named by the `api_key_env` answer. It writes GitHub's own expressions as
-  `{{ '${{' }}` and `{{ '}}' }}`; `tests/test_template.py` checks that no Jinja survives,
-  that a keyed source names its secret exactly once and that an open one names none.
+  with one exception: `live.yml.jinja` is rendered, because the secret its pytest step
+  reads is named by the `api_key_env` answer and its start time comes from
+  `live_schedule`, a hidden answer `copier.yml` computes from the slug. It writes GitHub's
+  own expressions as `{{ '${{' }}` and `{{ '}}' }}`; `tests/test_template.py` checks that
+  no Jinja survives, that a keyed source names its secret exactly once, on the pytest
+  step, and that an open one names none.
 - The verbatim files mirror sdk-core. When sdk-core changes one of them, change it here
   too and bump the template; `copier update` carries it into the generated repos.
   Two carry the exclusion of `.copier-answers.yml`, in the detect-secrets hook's
@@ -58,13 +60,13 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   documentation or the human, never be guessed by a session.
 - `detect-secrets` flags Jinja lines that mention `api_key_location` as if they held a
   key. Known false positives live in `.secrets.baseline`; after changing such a line, run
-  `uv run --with detect-secrets detect-secrets scan --baseline .secrets.baseline` and
-  commit the updated baseline. Never add a real value to silence it.
+  `uv run detect-secrets scan --baseline .secrets.baseline` and commit the updated
+  baseline. Never add a real value to silence it.
 
 ## Commands
 
 ```bash
-uv sync                         # copier, pytest, ruff, pyyaml
+uv sync                         # copier, pytest, ruff, pyyaml, detect-secrets
 uv run pytest                   # template tests (fast: generation + ruff on the output)
 scripts/prove.sh                  # full proof against the xippios-core release on PyPI
 scripts/prove.sh --core-ref main  # against unreleased core, before a core change lands
