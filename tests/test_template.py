@@ -249,7 +249,7 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
         )
         client = (dst / "src/xippios/ex/_client.py").read_text()
         assert needle in client, location
-        assert '    "auth",\n' in client, "the conftest imports auth"
+        assert '    "auth",\n' in client, "auth is exported"
     dst = generate(template_src, tmp_path / "open", source_slug="ex", **keyed(""))
     client = (dst / "src/xippios/ex/_client.py").read_text()
     assert "Auth" not in client
@@ -291,8 +291,10 @@ def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Pa
             assert f"{dotted}_" not in text, rel
 
 
-OPEN_CONFTEST = """import pytest
+CONFTEST = """import pytest
 
+# Core's plugin keeps the default run offline and free of real keys (ADR-0013); a key's
+# variable is named under xippios_placeholder_key_envs in pyproject.toml, not here.
 pytest_plugins = ["xippios.core.testing.plugin"]
 
 
@@ -302,37 +304,17 @@ def anyio_backend() -> str:
 """
 
 
-def test_conftest_sends_the_placeholder_unless_live(generated: tuple[str, Path]) -> None:
-    """Keyed: every test but a live one sends the placeholder, whatever the shell holds.
+def test_the_plugin_sends_the_placeholder_unless_live(generated: tuple[str, Path]) -> None:
+    """ADR-0013: core's plugin pins the key; a keyed source only names its variable.
 
-    The variants cover all four ways a key is sent; each auth class reads it through
-    ``key``, which the fixture pins. The open variant has no key handling at all.
+    No placeholder fixture, constant or test of the source's own, keyed or open.
     """
     name, dst = generated
-    answers = VARIANTS[name]
-    conftest = (dst / "tests/conftest.py").read_text()
-    test_tasks = (dst / "tests/test_tasks.py").read_text()
-    if not answers["api_key_env"]:
-        assert conftest == OPEN_CONFTEST
-        assert "placeholder" not in test_tasks
-        return
-    dotted = package_dir(answers).replace("/", ".")
-    assert f"from xippios.{dotted}._client import API_KEY_ENV, auth" in conftest
-    assert 'if "live" in request.keywords:' in conftest
-    assert "monkeypatch.setenv(API_KEY_ENV, PLACEHOLDER_KEY)" in conftest
-    assert 'monkeypatch.setattr(auth, "key", lambda: PLACEHOLDER_KEY)' in conftest
-    assert "os.environ" not in conftest, "the placeholder must not depend on the shell"
-    assert "def test_replay_tests_send_the_placeholder_key" in test_tasks
-    functions = {
-        node.name: node for node in ast.parse(test_tasks).body if isinstance(node, ast.FunctionDef)
-    }
-    helper = ast.unparse(functions["send_through_auth"])
-    assert "auth.sync_auth_flow(httpx.Request(" in helper, "assert on what goes out"
-    test = ast.unparse(functions["test_replay_tests_send_the_placeholder_key"])
-    for name in ["httpx", "sync_auth_flow", "SHELL_KEY", "os.environ", ".url", ".headers"]:
-        assert name not in test, f"{name}: pytest -l would print the test's frame"
-    assert functions["send_through_auth"].returns is not None
-    assert ast.unparse(functions["send_through_auth"].returns) == "AuthReport"
+    env = str(VARIANTS[name]["api_key_env"])
+    assert (dst / "tests/conftest.py").read_text() == CONFTEST
+    ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
+    assert ini.get("xippios_placeholder_key_envs") == ([env] if env else None)
+    assert "placeholder" not in (dst / "tests/test_tasks.py").read_text()
 
 
 def test_secret_detection_skips_the_answers_file(generated: tuple[str, Path]) -> None:
