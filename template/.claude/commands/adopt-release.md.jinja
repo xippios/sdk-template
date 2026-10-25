@@ -58,9 +58,11 @@ reviewer's `ready`, and a release tag is not part of an adoption.
    `{{ api_key_env }}`, and `tests/conftest.py` keeps no placeholder fixture of its own.
 {% endif %}
 
-7. **Item 6: generated enums.** Re-render `enums.py` once with the release's renderers,
-   through `scripts/refresh_reference.py` (with whatever its list endpoints need), and
-   commit it as rendered: no formatting step after it.
+7. **Item 6: generated enums.** Re-render `enums.py` once with the release's renderers
+   from the packaged lists, `uv run python scripts/refresh_reference.py --render-only`
+   (step 4 ports the flag where the script lacks it), and commit it as rendered: no
+   formatting step after it. An adoption fetches nothing: the packaged lists stay as
+   they are, since the PR changes nothing else (conventions §15).
 
 8. **Item 7: scripts.** `uv run mypy` covers `scripts/` too
    (`files = ["src", "tests", "scripts"]`); fix what `--strict` reports there.

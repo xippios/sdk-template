@@ -535,13 +535,18 @@ def test_adopt_release_walks_the_adoption_checklist(template_src: Path, tmp_path
 
 
 def test_reference_data_has_both_enum_paths(template_src: Path, tmp_path: Path) -> None:
-    """ADR-0008 amendment: StrEnum for value lists, IntEnum for integer ids, as rendered."""
+    """ADR-0008 amendment: StrEnum for value lists, IntEnum for integer ids, as rendered;
+    ``--render-only`` re-renders them from the packaged files, as an adoption does."""
     dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
     script = (dst / "scripts/refresh_reference.py").read_text()
     for call in ["render_str_enums(values,", "id_name_pairs(records,", "render_int_enums(pairs,"]:
         assert call in script, call
     command = (dst / ".claude/commands/refresh-reference-data.md").read_text()
     assert "ruff format" not in command, "core 0.2.0 renders enums.py ruff-clean"
+    render_only = "uv run python scripts/refresh_reference.py --render-only"
+    assert '"--render-only",' in script
+    assert render_only in command
+    assert render_only in (dst / ".claude/commands/adopt-release.md").read_text(), "§15 item 6"
     enums = (dst / "src/xippios/ex/enums.py").read_text()
     assert enums.startswith('"""StrEnums for packaged value lists (conventions, section 3).')
 

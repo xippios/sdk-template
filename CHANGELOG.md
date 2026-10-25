@@ -61,7 +61,10 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
   and names. Their records are packaged under the model's field names and rendered
   through `id_name_pairs` and `render_int_enums`, one `IntEnum` per list, so a member
   equals the id in upstream's data (conventions §3, ADR-0008 amendment). Each renderer
-  writes a whole module, so the script refuses both mappings filled.
+  writes a whole module, so the script refuses both mappings filled. `--render-only`
+  regenerates `enums.py` from the packaged `reference/*.json` without a request or a
+  key: `/adopt-release` runs it for conventions §15 item 6, so an adoption fetches
+  nothing, and `/refresh-reference-data` names it.
 - `.github/workflows/live.yml`, the one rendered workflow: every `live` test, write tests
   included (they act only on data kept for testing, ADR-0014), every night and on
   `workflow_dispatch`, one job, `contents: read` (conventions §10). The
@@ -170,6 +173,8 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
   scaffold's cap sentence allows a tool's own cap.
 - `/new-source` names core 0.2.0 as the default and the adoption PRs that bring later
   core minors and template releases.
+- Template-internal: `scripts/prove.sh` runs `scripts/refresh_reference.py --render-only`
+  on the generated repository and requires the shipped `enums.py` unchanged.
 
 ### Removed
 
@@ -228,12 +233,16 @@ ways once (see Changed), and they need no bullet.
 - `scripts/refresh_reference.py` — `LISTS` is typed
   `dict[str, Callable[[], Coroutine[Any, Any, list[str]]]]` (imports `Coroutine` and
   `Any` instead of `Awaitable`), the docstring asks for whatever the list endpoints
-  need, not the API key, and says a multi-tenant source packages no tenant data; where
-  the source packages integer-id lists, the `ID_LISTS` path (`id_name_pairs`,
-  `render_int_enums`) replaces a renderer of its own — the updated `pyproject.toml` has
-  mypy check `scripts/`, where the old annotation fails `--strict` twice at
-  `values = sync(fetch)()`; port it in the update PR itself, together with any other
-  script there that `mypy --strict` now reports (ADR-0008 amendment for the renderer).
+  need, not the API key, and says a multi-tenant source packages no tenant data; the
+  flag `--render-only` regenerates `enums.py` from the packaged `reference/*.json`
+  without a request (`read`, `render` and `render_only` next to `refresh`, `main`
+  parsing the flag); where the source packages integer-id lists, the `ID_LISTS` path
+  (`id_name_pairs`, `render_int_enums`) replaces a renderer of its own — the updated
+  `pyproject.toml` has mypy check `scripts/`, where the old annotation fails `--strict`
+  twice at `values = sync(fetch)()`, and §15 item 6 re-renders `enums.py` with
+  `--render-only`, fetching nothing; port it in the update PR itself, before that
+  re-render, together with any other script there that `mypy --strict` now reports
+  (ADR-0008 amendment for the renderer).
 - `tests/test_tasks.py` (keyed sources) — delete `test_replay_tests_send_the_placeholder_key`,
   `AuthReport`, `send_through_auth`, `SHELL_KEY` and the imports only they used — core's
   plugin pins the key and its own tests prove it (ADR-0013); a module that tests key

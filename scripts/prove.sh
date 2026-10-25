@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Prove the template: generate a throwaway sdk-example from the WORKING TREE and run the
-# full check suite on it (uv sync, ruff, mypy, pytest, pre-commit). No GitHub involved.
+# full check suite on it (uv sync, ruff, mypy, pytest, pre-commit), then re-render enums.py
+# from the (empty) packaged lists and require it unchanged. No GitHub involved.
 # The placeholder key is core's plugin's to guarantee, and its own suite tests it.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF] [--keep] [-d key=value ...]
@@ -44,6 +45,10 @@ cp -r "$here/copier.yml" "$here/template" "$snapshot/"
   -d "domain_topic=example-domain" \
   -d "core_git_ref=$core_ref" \
   "${extra[@]}"
+
+echo
+echo "==> refresh_reference.py --render-only renders the shipped enums.py unchanged"
+(cd "$dest" && uv run python scripts/refresh_reference.py --render-only && git diff --exit-code)
 
 echo
 echo "==> generated tree"
