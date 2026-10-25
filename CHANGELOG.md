@@ -58,13 +58,15 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
   `xippios.core.mcp` needs the `mcp` extra a base install lacks (conventions §8,
   ADR-0016).
 - `scripts/refresh_reference.py`: `ID_LISTS` next to `LISTS`, for lists of integer ids
-  and names. Their records are packaged under the model's field names and rendered
-  through `id_name_pairs` and `render_int_enums`, one `IntEnum` per list, so a member
-  equals the id in upstream's data (conventions §3, ADR-0008 amendment). Each renderer
-  writes a whole module, so the script refuses both mappings filled. `--render-only`
-  regenerates `enums.py` from the packaged `reference/*.json` without a request or a
-  key: `/adopt-release` runs it for conventions §15 item 6, so an adoption fetches
-  nothing, and `/refresh-reference-data` names it.
+  and names. Their records are packaged under upstream's field names (a field's string
+  `validation_alias`, else its name; the models set no serialisation alias, so
+  `model_dump(by_alias=True)` would not restore them), as tables keep upstream's column
+  names, and rendered through `id_name_pairs` and `render_int_enums`, one `IntEnum` per
+  list, so a member equals the id in upstream's data (conventions §3, ADR-0008
+  amendment). Each renderer writes a whole module, so the script refuses both mappings
+  filled. `--render-only` regenerates `enums.py` from the packaged `reference/*.json`
+  without a request or a key: `/adopt-release` runs it for conventions §15 item 6, so an
+  adoption fetches nothing, and `/refresh-reference-data` names it.
 - `.github/workflows/live.yml`, the one rendered workflow: every `live` test, write tests
   included (they act only on data kept for testing, ADR-0014), every night and on
   `workflow_dispatch`, one job, `contents: read` (conventions §10). The
@@ -226,9 +228,10 @@ ways once (see Changed), and they need no bullet.
   only; port it if the file still carries the scaffold docstring.
 - `src/xippios/<pkg>/reference/README.md` — the lookup rule reads "one lookup task per
   list, `list_<thing>`, ..., or the upstream's own lookup operation when it serves every
-  list through one", a rule says a multi-tenant source packages no tenant data, and the
-  enums rule names both renderers, `render_str_enums` and `render_int_enums` — the
-  per-list rule did not fit a source whose upstream serves every list through one
+  list through one", a rule says a multi-tenant source packages no tenant data, the
+  enums rule names both renderers, `render_str_enums` and `render_int_enums`, and a rule
+  says files keep upstream's names (a table its columns, an id list its record fields) —
+  the per-list rule did not fit a source whose upstream serves every list through one
   operation (ADR-0014 for the tenant rule, ADR-0008 amendment for the renderers).
 - `scripts/refresh_reference.py` — `LISTS` is typed
   `dict[str, Callable[[], Coroutine[Any, Any, list[str]]]]` (imports `Coroutine` and
@@ -237,12 +240,13 @@ ways once (see Changed), and they need no bullet.
   flag `--render-only` regenerates `enums.py` from the packaged `reference/*.json`
   without a request (`read`, `render` and `render_only` next to `refresh`, `main`
   parsing the flag); where the source packages integer-id lists, the `ID_LISTS` path
-  (`id_name_pairs`, `render_int_enums`) replaces a renderer of its own — the updated
-  `pyproject.toml` has mypy check `scripts/`, where the old annotation fails `--strict`
-  twice at `values = sync(fetch)()`, and §15 item 6 re-renders `enums.py` with
-  `--render-only`, fetching nothing; port it in the update PR itself, before that
-  re-render, together with any other script there that `mypy --strict` now reports
-  (ADR-0008 amendment for the renderer).
+  (`id_name_pairs`, `render_int_enums`, the records under upstream's field names through
+  `upstream_record`) replaces a renderer of its own — the updated `pyproject.toml` has
+  mypy check `scripts/`, where the old annotation fails `--strict` twice at
+  `values = sync(fetch)()`, and §15 item 6 re-renders `enums.py` with `--render-only`,
+  fetching nothing; port it in the update PR itself, before that re-render, together
+  with any other script there that `mypy --strict` now reports (ADR-0008 amendment for
+  the renderer).
 - `tests/test_tasks.py` (keyed sources) — delete `test_replay_tests_send_the_placeholder_key`,
   `AuthReport`, `send_through_auth`, `SHELL_KEY` and the imports only they used — core's
   plugin pins the key and its own tests prove it (ADR-0013); a module that tests key

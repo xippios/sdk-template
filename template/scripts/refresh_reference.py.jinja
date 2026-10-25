@@ -2,13 +2,14 @@
 
 Every list in ``LISTS`` or ``ID_LISTS`` is fetched through the layer-1 wrappers in
 ``api/``, never through a task that might answer from the package, and written to
-``reference/<name>.json`` with the fetch date; then ``enums.py`` is regenerated as core
-renders it, ASCII-only and ruff-clean, with no formatting step after it (ADR-0008). A
-value list in ``LISTS`` becomes one ``StrEnum`` through
-``xippios.core.reference.render_str_enums``; a list of integer ids and names in
-``ID_LISTS`` becomes one ``IntEnum`` through ``id_name_pairs`` and ``render_int_enums``,
-so that a member compares equal to the id in upstream's data (conventions §3). Each
-renderer writes a whole module, so ``enums.py`` holds one kind: fill one of the two.
+``reference/<name>.json`` with the fetch date, an id list as upstream's records under
+upstream's field names; then ``enums.py`` is regenerated as core renders it, ASCII-only
+and ruff-clean, with no formatting step after it (ADR-0008). A value list in ``LISTS``
+becomes one ``StrEnum`` through ``xippios.core.reference.render_str_enums``; a list of
+integer ids and names in ``ID_LISTS`` becomes one ``IntEnum`` through ``id_name_pairs``
+and ``render_int_enums``, so that a member compares equal to the id in upstream's data
+(conventions §3). Each renderer writes a whole module, so ``enums.py`` holds one kind:
+fill one of the two.
 
 Only lists that are the same for every caller are packaged; a multi-tenant source
 packages no tenant data (ADR-0014). Run from the repository root, with whatever the list
@@ -45,14 +46,31 @@ LISTS: dict[str, Callable[[], Coroutine[Any, Any, list[str]]]] = {
 
 ID_LISTS: dict[str, tuple[str, str, Callable[[], Coroutine[Any, Any, Sequence[UpstreamModel]]]]] = {
     # name of the list to (id field, name field, async fetcher of its records through api/),
-    # the fields as the model names them, e.g.
-    # "unit_id": ("unit_id", "unit_description", lambda: api.list_units()),
+    # the fields as upstream names them, e.g.
+    # "unit_id": ("unitId", "unitDescription", lambda: api.list_units()),
 }
 """Lists of integer ids and names, one ``IntEnum`` each (conventions §3).
 
-Packaged as the records, under the model's field names; ``params.packaged_values`` reads
-value lists only, so these stay out of ``params.PACKAGED_LISTS``.
+Packaged as upstream's records under upstream's field names (``upstream_record``), as a
+table keeps upstream's column names; ``params.packaged_values`` reads value lists only, so
+these stay out of ``params.PACKAGED_LISTS``.
 """
+
+
+def upstream_record(record: UpstreamModel) -> dict[str, Any]:
+    """``record`` as JSON under upstream's field names, for ``reference/<name>.json``.
+
+    A field's upstream name is its ``Field(validation_alias=...)`` where the model has a
+    string one, else the field's own name. The models set no serialisation alias
+    (``models.py``), so ``model_dump(by_alias=True)`` would not restore upstream's names;
+    values are dumped as JSON, a ``Decimal`` as a number, a date as ISO text.
+    """
+    upstream = {
+        name: info.validation_alias if isinstance(info.validation_alias, str) else name
+        for name, info in type(record).model_fields.items()
+    }
+    dumped = record.model_dump(mode="json")
+    return {upstream.get(name, name): value for name, value in dumped.items()}
 
 
 def write(name: str, fetched: str, key: str, rows: Sequence[object]) -> None:
@@ -93,7 +111,7 @@ def refresh() -> None:
         write(name, today, "values", values[name])
     pairs: dict[str, list[tuple[int, str]]] = {}
     for name, (id_field, name_field, fetch_records) in ID_LISTS.items():
-        records = [record.model_dump(mode="json") for record in sync(fetch_records)()]
+        records = [upstream_record(record) for record in sync(fetch_records)()]
         write(name, today, "records", records)
         pairs[name] = id_name_pairs(records, id_field=id_field, name_field=name_field)
     ENUMS.write_text(render(values, pairs, today), encoding="utf-8")

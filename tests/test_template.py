@@ -543,6 +543,7 @@ def test_reference_data_has_both_enum_paths(template_src: Path, tmp_path: Path) 
         assert call in script, call
     command = (dst / ".claude/commands/refresh-reference-data.md").read_text()
     assert "ruff format" not in command, "core 0.2.0 renders enums.py ruff-clean"
+    assert "records = [upstream_record(record) for record in" in script, "upstream's names"
     render_only = "uv run python scripts/refresh_reference.py --render-only"
     assert '"--render-only",' in script
     assert render_only in command
