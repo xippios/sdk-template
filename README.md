@@ -60,7 +60,7 @@ afterwards by rename or push.
 | `rate_limit_provenance` | `documented` or `self-imposed`: where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
 | `needs_write_tools` | adds `tasks_write.py` and the confirm-gated write server | `false` |
 | `domain_topic` | GitHub topic for the domain | `agriculture` |
-| `core_version` | the xippios-core release depended on, rendered `xippios-core~=<version>` (one core minor, conventions §12); default the current PyPI release | `0.1.0` |
+| `core_version` | the xippios-core release depended on, rendered `xippios-core~=<version>`, the extras likewise (one core minor, the minor's `.0`: conventions §12, ADR-0018); default `0.2.0`, the current PyPI release | `0.2.0` |
 | `core_git_ref` | development only: depend on sdk-core at a git ref for an unreleased core change; removing it before a release raises `core_version` to the release that carries the change | `main` |
 
 ## What gets generated
@@ -72,7 +72,8 @@ sdk-<slug>/
   tests/               conftest, test_tasks, test_adapters, test_layout, test_live, fixtures/
                        (+ test_tasks_write when needs_write_tools)
   docs/upstream/       FETCHED.md
-  .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
+  .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
+                       adopt-release
   .claude/settings.json  .github/workflows/{ci,publish,live}.yml  .github/PULL_REQUEST_TEMPLATE.md
   CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
   .gitattributes       docs/upstream/** -text, so upstream files keep their bytes and line endings
@@ -87,23 +88,30 @@ only its pytest step sees the key, from the org secret named by `api_key_env`.
 
 ## Updating generated repositories
 
-Template changes roll out with `copier update`, run inside a generated repository:
+A template release, and the xippios-core minor it carries, reach a generated repository
+in one adoption PR before its next release (conventions §15, ADR-0018): a
+`chore/template-update-<tag>` PR whose description is the definition of done's Adoption
+PR checklist, which auto-merges after the reviewer's `ready`. The generated
+`/adopt-release <tag>` walks it step by step; at its core is `copier update`, run inside
+the generated repository:
 
 ```bash
-uvx copier update                    # to the latest template tag; --vcs-ref HEAD for main
-git diff                             # review, then open a chore/template-update PR
+uvx copier update --defaults --vcs-ref=v0.2.0 -d core_version=0.2.0 -d core_git_ref=
+git diff                             # review; resolve conflicts
 ```
 
-Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, for
-example `-d core_git_ref= -d core_version=0.2.0` to drop a core pin for the release that
-carries the change (`--vcs-ref=:current:` changes the answers without moving the
-template). Files listed under `_skip_if_exists` in `copier.yml` (the task layer, models,
-endpoint wrappers, tests, scripts, README, CHANGELOG, upstream snapshot, reference data)
-are never overwritten once they exist, so a template fix to one of them does not reach
-existing repositories by itself. [CHANGELOG.md](CHANGELOG.md) lists those fixes per
-release under **Hand-apply**: path, change, reason. Port each one by hand in the same
-`chore/template-update` PR; a new file under those patterns is created by the update
-where the repository has none of that name.
+Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, as above
+to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the answers
+without moving the template). Files listed under `_skip_if_exists` in `copier.yml` (the
+client and the package `__init__.py`, the task layer, models, endpoint wrappers, the task,
+write and live tests and the fixtures, scripts, README, CHANGELOG, upstream snapshot,
+reference data) are never overwritten once they exist, so a template fix to one of them
+does not reach existing repositories by itself. [CHANGELOG.md](CHANGELOG.md) lists those
+fixes per release under **Hand-apply**: path, change, reason; port each one by hand in
+the same PR. A new file under those patterns is created by the update where the
+repository has none of that name. Every other file is the template's: `tests/conftest.py`,
+`tests/test_layout.py` and `tests/test_adapters.py` among them are re-rendered, and a
+source's own lines in them are merged three ways, conflicts marked.
 
 ## Developing the template
 

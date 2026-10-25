@@ -12,7 +12,8 @@ copier.yml               questions and copier settings (subdirectory, skip-if-ex
 template/                what gets generated; *.jinja files are rendered, others copied verbatim
   src/xippios/{{ package_dir }}/  the package (import_path as directories, ADR-0006): _client, models, tasks, api/, mcp, http, reference/
   tests/                 conftest (plugin), structural task tests, adapter tests, live smoke
-  .claude/commands/      add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
+  .claude/commands/      add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
+                         adopt-release (walks conventions §15 for an adoption PR)
   CLAUDE.md.jinja        the contract a session gets in a generated repo; keep it readable by a new engineer
   .github/, .pre-commit-config.yaml, .secrets.baseline, LICENSE   copied from sdk-core, verbatim but for the deviations in Rules
   .github/workflows/live.yml.jinja   the nightly live workflow, the one rendered workflow (Rules)
@@ -29,9 +30,13 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 - Generated code must pass `ruff check`, `ruff format --check`, `mypy --strict`, `pytest`
   and `pre-commit` out of the box. `scripts/prove.sh` is the proof; run it before every PR
   and paste its tail into the PR description.
-- Files a session fills with source content (`tasks.py`, `models.py`, `api/`, `tests/`,
-  `README.md`, `CHANGELOG.md`, `docs/upstream/`, `reference/`) are listed in
-  `_skip_if_exists` so `copier update` never overwrites them. Infrastructure files are not.
+- Files a session fills with source content (`_client.py`, `__init__.py`, `tasks.py`,
+  `tasks_write.py`, `models.py`, `params.py`, `enums.py`, `api/`, `reference/`,
+  `scripts/`, `tests/test_tasks.py`, `tests/test_tasks_write.py`, `tests/test_live.py`,
+  `tests/fixtures/`, `README.md`, `CHANGELOG.md`, `docs/upstream/`) are listed in
+  `_skip_if_exists` so `copier update` never overwrites them. Every other rendered file is
+  the template's and updates with it, `tests/conftest.py`, `tests/test_layout.py` and
+  `tests/test_adapters.py` among them: keep in those only what every source shares.
 - Workflow files are copied verbatim (no `.jinja`) so GitHub's `${{ }}` never meets Jinja,
   with one exception: `live.yml.jinja` is rendered, because the secret its pytest step
   reads is named by the `api_key_env` answer and its start time comes from
@@ -39,15 +44,17 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   own expressions as `{{ '${{' }}` and `{{ '}}' }}`; `tests/test_template.py` checks that
   no Jinja survives, that a keyed source names its secret exactly once, on the pytest
   step, and that an open one names none.
-- The verbatim files mirror sdk-core. When sdk-core changes one of them, change it here
-  too and bump the template; `copier update` carries it into the generated repos.
-  Two carry the exclusion of `.copier-answers.yml`, in the detect-secrets hook's
-  `exclude` in `.pre-commit-config.yaml` and in `should_exclude_file` in
-  `.secrets.baseline`, because the answers file names the key's variable and trips the
-  keyword check on commit and on a baseline rescan alike; sdk-core's `main` carries the
-  same exclusion (e1ea7d2, not released yet). `publish.yml` deviates by one step: before
-  `uv build` it refuses a `pyproject.toml` that has `[tool.uv.sources]`, since a source
-  that pins core to git cannot be published (conventions §12); core has no pin to guard.
+- The verbatim files mirror sdk-core at the core release the template adopts (v0.2.0);
+  `tests/test_template.py` pins `ci.yml` and `PULL_REQUEST_TEMPLATE.md` to its bytes.
+  When sdk-core changes one of them, change it here too and bump the template;
+  `copier update` carries it into the generated repos. Two carry the exclusion of
+  `.copier-answers.yml`, in the detect-secrets hook's `exclude` in
+  `.pre-commit-config.yaml` and in `should_exclude_file` in `.secrets.baseline`, because
+  the answers file names the key's variable and trips the keyword check on commit and on
+  a baseline rescan alike; sdk-core carries the same exclusion since core 0.2.0.
+  `publish.yml` deviates by one step: before `uv build` it refuses a `pyproject.toml`
+  that has `[tool.uv.sources]`, since a source that pins core to git cannot be published
+  (conventions §12); core has no pin to guard.
 - Every template release has an entry in `CHANGELOG.md` (Keep a Changelog), and every
   entry ends with a `### Hand-apply` list: one bullet per generated file under
   `_skip_if_exists` that the release changes, `` - `<path>` — <what> — <why> ``, because
