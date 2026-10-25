@@ -23,6 +23,8 @@ actions; this command only prepares the PR.
    current.
 7. Run the full suite: `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest && uv run pre-commit run --all-files`.
    If live tests can run (`XIPPIOS_LIVE_TESTS=1`), run them too and report the result.
-8. Open the PR with the definition-of-done checklist. Then stop and print the human
-   steps: merge, `git tag v<version>` on `main`, push the tag, approve the `pypi`
-   environment run in the Actions tab.
+8. Open the PR with the definition-of-done checklist. After the reviewer's `ready` the
+   session enables auto-merge, and GitHub merges once `ci` is green and review threads
+   are resolved (ADR-0018). Then stop and print the human steps: `git tag v<version>` on
+   `main` after the merge, push the tag, approve the `pypi` environment run in the
+   Actions tab.

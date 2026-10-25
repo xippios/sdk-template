@@ -653,6 +653,10 @@ def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> No
         assert "the provider level" not in claude
     assert ".github/workflows/live.yml" in claude
     assert "Hand-apply" in claude
+    assert "`/adopt-release <tag>` walks it" in claude, "conventions §15, ADR-0018"
+    assert "`tests/conftest.py`, `tests/test_layout.py` and `tests/test_adapters.py`" in claude
+    assert ("xippios_placeholder_key_envs" in claude) is bool(VARIANTS[name]["api_key_env"])
+    assert "(ADR-0017)" in claude
 
 
 def test_generated_tree_names_no_source_and_no_workspace_file(generated: tuple[str, Path]) -> None:

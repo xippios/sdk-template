@@ -29,7 +29,11 @@ Work on a branch `feature/<operation>`. Follow the three layers (ADR-0001) exact
    and reference lookups, and returning `Result[T]` with full `ResultMeta` (`source`,
    `endpoint`, `request`, and `published_at` / `vintage` when upstream provides them). Then:
    `get_<thing> = sync(get_<thing>_async)`, add `"get_<thing>"` to `__all__`, and
-   re-export it from `__init__.py`.
+   re-export it from `__init__.py`. A projection the task returns leaves out documented
+   personal identifiers (`ssn`, `iban` and their like) unless the task fetches them
+   deliberately and says so in its docstring, and a write task does not echo one in
+   `meta.request` (ADR-0017). A list task whose whole list an agent needs, longer than
+   the default result cap, gets a cap of its own in `MCP_CAPS` (ADR-0016).
 
 5. **Docstring for agents** on the task: first line one sentence; then an `Args:` block
    explaining every parameter with examples of valid values. The MCP tool description and
@@ -38,8 +42,10 @@ Work on a branch `feature/<operation>`. Follow the three layers (ADR-0001) exact
 
 6. **Tests.** Run `/record-fixture <operation> <case> <parameters>` for at least one
    realistic case, add a replay test in `tests/test_tasks.py` using the `replay_fixture`
-   fixture, and a `@pytest.mark.live` smoke test in `tests/test_live.py`. Grep the fixture
-   for key patterns before committing.
+   fixture, and a `@pytest.mark.live` smoke test in `tests/test_live.py`. A replay test
+   that checks what was sent compares `xippios.core.testing.sent_urls(route)`, the URLs
+   with credentials redacted, never a request kept from `route.calls`, which a failure or
+   `pytest -l` would print. Grep the fixture for key patterns before committing.
 
 7. **Docs.** `CHANGELOG.md` under Unreleased; the README status table gets a row
    (upstream operation, task function, MCP tool name `{{ tool_prefix }}_<task>`, status).
