@@ -68,7 +68,9 @@ build-backend = "hatchling.build"
 packages = ["src/xippios"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "docs", "README.md", "CHANGELOG.md", "LICENSE"]
+# Anchored: hatch reads gitignore-style patterns, so a bare README.md would match
+# tests/fixtures/README.md as well. The sdist ships no tests; they live in the repository.
+include = ["/src", "/docs", "/README.md", "/CHANGELOG.md", "/LICENSE"]
 
 [tool.ruff]
 line-length = 100

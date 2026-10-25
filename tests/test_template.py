@@ -176,7 +176,7 @@ def test_layout(generated: tuple[str, Path]) -> None:
     tool = tomllib.loads(pyproject)["tool"]
     assert tool["mypy"]["files"] == ["src", "tests", "scripts"], "scripts/ is type-checked"
     sdist = tool["hatch"]["build"]["targets"]["sdist"]
-    assert sdist == {"include": ["src", "docs", "README.md", "CHANGELOG.md", "LICENSE"]}
+    assert sdist == {"include": ["/src", "/docs", "/README.md", "/CHANGELOG.md", "/LICENSE"]}
     assert "tests" not in json.dumps(sdist), "the sdist ships no tests; they live in the repo"
 
 

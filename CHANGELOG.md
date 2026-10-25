@@ -71,7 +71,9 @@ are not listed.
 - mypy checks `scripts/` too (`files = ["src", "tests", "scripts"]`).
 - The sdist ships no tests: `tests` leaves `[tool.hatch.build.targets.sdist] include`,
   and the `tests/fixtures` exclude goes with it. A small, consistent sdist; the tests
-  live in the repository.
+  live in the repository. The patterns are anchored (`/src`, `/README.md`, ...): hatch
+  reads them gitignore-style, so a bare `README.md` also matched
+  `tests/fixtures/README.md`.
 - `http.py`'s docstring: `GET` for a task whose parameters are all scalars, `POST`
   otherwise (ADR-0007), as `tests/test_adapters.py` asserts.
 - `/refresh-upstream`: fetch dates are UTC in ISO 8601 (a date `YYYY-MM-DD`, a timestamp
