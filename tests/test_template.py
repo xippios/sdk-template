@@ -532,8 +532,9 @@ def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
 
 def test_generated_tests_need_no_key_and_end(generated: tuple[str, Path]) -> None:
     """The reachability probe sends no key; the namespace walk cannot loop for ever."""
-    _, dst = generated
+    name, dst = generated
     live = (dst / "tests/test_live.py").read_text()
+    assert ("the key's quota" in live) is bool(VARIANTS[name]["api_key_env"]), "keyed only"
     assert "httpx.AsyncClient(" in live
     assert "await http.get(BASE_URL)" in live
     assert "follow_redirects=True" in live
