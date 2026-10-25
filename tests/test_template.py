@@ -469,6 +469,26 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Pat
             assert "Hex High Entropy String" in control.stdout, control.stdout
 
 
+# SHA-256 of sdk-core's files at v0.2.0, which the template copies verbatim:
+# git -C ../sdk-core show v0.2.0:<path> | sha256sum
+CORE_VERBATIM = {
+    ".github/workflows/ci.yml": "07c9d93ebc9048d6a4c113d684dd71367ebd216dbe798fa08ff1eaf798d5280f",
+    ".github/PULL_REQUEST_TEMPLATE.md": (
+        "8ba41dd227f9ea1fececc63759431e079f735d5e661ff1b1936fa7bbec6b9359"
+    ),
+}
+
+
+def test_ci_and_pr_template_are_core_v0_2_0_verbatim(template_src: Path, tmp_path: Path) -> None:
+    """ADR-0018: CI runs pre-commit after the tests, as core's does, byte for byte."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
+    for rel, digest in CORE_VERBATIM.items():
+        assert hashlib.sha256((dst / rel).read_bytes()).hexdigest() == digest, rel
+    steps = yaml.safe_load((dst / ".github/workflows/ci.yml").read_text())["jobs"]["test"]["steps"]
+    runs = [step.get("run") for step in steps]
+    assert runs.index("uv run pytest") < runs.index("uv run pre-commit run --all-files")
+
+
 def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
     """A release cannot carry a git-pinned core; the build job says so before building."""
     _, dst = generated
