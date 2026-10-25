@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Prove the template: generate a throwaway sdk-example from the WORKING TREE and run the
-# full check suite on it (uv sync, ruff, mypy, pytest, pre-commit), then pytest once more
-# with the key variable set to a dummy value (keyed sources only). No GitHub involved.
+# full check suite on it (uv sync, ruff, mypy, pytest, pre-commit), then re-render enums.py
+# from the (empty) packaged lists and require it unchanged. No GitHub involved.
+# The placeholder key is core's plugin's to guarantee, and its own suite tests it.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF] [--keep] [-d key=value ...]
 #   --core-ref REF   git ref of sdk-core to depend on; default "" = the PyPI release,
@@ -45,14 +46,9 @@ cp -r "$here/copier.yml" "$here/template" "$snapshot/"
   -d "core_git_ref=$core_ref" \
   "${extra[@]}"
 
-# With a key variable set in the shell, as direnv does, every test that is not live must
-# still send the placeholder: run the suite once more with a dummy value in the variable.
-key_env="$(sed -nE "s/^api_key_env: *['\"]?([A-Z0-9_]*)['\"]?$/\1/p" "$dest/.copier-answers.yml")"
-if [ -n "$key_env" ]; then
-  echo
-  echo "==> pytest with $key_env set to a dummy value"
-  (cd "$dest" && env "$key_env=dummy-value-not-a-key" uv run pytest -q)
-fi
+echo
+echo "==> refresh_reference.py --render-only renders the shipped enums.py unchanged"
+(cd "$dest" && uv run python scripts/refresh_reference.py --render-only && git diff --exit-code)
 
 echo
 echo "==> generated tree"

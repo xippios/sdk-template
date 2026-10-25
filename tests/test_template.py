@@ -50,7 +50,7 @@ VARIANTS: dict[str, dict[str, object]] = {
         "source_slug": "abc-data",
         "rate_limit_burst": 3,
         "rate_limit_provenance": "self-imposed",
-        "core_version": "0.2.0",
+        "core_version": "0.3.0",
         **keyed("ABC_API_KEY", "bearer"),
     },
     "basic-git-core": {
@@ -116,6 +116,7 @@ EXPECTED_FILES = [
     ".claude/commands/refresh-upstream.md",
     ".claude/commands/refresh-reference-data.md",
     ".claude/commands/release-prep.md",
+    ".claude/commands/adopt-release.md",
     ".copier-answers.yml",
 ]
 
@@ -249,7 +250,7 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
         )
         client = (dst / "src/xippios/ex/_client.py").read_text()
         assert needle in client, location
-        assert '    "auth",\n' in client, "the conftest imports auth"
+        assert '    "auth",\n' in client, "auth is exported"
     dst = generate(template_src, tmp_path / "open", source_slug="ex", **keyed(""))
     client = (dst / "src/xippios/ex/_client.py").read_text()
     assert "Auth" not in client
@@ -259,16 +260,36 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
 
 
 def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Path) -> None:
+    """A source's files survive a re-render; the template's own are rendered again.
+
+    The slug ends in -api, so the package itself is .../api/: the patterns name the package
+    directory, and its mcp.py is the template's while its api/ is the source's.
+    """
     dst = generate(template_src, tmp_path / "repo", source_slug="ex-api", **keyed(""))
-    tasks = dst / "src/xippios/ex/api/tasks.py"
-    claude = dst / "CLAUDE.md"
-    tasks.write_text("# my work\n")
-    claude.write_text("# clobbered\n")
-    (dst / "tests/test_mine.py").write_text("def test_x(): pass\n")
+    pkg = "src/xippios/ex/api"
+    mine = [f"{pkg}/{n}" for n in ["tasks.py", "_client.py", "__init__.py", "api/__init__.py"]]
+    mine.append("tests/test_tasks.py")
+    templates = ["CLAUDE.md", "tests/conftest.py", f"{pkg}/mcp.py"]
+    for rel in [*mine, *templates]:
+        (dst / rel).write_text("# edited\n")
     generate(template_src, dst, source_slug="ex-api", **keyed(""))
-    assert tasks.read_text() == "# my work\n"
-    assert (dst / "tests/test_mine.py").exists()
-    assert claude.read_text() != "# clobbered\n"
+    for rel in mine:
+        assert (dst / rel).read_text() == "# edited\n", f"{rel} is the source's"
+    for rel in templates:
+        assert (dst / rel).read_text() != "# edited\n", f"{rel} is the template's"
+
+
+def test_the_files_a_source_fills_are_one_list(template_src: Path, tmp_path: Path) -> None:
+    """The generated contract and /adopt-release name every protected path, in skip order."""
+    patterns = yaml.safe_load((template_src / "copier.yml").read_text())["_skip_if_exists"]
+    names = [
+        f"`{p.removeprefix('src/xippios/{{ package_dir }}/').replace('/**', '/')}`"
+        for p in patterns
+    ]
+    listing = ", ".join(names[:-1]) + f" and {names[-1]}"
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
+    for rel in ["CLAUDE.md", ".claude/commands/adopt-release.md"]:
+        assert listing in " ".join((dst / rel).read_text().split()), rel
 
 
 def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Path]) -> None:
@@ -288,8 +309,10 @@ def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Pa
             assert f"{dotted}_" not in text, rel
 
 
-OPEN_CONFTEST = """import pytest
+CONFTEST = """import pytest
 
+# Core's plugin keeps the default run offline and free of real keys (ADR-0013); a key's
+# variable is named under xippios_placeholder_key_envs in pyproject.toml, not here.
 pytest_plugins = ["xippios.core.testing.plugin"]
 
 
@@ -299,37 +322,17 @@ def anyio_backend() -> str:
 """
 
 
-def test_conftest_sends_the_placeholder_unless_live(generated: tuple[str, Path]) -> None:
-    """Keyed: every test but a live one sends the placeholder, whatever the shell holds.
+def test_the_plugin_sends_the_placeholder_unless_live(generated: tuple[str, Path]) -> None:
+    """ADR-0013: core's plugin pins the key; a keyed source only names its variable.
 
-    The variants cover all four ways a key is sent; each auth class reads it through
-    ``key``, which the fixture pins. The open variant has no key handling at all.
+    No placeholder fixture, constant or test of the source's own, keyed or open.
     """
     name, dst = generated
-    answers = VARIANTS[name]
-    conftest = (dst / "tests/conftest.py").read_text()
-    test_tasks = (dst / "tests/test_tasks.py").read_text()
-    if not answers["api_key_env"]:
-        assert conftest == OPEN_CONFTEST
-        assert "placeholder" not in test_tasks
-        return
-    dotted = package_dir(answers).replace("/", ".")
-    assert f"from xippios.{dotted}._client import API_KEY_ENV, auth" in conftest
-    assert 'if "live" in request.keywords:' in conftest
-    assert "monkeypatch.setenv(API_KEY_ENV, PLACEHOLDER_KEY)" in conftest
-    assert 'monkeypatch.setattr(auth, "key", lambda: PLACEHOLDER_KEY)' in conftest
-    assert "os.environ" not in conftest, "the placeholder must not depend on the shell"
-    assert "def test_replay_tests_send_the_placeholder_key" in test_tasks
-    functions = {
-        node.name: node for node in ast.parse(test_tasks).body if isinstance(node, ast.FunctionDef)
-    }
-    helper = ast.unparse(functions["send_through_auth"])
-    assert "auth.sync_auth_flow(httpx.Request(" in helper, "assert on what goes out"
-    test = ast.unparse(functions["test_replay_tests_send_the_placeholder_key"])
-    for name in ["httpx", "sync_auth_flow", "SHELL_KEY", "os.environ", ".url", ".headers"]:
-        assert name not in test, f"{name}: pytest -l would print the test's frame"
-    assert functions["send_through_auth"].returns is not None
-    assert ast.unparse(functions["send_through_auth"].returns) == "AuthReport"
+    env = str(VARIANTS[name]["api_key_env"])
+    assert (dst / "tests/conftest.py").read_text() == CONFTEST
+    ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
+    assert ini.get("xippios_placeholder_key_envs") == ([env] if env else None)
+    assert "placeholder" not in (dst / "tests/test_tasks.py").read_text()
 
 
 def test_secret_detection_skips_the_answers_file(generated: tuple[str, Path]) -> None:
@@ -350,18 +353,31 @@ def test_secret_detection_skips_the_answers_file(generated: tuple[str, Path]) ->
 
 
 def test_upstream_snapshot_is_kept_byte_for_byte(generated: tuple[str, Path]) -> None:
-    """Git never converts line endings under docs/upstream/: upstream files may carry CRLF."""
+    """Git never converts line endings under docs/upstream/: upstream files may carry CRLF.
+
+    FETCHED.md records a UTC time, the attribution and HTML-kept tables (ADR-0003).
+    """
     _, dst = generated
     assert (dst / ".gitattributes").read_text() == "docs/upstream/** -text\n"
+    fetched = (dst / "docs/upstream/FETCHED.md").read_text()
+    assert "| File | URL | Fetched | Note |" in fetched
+    assert "## Attribution" in fetched
+    assert "UTC time of the run in ISO 8601 with an explicit `Z`" in fetched
 
 
 def test_models_use_validation_alias(generated: tuple[str, Path]) -> None:
-    """Adapters serialise by alias: a plain alias would hand agents the upstream spelling."""
-    _, dst = generated
+    """Adapters serialise by alias: a plain alias would hand agents the upstream spelling.
+
+    The scaffold and the fixture check also carry ADR-0017's rule on personal identifiers.
+    """
+    name, dst = generated
     plain_alias = re.compile(r"Field\((?:[^)]*[\s,])?alias=")
     for path in dst.rglob("*.py"):
         assert not plain_alias.search(path.read_text()), path
     assert "`Field(validation_alias=...)`" in (dst / ".claude/commands/add-endpoint.md").read_text()
+    models = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/models.py").read_text()
+    assert "fixtures never carry their values (ADR-0017)" in models
+    assert "ADR-0017" in (dst / ".claude/commands/record-fixture.md").read_text()
 
 
 def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
@@ -373,6 +389,17 @@ def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
     assert f"Where list tools ({prefix}_list_*) exist" in mcp
 
 
+def test_servers_take_the_caps_kept_with_the_tasks(template_src: Path, tmp_path: Path) -> None:
+    """ADR-0016: per-tool caps live next to the tasks as MCP_CAPS; each server reads its own."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", needs_write_tools=True)
+    pkg = dst / "src/xippios/ex"
+    assert 'caps=getattr(tasks, "MCP_CAPS", None),' in (pkg / "mcp.py").read_text()
+    assert 'caps=getattr(tasks_write, "MCP_CAPS", None),' in (pkg / "mcp_write.py").read_text()
+    tasks = (pkg / "tasks.py").read_text()
+    assert "#     MCP_CAPS = {" in tasks, "a commented scaffold"
+    assert '#     MCP_CAPS: "Mapping[str, ResultCap]" = {}' in tasks, "a base install's caps"
+
+
 def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:
     """Belt and braces: no variant of a local env file is ever committed."""
     _, dst = generated
@@ -382,7 +409,7 @@ def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:
 
 def test_rate_limit_renders_pace_burst_and_provenance(generated: tuple[str, Path]) -> None:
     """ADR-0010 decision 1: the pace, a burst of 1 unless upstream documents one, and where
-    the pace comes from, in the client and in the contract."""
+    the pace comes from, in the client and in the contract; a quota's policy commented."""
     name, dst = generated
     answers = {**BASE_ANSWERS, **VARIANTS[name]}
     burst = answers.get("rate_limit_burst", 1)
@@ -392,6 +419,8 @@ def test_rate_limit_renders_pace_burst_and_provenance(generated: tuple[str, Path
     claude = (dst / "CLAUDE.md").read_text()
     row = f"| Rate limit | {answers['rate_limit_per_minute']} requests per minute, burst {burst}; "
     assert row in claude
+    assert "# config = policy.install(config)" in client, "ADR-0015, a commented scaffold"
+    assert "one `QuotaPolicy` installed on `config`" in " ".join(claude.split())
     if answers.get("rate_limit_provenance") == "self-imposed":
         assert "# A self-imposed pace: upstream documents no limit" in client
         assert "a self-imposed pace, upstream documents none (ADR-0010)" in claude
@@ -440,7 +469,7 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Pat
     """
     name, dst = generated
     answers = VARIANTS[name]
-    version = str(answers.get("core_version", "0.1.0"))
+    version = str(answers.get("core_version", "0.2.0"))
     pyproject = (dst / "pyproject.toml").read_text()
     project = tomllib.loads(pyproject)["project"]
     assert project["dependencies"] == [f"xippios-core~={version}"]
@@ -454,6 +483,7 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Pat
         assert "# pragma: allowlist secret" in rev
         assert "until it is on PyPI" not in pyproject
         assert "uvx copier update --defaults --vcs-ref=:current: -d core_git_ref=" in pyproject
+        assert "X.Y.Z with Z the patch that shipped it, or X.Y.0 when the minor" in pyproject
         if len(str(answers["core_git_ref"])) == 40:
             shutil.copy(dst / ".secrets.baseline", tmp_path / ".secrets.baseline")
             (tmp_path / "pyproject.toml").write_text(pyproject)
@@ -467,9 +497,31 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Pat
             assert "Hex High Entropy String" in control.stdout, control.stdout
 
 
+# SHA-256 of sdk-core's files at v0.2.0, which the template copies verbatim:
+# git -C ../sdk-core show v0.2.0:<path> | sha256sum (digests, not secrets).
+CORE_VERBATIM = {
+    # pragma: allowlist nextline secret
+    ".github/workflows/ci.yml": "07c9d93ebc9048d6a4c113d684dd71367ebd216dbe798fa08ff1eaf798d5280f",
+    ".github/PULL_REQUEST_TEMPLATE.md": (
+        # pragma: allowlist nextline secret
+        "8ba41dd227f9ea1fececc63759431e079f735d5e661ff1b1936fa7bbec6b9359"
+    ),
+}
+
+
+def test_ci_and_pr_template_are_core_v0_2_0_verbatim(template_src: Path, tmp_path: Path) -> None:
+    """ADR-0018: CI runs pre-commit after the tests, as core's does, byte for byte."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
+    for rel, digest in CORE_VERBATIM.items():
+        assert hashlib.sha256((dst / rel).read_bytes()).hexdigest() == digest, rel
+    steps = yaml.safe_load((dst / ".github/workflows/ci.yml").read_text())["jobs"]["test"]["steps"]
+    runs = [step.get("run") for step in steps]
+    assert runs.index("uv run pytest") < runs.index("uv run pre-commit run --all-files")
+
+
 def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
     """A release cannot carry a git-pinned core; the build job says so before building."""
-    _, dst = generated
+    name, dst = generated
     workflow = yaml.safe_load((dst / ".github/workflows/publish.yml").read_text())
     names = [
         step.get("name") or step.get("run") or step.get("uses")
@@ -481,7 +533,46 @@ def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
     assert "[tool\\.uv\\.sources\\]" in step["run"]
     release_prep = (dst / ".claude/commands/release-prep.md").read_text()
     assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep
+    assert "`X.Y.Z` with `Z` the patch that shipped it, or `X.Y.0`" in release_prep
     assert release_prep.index("No git-pinned core") < release_prep.index("set `version`")
+    slug = VARIANTS[name]["source_slug"]
+    assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in release_prep
+
+
+def test_adopt_release_walks_the_adoption_checklist(template_src: Path, tmp_path: Path) -> None:
+    """Conventions §15, ADR-0018: the nine items in order, one chore/template-update PR."""
+    items = ["Items 1 and 2", "Items 3 and 4", *(f"Item {n}:" for n in range(5, 10))]
+    update = "uvx copier update --defaults --vcs-ref=<tag> -d core_version=X.Y.0 -d core_git_ref="
+    keyed_line = "`xippios_placeholder_key_envs` under `[tool.pytest.ini_options]` names"
+    for env in ["EX_API_KEY", ""]:
+        dst = generate(template_src, tmp_path / (env or "open"), source_slug="ex", **keyed(env))
+        text = (dst / ".claude/commands/adopt-release.md").read_text()
+        positions = [text.index(item) for item in items]
+        assert positions == sorted(positions)
+        assert update in text
+        assert "`chore/template-update-<tag>`" in text
+        assert (keyed_line in text) is bool(env), "the ini option, for a keyed source only"
+        assert "gh pr merge --auto --squash -R xippios/sdk-ex <number>" in text, "from the root"
+        github = "`https://github.com/xippios/sdk-template/blob/<tag>/CHANGELOG.md` (or"
+        assert text.index(github) < text.index("git -C ../sdk-template"), "GitHub first"
+
+
+def test_reference_data_has_both_enum_paths(template_src: Path, tmp_path: Path) -> None:
+    """ADR-0008 amendment: StrEnum for value lists, IntEnum for integer ids, as rendered;
+    ``--render-only`` re-renders them from the packaged files, as an adoption does."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
+    script = (dst / "scripts/refresh_reference.py").read_text()
+    for call in ["render_str_enums(values,", "id_name_pairs(records,", "render_int_enums(pairs,"]:
+        assert call in script, call
+    command = (dst / ".claude/commands/refresh-reference-data.md").read_text()
+    assert "ruff format" not in command, "core 0.2.0 renders enums.py ruff-clean"
+    assert "records = [upstream_record(record) for record in" in script, "upstream's names"
+    render_only = "uv run python scripts/refresh_reference.py --render-only"
+    assert '"--render-only",' in script
+    assert render_only in command
+    assert render_only in (dst / ".claude/commands/adopt-release.md").read_text(), "§15 item 6"
+    enums = (dst / "src/xippios/ex/enums.py").read_text()
+    assert enums.startswith('"""StrEnums for packaged value lists (conventions, section 3).')
 
 
 def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Path]) -> None:
@@ -550,7 +641,7 @@ def test_sources_sharing_a_key_start_at_stable_different_times(
 
 
 def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
-    """Conventions §8, with core 0.1.0 only until core 0.2.0's assert_write_tools."""
+    """Conventions §8 through core's assert_write_tools, plus what it leaves out."""
     name, dst = generated
     write = bool(VARIANTS[name].get("needs_write_tools"))
     changelog = (dst / "CHANGELOG.md").read_text()
@@ -559,19 +650,11 @@ def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
     if not write:
         return
     test = (dst / "tests/test_tasks_write.py").read_text()
-    for needle in [
-        "tool_name(SOURCE, fn)",
-        "await write_server.list_tools()",
-        "await server.list_tools()",
-        "isinstance(route, APIRoute)",
-        'confirm.name == "confirm"',
-        "confirm.default is False",
-        "assert_write_tools",
-    ]:
-        assert needle in test, needle
-    assert "from xippios.core.testing import assert_write_tools" not in test, "core 0.1.0 only"
-    claude = (dst / "CLAUDE.md").read_text()
-    assert "test_tasks_write.py" in claude
+    call = "write_server, WRITE_TASKS.values(), source=SOURCE, read_server=server, router=router"
+    assert f"assert_write_tools(\n        {call}\n    )" in test
+    assert "list_tools" not in test, "assert_write_tools lists the tools"
+    assert '== ["confirm"], "confirm comes last"' in test
+    assert "test_tasks_write.py" in (dst / "CLAUDE.md").read_text()
 
 
 def test_generated_tests_need_no_key_and_end(generated: tuple[str, Path]) -> None:
@@ -603,6 +686,10 @@ def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> No
         assert "the provider level" not in claude
     assert ".github/workflows/live.yml" in claude
     assert "Hand-apply" in claude
+    assert "`/adopt-release <tag>` walks it" in claude, "conventions §15, ADR-0018"
+    assert "`tests/conftest.py`, `tests/test_layout.py` and `tests/test_adapters.py`" in claude
+    assert ("xippios_placeholder_key_envs" in claude) is bool(VARIANTS[name]["api_key_env"])
+    assert "(ADR-0017)" in claude
 
 
 def test_generated_tree_names_no_source_and_no_workspace_file(generated: tuple[str, Path]) -> None:

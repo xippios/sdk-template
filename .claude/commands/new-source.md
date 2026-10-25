@@ -12,9 +12,11 @@ environment, and opens the scaffold PR. The script is the only thing that touche
    guess a URL or a rate limit: the pace, the burst and whether the pace is documented
    or self-imposed come from the upstream documentation the user points you at, or from
    the user (ADR-0010).
-2. Leave `core_version` at its default, the current `xippios-core` release on PyPI,
-   unless the user names another. Leave `core_git_ref` out; pass `-d core_git_ref=main`
-   only to build against unreleased core.
+2. Leave `core_version` at its default, `0.2.0`, the current `xippios-core` release on
+   PyPI, rendered `xippios-core~=0.2.0` (ADR-0018), unless the user names another. Leave
+   `core_git_ref` out; pass `-d core_git_ref=main` only to build against unreleased core.
+   Later core minors and template releases reach the repository through its adoption
+   PRs, `chore/template-update-<tag>`, which its `/adopt-release` walks (conventions §15).
 3. Run, with every answer as a `-d key=value` pair:
 
    ```bash

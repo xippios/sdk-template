@@ -23,6 +23,7 @@ server = build_server(
     name="xippios-{{ source_slug }}-write",
     version=__version__,
     instructions=INSTRUCTIONS,
+    caps=getattr(tasks_write, "MCP_CAPS", None),
     read_only=False,
 )
 

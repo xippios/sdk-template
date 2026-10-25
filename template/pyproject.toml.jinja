@@ -54,7 +54,8 @@ dev = [
 # Development only: xippios-core from git, for a core change that is not released yet.
 # While the pin is set, uv takes core from it and ignores the version bound above.
 # Before a release, remove the pin and raise core_version to the release that carries
-# the change, then uv lock:
+# the pinned change: X.Y.Z with Z the patch that shipped it, or X.Y.0 when the minor
+# itself did; still one minor. Then uv lock:
 #   uvx copier update --defaults --vcs-ref=:current: -d core_git_ref= -d core_version=X.Y.Z
 # /release-prep and publish.yml refuse a pinned release.
 xippios-core = { git = "https://github.com/xippios/sdk-core.git", rev = "{{ core_git_ref }}" }  # pragma: allowlist secret (a git ref, not a key)
@@ -112,3 +113,7 @@ warn_unreachable = true
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers --import-mode=importlib"
 testpaths = ["tests"]
+{% if api_key_env %}
+# Core's plugin sets it to the placeholder key in every test not marked live (ADR-0013).
+xippios_placeholder_key_envs = ["{{ api_key_env }}"]
+{% endif %}

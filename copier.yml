@@ -146,13 +146,16 @@ domain_topic:
 core_version:
   type: str
   help: >-
-    The xippios-core release the package depends on, rendered as xippios-core~=<version>
-    (that minor, any later patch). Raised when the source adopts a new core minor
-    (conventions §12).
-  default: "0.1.0"
+    The xippios-core release the package depends on, rendered as xippios-core~=<version>,
+    the extras likewise: that minor, from that release on. The family's floor is normally
+    the minor's .0 (xippios-core~=0.2.0, ADR-0018), raised when the source adopts a new
+    core minor in its adoption PR (conventions §12, §15). After a core git pin it is the
+    release that carries the pinned change: X.Y.Z with Z the patch that shipped it, or
+    X.Y.0 when the minor itself did; still one minor.
+  default: "0.2.0"
   validator: >-
     {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+$')) %}
-    Use a release version, e.g. 0.1.0
+    Use a release version, e.g. 0.2.0
     {% endif %}
 
 core_git_ref:
@@ -160,8 +163,9 @@ core_git_ref:
   help: >-
     Development only. A git ref of xippios/sdk-core to depend on for a core change that is
     not released yet, e.g. main. Leave empty to depend on the release named by
-    core_version. Removing the pin before a release means raising core_version to the
-    release that carries the change.
+    core_version. Removing the pin before a release raises core_version to the release
+    that carries the pinned change: X.Y.Z with Z the patch that shipped it, or X.Y.0 when
+    the minor itself did; still one minor.
   default: ""
 
 _min_copier_version: "9.0.0"
@@ -172,19 +176,28 @@ _envops:
   trim_blocks: true
   lstrip_blocks: true
 # Files a session fills with source-specific content: never overwritten by `copier update`.
+# Every other rendered file is the template's and updates with it, tests/conftest.py,
+# tests/test_layout.py and tests/test_adapters.py among them. Copier renders these
+# patterns, so those inside the package name its directory: src/xippios/**/api/** would
+# also match the whole package of a slug ending in -api (example-api's xippios/example/api/).
 _skip_if_exists:
-  - CHANGELOG.md
-  - README.md
-  - docs/upstream/**
-  - src/xippios/**/api/**
-  - src/xippios/**/models.py
-  - src/xippios/**/tasks.py
-  - src/xippios/**/tasks_write.py
-  - src/xippios/**/params.py
-  - src/xippios/**/enums.py
-  - src/xippios/**/reference/**
+  - src/xippios/{{ package_dir }}/__init__.py
+  - src/xippios/{{ package_dir }}/_client.py
+  - src/xippios/{{ package_dir }}/models.py
+  - src/xippios/{{ package_dir }}/api/**
+  - src/xippios/{{ package_dir }}/tasks.py
+  - src/xippios/{{ package_dir }}/tasks_write.py
+  - src/xippios/{{ package_dir }}/params.py
+  - src/xippios/{{ package_dir }}/enums.py
+  - src/xippios/{{ package_dir }}/reference/**
   - scripts/**
-  - tests/**
+  - tests/test_tasks.py
+  - tests/test_tasks_write.py
+  - tests/test_live.py
+  - tests/fixtures/**
+  - docs/upstream/**
+  - README.md
+  - CHANGELOG.md
 _message_after_copy: |
 
   sdk-{{ source_slug }} generated.

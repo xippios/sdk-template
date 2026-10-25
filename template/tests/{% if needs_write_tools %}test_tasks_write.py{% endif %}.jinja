@@ -8,12 +8,10 @@ Per-task replay tests go below.
 
 import inspect
 import re
-import typing
 from collections.abc import Callable
 
 import pytest
-from fastapi.routing import APIRoute
-from xippios.core.mcp import tool_name
+from xippios.core.testing import assert_write_tools
 
 from xippios.{{ source_pkg }} import tasks_write
 from xippios.{{ source_pkg }}._client import SOURCE
@@ -21,62 +19,22 @@ from xippios.{{ source_pkg }}.http import router
 from xippios.{{ source_pkg }}.mcp import server
 from xippios.{{ source_pkg }}.mcp_write import server as write_server
 
-# Hand-rolled with core 0.1.0: core 0.2.0's xippios.core.testing.assert_write_tools makes
-# these checks one call (and adds is_write_server); the template switches to it then.
-
-pytestmark = pytest.mark.anyio
-
 WRITE_TASKS: dict[str, Callable[..., object]] = {
     name: getattr(tasks_write, name) for name in tasks_write.__all__
 }
-WRITE_TOOLS = {tool_name(SOURCE, fn): name for name, fn in WRITE_TASKS.items()}
 
 
-async def test_the_write_server_serves_exactly_the_write_tasks() -> None:
-    tools = {tool.name for tool in await write_server.list_tools()}
-    unexpected = sorted(tools - WRITE_TOOLS.keys())
-    assert not unexpected, f"write server tools that are not in tasks_write.__all__: {unexpected}"
-    missing = sorted(WRITE_TOOLS.keys() - tools)
-    assert not missing, f"write tasks missing from the write server: {missing}"
-
-
-async def test_no_write_task_is_on_the_read_server() -> None:
-    on_read = sorted(WRITE_TOOLS.keys() & {tool.name for tool in await server.list_tools()})
-    assert not on_read, f"write tools on the read server: {on_read}"
-
-
-def test_no_write_task_has_a_route() -> None:
-    routes = [route for route in router.routes if isinstance(route, APIRoute)]
-    for name, fn in WRITE_TASKS.items():
-        served = [
-            route.path
-            for route in routes
-            if route.name == f"{SOURCE}_{fn.__name__}" or route.path.endswith(f"/{fn.__name__}")
-        ]
-        assert not served, f"{name} is a write task with an HTTP route: {served}"
+def test_the_write_server_serves_exactly_the_write_tasks() -> None:
+    """A write server, its tools the write tasks, none on the read server or the router."""
+    assert_write_tools(
+        write_server, WRITE_TASKS.values(), source=SOURCE, read_server=server, router=router
+    )
 
 
 @pytest.mark.parametrize("task", list(WRITE_TASKS.values()), ids=list(WRITE_TASKS))
 def test_write_task_is_a_sync_facade_with_confirm_last(task: Callable[..., object]) -> None:
+    """What ``assert_write_tools`` leaves out: the facade, confirm's place and its docstring."""
     assert hasattr(task, "async_fn"), "write the async function and derive the sync one with sync()"
-    parameters = list(inspect.signature(task).parameters.values())
-    assert parameters, "a write task takes confirm: bool = False, last"
-    confirm = parameters[-1]
-    assert confirm.name == "confirm", "confirm is the last parameter"
-    assert typing.get_type_hints(task).get("confirm") is bool, "confirm is annotated bool"
-    assert confirm.default is False, "confirm defaults to False, so a call without it previews"
+    assert list(inspect.signature(task).parameters)[-1:] == ["confirm"], "confirm comes last"
     doc = inspect.getdoc(task) or ""
     assert re.search(r"^\s+confirm:", doc, re.MULTILINE), "explain confirm under Args:"
-
-
-@pytest.mark.parametrize("name", list(WRITE_TOOLS))
-async def test_write_tool_takes_confirm_and_is_marked_as_writing(name: str) -> None:
-    tools = {tool.name: tool for tool in await write_server.list_tools()}
-    assert name in tools, f"{name} is not on the write server"
-    tool = tools[name]
-    confirm = tool.input_schema.get("properties", {}).get("confirm", {})
-    assert confirm.get("type") == "boolean", f"{name}: confirm is not a boolean in the schema"
-    assert confirm.get("default") is False, f"{name}: confirm does not default to false"
-    assert tool.annotations is not None
-    hints = (tool.annotations.read_only_hint, tool.annotations.destructive_hint)
-    assert hints == (False, True), f"{name}: the write server is not built with read_only=False"
