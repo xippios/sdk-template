@@ -499,7 +499,7 @@ def test_ci_and_pr_template_are_core_v0_2_0_verbatim(template_src: Path, tmp_pat
 
 def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
     """A release cannot carry a git-pinned core; the build job says so before building."""
-    _, dst = generated
+    name, dst = generated
     workflow = yaml.safe_load((dst / ".github/workflows/publish.yml").read_text())
     names = [
         step.get("name") or step.get("run") or step.get("uses")
@@ -512,6 +512,8 @@ def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
     release_prep = (dst / ".claude/commands/release-prep.md").read_text()
     assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep
     assert release_prep.index("No git-pinned core") < release_prep.index("set `version`")
+    slug = VARIANTS[name]["source_slug"]
+    assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in release_prep
 
 
 def test_adopt_release_walks_the_adoption_checklist(template_src: Path, tmp_path: Path) -> None:
@@ -527,6 +529,7 @@ def test_adopt_release_walks_the_adoption_checklist(template_src: Path, tmp_path
         assert update in text
         assert "`chore/template-update-<tag>`" in text
         assert (keyed_line in text) is bool(env), "the ini option, for a keyed source only"
+        assert "gh pr merge --auto --squash -R xippios/sdk-ex <number>" in text, "from the root"
 
 
 def test_reference_data_has_both_enum_paths(template_src: Path, tmp_path: Path) -> None:

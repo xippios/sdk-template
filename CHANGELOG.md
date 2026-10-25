@@ -155,7 +155,11 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
   `__init__.py` or the other files the package fills.
 - `/release-prep` and the generated Never list state ADR-0018's one exception: a session
   enables auto-merge on a `chore/template-update*` or `chore/release-*` PR after the
-  reviewer's `ready`; the tag stays a human's.
+  reviewer's `ready`; the tag stays a human's. `/release-prep` and `/adopt-release` run
+  it from the family workspace root as
+  `gh pr merge --auto --squash -R xippios/sdk-<slug> <number>`, since the generated
+  `.claude/settings.json`, core's copy, denies `gh pr merge` in the repository and `gh`
+  cannot infer the repository at the root.
 - The `CHANGELOG.md` scaffold names the write server for a write source; the README
   scaffold's cap sentence allows a tool's own cap.
 - `/new-source` names core 0.2.0 as the default and the adoption PRs that bring later

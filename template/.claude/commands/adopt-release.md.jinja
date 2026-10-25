@@ -82,6 +82,12 @@ reviewer's `ready`, and a release tag is not part of an adoption.
     (sdk-core `docs/definition-of-done.md`; Code, Tests and Docs stay out), ticked, an
     unticked item with a one-line reason, the core change named for each deleted
     workaround, assumptions and open questions listed. After the reviewer's `ready`, the
-    session enables auto-merge, `gh pr merge --auto --squash <number>` (from the
-    workspace root: this repository's `.claude/settings.json` denies `gh pr merge`), and
+    session enables auto-merge from the family workspace root, the directory that holds
+    the family `CLAUDE.md`, because this repository's `.claude/settings.json` denies
+    `gh pr merge`; `-R` names the repository, which `gh` cannot infer there:
+
+    ```bash
+    gh pr merge --auto --squash -R xippios/sdk-{{ source_slug }} <number>
+    ```
+
     GitHub merges once `ci` is green and review threads are resolved (ADR-0018).
