@@ -511,6 +511,8 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Pa
     if env_var:
         step = "Only its `uv run pytest -m live` step sees the key"
         assert f"{step}, from the org secret `{env_var}`." in claude
+    write_note = "Every `live` test runs, write tests included"
+    assert (write_note in claude) is bool(answers.get("needs_write_tools"))
 
 
 def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
