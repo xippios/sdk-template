@@ -535,7 +535,7 @@ def test_sources_sharing_a_key_start_at_stable_different_times(
 
 
 def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
-    """Conventions §8, with core 0.1.0 only until core 0.2.0's assert_write_tools."""
+    """Conventions §8 through core's assert_write_tools, plus what it leaves out."""
     name, dst = generated
     write = bool(VARIANTS[name].get("needs_write_tools"))
     changelog = (dst / "CHANGELOG.md").read_text()
@@ -544,19 +544,11 @@ def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
     if not write:
         return
     test = (dst / "tests/test_tasks_write.py").read_text()
-    for needle in [
-        "tool_name(SOURCE, fn)",
-        "await write_server.list_tools()",
-        "await server.list_tools()",
-        "isinstance(route, APIRoute)",
-        'confirm.name == "confirm"',
-        "confirm.default is False",
-        "assert_write_tools",
-    ]:
-        assert needle in test, needle
-    assert "from xippios.core.testing import assert_write_tools" not in test, "core 0.1.0 only"
-    claude = (dst / "CLAUDE.md").read_text()
-    assert "test_tasks_write.py" in claude
+    call = "write_server, WRITE_TASKS.values(), source=SOURCE, read_server=server, router=router"
+    assert f"assert_write_tools(\n        {call}\n    )" in test
+    assert "list_tools" not in test, "assert_write_tools lists the tools"
+    assert '== ["confirm"], "confirm comes last"' in test
+    assert "test_tasks_write.py" in (dst / "CLAUDE.md").read_text()
 
 
 def test_generated_tests_need_no_key_and_end(generated: tuple[str, Path]) -> None:
