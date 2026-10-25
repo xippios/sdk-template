@@ -40,6 +40,23 @@ config = ClientConfig(
     base_url=BASE_URL,
     rate_limit=RATE_LIMIT,
 )
+
+# An upstream that reports an hourly or daily quota installs one QuotaPolicy, from
+# xippios.core, on config: it reads the quota headers of every answer and never sends
+# into a spent quota, waiting within the retry backoff or raising RateLimitError
+# (ADR-0015; ADR-0010 decisions 3 and 4). Name only headers that count that quota, never
+# a pace (None turns one off); window is the fallback wait, 86400.0 for a daily quota.
+# classify, the ClientConfig hook, maps upstream's answer to a spent quota to
+# RateLimitError with retry_after. A source without a quota adds nothing.
+#
+# policy = QuotaPolicy(
+#     window=3600.0,
+#     limit_header="x-ratelimit-limit",
+#     remaining_header="x-ratelimit-remaining",
+#     source=SOURCE,
+# )
+# config = policy.install(config)
+
 {% if api_key_env %}
 # The key is read from the environment on the first request, never at import.
 {% if api_key_location == 'query' %}

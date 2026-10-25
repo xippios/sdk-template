@@ -39,6 +39,12 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
   `RateLimit(per_minute=..., burst=...)` under a comment naming the provenance, and the
   generated CLAUDE.md's rate-limit row states pace, burst and provenance (ADR-0010
   decision 1).
+- `_client.py`: a commented `QuotaPolicy` block after `config`, for an upstream that
+  reports an hourly or daily quota: `policy = QuotaPolicy(window=..., limit_header=...,
+  remaining_header=..., source=SOURCE)` and `config = policy.install(config)`, with which
+  headers to name, the daily `window` and `classify`'s part; the generated CLAUDE.md
+  points at it (ADR-0015, ADR-0010 decisions 3 and 4). A source without a quota adds
+  nothing.
 - Question `core_version` (default `0.2.0`, the current PyPI release): `pyproject.toml`
   depends on `xippios-core~=<core_version>`, the `mcp`, `http` and `testing` extras
   likewise, so a source depends on one core minor, named by its `.0` (conventions §12,
@@ -248,11 +254,12 @@ ways once (see Changed), and they need no bullet.
   column for tables kept as HTML — conventions §3 at 1.13 (ADR-0003 amendment); the next
   `/refresh-upstream`, or the source's `scripts/refresh_upstream.py`, writes it so.
 
-New repositories only, nothing to port: the `CHANGELOG.md` scaffold's write-server
-clause, the source-neutral example in the `models.py` docstring, the cap sentence of the
-`README.md` scaffold, the docstring of `tests/test_tasks.py` that points at `sent_urls`,
-and the first line of the shipped `enums.py`, which §15 item 6's re-render brings to an
-existing repository.
+New repositories only, nothing to port: the commented `QuotaPolicy` block in
+`_client.py` (a source with a quota installs its policy as core's `docs/handover.md`
+says), the `CHANGELOG.md` scaffold's write-server clause, the source-neutral example in
+the `models.py` docstring, the cap sentence of the `README.md` scaffold, the docstring
+of `tests/test_tasks.py` that points at `sent_urls`, and the first line of the shipped
+`enums.py`, which §15 item 6's re-render brings to an existing repository.
 
 **Updating from 0.1.5.** The update brings `/adopt-release` itself, so run its step 3 by
 hand, `uvx copier update --defaults --vcs-ref=v0.2.0 -d core_version=0.2.0 -d core_git_ref=`,

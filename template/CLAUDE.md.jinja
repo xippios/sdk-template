@@ -120,7 +120,10 @@ in `tasks.py`, which `mcp.py` passes through (ADR-0016). A task-shaped function 
 subset of an upstream record builds its model with `UpstreamModel.project`; nothing is
 renamed or computed, parsing a value (`parse_decimal`) is the only override. Upstream's
 documented error shapes go into `ClientConfig.classify` in `_client.py`, once; wrappers
-use `client.get_json` and never inspect status codes.
+use `client.get_json` and never inspect status codes. An upstream that reports an hourly
+or daily quota gets one `QuotaPolicy` installed on `config` there, as the commented block
+in `_client.py` shows, and `classify` maps its answer to a spent quota to
+`RateLimitError` with `retry_after` (ADR-0010, ADR-0015).
 
 ## How to record a fixture
 

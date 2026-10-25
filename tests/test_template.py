@@ -390,7 +390,7 @@ def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:
 
 def test_rate_limit_renders_pace_burst_and_provenance(generated: tuple[str, Path]) -> None:
     """ADR-0010 decision 1: the pace, a burst of 1 unless upstream documents one, and where
-    the pace comes from, in the client and in the contract."""
+    the pace comes from, in the client and in the contract; a quota's policy commented."""
     name, dst = generated
     answers = {**BASE_ANSWERS, **VARIANTS[name]}
     burst = answers.get("rate_limit_burst", 1)
@@ -400,6 +400,8 @@ def test_rate_limit_renders_pace_burst_and_provenance(generated: tuple[str, Path
     claude = (dst / "CLAUDE.md").read_text()
     row = f"| Rate limit | {answers['rate_limit_per_minute']} requests per minute, burst {burst}; "
     assert row in claude
+    assert "# config = policy.install(config)" in client, "ADR-0015, a commented scaffold"
+    assert "one `QuotaPolicy` installed on `config`" in " ".join(claude.split())
     if answers.get("rate_limit_provenance") == "self-imposed":
         assert "# A self-imposed pace: upstream documents no limit" in client
         assert "a self-imposed pace, upstream documents none (ADR-0010)" in claude
