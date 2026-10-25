@@ -260,15 +260,19 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
 
 
 def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Path) -> None:
-    """A source's files survive a re-render; the template's own are rendered again."""
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex-data", **keyed(""))
-    pkg = "src/xippios/ex/data"
-    mine = [f"{pkg}/{name}" for name in ["tasks.py", "_client.py", "__init__.py"]]
+    """A source's files survive a re-render; the template's own are rendered again.
+
+    The slug ends in -api, so the package itself is .../api/: the patterns name the package
+    directory, and its mcp.py is the template's while its api/ is the source's.
+    """
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex-api", **keyed(""))
+    pkg = "src/xippios/ex/api"
+    mine = [f"{pkg}/{name}" for name in ["tasks.py", "_client.py", "__init__.py", "api/__init__.py"]]
     mine.append("tests/test_tasks.py")
-    templates = ["CLAUDE.md", "tests/conftest.py"]
+    templates = ["CLAUDE.md", "tests/conftest.py", f"{pkg}/mcp.py"]
     for rel in [*mine, *templates]:
         (dst / rel).write_text("# edited\n")
-    generate(template_src, dst, source_slug="ex-data", **keyed(""))
+    generate(template_src, dst, source_slug="ex-api", **keyed(""))
     for rel in mine:
         assert (dst / rel).read_text() == "# edited\n", f"{rel} is the source's"
     for rel in templates:

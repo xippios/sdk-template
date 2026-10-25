@@ -34,9 +34,12 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   `tasks_write.py`, `models.py`, `params.py`, `enums.py`, `api/`, `reference/`,
   `scripts/`, `tests/test_tasks.py`, `tests/test_tasks_write.py`, `tests/test_live.py`,
   `tests/fixtures/`, `README.md`, `CHANGELOG.md`, `docs/upstream/`) are listed in
-  `_skip_if_exists` so `copier update` never overwrites them. Every other rendered file is
-  the template's and updates with it, `tests/conftest.py`, `tests/test_layout.py` and
-  `tests/test_adapters.py` among them: keep in those only what every source shares.
+  `_skip_if_exists` so `copier update` never overwrites them; copier renders the patterns,
+  so those inside the package name `{{ package_dir }}`, never `**`, which would match a
+  whole package named like a protected directory (`example-api`'s `xippios/example/api/`).
+  Every other rendered file is the template's and updates with it, `tests/conftest.py`,
+  `tests/test_layout.py` and `tests/test_adapters.py` among them: keep in those only what
+  every source shares.
 - Workflow files are copied verbatim (no `.jinja`) so GitHub's `${{ }}` never meets Jinja,
   with one exception: `live.yml.jinja` is rendered, because the secret its pytest step
   reads is named by the `api_key_env` answer and its start time comes from

@@ -96,15 +96,16 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
 
 ### Changed
 
-- `_skip_if_exists` is inverted for the client and the tests: `src/xippios/**/_client.py`
-  and `src/xippios/**/__init__.py` are now the source's and never overwritten, and of
-  `tests/` only `test_tasks.py`, `test_tasks_write.py`, `test_live.py` and `fixtures/`
-  are, so `tests/conftest.py`, `tests/test_layout.py` and `tests/test_adapters.py` update
-  with the template. The first update to this release merges those three files three
-  ways once: a source's own lines in them, a fixture of its own in `conftest.py` say,
-  conflict where they touch what the template changed, and the session keeps the
-  template's side plus what the source added on purpose. The client's changes in this
-  release reach existing repositories as Hand-apply bullets, not through the update.
+- `_skip_if_exists` is inverted for the client and the tests:
+  `src/xippios/<pkg>/_client.py` and `src/xippios/<pkg>/__init__.py` are now the
+  source's and never overwritten, and of `tests/` only `test_tasks.py`,
+  `test_tasks_write.py`, `test_live.py` and `fixtures/` are, so `tests/conftest.py`,
+  `tests/test_layout.py` and `tests/test_adapters.py` update with the template. The
+  first update to this release merges those three files three ways once: a source's own
+  lines in them, a fixture of its own in `conftest.py` say, conflict where they touch
+  what the template changed, and the session keeps the template's side plus what the
+  source added on purpose. The client's changes in this release reach existing
+  repositories as Hand-apply bullets, not through the update.
 - `tests/conftest.py` keeps `pytest_plugins` and `anyio_backend` only, the same for keyed
   and open sources: the placeholder key is core's plugin's (ADR-0013), the key variable
   named in `pyproject.toml`.
@@ -200,6 +201,11 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
 
 ### Fixed
 
+- `_skip_if_exists` names the package directory in the patterns inside the package,
+  `src/xippios/{{ package_dir }}/...`, which copier renders: `src/xippios/**/api/**`
+  also matched the whole package of a slug ending in `-api` (`xippios/example/api/`), so
+  `copier update` never touched its `mcp.py`, `http.py` or `_version.py`. No family
+  source has such a slug; the template tests render one.
 - `scripts/refresh_reference.py` passes `mypy --strict`: `LISTS` holds coroutine
   functions, which is what `xippios.core.sync` takes.
 - `tests/test_layout.py` stops at the `xippios` directory and fails with a message when
