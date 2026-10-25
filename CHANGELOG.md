@@ -26,7 +26,7 @@ are not listed.
 - Question `core_version` (default `0.1.0`, the current PyPI release): `pyproject.toml`
   depends on `xippios-core~=<core_version>`, the `mcp`, `http` and `testing` extras
   likewise, so a source depends on one core minor (conventions §12; the rule is written
-  into conventions §12 by sdk-core PR G).
+  into conventions §12 by sdk-core's `docs/adoption-and-hygiene` documentation PR).
 - `.github/workflows/live.yml`, the one rendered workflow: every `live` test, write tests
   included (they act only on data kept for testing, ADR-0014), every night and on
   `workflow_dispatch`, one job, `contents: read` (conventions §10). The
