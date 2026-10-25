@@ -358,6 +358,17 @@ def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
     assert f"Where list tools ({prefix}_list_*) exist" in mcp
 
 
+def test_servers_take_the_caps_kept_with_the_tasks(generated: tuple[str, Path]) -> None:
+    """ADR-0016: per-tool caps live next to the tasks as MCP_CAPS; each server reads its own."""
+    name, dst = generated
+    pkg = dst / f"src/xippios/{package_dir(VARIANTS[name])}"
+    assert 'caps=getattr(tasks, "MCP_CAPS", None),' in (pkg / "mcp.py").read_text()
+    if VARIANTS[name].get("needs_write_tools"):
+        write = (pkg / "mcp_write.py").read_text()
+        assert 'caps=getattr(tasks_write, "MCP_CAPS", None),' in write
+    assert "#     MCP_CAPS = {" in (pkg / "tasks.py").read_text(), "a commented scaffold"
+
+
 def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:
     """Belt and braces: no variant of a local env file is ever committed."""
     _, dst = generated
