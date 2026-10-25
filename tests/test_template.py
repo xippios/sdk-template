@@ -444,7 +444,7 @@ def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
         step.get("name") or step.get("run") or step.get("uses")
         for step in workflow["jobs"]["build"]["steps"]
     ]
-    guard = names.index("Refuse a git-pinned xippios-core")
+    guard = names.index("Refuse a pyproject with [tool.uv.sources]")
     assert names[guard + 1] == "uv build"
     (step,) = [s for s in workflow["jobs"]["build"]["steps"] if s.get("name") == names[guard]]
     assert "[tool\\.uv\\.sources\\]" in step["run"]
