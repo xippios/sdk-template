@@ -267,7 +267,7 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
     """
     dst = generate(template_src, tmp_path / "repo", source_slug="ex-api", **keyed(""))
     pkg = "src/xippios/ex/api"
-    mine = [f"{pkg}/{name}" for name in ["tasks.py", "_client.py", "__init__.py", "api/__init__.py"]]
+    mine = [f"{pkg}/{n}" for n in ["tasks.py", "_client.py", "__init__.py", "api/__init__.py"]]
     mine.append("tests/test_tasks.py")
     templates = ["CLAUDE.md", "tests/conftest.py", f"{pkg}/mcp.py"]
     for rel in [*mine, *templates]:
