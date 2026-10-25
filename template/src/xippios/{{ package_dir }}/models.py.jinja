@@ -8,6 +8,10 @@ dates become ``datetime.date``, numbers become numbers, upstream enumerations be
 ``StrEnum``. No cross-source normalisation (ADR-0003): an upstream concept stays an
 upstream concept.
 
+These read models stay faithful, documented personal identifiers included (``ssn``,
+``iban`` and their like). The projections tasks return leave those out, a write task does
+not echo one in ``meta.request``, and fixtures never carry their values (ADR-0017).
+
 Example::
 
     from decimal import Decimal

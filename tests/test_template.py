@@ -341,12 +341,18 @@ def test_upstream_snapshot_is_kept_byte_for_byte(generated: tuple[str, Path]) ->
 
 
 def test_models_use_validation_alias(generated: tuple[str, Path]) -> None:
-    """Adapters serialise by alias: a plain alias would hand agents the upstream spelling."""
-    _, dst = generated
+    """Adapters serialise by alias: a plain alias would hand agents the upstream spelling.
+
+    The scaffold and the fixture check also carry ADR-0017's rule on personal identifiers.
+    """
+    name, dst = generated
     plain_alias = re.compile(r"Field\((?:[^)]*[\s,])?alias=")
     for path in dst.rglob("*.py"):
         assert not plain_alias.search(path.read_text()), path
     assert "`Field(validation_alias=...)`" in (dst / ".claude/commands/add-endpoint.md").read_text()
+    models = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/models.py").read_text()
+    assert "fixtures never carry their values (ADR-0017)" in models
+    assert "ADR-0017" in (dst / ".claude/commands/record-fixture.md").read_text()
 
 
 def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
