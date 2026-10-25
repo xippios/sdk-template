@@ -17,6 +17,8 @@ are not listed.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
 Generated repositories depend on xippios-core 0.2.0 (conventions 1.13, ADRs to
 ADR-0018) and use it instead of the workarounds earlier releases scaffolded; a source
 adopts this release in one adoption PR (conventions §15), which `/adopt-release` walks.
@@ -309,11 +311,11 @@ hand; the template renders no tenant variables.
   (`None` in a live test) — the auth caches the key per object, so a live test earlier in
   the run, or a key set in the shell, sent the real key in replay tests.
 - `tests/test_tasks.py` (keyed sources) — new `test_replay_tests_send_the_placeholder_key`
-  — proves on the outgoing request that the pin holds; port the Unreleased form, which
-  also keeps the request out of the test's frame.
+  — proves on the outgoing request that the pin holds; superseded by 0.2.0, whose form
+  is no test at all: core's plugin owns the pin, so the test is deleted.
 - `src/xippios/<pkg>/models.py` — the module docstring recommends
   `Field(validation_alias=...)` and warns against `alias=` — guidance only; port it if the
   file still carries the scaffold docstring.
 - `src/xippios/<pkg>/reference/README.md` — each packaged list gets a `list_<thing>`
-  lookup task, added by `/refresh-reference-data` where missing — port the Unreleased
+  lookup task, added by `/refresh-reference-data` where missing — port the 0.2.0
   wording, which supersedes it.
