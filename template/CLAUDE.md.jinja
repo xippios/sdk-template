@@ -134,8 +134,8 @@ uv run xippios-{{ source_slug }}-mcp   # stdio; add --http for streamable HTTP
 ```
 
 `.github/workflows/live.yml` runs `uv run pytest -m live` with `XIPPIOS_LIVE_TESTS=1`
-every night at 03:17 UTC and on demand from the Actions tab; pull requests never run
-live tests.
+nightly at {{ live_schedule.time }} UTC, a time derived from the slug so that sources sharing a key never
+start together, and on demand from the Actions tab; pull requests never run live tests.
 {% if needs_write_tools %}
 Every `live` test runs, write tests included, so a live write test acts only on data kept
 for testing (a multi-tenant source's test tenant, ADR-0014) and cleans up after itself.

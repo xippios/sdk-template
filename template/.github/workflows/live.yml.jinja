@@ -4,13 +4,15 @@
 # The write tests run too: they act only on data kept for testing and clean up after
 # themselves.
 {% endif %}
-# Rendered by the template (the one workflow that is), because the secret it names is
-# the source's key variable.
+# Rendered by the template (the one workflow that is): the secret it names is the source's
+# key variable, and its start time derives from the slug.
 name: Live
 
 on:
   schedule:
-    - cron: "17 3 * * *"
+    # {{ live_schedule.time }} UTC, staggered from the slug (live_schedule in sdk-template's copier.yml)
+    # so that sources sharing a key do not start together.
+    - cron: "{{ live_schedule.cron }}"
   workflow_dispatch:
 
 permissions:

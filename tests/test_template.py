@@ -202,6 +202,7 @@ def test_answers_file_round_trips(generated: tuple[str, Path]) -> None:
     assert answers["import_path"] == package_dir(VARIANTS[name]).replace("/", ".")
     assert "source_pkg" not in answers, "computed answers are derived, never recorded"
     assert "package_dir" not in answers
+    assert "live_schedule" not in answers
 
 
 def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:
@@ -513,6 +514,39 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Pa
         assert f"{step}, from the org secret `{env_var}`." in claude
     write_note = "Every `live` test runs, write tests included"
     assert (write_note in claude) is bool(answers.get("needs_write_tools"))
+
+
+def live_start(dst: Path) -> tuple[int, int]:
+    """(hour, minute) of the nightly live run, checked against its cron and the CLAUDE.md."""
+    workflow = yaml.safe_load((dst / ".github/workflows/live.yml").read_text())
+    (schedule,) = workflow[True]["schedule"]
+    match = re.fullmatch(r"(\d{1,2}) (\d) \* \* \*", schedule["cron"])
+    assert match, schedule["cron"]
+    minute, hour = int(match[1]), int(match[2])
+    assert 0 <= minute <= 59, schedule["cron"]
+    assert 1 <= hour <= 5, f"{schedule['cron']}: inside the night window, 01:00 to 05:59 UTC"
+    assert f"nightly at {hour:02d}:{minute:02d} UTC" in (dst / "CLAUDE.md").read_text()
+    return hour, minute
+
+
+def test_live_workflow_runs_inside_the_night_window(generated: tuple[str, Path]) -> None:
+    _, dst = generated
+    live_start(dst)
+
+
+def test_sources_sharing_a_key_start_at_stable_different_times(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """ADR-0009: usda-psd, usda-esr and usda-gats share one key and one gateway quota; their
+    nightly runs never start together, and a render keeps a repository's time."""
+    shared = keyed("DATA_GOV_API_KEY", "query", "api_key")
+    starts = {
+        slug: live_start(generate(template_src, tmp_path / slug, source_slug=slug, **shared))
+        for slug in ["usda-psd", "usda-esr", "usda-gats"]
+    }
+    assert len(set(starts.values())) == 3, starts
+    again = generate(template_src, tmp_path / "again", source_slug="usda-psd", **shared)
+    assert live_start(again) == starts["usda-psd"], "stable across renders"
 
 
 def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:

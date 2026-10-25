@@ -39,6 +39,21 @@ tool_prefix:
   default: "{{ source_slug | replace('-', '_') }}"
   when: false
 
+# When the nightly live.yml starts: a fold of the slug's characters onto the 300 minutes
+# from 01:00 to 05:59 UTC, so sources that share a key (ADR-0009) do not start together
+# and each repository keeps its time across updates. Computed, never recorded; the
+# generated live.yml and CLAUDE.md read .cron and .time.
+live_schedule:
+  type: yaml
+  default: >-
+    {%- set ns = namespace(n=0) -%}
+    {%- for c in source_slug -%}
+    {%- set ns.n = (ns.n * 37 + 'abcdefghijklmnopqrstuvwxyz0123456789-'.index(c) + 1) % 300 -%}
+    {%- endfor -%}
+    {cron: "{{ ns.n % 60 }} {{ 1 + ns.n // 60 }} * * *",
+    time: "{{ '%02d:%02d' | format(1 + ns.n // 60, ns.n % 60) }}"}
+  when: false
+
 source_name:
   type: str
   help: Human-readable name of the source
