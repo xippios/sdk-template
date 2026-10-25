@@ -209,8 +209,8 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
 - `_skip_if_exists` names the package directory in the patterns inside the package,
   `src/xippios/{{ package_dir }}/...`, which copier renders: `src/xippios/**/api/**`
   also matched the whole package of a slug ending in `-api` (`xippios/example/api/`), so
-  `copier update` never touched its `mcp.py`, `http.py` or `_version.py`. No family
-  source has such a slug; the template tests render one.
+  `copier update` never re-rendered any file of that package, `mcp.py` and `http.py`
+  among them. No family source has such a slug; the template tests render one.
 - `scripts/refresh_reference.py` passes `mypy --strict`: `LISTS` holds coroutine
   functions, which is what `xippios.core.sync` takes.
 - `tests/test_layout.py` stops at the `xippios` directory and fails with a message when
