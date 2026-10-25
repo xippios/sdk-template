@@ -181,13 +181,10 @@ _envops:
 # patterns, so those inside the package name its directory: src/xippios/**/api/** would
 # also match the whole package of a slug ending in -api (example-api's xippios/example/api/).
 _skip_if_exists:
-  - CHANGELOG.md
-  - README.md
-  - docs/upstream/**
   - src/xippios/{{ package_dir }}/__init__.py
   - src/xippios/{{ package_dir }}/_client.py
-  - src/xippios/{{ package_dir }}/api/**
   - src/xippios/{{ package_dir }}/models.py
+  - src/xippios/{{ package_dir }}/api/**
   - src/xippios/{{ package_dir }}/tasks.py
   - src/xippios/{{ package_dir }}/tasks_write.py
   - src/xippios/{{ package_dir }}/params.py
@@ -198,6 +195,9 @@ _skip_if_exists:
   - tests/test_tasks_write.py
   - tests/test_live.py
   - tests/fixtures/**
+  - docs/upstream/**
+  - README.md
+  - CHANGELOG.md
 _message_after_copy: |
 
   sdk-{{ source_slug }} generated.

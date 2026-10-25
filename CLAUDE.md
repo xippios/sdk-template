@@ -30,10 +30,10 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 - Generated code must pass `ruff check`, `ruff format --check`, `mypy --strict`, `pytest`
   and `pre-commit` out of the box. `scripts/prove.sh` is the proof; run it before every PR
   and paste its tail into the PR description.
-- Files a session fills with source content (`_client.py`, `__init__.py`, `tasks.py`,
-  `tasks_write.py`, `models.py`, `params.py`, `enums.py`, `api/`, `reference/`,
-  `scripts/`, `tests/test_tasks.py`, `tests/test_tasks_write.py`, `tests/test_live.py`,
-  `tests/fixtures/`, `README.md`, `CHANGELOG.md`, `docs/upstream/`) are listed in
+- Files a session fills with source content (`__init__.py`, `_client.py`, `models.py`,
+  `api/`, `tasks.py`, `tasks_write.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
+  `tests/test_tasks.py`, `tests/test_tasks_write.py`, `tests/test_live.py`,
+  `tests/fixtures/`, `docs/upstream/`, `README.md`, `CHANGELOG.md`) are listed in
   `_skip_if_exists` so `copier update` never overwrites them; copier renders the patterns,
   so those inside the package name `{{ package_dir }}`, never `**`, which would match a
   whole package named like a protected directory (`example-api`'s `xippios/example/api/`).

@@ -7,13 +7,13 @@ was made from in `.copier-answers.yml`.
 
 Every release ends with a **Hand-apply** list. `copier update` carries a template change
 into the files it renders, but never touches a file under `_skip_if_exists` in
-`copier.yml` once that file exists (the client and the package `__init__.py`, task
-layer, models, endpoint wrappers, the task, write and live tests and the fixtures,
-scripts, README, CHANGELOG, upstream snapshot, reference data). Each change to such a
-file is one bullet, `` - `<path>` — <what> — <why> ``; port it by hand in the same
-`chore/template-update` PR. A new file under those patterns is created by the update
-where the repository has no file of that name. The list starts with 0.1.5; earlier tags
-are not listed.
+`copier.yml` once that file exists (the package `__init__.py`, the client, models,
+endpoint wrappers, the read and write task layers, the packaged lists and enums,
+reference data, scripts, the task, write and live tests and the fixtures, upstream
+snapshot, README and CHANGELOG). Each change to such a file is one bullet,
+`` - `<path>` — <what> — <why> ``; port it by hand in the same `chore/template-update`
+PR. A new file under those patterns is created by the update where the repository has no
+file of that name. The list starts with 0.1.5; earlier tags are not listed.
 
 ## [Unreleased]
 
@@ -162,14 +162,17 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
 - Human step 2 (`_message_after_copy`, `scripts/new-source.sh`, `/new-source`): for a key
   several sources share (ADR-0009), add the repository to the existing org secret's
   repository access; never `gh secret set --repos`, which replaces the list.
-- The generated CLAUDE.md names the provider level among the `__init__.py` files never to
-  add, describes `live.yml` (its time, the one step that sees the key, the write tests
-  it runs) and the write test, and points at this changelog's Hand-apply lists for
+- The generated CLAUDE.md names the provider level among the `__init__.py` files never
+  to add, describes `live.yml` (its time, the one step that sees the key, the write
+  tests it runs) and the write test, and points at this changelog's Hand-apply lists for
   template updates. It names conventions §15 and `/adopt-release` in Read first and the
   command list, the plugin's offline run with the markers `rate_limited` and `network`,
-  `MCP_CAPS`, and template updates as one adoption PR in which `copier update` re-renders
-  `conftest.py`, `test_layout.py` and `test_adapters.py` but never `_client.py`,
-  `__init__.py` or the other files the package fills.
+  `MCP_CAPS`, and template updates as one adoption PR in which `copier update`
+  re-renders `conftest.py`, `test_layout.py` and `test_adapters.py` but never
+  `_client.py`, `__init__.py` or the other files the package fills. It and
+  `/adopt-release` name every one of those, `params.py`, `enums.py` and the write files
+  included, in one list in `_skip_if_exists`'s order, which now follows the package
+  layout.
 - `/release-prep` and the generated Never list state ADR-0018's one exception: a session
   enables auto-merge on a `chore/template-update*` or `chore/release-*` PR after the
   reviewer's `ready`; the tag stays a human's. `/release-prep` and `/adopt-release` run

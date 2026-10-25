@@ -180,10 +180,11 @@ The API needs no key, so the workflow uses no secret.
   reviewer's `ready`. `uvx copier update` re-renders the files the template owns
   (`tests/conftest.py`, `tests/test_layout.py` and `tests/test_adapters.py` among them;
   answers are in `.copier-answers.yml`) and never overwrites the files this package fills:
-  `_client.py`, `__init__.py`, `tasks.py`, `models.py`, `api/`, `tests/test_tasks.py`,
-  `tests/test_live.py`, `tests/fixtures/`, `scripts/`, `README.md`, `CHANGELOG.md`,
-  `docs/upstream/` and `reference/`. Template changes to those are listed per release
-  under "Hand-apply" in sdk-template's
+  `__init__.py`, `_client.py`, `models.py`, `api/`, `tasks.py`, `tasks_write.py`,
+  `params.py`, `enums.py`, `reference/`, `scripts/`, `tests/test_tasks.py`,
+  `tests/test_tasks_write.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
+  `README.md` and `CHANGELOG.md`. Template changes to those are listed per release under
+  "Hand-apply" in sdk-template's
   [CHANGELOG](https://github.com/xippios/sdk-template/blob/main/CHANGELOG.md); port them
   by hand in the same PR.
 - If a convention seems wrong, say so in the PR and follow it anyway; changing it is a

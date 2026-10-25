@@ -103,15 +103,16 @@ git diff                             # review; resolve conflicts
 Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, as above
 to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the answers
 without moving the template). Files listed under `_skip_if_exists` in `copier.yml` (the
-client and the package `__init__.py`, the task layer, models, endpoint wrappers, the task,
-write and live tests and the fixtures, scripts, README, CHANGELOG, upstream snapshot,
-reference data) are never overwritten once they exist, so a template fix to one of them
-does not reach existing repositories by itself. [CHANGELOG.md](CHANGELOG.md) lists those
-fixes per release under **Hand-apply**: path, change, reason; port each one by hand in
-the same PR. A new file under those patterns is created by the update where the
-repository has none of that name. Every other file is the template's: `tests/conftest.py`,
-`tests/test_layout.py` and `tests/test_adapters.py` among them are re-rendered, and a
-source's own lines in them are merged three ways, conflicts marked.
+package `__init__.py`, the client, models, endpoint wrappers, the read and write task
+layers, the packaged lists and enums, reference data, scripts, the task, write and live
+tests and the fixtures, upstream snapshot, README and CHANGELOG) are never overwritten
+once they exist, so a template fix to one of them does not reach existing repositories by
+itself. [CHANGELOG.md](CHANGELOG.md) lists those fixes per release under **Hand-apply**:
+path, change, reason; port each one by hand in the same PR. A new file under those
+patterns is created by the update where the repository has none of that name. Every other
+file is the template's: `tests/conftest.py`, `tests/test_layout.py` and
+`tests/test_adapters.py` among them are re-rendered, and a source's own lines in them are
+merged three ways, conflicts marked.
 
 ## Developing the template
 

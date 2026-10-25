@@ -31,10 +31,11 @@ reviewer's `ready`, and a release tag is not part of an adoption.
    `git grep -n '^<<<<<<< before updating'` finds them in the files the template manages
    (`tests/conftest.py`, `tests/test_layout.py` and `tests/test_adapters.py` among them).
    Keep the template's side and carry over what the source added on purpose, such as a
-   fixture of its own in `conftest.py`. Files the source fills (`_client.py`,
-   `__init__.py`, `tasks.py`, `models.py`, `api/`, `tests/test_tasks.py`,
-   `tests/test_live.py`, `tests/fixtures/`, `scripts/`, `README.md`, `CHANGELOG.md`,
-   `docs/upstream/`, `reference/`) are never touched by the update. Then `uv lock` and
+   fixture of its own in `conftest.py`. The files the source fills, `__init__.py`,
+   `_client.py`, `models.py`, `api/`, `tasks.py`, `tasks_write.py`, `params.py`,
+   `enums.py`, `reference/`, `scripts/`, `tests/test_tasks.py`,
+   `tests/test_tasks_write.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
+   `README.md` and `CHANGELOG.md`, are never touched by the update. Then `uv lock` and
    `uv sync --all-extras`. `pyproject.toml` depends on `xippios-core~=X.Y.0`, its `mcp`,
    `http` and `testing` extras likewise, with no `[tool.uv.sources]` left.
 

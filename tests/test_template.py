@@ -279,6 +279,19 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
         assert (dst / rel).read_text() != "# edited\n", f"{rel} is the template's"
 
 
+def test_the_files_a_source_fills_are_one_list(template_src: Path, tmp_path: Path) -> None:
+    """The generated contract and /adopt-release name every protected path, in skip order."""
+    patterns = yaml.safe_load((template_src / "copier.yml").read_text())["_skip_if_exists"]
+    names = [
+        f"`{p.removeprefix('src/xippios/{{ package_dir }}/').replace('/**', '/')}`"
+        for p in patterns
+    ]
+    listing = ", ".join(names[:-1]) + f" and {names[-1]}"
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
+    for rel in ["CLAUDE.md", ".claude/commands/adopt-release.md"]:
+        assert listing in " ".join((dst / rel).read_text().split()), rel
+
+
 def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Path]) -> None:
     """The MCP tool prefix is the slug with underscores, never the dotted import path."""
     name, dst = generated
