@@ -147,9 +147,11 @@ core_version:
   type: str
   help: >-
     The xippios-core release the package depends on, rendered as xippios-core~=<version>,
-    the extras likewise: that minor, any later patch. The family names the minor's .0
-    (xippios-core~=0.2.0, ADR-0018) and raises it when the source adopts a new core minor
-    in its adoption PR (conventions §12, §15).
+    the extras likewise: that minor, from that release on. The family's floor is normally
+    the minor's .0 (xippios-core~=0.2.0, ADR-0018), raised when the source adopts a new
+    core minor in its adoption PR (conventions §12, §15). After a core git pin it is the
+    release that carries the pinned change: X.Y.Z with Z the patch that shipped it, or
+    X.Y.0 when the minor itself did; still one minor.
   default: "0.2.0"
   validator: >-
     {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+$')) %}
@@ -161,8 +163,9 @@ core_git_ref:
   help: >-
     Development only. A git ref of xippios/sdk-core to depend on for a core change that is
     not released yet, e.g. main. Leave empty to depend on the release named by
-    core_version. Removing the pin before a release means raising core_version to the
-    release that carries the change.
+    core_version. Removing the pin before a release raises core_version to the release
+    that carries the pinned change: X.Y.Z with Z the patch that shipped it, or X.Y.0 when
+    the minor itself did; still one minor.
   default: ""
 
 _min_copier_version: "9.0.0"

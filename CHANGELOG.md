@@ -47,8 +47,9 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
   nothing.
 - Question `core_version` (default `0.2.0`, the current PyPI release): `pyproject.toml`
   depends on `xippios-core~=<core_version>`, the `mcp`, `http` and `testing` extras
-  likewise, so a source depends on one core minor, named by its `.0` (conventions §12,
-  ADR-0018, released with core 0.2.0).
+  likewise, so a source depends on one core minor, normally from its `.0`, from the
+  release that carries a pinned change once a core pin goes (conventions §12, ADR-0018,
+  released with core 0.2.0).
 - `xippios_placeholder_key_envs = ["<api_key_env>"]` under `[tool.pytest.ini_options]`
   for a keyed source: core's plugin sets the variable to its placeholder key in every
   test not marked `live` and pins `EnvKeyAuth.key` (ADR-0013). An open source sets none.
@@ -86,7 +87,9 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
 - `publish.yml` refuses to build a `pyproject.toml` that has `[tool.uv.sources]` (step
   "Refuse a pyproject with [tool.uv.sources]"), and `/release-prep` gains a step before
   the version bump that removes a core pin and raises `core_version` to the core release
-  carrying the pinned change (conventions §12).
+  carrying the pinned change: `X.Y.Z` with `Z` the patch that shipped it, or `X.Y.0`
+  when the minor itself did; still one minor (conventions §12). `copier.yml`'s help for
+  `core_version` and `core_git_ref` and the `[tool.uv.sources]` comment say the same.
 - This changelog, with a Hand-apply list per release.
 
 ### Changed

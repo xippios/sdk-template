@@ -60,8 +60,8 @@ afterwards by rename or push.
 | `rate_limit_provenance` | `documented` or `self-imposed`: where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
 | `needs_write_tools` | adds `tasks_write.py` and the confirm-gated write server | `false` |
 | `domain_topic` | GitHub topic for the domain | `agriculture` |
-| `core_version` | the xippios-core release depended on, rendered `xippios-core~=<version>`, the extras likewise (one core minor, the minor's `.0`: conventions §12, ADR-0018); default `0.2.0`, the current PyPI release | `0.2.0` |
-| `core_git_ref` | development only: depend on sdk-core at a git ref for an unreleased core change; removing it before a release raises `core_version` to the release that carries the change | `main` |
+| `core_version` | the xippios-core release depended on, rendered `xippios-core~=<version>`, the extras likewise (one core minor, normally from its `.0`: conventions §12, ADR-0018); default `0.2.0`, the current PyPI release | `0.2.0` |
+| `core_git_ref` | development only: depend on sdk-core at a git ref for an unreleased core change; removing it before a release raises `core_version` to the release that carries the pinned change: `X.Y.Z` with `Z` the patch that shipped it, or `X.Y.0` when the minor itself did; still one minor | `main` |
 
 ## What gets generated
 

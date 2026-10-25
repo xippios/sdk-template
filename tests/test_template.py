@@ -464,6 +464,7 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Pat
         assert "# pragma: allowlist secret" in rev
         assert "until it is on PyPI" not in pyproject
         assert "uvx copier update --defaults --vcs-ref=:current: -d core_git_ref=" in pyproject
+        assert "X.Y.Z with Z the patch that shipped it, or X.Y.0 when the minor" in pyproject
         if len(str(answers["core_git_ref"])) == 40:
             shutil.copy(dst / ".secrets.baseline", tmp_path / ".secrets.baseline")
             (tmp_path / "pyproject.toml").write_text(pyproject)
@@ -513,6 +514,7 @@ def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
     assert "[tool\\.uv\\.sources\\]" in step["run"]
     release_prep = (dst / ".claude/commands/release-prep.md").read_text()
     assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep
+    assert "`X.Y.Z` with `Z` the patch that shipped it, or `X.Y.0`" in release_prep
     assert release_prep.index("No git-pinned core") < release_prep.index("set `version`")
     slug = VARIANTS[name]["source_slug"]
     assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in release_prep

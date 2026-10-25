@@ -9,8 +9,10 @@ actions; this command only prepares the PR.
    confirm the version matches what is in it; say so in the PR if it does not.
 3. No git-pinned core. If `pyproject.toml` has a `[tool.uv.sources]` block, the package
    depends on an unreleased xippios-core and cannot be released as it is. Find the core
-   release that carries the pinned behaviour (stop and report if there is none yet), then
-   remove the pin and raise the bound to that release in one step:
+   release that carries the pinned change (stop and report if there is none yet):
+   `X.Y.Z` with `Z` the patch that shipped it, or `X.Y.0` when the minor itself did;
+   still one minor. Then remove the pin and raise the bound to that release in one step,
+   `xippios-core~=X.Y.Z`:
    `uvx copier update --defaults --vcs-ref=:current: -d core_git_ref= -d core_version=X.Y.Z`
    (`:current:` keeps the template version, so only these two answers change). Then
    `uv lock`, the checks, a line under Unreleased in `CHANGELOG.md` (the new core
