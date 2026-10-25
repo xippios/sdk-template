@@ -116,6 +116,7 @@ EXPECTED_FILES = [
     ".claude/commands/refresh-upstream.md",
     ".claude/commands/refresh-reference-data.md",
     ".claude/commands/release-prep.md",
+    ".claude/commands/adopt-release.md",
     ".copier-answers.yml",
 ]
 
@@ -504,6 +505,20 @@ def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
     release_prep = (dst / ".claude/commands/release-prep.md").read_text()
     assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep
     assert release_prep.index("No git-pinned core") < release_prep.index("set `version`")
+
+
+def test_adopt_release_walks_the_adoption_checklist(generated: tuple[str, Path]) -> None:
+    """Conventions §15, ADR-0018: the nine items in order, one chore/template-update PR."""
+    name, dst = generated
+    text = (dst / ".claude/commands/adopt-release.md").read_text()
+    items = ["Items 1 and 2", "Items 3 and 4", *(f"Item {n}:" for n in range(5, 10))]
+    positions = [text.index(item) for item in items]
+    assert positions == sorted(positions)
+    update = "uvx copier update --defaults --vcs-ref=<tag> -d core_version=X.Y.0 -d core_git_ref="
+    assert update in text
+    assert "`chore/template-update-<tag>`" in text
+    keyed_line = "`xippios_placeholder_key_envs` under `[tool.pytest.ini_options]` names"
+    assert (keyed_line in text) is bool(VARIANTS[name]["api_key_env"])
 
 
 def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Path]) -> None:
