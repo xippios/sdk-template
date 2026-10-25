@@ -372,14 +372,12 @@ def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
     assert f"Where list tools ({prefix}_list_*) exist" in mcp
 
 
-def test_servers_take_the_caps_kept_with_the_tasks(generated: tuple[str, Path]) -> None:
+def test_servers_take_the_caps_kept_with_the_tasks(template_src: Path, tmp_path: Path) -> None:
     """ADR-0016: per-tool caps live next to the tasks as MCP_CAPS; each server reads its own."""
-    name, dst = generated
-    pkg = dst / f"src/xippios/{package_dir(VARIANTS[name])}"
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", needs_write_tools=True)
+    pkg = dst / "src/xippios/ex"
     assert 'caps=getattr(tasks, "MCP_CAPS", None),' in (pkg / "mcp.py").read_text()
-    if VARIANTS[name].get("needs_write_tools"):
-        write = (pkg / "mcp_write.py").read_text()
-        assert 'caps=getattr(tasks_write, "MCP_CAPS", None),' in write
+    assert 'caps=getattr(tasks_write, "MCP_CAPS", None),' in (pkg / "mcp_write.py").read_text()
     assert "#     MCP_CAPS = {" in (pkg / "tasks.py").read_text(), "a commented scaffold"
 
 
@@ -516,29 +514,30 @@ def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
     assert release_prep.index("No git-pinned core") < release_prep.index("set `version`")
 
 
-def test_adopt_release_walks_the_adoption_checklist(generated: tuple[str, Path]) -> None:
+def test_adopt_release_walks_the_adoption_checklist(template_src: Path, tmp_path: Path) -> None:
     """Conventions §15, ADR-0018: the nine items in order, one chore/template-update PR."""
-    name, dst = generated
-    text = (dst / ".claude/commands/adopt-release.md").read_text()
     items = ["Items 1 and 2", "Items 3 and 4", *(f"Item {n}:" for n in range(5, 10))]
-    positions = [text.index(item) for item in items]
-    assert positions == sorted(positions)
     update = "uvx copier update --defaults --vcs-ref=<tag> -d core_version=X.Y.0 -d core_git_ref="
-    assert update in text
-    assert "`chore/template-update-<tag>`" in text
     keyed_line = "`xippios_placeholder_key_envs` under `[tool.pytest.ini_options]` names"
-    assert (keyed_line in text) is bool(VARIANTS[name]["api_key_env"])
+    for env in ["EX_API_KEY", ""]:
+        dst = generate(template_src, tmp_path / (env or "open"), source_slug="ex", **keyed(env))
+        text = (dst / ".claude/commands/adopt-release.md").read_text()
+        positions = [text.index(item) for item in items]
+        assert positions == sorted(positions)
+        assert update in text
+        assert "`chore/template-update-<tag>`" in text
+        assert (keyed_line in text) is bool(env), "the ini option, for a keyed source only"
 
 
-def test_reference_data_has_both_enum_paths(generated: tuple[str, Path]) -> None:
+def test_reference_data_has_both_enum_paths(template_src: Path, tmp_path: Path) -> None:
     """ADR-0008 amendment: StrEnum for value lists, IntEnum for integer ids, as rendered."""
-    name, dst = generated
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
     script = (dst / "scripts/refresh_reference.py").read_text()
     for call in ["render_str_enums(values,", "id_name_pairs(records,", "render_int_enums(pairs,"]:
         assert call in script, call
     command = (dst / ".claude/commands/refresh-reference-data.md").read_text()
     assert "ruff format" not in command, "core 0.2.0 renders enums.py ruff-clean"
-    enums = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/enums.py").read_text()
+    enums = (dst / "src/xippios/ex/enums.py").read_text()
     assert enums.startswith('"""StrEnums for packaged value lists (conventions, section 3).')
 
 
