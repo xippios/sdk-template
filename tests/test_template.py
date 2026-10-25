@@ -378,7 +378,9 @@ def test_servers_take_the_caps_kept_with_the_tasks(template_src: Path, tmp_path:
     pkg = dst / "src/xippios/ex"
     assert 'caps=getattr(tasks, "MCP_CAPS", None),' in (pkg / "mcp.py").read_text()
     assert 'caps=getattr(tasks_write, "MCP_CAPS", None),' in (pkg / "mcp_write.py").read_text()
-    assert "#     MCP_CAPS = {" in (pkg / "tasks.py").read_text(), "a commented scaffold"
+    tasks = (pkg / "tasks.py").read_text()
+    assert "#     MCP_CAPS = {" in tasks, "a commented scaffold"
+    assert '#     MCP_CAPS: "Mapping[str, ResultCap]" = {}' in tasks, "a base install's caps"
 
 
 def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:

@@ -13,12 +13,14 @@ valid values for every parameter. ``/add-endpoint`` walks through the whole reci
 __all__: list[str] = []
 
 # MCP_CAPS, only where a tool needs a result cap of its own: a list an agent needs whole
-# (conventions §8, ADR-0016), keyed by task function name; mcp.py reads it with getattr.
-# ResultCap needs the mcp extra, which a base install lacks, so import it guarded:
+# (conventions §8, ADR-0016), keyed by task function name; mcp.py reads it with getattr,
+# so a source without one adds nothing. ResultCap needs the mcp extra, which a base
+# install lacks, so its import is guarded and a base install, which serves no tool, gets
+# an empty mapping (the annotation quoted, Mapping from collections.abc):
 #
 # try:
 #     from xippios.core.mcp import ResultCap
-# except ImportError:  # a base install, without the mcp extra, serves no MCP tool
-#     pass
+# except ImportError:  # pragma: no cover - a base install has no MCP server
+#     MCP_CAPS: "Mapping[str, ResultCap]" = {}
 # else:
 #     MCP_CAPS = {"list_<thing>": ResultCap(max_rows=400)}

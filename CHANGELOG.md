@@ -56,8 +56,10 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
 - Per-tool result caps: `mcp.py` passes `caps=getattr(tasks, "MCP_CAPS", None)` to
   `build_server`, `mcp_write.py` likewise from `tasks_write`, and `tasks.py` carries a
   commented `MCP_CAPS` scaffold whose `ResultCap` import is guarded, since
-  `xippios.core.mcp` needs the `mcp` extra a base install lacks (conventions §8,
-  ADR-0016).
+  `xippios.core.mcp` needs the `mcp` extra a base install lacks, and which gives a base
+  install an annotated empty mapping (conventions §8, ADR-0016). It stays commented: a
+  source without a cap of its own adds nothing, and its task layer never imports the
+  MCP adapter.
 - `scripts/refresh_reference.py`: `ID_LISTS` next to `LISTS`, for lists of integer ids
   and names. Their records are packaged under upstream's field names (a field's string
   `validation_alias`, else its name; the models set no serialisation alias, so
@@ -223,7 +225,8 @@ ways once (see Changed), and they need no bullet.
   one sorted name per line with a trailing comma — ADR-0010 decision 1, and
   `copier update` no longer renders the file once it exists.
 - `src/xippios/<pkg>/tasks.py` — add `MCP_CAPS` only if a tool needs a cap of its own,
-  next to `__all__`, its `ResultCap` import guarded as the scaffold's comment shows; the
+  next to `__all__`, its `ResultCap` import guarded and a base install given
+  `MCP_CAPS: "Mapping[str, ResultCap]" = {}`, as the scaffold's comment shows; the
   adapter reads it with `getattr`, so a source without one adds nothing — ADR-0016.
 - `src/xippios/<pkg>/models.py` — the module docstring says the read models stay
   faithful while projections, `meta.request` echoes and fixtures leave documented
