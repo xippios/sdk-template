@@ -336,9 +336,16 @@ def test_secret_detection_skips_the_answers_file(generated: tuple[str, Path]) ->
 
 
 def test_upstream_snapshot_is_kept_byte_for_byte(generated: tuple[str, Path]) -> None:
-    """Git never converts line endings under docs/upstream/: upstream files may carry CRLF."""
+    """Git never converts line endings under docs/upstream/: upstream files may carry CRLF.
+
+    FETCHED.md records a UTC time, the attribution and HTML-kept tables (ADR-0003).
+    """
     _, dst = generated
     assert (dst / ".gitattributes").read_text() == "docs/upstream/** -text\n"
+    fetched = (dst / "docs/upstream/FETCHED.md").read_text()
+    assert "| File | URL | Fetched | Note |" in fetched
+    assert "## Attribution" in fetched
+    assert "UTC time of the run in ISO 8601 with an explicit `Z`" in fetched
 
 
 def test_models_use_validation_alias(generated: tuple[str, Path]) -> None:
