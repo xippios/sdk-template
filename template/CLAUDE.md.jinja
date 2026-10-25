@@ -137,7 +137,7 @@ uv run xippios-{{ source_slug }}-mcp   # stdio; add --http for streamable HTTP
 every night at 03:17 UTC and on demand from the Actions tab; pull requests never run
 live tests.
 {% if api_key_env %}
-The key comes from the org secret `{{ api_key_env }}`, which that one job alone sees.
+Only its `uv run pytest -m live` step sees the key, from the org secret `{{ api_key_env }}`.
 {% else %}
 The API needs no key, so the workflow uses no secret.
 {% endif %}

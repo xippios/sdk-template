@@ -483,18 +483,22 @@ def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
     assert release_prep.index("No git-pinned core") < release_prep.index("set `version`")
 
 
-def test_live_workflow_hands_the_key_to_its_one_job(generated: tuple[str, Path]) -> None:
-    """Conventions §10: nightly and on demand; the secret in the live job's env only."""
+def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Path]) -> None:
+    """Conventions §10: nightly and on demand; the secret in the pytest step's env only."""
     name, dst = generated
-    env_var = str(VARIANTS[name]["api_key_env"])
+    answers = VARIANTS[name]
+    env_var = str(answers["api_key_env"])
     text = (dst / ".github/workflows/live.yml").read_text()
     workflow = yaml.safe_load(text)
     triggers = workflow[True]  # YAML 1.1 reads the key `on` as a boolean
     assert set(triggers) == {"schedule", "workflow_dispatch"}
     assert workflow["permissions"] == {"contents": "read"}
-    assert "env" not in workflow, "the secret reaches the live job only"
+    assert "env" not in workflow, "the secret reaches the pytest step only"
     (job,) = workflow["jobs"].values()
-    assert job["steps"][-1]["run"] == "uv run pytest -m live"
+    assert "env" not in job, "the secret reaches the pytest step only"
+    *setup, pytest_step = job["steps"]
+    assert pytest_step["run"] == "uv run pytest -m live", "every live test, write tests too"
+    assert all("env" not in step for step in setup), "checkout and uv sync never see it"
     expected_env: dict[str, str] = {"XIPPIOS_LIVE_TESTS": "1"}
     if env_var:
         expected_env[env_var] = f"${{{{ secrets.{env_var} }}}}"
@@ -502,7 +506,11 @@ def test_live_workflow_hands_the_key_to_its_one_job(generated: tuple[str, Path])
         assert text.count("secrets.") == 1
     else:
         assert "secrets." not in text
-    assert job["env"] == expected_env
+    assert pytest_step["env"] == expected_env
+    claude = (dst / "CLAUDE.md").read_text()
+    if env_var:
+        step = "Only its `uv run pytest -m live` step sees the key"
+        assert f"{step}, from the org secret `{env_var}`." in claude
 
 
 def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:

@@ -1,4 +1,4 @@
-# Nightly live smoke tests (conventions §10): the tests marked `live` against the real
+# Nightly live smoke tests (conventions §10): every test marked `live` against the real
 # upstream, on a schedule and on demand, never on a pull request.
 # Rendered by the template (the one workflow that is), because the secret it names is
 # the source's key variable.
@@ -16,12 +16,6 @@ jobs:
   live:
     name: live
     runs-on: ubuntu-latest
-    env:
-      XIPPIOS_LIVE_TESTS: "1"
-{% if api_key_env %}
-      # The key, from the org secret, for this job only.
-      {{ api_key_env }}: {{ '${{' }} secrets.{{ api_key_env }} {{ '}}' }}
-{% endif %}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.0
@@ -29,3 +23,12 @@ jobs:
           enable-cache: true
       - run: uv sync --all-extras --frozen
       - run: uv run pytest -m live
+{% if api_key_env %}
+        # The key, from the org secret, for this step only: checkout, setup-uv and uv sync
+        # never see it.
+{% endif %}
+        env:
+          XIPPIOS_LIVE_TESTS: "1"
+{% if api_key_env %}
+          {{ api_key_env }}: {{ '${{' }} secrets.{{ api_key_env }} {{ '}}' }}
+{% endif %}
