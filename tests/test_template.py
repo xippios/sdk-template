@@ -1,6 +1,7 @@
 """Generation tests: variants render, pass ruff, and respect skip-if-exists."""
 
 import ast
+import hashlib
 import json
 import re
 import shutil
@@ -23,6 +24,11 @@ BASE_ANSWERS: dict[str, object] = {
     "rate_limit_per_minute": 120,
     "domain_topic": "example-domain",
 }
+
+
+# A stand-in for a 40-character sdk-core commit, never fetched: hex of high entropy, as a
+# real SHA is, computed so that no literal in this file looks like a secret.
+FAKE_CORE_SHA = hashlib.sha1(b"a fixed stand-in for an sdk-core commit").hexdigest()
 
 
 def keyed(env: str, location: str = "query", name: str | None = None) -> dict[str, object]:
@@ -49,7 +55,7 @@ VARIANTS: dict[str, dict[str, object]] = {
     },
     "basic-git-core": {
         "source_slug": "cashctrl",
-        "core_git_ref": "main",
+        "core_git_ref": FAKE_CORE_SHA,
         **keyed("CASHCTRL_API_KEY", "basic"),
     },
     "open": {"source_slug": "eurostat", **keyed("")},
@@ -412,11 +418,24 @@ def test_client_exports_one_sorted_name_per_line(generated: tuple[str, Path]) ->
     assert lines[start + 1 + len(names)] == "]"
 
 
-def test_core_dependency_is_one_minor(generated: tuple[str, Path]) -> None:
+def detect_secrets_hook(directory: Path, *files: str) -> subprocess.CompletedProcess[str]:
+    """The generated repository's detect-secrets hook, on ``files`` in ``directory``."""
+    hook = [sys.executable, "-m", "detect_secrets.pre_commit_hook"]
+    return subprocess.run(
+        [*hook, "--baseline", ".secrets.baseline", *files],
+        cwd=directory,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Path) -> None:
     """Conventions §12: one core minor, the extras likewise; a git pin keeps the bound.
 
     uv takes a pinned core from ``[tool.uv.sources]`` and does not check the bound against
-    it, so the bound stays ``~=``; the pin's ``rev`` line is allowlisted for detect-secrets.
+    it, so the bound stays ``~=``; the pin's ``rev`` line is allowlisted for detect-secrets,
+    which a 40-character commit SHA trips without the pragma.
     """
     name, dst = generated
     answers = VARIANTS[name]
@@ -434,6 +453,17 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path]) -> None:
         assert "# pragma: allowlist secret" in rev
         assert "until it is on PyPI" not in pyproject
         assert "uvx copier update --defaults --vcs-ref=:current: -d core_git_ref=" in pyproject
+        if len(str(answers["core_git_ref"])) == 40:
+            shutil.copy(dst / ".secrets.baseline", tmp_path / ".secrets.baseline")
+            (tmp_path / "pyproject.toml").write_text(pyproject)
+            (tmp_path / "unmarked.toml").write_text(
+                pyproject.replace(rev, rev.split("  # pragma")[0])
+            )
+            hook = detect_secrets_hook(tmp_path, "pyproject.toml")
+            assert hook.returncode == 0, hook.stdout + hook.stderr
+            control = detect_secrets_hook(tmp_path, "unmarked.toml")
+            assert control.returncode == 1, "without the pragma the SHA must be flagged"
+            assert "Hex High Entropy String" in control.stdout, control.stdout
 
 
 def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
