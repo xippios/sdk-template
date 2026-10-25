@@ -553,6 +553,8 @@ def test_adopt_release_walks_the_adoption_checklist(template_src: Path, tmp_path
         assert "`chore/template-update-<tag>`" in text
         assert (keyed_line in text) is bool(env), "the ini option, for a keyed source only"
         assert "gh pr merge --auto --squash -R xippios/sdk-ex <number>" in text, "from the root"
+        github = "`https://github.com/xippios/sdk-template/blob/<tag>/CHANGELOG.md` (or"
+        assert text.index(github) < text.index("git -C ../sdk-template"), "GitHub first"
 
 
 def test_reference_data_has_both_enum_paths(template_src: Path, tmp_path: Path) -> None:

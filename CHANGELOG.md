@@ -33,7 +33,9 @@ adopts this release in one adoption PR (conventions §15), which `/adopt-release
   workarounds, the marked tests, the re-rendered enums, `mypy --strict` over `scripts/`,
   the conventions version and the CHANGELOG line, to one `chore/template-update-<tag>`
   PR whose body is the definition of done's Enforced-by-CI, Adoption PR and Process
-  blocks, auto-merged after the reviewer's `ready` (ADR-0018). No step is a human's.
+  blocks, auto-merged after the reviewer's `ready` (ADR-0018). No step is a human's. It
+  reads the template and core releases on GitHub, or from `../sdk-template` and
+  `../sdk-core` when the family workspace is checked out beside the repository.
 - Questions `rate_limit_burst` (default `1`) and `rate_limit_provenance` (`documented` or
   `self-imposed`, default `documented`). `_client.py` renders
   `RateLimit(per_minute=..., burst=...)` under a comment naming the provenance, and the

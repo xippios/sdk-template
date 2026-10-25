@@ -12,14 +12,16 @@ reviewer's `ready`, and a release tag is not part of an adoption.
    git pin of core, if any. Start from a clean `main` on a branch
    `chore/template-update-<tag>`.
 
-2. **What the releases ask.** Read sdk-template's `CHANGELOG.md` at `<tag>`
-   (`git -C ../sdk-template show <tag>:CHANGELOG.md`, or
-   https://github.com/xippios/sdk-template/blob/main/CHANGELOG.md) for every release after
-   `_commit` up to `<tag>`: its entries, its **Hand-apply** list and its "Updating from"
-   paragraph, which names the `-d` answers an update from an older tag needs. Then the core
-   release it adopts, `X.Y.0`: sdk-core's `CHANGELOG.md` section, the ADRs it names, their
-   Consequences, and `docs/handover.md`, section "Adopting core X.Y.0", for what this
-   source deletes and declares (`git -C ../sdk-core show vX.Y.0:<path>`).
+2. **What the releases ask.** Read sdk-template's `CHANGELOG.md` at `<tag>`,
+   `https://github.com/xippios/sdk-template/blob/<tag>/CHANGELOG.md` (or
+   `git -C ../sdk-template show <tag>:CHANGELOG.md` when the family workspace is checked
+   out beside this repository), for every release after `_commit` up to `<tag>`: its
+   entries, its **Hand-apply** list and its "Updating from" paragraph, which names the
+   `-d` answers an update from an older tag needs. Then the core release it adopts,
+   `X.Y.0`: sdk-core's `CHANGELOG.md` section, the ADRs it names, their Consequences, and
+   `docs/handover.md`, section "Adopting core X.Y.0", for what this source deletes and
+   declares (`https://github.com/xippios/sdk-core/tree/vX.Y.0`, or
+   `git -C ../sdk-core show vX.Y.0:<path>` in the same workspace).
 
 3. **Items 1 and 2: the core floor and the template.** Run
 
