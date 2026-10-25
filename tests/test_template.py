@@ -478,10 +478,12 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Pat
 
 
 # SHA-256 of sdk-core's files at v0.2.0, which the template copies verbatim:
-# git -C ../sdk-core show v0.2.0:<path> | sha256sum
+# git -C ../sdk-core show v0.2.0:<path> | sha256sum (digests, not secrets).
 CORE_VERBATIM = {
+    # pragma: allowlist nextline secret
     ".github/workflows/ci.yml": "07c9d93ebc9048d6a4c113d684dd71367ebd216dbe798fa08ff1eaf798d5280f",
     ".github/PULL_REQUEST_TEMPLATE.md": (
+        # pragma: allowlist nextline secret
         "8ba41dd227f9ea1fececc63759431e079f735d5e661ff1b1936fa7bbec6b9359"
     ),
 }
