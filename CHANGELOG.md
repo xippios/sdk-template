@@ -17,6 +17,186 @@ file of that name. The list starts with 0.1.5; earlier tags are not listed.
 
 ## [Unreleased]
 
+Generated repositories depend on xippios-core 0.2.1 (conventions 1.15) and take two
+things from it: the release train, in which a release PR's merge tags the release and
+Johannes approves the `pypi` run, and core's family check, which replaces the layout and
+adapter tests every source carried. A source adopts this release in one adoption PR
+(conventions §15) with `core_version=0.2.1` and the bound `~=0.2.1`, since
+`tests/test_family.py` imports what core 0.2.0 lacks; `/adopt-release v0.2.1` walks it.
+
+### Added
+
+- `tests/test_family.py`, template-owned, one line:
+  `from xippios.core.testing.family import *  # noqa: F403`. It collects core 0.2.1's
+  family check (conventions §10, ADR-0013 amendment): the empty namespace levels,
+  `py.typed` and `__version__`; `mcp.py` and `http.py` serving exactly `tasks.__all__`
+  minus `BULK_TASKS`, the write server exactly `tasks_write.__all__`; every task
+  synchronous, returning `Result[T]`, with an agent docstring; the README status table
+  listing exactly the read and the write tasks; a template tag in `.copier-answers.yml`;
+  the core bound `~=X.Y.Z`. The check finds the package under test as the one `tasks.py`
+  under `src/xippios/`, so the scaffold sets no `xippios_package` ini option; a repository
+  with several names its package there.
+- `.github/workflows/gates.yml`, core 0.2.1's file: the `merge-class` and `family-review`
+  workflows of `xippios/.github`, called as jobs, each only when the repository variable
+  `GATES_CALLER` is `1`, which Johannes sets per repository if the ruleset editor offers
+  no "Require workflows" rule (D63). It ships off.
+- `ci.yml` carries the two family checks that read the pull request rather than the
+  package, as core's `docs/handover.md` gives them: "CHANGELOG.md has an entry" on every
+  PR but a release (`chore/release-*`), an adoption (`chore/template-update*`) or
+  Dependabot's (`dependabot/`, which writes no entry), and "Fixture files under 256 KiB"
+  on the fixture files a PR adds or changes, a moved one included (`--no-renames`),
+  `LEVEL: warning` in this release and `error` from v0.3.0, when the cap binds a source
+  (ADR-0019; conventions 1.14's header). The checkout fetches the whole history
+  (`fetch-depth: 0`) for `git diff origin/<base>...HEAD`.
+- The README scaffold's status table carries a comment naming the format the family
+  check reads: the `## Status` heading and the `Task function` column kept, the task's
+  name first in its cell, in backticks, several tasks of a row as backticked names
+  separated by commas.
+- The template's own `.github/workflows/release.yml`: on every push to `main` it reads the
+  top `## [X.Y.Z] - ` heading of `CHANGELOG.md` and, when `vX.Y.Z` has no tag yet, tags
+  the merge commit with that section as the tag's message; otherwise it ends quietly
+  (conventions §12, ADR-0018 amendment (b)). The release PR of this release is the first
+  that tags itself.
+- `scripts/new-source.sh` enables auto-merge and branch deletion on merge on the new
+  repository (`gh repo edit --enable-auto-merge --delete-branch-on-merge`; queue row 45,
+  D62), gives the team `sdk-sessions` write access to it when the team exists (D14; until
+  then, D59, it prints a notice and goes on), and reminds that a session owns
+  `sdk-<slug>` in the workspace's `coordination/owners.toml` before the repository is
+  generated there, since the workspace's guard refuses work in a directory no session
+  owns.
+- `copier.yml`: `core_git_ref` accepts only an empty value, `main` or a full
+  40-character lowercase commit SHA, the forms uv and the merge-class check read as one
+  commit; a short SHA, a tag or another branch is refused.
+
+### Changed
+
+- The release train (conventions §12, ADR-0018 amendment (b)). `publish.yml` is core
+  0.2.1's: it runs on every push to `main` and on dispatch; `release-check` lets through
+  a push that changed `pyproject.toml` or `CHANGELOG.md` when the version has no tag and
+  `CHANGELOG.md` has its `## [X.Y.Z] - ` heading, so a first release, whose version the
+  scaffold already says, tags itself from its CHANGELOG change; then CI, the annotated
+  tag `vX.Y.Z` on the merge commit with the CHANGELOG section as its message, the build
+  checked against that tag, and the `pypi` environment that Johannes approves. No session
+  and no human pushes a source's tag. The workflow's header gives the recovery path and
+  the race of two pushes close together. The template's one step beyond core's file,
+  "Refuse a pyproject with [tool.uv.sources]", moves from the build into the `tag` job,
+  before the tag, so a pinned release leaves no tag without a release.
+- `ci.yml` is core 0.2.1's plus the two steps above: no push trigger of its own (a push
+  to `main` runs it once, through `publish.yml`, for a release) and every action pinned
+  by commit SHA.
+- `core_version` defaults to `0.2.1`, rendered `xippios-core~=0.2.1`, the patch case of
+  conventions §12 (ADR-0018 amendment (c)): `tests/test_family.py` imports what 0.2.0
+  lacks.
+- `tests/conftest.py` keeps `pytest_plugins` only: core 0.2.1's plugin provides
+  `anyio_backend` (asyncio).
+- `/release-prep`: a release PR changes only the subset of conventions §12
+  (`pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`, `CLAUDE.md`,
+  `docs/handover.md`, and `scripts/check-siblings.sh` where a source has one); a core
+  pin's removal and a reference-data refresh are PRs of their own before it (D15; queue
+  row 36 h). Its merge tags through `publish.yml` and Johannes approves the `pypi` run,
+  so no step tells a human to tag; the session enables auto-merge only when the merge
+  class is `auto` (ADR-0018 amendment (e)). A first release keeps the scaffold's `0.1.0`
+  and needs the PyPI pending publisher before the approval; the heading is re-dated if
+  the merge slips to a later day; a moving `main` is merged in, never force-pushed (queue
+  row 40 a, b, d).
+- `/adopt-release` follows conventions 1.15's §15: the core release `X.Y.Z` the template
+  release names, with the patch-case bound (`~=0.2.1` for v0.2.1); a helper core lacks is
+  carried by the source and named in a queue row, a second copy only when the row names
+  both, never a third (ADR-0023); the fixtures, mounts and tests the adoption makes dead
+  may go, nothing else (ADR-0018 amendment (d)); `docs/upstream/FETCHED.md` stays for the
+  next `/refresh-upstream` (ADR-0003 amendment); a file the template release removes is
+  deleted by the update; the examples name core 0.2.1, template v0.2.1 and conventions
+  1.15; the session enables auto-merge only when the merge class is `auto`, and a `human`
+  adoption waits for Johannes (ADR-0018 amendment (e)); the PR body counts the live calls
+  and carries `## Decisions taken`.
+- `/add-endpoint`: `tests/test_family.py` proves that a new task is served, shaped and
+  listed; the status-table row's format.
+- The generated CLAUDE.md: the layout names `tests/test_family.py` and `gates.yml`; the
+  PR-body rules add the open questions, the live-call count, the `## Decisions taken`
+  block and sdk-core's `docs/review-checklist.md` (also under Read first); every PR but a
+  release, an adoption or Dependabot's adds a CHANGELOG entry; the release train; the
+  update and Never sections allow auto-merge by merge class only; the quota sentence
+  shows the `QuotaPolicy` installation instead of pointing at a commented block that a
+  repository generated before v0.2.0 lacks (queue row 36 f).
+- `.github/PULL_REQUEST_TEMPLATE.md` is core 0.2.1's, sha256 `657a5d0e…` (queue row 31 a).
+  It mirrors the definition of done: the pointer to sdk-core's `docs/review-checklist.md`,
+  a core PR's consumers, the fixture grep for the fields a source keeps out of its
+  projections, the fixture cap and file samples, the Adoption PR block and its intro,
+  the Process lines (the session's auto-merge only when the merge class is `auto`,
+  ADR-0018 amendment (e); the live-call count; the `## Decisions taken` block; the
+  release subset), and headings of their own for Assumptions, Open questions and
+  Decisions taken.
+- `_message_after_copy`, `new-source.sh` and `/new-source`: human step 3 is the review and
+  merge of the scaffold PR, since releases tag themselves; step 1 says the first
+  release's publish job needs the pending publisher. `/new-source` names core 0.2.1 as the
+  default and a full SHA for a pin.
+- The `[tool.uv.sources]` comment of a pinned `pyproject.toml`: the pin's removal is a PR
+  of its own, before the release PR.
+- Template-internal: `scripts/prove.sh` renders from a git snapshot of the working tree
+  tagged with the CHANGELOG's top release version, so the generated
+  `.copier-answers.yml` names a tag as the family check requires, and `--keyless` proves a
+  keyless flat source, `sdk-example`, the shape eurostat starts in (D33). The template
+  tests pin `gates.yml` and the PR template to core's 0.2.1 bytes and `ci.yml` and
+  `publish.yml` to core's bytes with the template's documented steps taken out; they
+  render a keyless flat variant, check that the deleted test files are absent and the
+  family test is its one line, refuse a `core_git_ref` that is neither `main` nor a full
+  SHA, and require the generated `.copier-answers.yml` to be byte-identical to copier's
+  write-back, as the merge-class check does.
+
+### Removed
+
+- `tests/test_layout.py` and `tests/test_adapters.py`: the family check makes their
+  checks. `copier update` deletes both (checked with copier 9.19.1), a test a source
+  added to one of them included, with no conflict marker: move such a test before the
+  update (sdk-comtrade's and sdk-cashctrl's, below).
+- From the `tests/test_tasks.py` scaffold: `test_package_has_a_version` and
+  `test_task_is_a_sync_facade_with_an_agent_docstring`, which the family check replaces
+  without requiring `async_fn` (conventions §6 makes the async variant optional). Its
+  docstring points at `sent_query(route)` beside `sent_urls(route)`.
+
+### Hand-apply
+
+- `tests/test_tasks.py` — delete `test_package_has_a_version`,
+  `test_task_is_a_sync_facade_with_an_agent_docstring`, the `TASKS` list and the imports
+  only they used — the family check in `tests/test_family.py` makes them (conventions §10).
+- `tests/test_adapters.py` (sdk-comtrade, sdk-cashctrl) — before the update, move the
+  tests of the source's own to `tests/test_tasks.py` or `tests/test_tasks_write.py`
+  (sdk-comtrade's check that `mcp.py` and `http.py` name no task, if it keeps it;
+  sdk-cashctrl's `test_the_organisation_list_is_on_the_read_server`,
+  `test_write_tools_are_the_write_tasks_with_their_parameters` and
+  `test_the_order_categories_are_on_the_read_server_and_the_router`) — the update deletes
+  the file; the family check makes the rest.
+- The local test helpers core 0.2.1 provides (C12; core's `docs/handover.md`, "Adopting
+  core 0.2.1", names them per source) — `recorded()` in `tests/test_client.py`
+  (sdk-usda-psd, sdk-usda-esr, sdk-usda-gats) and `tests/test_errors.py` (sdk-cashctrl) →
+  `response_from_fixture(load_fixture(path))`; `_mount_recorded_404` in
+  `tests/test_slices.py` (sdk-usda-psd, sdk-usda-esr) → `replay_fixture(..., url=...)`;
+  the `retrieved_at` bracket in `tests/test_lists.py` (sdk-usda-psd, sdk-usda-esr,
+  sdk-usda-gats) and `tests/test_tasks.py` (sdk-usda-gats) → `assert_time_between` with
+  core's `CLOCK_SLACK`; the query of the last request (sdk-usda-nass `sent_query`,
+  sdk-comtrade `_sent`, sdk-cashctrl inline) → `sent_query(route)`; the recorded query
+  (sdk-comtrade `recorded_params` and `_recorded`, sdk-cashctrl `recorded_query`) →
+  `recorded_query(fixture)` — conventions §15 items 3 and 4 (ADR-0023).
+
+The update brings the rest with no hand edit: `-d core_version=0.2.1` renders
+`xippios-core~=0.2.1` and its `mcp`, `http` and `testing` extras likewise; it deletes
+`tests/test_layout.py` and `tests/test_adapters.py`, renders `tests/test_family.py`, drops
+`anyio_backend` from `tests/conftest.py`, and brings `publish.yml` and `ci.yml` on the
+release train with the two CI steps, `gates.yml` switched off until Johannes sets
+`GATES_CALLER`, and the PR template. New repositories only, nothing to port: the comment
+above the README's status table (an existing table the family check reads passes without
+it), the `tests/test_tasks.py` scaffold's docstring and the `CHANGELOG.md` scaffold's
+first entry.
+
+**Updating from 0.2.0.** `/adopt-release v0.2.1` walks it; its step 3 runs
+`uvx copier update --defaults --vcs-ref=v0.2.1 -d core_version=0.2.1 -d core_git_ref=`,
+after the tests of the source's own leave `tests/test_adapters.py`. The adoption branch,
+`chore/template-update-v0.2.1`, is exempt from the CHANGELOG step but still writes §15
+item 9's line, and its family check needs core 0.2.1 installed. From the merge of the
+adoption on, the source's next release PR tags itself through `publish.yml`. A repository
+still on 0.1.5 (sdk-comtrade, until its v0.2.0 adoption, D41) reads 0.2.0's paragraph as
+well.
+
 ## [0.2.0] - 2026-10-25
 
 Generated repositories depend on xippios-core 0.2.0 (conventions 1.13, ADRs to
