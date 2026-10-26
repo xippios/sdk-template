@@ -108,10 +108,12 @@ adapter tests every source carried. A source adopts this release in one adoption
   both, never a third (ADR-0023); the fixtures, mounts and tests the adoption makes dead
   may go, nothing else (ADR-0018 amendment (d)); `docs/upstream/FETCHED.md` stays for the
   next `/refresh-upstream` (ADR-0003 amendment); a file the template release removes is
-  deleted by the update; the examples name core 0.2.1, template v0.2.1 and conventions
-  1.15; the session enables auto-merge only when the merge class is `auto`, and a `human`
-  adoption waits for Johannes (ADR-0018 amendment (e)); the PR body counts the live calls
-  and carries `## Decisions taken`.
+  deleted by the update, so step 3 first moves the tests of the source's own out of it,
+  before the `copier update` command, with `git show HEAD:tests/test_adapters.py` as the
+  way back when the update ran first; the examples name core 0.2.1, template v0.2.1 and
+  conventions 1.15; the session enables auto-merge only when the merge class is `auto`,
+  and a `human` adoption waits for Johannes (ADR-0018 amendment (e)); the PR body counts
+  the live calls and carries `## Decisions taken`.
 - `/add-endpoint`: `tests/test_family.py` proves that a new task is served, shaped and
   listed; the status-table row's format.
 - The generated CLAUDE.md: the layout names `tests/test_family.py` and `gates.yml`; the

@@ -650,6 +650,9 @@ def test_adopt_release_walks_the_adoption_checklist(template_src: Path, tmp_path
         positions = [text.index(item) for item in items]
         assert positions == sorted(positions)
         assert update in text
+        moved = text.index("First move the tests of the\n   source's own out of every file")
+        assert moved < text.index(update), "the update deletes a removed file, no marker"
+        assert "`git show HEAD:tests/test_adapters.py` brings its tests back" in text
         assert "`chore/template-update-<tag>`" in text
         assert (keyed_line in text) is bool(env), "the ini option, for a keyed source only"
         assert "gh pr merge --auto --squash -R xippios/sdk-ex <number>" in text, "from the root"
