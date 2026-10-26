@@ -857,6 +857,8 @@ def test_keyless_flat_render_is_how_eurostat_starts(template_src: Path, tmp_path
         FAKE_CORE_SHA[:7],
         FAKE_CORE_SHA.upper(),
         FAKE_CORE_SHA + "0",
+        FAKE_CORE_SHA + "\n",
+        "main\n",
         "origin/main",
     ],
 )
@@ -864,6 +866,17 @@ def test_core_git_ref_is_main_or_a_full_sha(template_src: Path, tmp_path: Path, 
     """uv and the merge-class check read main or a full SHA as one commit; nothing else."""
     with pytest.raises(ValueError, match="core_git_ref"):
         generate(template_src, tmp_path / "repo", source_slug="ex", core_git_ref=ref, **keyed(""))
+
+
+@pytest.mark.parametrize("version", ["0.2", "v0.2.1", "0.2.1rc1", "0.2.1\n"])
+def test_core_version_is_a_release_version(
+    template_src: Path, tmp_path: Path, version: str
+) -> None:
+    """A release version, X.Y.Z, and nothing after it: the bound renders it verbatim."""
+    with pytest.raises(ValueError, match="core_version"):
+        generate(
+            template_src, tmp_path / "repo", source_slug="ex", core_version=version, **keyed("")
+        )
 
 
 def test_core_git_ref_takes_main(template_src: Path, tmp_path: Path) -> None:

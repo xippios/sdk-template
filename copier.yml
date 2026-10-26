@@ -149,12 +149,15 @@ core_version:
     The xippios-core release the package depends on, rendered as xippios-core~=<version>,
     the extras likewise: that minor, from that release on. The family's floor is normally
     the minor's .0 (xippios-core~=0.2.0, ADR-0018), raised when the source adopts a new
-    core minor in its adoption PR (conventions §12, §15). After a core git pin it is the
-    release that carries the pinned change: X.Y.Z with Z the patch that shipped it, or
-    X.Y.0 when the minor itself did; still one minor.
+    core minor in its adoption PR (conventions §12, §15). It is a patch, X.Y.Z, when that
+    patch shipped what the source adopts, still one minor (ADR-0018 amendment (c)): the
+    default 0.2.1 is that case, since core 0.2.1 shipped the family check that
+    tests/test_family.py imports and 0.2.0 lacks. After a core git pin it is the same:
+    the release that carries the pinned change, X.Y.Z with Z the patch that shipped it,
+    or X.Y.0 when the minor itself did.
   default: "0.2.1"
   validator: >-
-    {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+$')) %}
+    {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+\\Z')) %}
     Use a release version, e.g. 0.2.0
     {% endif %}
 
@@ -169,7 +172,7 @@ core_git_ref:
     the minor itself did; still one minor.
   default: ""
   validator: >-
-    {% if core_git_ref and not (core_git_ref | regex_search('^(main|[0-9a-f]{40})$')) %}
+    {% if core_git_ref and not (core_git_ref | regex_search('^(main|[0-9a-f]{40})\\Z')) %}
     Use main or a full 40-character lowercase commit SHA of sdk-core, or leave it empty
     {% endif %}
 

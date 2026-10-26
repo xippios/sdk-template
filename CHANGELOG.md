@@ -68,9 +68,11 @@ adapter tests every source carried. A source adopts this release in one adoption
   anything is created, and reminds that a session owns `sdk-<slug>` in the workspace's
   `coordination/owners.toml` before the repository is generated there, since the
   workspace's guard refuses work in a directory no session owns.
-- `copier.yml`: `core_git_ref` accepts only an empty value, `main` or a full
-  40-character lowercase commit SHA, the forms uv and the merge-class check read as one
-  commit; a short SHA, a tag or another branch is refused.
+- `copier.yml`: `core_git_ref` accepts only an empty value, `main` or a full 40-character
+  lowercase commit SHA, the forms uv and the merge-class check read as one commit; a
+  short SHA, a tag or another branch is refused. Both validators, this one and
+  `core_version`'s, anchor their pattern at the very end (`\Z`), so a value with a
+  trailing newline is refused too.
 
 ### Changed
 
@@ -90,7 +92,8 @@ adapter tests every source carried. A source adopts this release in one adoption
   by commit SHA.
 - `core_version` defaults to `0.2.1`, rendered `xippios-core~=0.2.1`, the patch case of
   conventions §12 (ADR-0018 amendment (c)): `tests/test_family.py` imports what 0.2.0
-  lacks.
+  lacks. Its help says so: a patch floor rests on that amendment, after a core git pin or
+  not.
 - `tests/conftest.py` keeps `pytest_plugins` only: core 0.2.1's plugin provides
   `anyio_backend` (asyncio).
 - `/release-prep`: a release PR changes only the subset of conventions §12
