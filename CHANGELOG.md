@@ -57,6 +57,9 @@ adapter tests every source carried. A source adopts this release in one adoption
   the merge commit with that section as the tag's message; otherwise it ends quietly
   (conventions §12, ADR-0018 amendment (b)). The release PR of this release is the first
   that tags itself.
+- The template's own `.github/workflows/gates.yml`, core 0.2.1's file, byte for byte the
+  one it ships, which the template tests check: sdk-template carries the gates caller as
+  every repository does (D63), off until Johannes sets `GATES_CALLER` on it.
 - `scripts/new-source.sh` enables auto-merge and branch deletion on merge on the new
   repository (`gh repo edit --enable-auto-merge --delete-branch-on-merge`; queue row 45,
   D62), gives the team `sdk-sessions` write access to it when the team exists (D14; until
@@ -133,10 +136,10 @@ adapter tests every source carried. A source adopts this release in one adoption
 - The `[tool.uv.sources]` comment of a pinned `pyproject.toml`: the pin's removal is a PR
   of its own, before the release PR.
 - Template-internal: `scripts/prove.sh` renders from a git snapshot of the working tree
-  tagged with the CHANGELOG's top release version, so the generated
-  `.copier-answers.yml` names a tag as the family check requires, and `--keyless` proves a
-  keyless flat source, `sdk-example`, the shape eurostat starts in (D33). The template
-  tests pin `gates.yml` and the PR template to core's 0.2.1 bytes and `ci.yml` and
+  tagged with the CHANGELOG's top release version, so the generated `.copier-answers.yml`
+  names a tag as the family check requires, and `--keyless` proves a keyless flat source,
+  `sdk-example`, the shape eurostat starts in (D33). The template tests pin `gates.yml`,
+  the template's own included, and the PR template to core's 0.2.1 bytes and `ci.yml` and
   `publish.yml` to core's bytes with the template's documented steps taken out; they
   render a keyless flat variant, check that the deleted test files are absent and the
   family test is its one line, refuse a `core_git_ref` that is neither `main` nor a full

@@ -26,6 +26,7 @@ tests/test_template.py   generation variants, ruff on the output, skip-if-exists
 CHANGELOG.md             template releases, each with its Hand-apply list (Rules)
 .github/workflows/ci.yml       the template's own CI: tests and scripts/prove.sh
 .github/workflows/release.yml  tags vX.Y.Z from the top CHANGELOG heading on push to main (Workflow rules)
+.github/workflows/gates.yml    core's gates.yml, byte for byte the template's copy, off until GATES_CALLER (Rules)
 .claude/commands/new-source.md
 ```
 
@@ -56,12 +57,16 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 - The verbatim files mirror sdk-core at the core release the template adopts (v0.2.1);
   `tests/test_template.py` pins `gates.yml` and `PULL_REQUEST_TEMPLATE.md` to its bytes,
   and `ci.yml` and `publish.yml` to its bytes once the template's own steps below are
-  taken out. When sdk-core changes one of them, change it here too and bump the template;
-  `copier update` carries it into the generated repos. Two carry the exclusion of
-  `.copier-answers.yml`, in the detect-secrets hook's `exclude` in
-  `.pre-commit-config.yaml` and in `should_exclude_file` in `.secrets.baseline`, because
-  the answers file names the key's variable and trips the keyword check on commit and on
-  a baseline rescan alike; sdk-core carries the same exclusion since core 0.2.0.
+  taken out. sdk-template's own `.github/workflows/gates.yml` is the same file, byte for
+  byte `template/.github/workflows/gates.yml`, which the tests check: the template carries
+  the gates caller as every repository does, off until Johannes sets the repository
+  variable `GATES_CALLER` to `1` on it. When sdk-core changes one of them, change it here
+  too (`gates.yml` in both places) and bump the template; `copier update` carries it
+  into the generated repos. Two carry the exclusion of `.copier-answers.yml`, in the
+  detect-secrets hook's `exclude` in `.pre-commit-config.yaml` and in
+  `should_exclude_file` in `.secrets.baseline`, because the answers file names the key's
+  variable and trips the keyword check on commit and on a baseline rescan alike; sdk-core
+  carries the same exclusion since core 0.2.0.
   `publish.yml` deviates by one step: in its `tag` job, before the tag, it refuses a
   `pyproject.toml` that has `[tool.uv.sources]`, since a source that pins core to git
   cannot be published (conventions §12); core has no pin to guard. `ci.yml` deviates by

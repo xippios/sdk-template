@@ -500,8 +500,10 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Pat
             assert "Hex High Entropy String" in control.stdout, control.stdout
 
 
-# SHA-256 of sdk-core's files at v0.2.1, which the template copies verbatim:
-# git -C ../sdk-core show v0.2.1:<path> | sha256sum (digests, not secrets).
+# SHA-256 of sdk-core's files at v0.2.1, which the template copies verbatim, taken at
+# core's `feature/release-train-and-family-tests` head 4aa24b8; re-verified against the
+# v0.2.1 tag at gate 4b: git -C ../sdk-core show <ref>:<path> | sha256sum (digests, not
+# secrets).
 CORE_VERBATIM = {
     ".github/workflows/gates.yml": (
         # pragma: allowlist nextline secret
@@ -554,6 +556,13 @@ def test_workflows_and_pr_template_are_core_v0_2_1(template_src: Path, tmp_path:
         (".github/workflows/publish.yml", core_publish),
     ]:
         assert hashlib.sha256(core.encode()).hexdigest() == CORE_EXTENDED[rel], rel
+
+
+def test_the_templates_own_gates_caller_is_the_one_it_ships() -> None:
+    """sdk-template carries core's gates.yml as every repository does, off until GATES_CALLER."""
+    own = (ROOT / ".github/workflows/gates.yml").read_bytes()
+    assert own == (ROOT / "template/.github/workflows/gates.yml").read_bytes()
+    assert hashlib.sha256(own).hexdigest() == CORE_VERBATIM[".github/workflows/gates.yml"]
 
 
 def steps_of(workflow: dict[str, object], job: str) -> list[dict[str, object]]:
