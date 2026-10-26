@@ -163,6 +163,13 @@ adapter tests every source carried. A source adopts this release in one adoption
   `test_task_is_a_sync_facade_with_an_agent_docstring`, which the family check replaces
   without requiring `async_fn` (conventions §6 makes the async variant optional). Its
   docstring points at `sent_query(route)` beside `sent_urls(route)`.
+- From the `tests/test_tasks_write.py` scaffold, which write sources get:
+  `test_the_write_server_serves_exactly_the_write_tasks`, which the family check's
+  `test_family_write_server_serves_the_write_tasks` makes (conventions §8, core's
+  `assert_write_tools`), and the `async_fn` assertion of the per-task test (conventions
+  §6 makes the async variant optional). The per-task test,
+  `test_write_task_takes_confirm_last_and_documents_it`, keeps what the family check
+  leaves out: `confirm` last and explained under `Args:`.
 
 ### Hand-apply
 
@@ -176,6 +183,13 @@ adapter tests every source carried. A source adopts this release in one adoption
   `test_write_tools_are_the_write_tasks_with_their_parameters` and
   `test_the_order_categories_are_on_the_read_server_and_the_router`) — the update deletes
   the file; the family check makes the rest.
+- `tests/test_tasks_write.py` (sdk-cashctrl; source-owned, so the update leaves its copy
+  as it is) — drop a write-server registration test, if the copy carries one, and the
+  `async_fn` assertion of `test_every_write_task_is_a_sync_facade_with_confirm_last`
+  unless a test of the source's own reads `async_fn`; keep `confirm` last and explained
+  under `Args:` — the family check's `test_family_write_server_serves_the_write_tasks`
+  makes the registration (conventions §8), and conventions §6 makes the async variant
+  optional; the scaffold dropped both (Removed, above).
 - The local test helpers core 0.2.1 provides (C12; core's `docs/handover.md`, "Adopting
   core 0.2.1", names them per source) — `recorded()` in `tests/test_client.py`
   (sdk-usda-psd, sdk-usda-esr, sdk-usda-gats) and `tests/test_errors.py` (sdk-cashctrl) →

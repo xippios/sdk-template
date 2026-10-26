@@ -751,7 +751,12 @@ def test_sources_sharing_a_key_start_at_stable_different_times(
 
 
 def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
-    """Conventions §8 through core's assert_write_tools, plus what it leaves out."""
+    """What the family check leaves out of conventions §8: confirm last and documented.
+
+    The family check serves the write tasks on the write server alone (core's
+    ``assert_write_tools``), so the scaffold does not repeat it, and it asks for no
+    ``async_fn``, which conventions §6 makes optional.
+    """
     name, dst = generated
     write = bool(VARIANTS[name].get("needs_write_tools"))
     changelog = (dst / "CHANGELOG.md").read_text()
@@ -760,9 +765,9 @@ def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
     if not write:
         return
     test = (dst / "tests/test_tasks_write.py").read_text()
-    call = "write_server, WRITE_TASKS.values(), source=SOURCE, read_server=server, router=router"
-    assert f"assert_write_tools(\n        {call}\n    )" in test
-    assert "list_tools" not in test, "assert_write_tools lists the tools"
+    assert "assert_write_tools" not in test, "test_family_write_server_serves_the_write_tasks"
+    assert 'hasattr(task, "async_fn")' not in test, "conventions §6: async is optional"
+    assert "test_family_write_server_serves_the_write_tasks" in test
     assert '== ["confirm"], "confirm comes last"' in test
     assert "test_tasks_write.py" in (dst / "CLAUDE.md").read_text()
 

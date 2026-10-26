@@ -1,9 +1,12 @@
-"""The write path: the write server serves exactly the write tasks, each confirm-gated.
+"""The write path: each write task confirm-gated, confirm last and documented.
 
 Conventions §8: write tools live on a server of their own, behind the entry point
 ``xippios-{{ source_slug }}-mcp-write``; each takes ``confirm: bool = False`` and previews
-unless it is true. The read server and the HTTP router never serve a write task.
-Per-task replay tests go below.
+unless it is true. That the write server serves exactly the write tasks, each with
+``confirm: bool = False``, and that the read server and the HTTP router serve none is
+core's family check, ``test_family_write_server_serves_the_write_tasks``, which
+``tests/test_family.py`` collects. An ``async_fn`` is not required: conventions §6 makes
+the async variant optional. Per-task replay tests go below.
 """
 
 import inspect
@@ -11,30 +14,17 @@ import re
 from collections.abc import Callable
 
 import pytest
-from xippios.core.testing import assert_write_tools
 
 from xippios.{{ source_pkg }} import tasks_write
-from xippios.{{ source_pkg }}._client import SOURCE
-from xippios.{{ source_pkg }}.http import router
-from xippios.{{ source_pkg }}.mcp import server
-from xippios.{{ source_pkg }}.mcp_write import server as write_server
 
 WRITE_TASKS: dict[str, Callable[..., object]] = {
     name: getattr(tasks_write, name) for name in tasks_write.__all__
 }
 
 
-def test_the_write_server_serves_exactly_the_write_tasks() -> None:
-    """A write server, its tools the write tasks, none on the read server or the router."""
-    assert_write_tools(
-        write_server, WRITE_TASKS.values(), source=SOURCE, read_server=server, router=router
-    )
-
-
 @pytest.mark.parametrize("task", list(WRITE_TASKS.values()), ids=list(WRITE_TASKS))
-def test_write_task_is_a_sync_facade_with_confirm_last(task: Callable[..., object]) -> None:
-    """What ``assert_write_tools`` leaves out: the facade, confirm's place and its docstring."""
-    assert hasattr(task, "async_fn"), "write the async function and derive the sync one with sync()"
+def test_write_task_takes_confirm_last_and_documents_it(task: Callable[..., object]) -> None:
+    """What the family check leaves out: confirm's place and its line under Args:."""
     assert list(inspect.signature(task).parameters)[-1:] == ["confirm"], "confirm comes last"
     doc = inspect.getdoc(task) or ""
     assert re.search(r"^\s+confirm:", doc, re.MULTILINE), "explain confirm under Args:"
