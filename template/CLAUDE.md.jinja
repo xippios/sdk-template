@@ -190,9 +190,10 @@ The API needs no key, so the workflow uses no secret.
   `CHANGELOG.md`; `ci.yml` fails without one (conventions §12).
 - Releases follow the release train (conventions §12): `/release-prep` opens a release
   PR that changes only `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`,
-  `CLAUDE.md` and `docs/handover.md`; its merge runs `publish.yml`, which tags the
-  version on the merge commit, and Johannes approves the `pypi` run. A reference-data
-  refresh or a core pin's removal is a PR of its own before it.
+  `CLAUDE.md` and `docs/handover.md` (and `scripts/check-siblings.sh` where the source
+  has one); its merge runs `publish.yml`, which tags the version on the merge commit,
+  and Johannes approves the `pypi` run. A reference-data refresh or a core pin's removal
+  is a PR of its own before it.
 - `ruff` leaves `docs/` alone; never reformat the upstream snapshot.
 - Template and core updates: a new sdk-template release, and the core minor it carries,
   arrive in one adoption PR, `chore/template-update-<tag>`, before the next release

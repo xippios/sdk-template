@@ -119,10 +119,11 @@ adapter tests every source carried. A source adopts this release in one adoption
 - The generated CLAUDE.md: the layout names `tests/test_family.py` and `gates.yml`; the
   PR-body rules add the open questions, the live-call count, the `## Decisions taken`
   block and sdk-core's `docs/review-checklist.md` (also under Read first); every PR but a
-  release, an adoption or Dependabot's adds a CHANGELOG entry; the release train; the
-  update and Never sections allow auto-merge by merge class only; the quota sentence
-  shows the `QuotaPolicy` installation instead of pointing at a commented block that a
-  repository generated before v0.2.0 lacks (queue row 36 f).
+  release, an adoption or Dependabot's adds a CHANGELOG entry; the release train, whose
+  release PR changes only conventions §12's subset (with `scripts/check-siblings.sh`
+  where the source has one); the update and Never sections allow auto-merge by merge
+  class only; the quota sentence shows the `QuotaPolicy` installation instead of pointing
+  at a commented block that a repository generated before v0.2.0 lacks (queue row 36 f).
 - `.github/PULL_REQUEST_TEMPLATE.md` is core 0.2.1's, sha256 `657a5d0e…` (queue row 31 a).
   It mirrors the definition of done: the pointer to sdk-core's `docs/review-checklist.md`,
   a core PR's consumers, the fixture grep for the fields a source keeps out of its
