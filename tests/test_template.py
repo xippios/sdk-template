@@ -90,9 +90,8 @@ EXPECTED_FILES = [
     "src/xippios/{pkg}/enums.py",
     "scripts/refresh_reference.py",
     "tests/conftest.py",
+    "tests/test_family.py",
     "tests/test_tasks.py",
-    "tests/test_adapters.py",
-    "tests/test_layout.py",
     "tests/test_live.py",
     "tests/fixtures/README.md",
     "docs/upstream/FETCHED.md",
@@ -108,6 +107,7 @@ EXPECTED_FILES = [
     ".python-version",
     ".github/workflows/ci.yml",
     ".github/workflows/publish.yml",
+    ".github/workflows/gates.yml",
     ".github/workflows/live.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".claude/settings.json",
@@ -119,6 +119,11 @@ EXPECTED_FILES = [
     ".claude/commands/adopt-release.md",
     ".copier-answers.yml",
 ]
+
+# Template v0.2.1 deleted them: core's family check, which tests/test_family.py collects,
+# makes their checks (conventions §10).
+REMOVED_FILES = ["tests/test_layout.py", "tests/test_adapters.py"]
+FAMILY_TEST = "from xippios.core.testing.family import *  # noqa: F403\n"
 
 
 @pytest.fixture(scope="session")
@@ -163,6 +168,9 @@ def test_layout(generated: tuple[str, Path]) -> None:
     pkg = package_dir(answers)
     for rel in EXPECTED_FILES:
         assert (dst / rel.format(pkg=pkg)).is_file(), rel
+    for rel in REMOVED_FILES:
+        assert not (dst / rel).exists(), f"{rel}: the family check makes its checks"
+    assert (dst / "tests/test_family.py").read_text() == FAMILY_TEST
     level = (dst / "src/xippios" / pkg).parent
     while level != dst / "src":
         assert not (level / "__init__.py").exists(), level
@@ -309,16 +317,11 @@ def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Pa
             assert f"{dotted}_" not in text, rel
 
 
-CONFTEST = """import pytest
-
-# Core's plugin keeps the default run offline and free of real keys (ADR-0013); a key's
-# variable is named under xippios_placeholder_key_envs in pyproject.toml, not here.
+CONFTEST = """\
+# Core's plugin keeps the default run offline and free of real keys (ADR-0013), runs anyio
+# tests on asyncio and serves the family check in tests/test_family.py; a key's variable is
+# named under xippios_placeholder_key_envs in pyproject.toml, not here.
 pytest_plugins = ["xippios.core.testing.plugin"]
-
-
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
 """
 
 
@@ -469,7 +472,7 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Pat
     """
     name, dst = generated
     answers = VARIANTS[name]
-    version = str(answers.get("core_version", "0.2.0"))
+    version = str(answers.get("core_version", "0.2.1"))
     pyproject = (dst / "pyproject.toml").read_text()
     project = tomllib.loads(pyproject)["project"]
     assert project["dependencies"] == [f"xippios-core~={version}"]
@@ -497,44 +500,132 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Pat
             assert "Hex High Entropy String" in control.stdout, control.stdout
 
 
-# SHA-256 of sdk-core's files at v0.2.0, which the template copies verbatim:
-# git -C ../sdk-core show v0.2.0:<path> | sha256sum (digests, not secrets).
+# SHA-256 of sdk-core's files at v0.2.1, which the template copies verbatim:
+# git -C ../sdk-core show v0.2.1:<path> | sha256sum (digests, not secrets).
 CORE_VERBATIM = {
-    # pragma: allowlist nextline secret
-    ".github/workflows/ci.yml": "07c9d93ebc9048d6a4c113d684dd71367ebd216dbe798fa08ff1eaf798d5280f",
+    ".github/workflows/gates.yml": (
+        # pragma: allowlist nextline secret
+        "d5dccf9823d784ffe21ebebd023fb423a2bc2b00c31503a0c58e2d3e94800890"
+    ),
     ".github/PULL_REQUEST_TEMPLATE.md": (
         # pragma: allowlist nextline secret
-        "8ba41dd227f9ea1fececc63759431e079f735d5e661ff1b1936fa7bbec6b9359"
+        "657a5d0e61d1c1e7a3e47f3a0ee53acef7ade9f6e452b193a4d0fa92d7eb3d22"
     ),
 }
+# The same for the two workflows the template extends: core's bytes once the template's
+# own lines, named in CLAUDE.md's Rules, are taken out.
+CORE_EXTENDED = {
+    # pragma: allowlist nextline secret
+    ".github/workflows/ci.yml": "ebee09e20d7004a6761c1986f3bc0e16ee4a2dfa749921ac25040ebad5abacab",
+    ".github/workflows/publish.yml": (
+        # pragma: allowlist nextline secret
+        "bf846b59d1c832d8873ad56b3edb339c4d2fbe5fbafd428075ef1df922feb6ba"
+    ),
+}
+# The template's own lines: in ci.yml the full history for the two steps that read the
+# pull request (core's docs/handover.md, "Template v0.2.1"), in publish.yml the refusal
+# of a git-pinned core before the tag.
+FETCH_DEPTH = "          fetch-depth: 0 # both steps below diff against origin/<base>\n"
+CI_STEPS = ("      # Conventions §12: every PR but a release", "      - uses: astral-sh/setup-uv@")
+PUBLISH_STEP = (
+    "      # sdk-template's one step beyond core's file",
+    "      - name: Tag the merge commit",
+)
 
 
-def test_ci_and_pr_template_are_core_v0_2_0_verbatim(template_src: Path, tmp_path: Path) -> None:
-    """ADR-0018: CI runs pre-commit after the tests, as core's does, byte for byte."""
+def without(text: str, first: str, stop: str) -> str:
+    """``text`` without the lines from the one starting ``first`` up to ``stop``."""
+    start = text.index(first)
+    return text[:start] + text[text.index(stop, start) :]
+
+
+def test_workflows_and_pr_template_are_core_v0_2_1(template_src: Path, tmp_path: Path) -> None:
+    """The verbatim files are core 0.2.1's bytes; ci.yml and publish.yml core's plus ours."""
     dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
     for rel, digest in CORE_VERBATIM.items():
         assert hashlib.sha256((dst / rel).read_bytes()).hexdigest() == digest, rel
-    steps = yaml.safe_load((dst / ".github/workflows/ci.yml").read_text())["jobs"]["test"]["steps"]
-    runs = [step.get("run") for step in steps]
-    assert runs.index("uv run pytest") < runs.index("uv run pre-commit run --all-files")
+    ci = (dst / ".github/workflows/ci.yml").read_text()
+    assert ci.count(FETCH_DEPTH) == 1
+    core_ci = without(ci.replace(FETCH_DEPTH, ""), *CI_STEPS)
+    publish = (dst / ".github/workflows/publish.yml").read_text()
+    core_publish = without(publish, *PUBLISH_STEP)
+    for rel, core in [
+        (".github/workflows/ci.yml", core_ci),
+        (".github/workflows/publish.yml", core_publish),
+    ]:
+        assert hashlib.sha256(core.encode()).hexdigest() == CORE_EXTENDED[rel], rel
 
 
-def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
-    """A release cannot carry a git-pinned core; the build job says so before building."""
+def steps_of(workflow: dict[str, object], job: str) -> list[dict[str, object]]:
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    steps = jobs[job]["steps"]
+    assert isinstance(steps, list)
+    return steps
+
+
+def test_ci_reads_the_pull_request_and_runs_once_on_main(generated: tuple[str, Path]) -> None:
+    """No push trigger (publish.yml calls it for a release); the two family CI steps."""
+    _, dst = generated
+    workflow = yaml.safe_load((dst / ".github/workflows/ci.yml").read_text())
+    assert set(workflow[True]) == {"pull_request", "workflow_call"}, "conventions §12"
+    steps = steps_of(workflow, "test")
+    assert steps[0]["with"] == {"fetch-depth": 0, "persist-credentials": False}
+    changelog, cap = steps[1], steps[2]
+    assert changelog["name"] == "CHANGELOG.md has an entry"
+    for prefix in ["chore/release-", "chore/template-update", "dependabot/"]:
+        assert f"!startsWith(github.head_ref, '{prefix}')" in changelog["if"], prefix
+    assert cap["name"] == "Fixture files under 256 KiB"
+    assert cap["env"]["LEVEL"] == "warning", "an error from template v0.3.0 (ADR-0019)"
+    assert "--no-renames --diff-filter=AM" in cap["run"]
+    assert "262144" in cap["run"]
+
+
+def test_workflow_actions_are_pinned_by_sha(generated: tuple[str, Path]) -> None:
+    """ci.yml and publish.yml pin every action to a commit, its version in a comment."""
+    _, dst = generated
+    for rel in [".github/workflows/ci.yml", ".github/workflows/publish.yml"]:
+        uses = re.findall(r"^\s+(?:- )?uses: (\S+)(.*)$", (dst / rel).read_text(), re.MULTILINE)
+        assert uses, rel
+        for action, comment in uses:
+            if action.startswith("./"):
+                continue
+            assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{rel}: {action}"
+            assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{rel}: {action}{comment}"
+
+
+def test_publish_is_the_release_train(generated: tuple[str, Path]) -> None:
+    """Conventions §12: every push to main; a release tags itself; no concurrency group.
+
+    A release cannot carry a git-pinned core: the tag job refuses it before the tag, so no
+    tag is left without a release.
+    """
     name, dst = generated
     workflow = yaml.safe_load((dst / ".github/workflows/publish.yml").read_text())
-    names = [
-        step.get("name") or step.get("run") or step.get("uses")
-        for step in workflow["jobs"]["build"]["steps"]
-    ]
+    assert workflow[True] == {"push": {"branches": ["main"]}, "workflow_dispatch": None}
+    assert "concurrency" not in workflow, "a pending release run would be cancelled"
+    assert list(workflow["jobs"]) == ["release-check", "ci", "tag", "build", "publish"]
+    assert workflow["jobs"]["ci"]["uses"] == "./.github/workflows/ci.yml"
+    assert workflow["jobs"]["publish"]["environment"] == "pypi"
+    check = steps_of(workflow, "release-check")[-1]["run"]
+    assert "grep -qx 'CHANGELOG.md'" in check, "a first release changes only the CHANGELOG"
+    tag = steps_of(workflow, "tag")
+    names = [step.get("name") or step.get("uses") for step in tag]
     guard = names.index("Refuse a pyproject with [tool.uv.sources]")
-    assert names[guard + 1] == "uv build"
-    (step,) = [s for s in workflow["jobs"]["build"]["steps"] if s.get("name") == names[guard]]
-    assert "[tool\\.uv\\.sources\\]" in step["run"]
+    assert names[guard + 1] == "Tag the merge commit with its CHANGELOG section"
+    assert "[tool\\.uv\\.sources\\]" in tag[guard]["run"]
     release_prep = (dst / ".claude/commands/release-prep.md").read_text()
     assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep
     assert "`X.Y.Z` with `Z` the patch that shipped it, or `X.Y.0`" in release_prep
     assert release_prep.index("No git-pinned core") < release_prep.index("set `version`")
+    flat = " ".join(release_prep.split())
+    subset = (
+        "`pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`, `CLAUDE.md` and "
+        "`docs/handover.md`"
+    )
+    assert subset in flat, "the release subset of conventions §12"
+    assert "`/refresh-reference-data`, merged before this one" in flat, "its own PR first"
+    assert "if the `merge-class` check says `auto`" in flat, "ADR-0018, amendment (e)"
     slug = VARIANTS[name]["source_slug"]
     assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in release_prep
 
@@ -542,7 +633,7 @@ def test_publish_refuses_a_git_pinned_core(generated: tuple[str, Path]) -> None:
 def test_adopt_release_walks_the_adoption_checklist(template_src: Path, tmp_path: Path) -> None:
     """Conventions §15, ADR-0018: the nine items in order, one chore/template-update PR."""
     items = ["Items 1 and 2", "Items 3 and 4", *(f"Item {n}:" for n in range(5, 10))]
-    update = "uvx copier update --defaults --vcs-ref=<tag> -d core_version=X.Y.0 -d core_git_ref="
+    update = "uvx copier update --defaults --vcs-ref=<tag> -d core_version=X.Y.Z -d core_git_ref="
     keyed_line = "`xippios_placeholder_key_envs` under `[tool.pytest.ini_options]` names"
     for env in ["EX_API_KEY", ""]:
         dst = generate(template_src, tmp_path / (env or "open"), source_slug="ex", **keyed(env))
@@ -555,6 +646,13 @@ def test_adopt_release_walks_the_adoption_checklist(template_src: Path, tmp_path
         assert "gh pr merge --auto --squash -R xippios/sdk-ex <number>" in text, "from the root"
         github = "`https://github.com/xippios/sdk-template/blob/<tag>/CHANGELOG.md` (or"
         assert text.index(github) < text.index("git -C ../sdk-template"), "GitHub first"
+        flat = " ".join(text.split())
+        assert "(`~=0.2.1` for template v0.2.1)" in flat, "the patch case, ADR-0018 amendment c"
+        assert "a third never: core takes it in that minor (ADR-0023)" in flat, "§15 item 4"
+        assert "`docs/upstream/FETCHED.md`, left to the next `/refresh-upstream`" in flat
+        assert "nothing more (ADR-0018, amendment (d))" in flat, "dead fixtures may go"
+        assert "sdk-template v0.2.1 and conventions 1.15" in flat
+        assert "if the `merge-class` check says `auto`" in flat, "ADR-0018, amendment (e)"
 
 
 def test_reference_data_has_both_enum_paths(template_src: Path, tmp_path: Path) -> None:
@@ -657,8 +755,8 @@ def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
     assert "test_tasks_write.py" in (dst / "CLAUDE.md").read_text()
 
 
-def test_generated_tests_need_no_key_and_end(generated: tuple[str, Path]) -> None:
-    """The reachability probe sends no key; the namespace walk cannot loop for ever."""
+def test_generated_tests_need_no_key(generated: tuple[str, Path]) -> None:
+    """The reachability probe sends no key."""
     name, dst = generated
     live = (dst / "tests/test_live.py").read_text()
     assert ("the key's quota" in live) is bool(VARIANTS[name]["api_key_env"]), "keyed only"
@@ -666,9 +764,6 @@ def test_generated_tests_need_no_key_and_end(generated: tuple[str, Path]) -> Non
     assert "await http.get(BASE_URL)" in live
     assert "follow_redirects=True" in live
     assert "client.request" not in live, "the package's client would send the key"
-    layout = (dst / "tests/test_layout.py").read_text()
-    assert "while True" not in layout
-    assert 'names.index("xippios")' in layout
 
 
 def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> None:
@@ -687,7 +782,7 @@ def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> No
     assert ".github/workflows/live.yml" in claude
     assert "Hand-apply" in claude
     assert "`/adopt-release <tag>` walks it" in claude, "conventions §15, ADR-0018"
-    assert "`tests/conftest.py`, `tests/test_layout.py` and `tests/test_adapters.py`" in claude
+    assert "`tests/conftest.py` and `tests/test_family.py` among them" in " ".join(claude.split())
     assert ("xippios_placeholder_key_envs" in claude) is bool(VARIANTS[name]["api_key_env"])
     assert "(ADR-0017)" in claude
 
@@ -711,3 +806,140 @@ def test_generated_baseline_scans_swagger_files(generated: tuple[str, Path]) -> 
     filters = {entry["path"] for entry in baseline["filters_used"]}
     assert "detect_secrets.filters.heuristic.is_swagger_file" not in filters
     assert baseline["results"] == {}
+
+
+def test_keyless_flat_render_is_how_eurostat_starts(template_src: Path, tmp_path: Path) -> None:
+    """A keyless flat source (eurostat's start on v0.2.1, roadmap §4) names no key anywhere.
+
+    The family check runs on it as on a keyed one: its test file is the same line.
+    """
+    dst = generate(template_src, tmp_path / "repo", source_slug="eurostat", **keyed(""))
+    assert (dst / "src/xippios/eurostat/tasks.py").is_file(), "flat: xippios.eurostat"
+    assert not (dst / "src/xippios/__init__.py").exists()
+    answers = yaml.safe_load((dst / ".copier-answers.yml").read_text())
+    assert answers["api_key_env"] == ""
+    assert "api_key_location" not in answers, "not asked without a key"
+    assert "api_key_name" not in answers
+    pyproject = tomllib.loads((dst / "pyproject.toml").read_text())
+    assert "xippios_placeholder_key_envs" not in pyproject["tool"]["pytest"]["ini_options"]
+    assert "xippios_package" not in pyproject["tool"]["pytest"]["ini_options"], "one tasks.py"
+    assert pyproject["project"]["dependencies"] == ["xippios-core~=0.2.1"]
+    assert "secrets." not in (dst / ".github/workflows/live.yml").read_text()
+    client = (dst / "src/xippios/eurostat/_client.py").read_text()
+    assert "API_KEY_ENV: str | None = None" in client
+    assert "Auth" not in client
+    assert "No API key is needed." in (dst / "README.md").read_text()
+    assert "| Credentials | none; the API is open |" in (dst / "CLAUDE.md").read_text()
+    assert (dst / "tests/test_family.py").read_text() == FAMILY_TEST
+    for rel in REMOVED_FILES:
+        assert not (dst / rel).exists(), rel
+    check = ruff(dst, "check", ".")
+    assert check.returncode == 0, check.stdout + check.stderr
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "v0.2.0",
+        "feature/release-train",
+        FAKE_CORE_SHA[:7],
+        FAKE_CORE_SHA.upper(),
+        FAKE_CORE_SHA + "0",
+        "origin/main",
+    ],
+)
+def test_core_git_ref_is_main_or_a_full_sha(template_src: Path, tmp_path: Path, ref: str) -> None:
+    """uv and the merge-class check read main or a full SHA as one commit; nothing else."""
+    with pytest.raises(ValueError, match="core_git_ref"):
+        generate(template_src, tmp_path / "repo", source_slug="ex", core_git_ref=ref, **keyed(""))
+
+
+def test_core_git_ref_takes_main(template_src: Path, tmp_path: Path) -> None:
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", core_git_ref="main")
+    assert 'rev = "main" }' in (dst / "pyproject.toml").read_text()
+
+
+def git(cwd: Path, *args: str) -> str:
+    """git with a fixed identity and no signing, independent of the user's configuration."""
+    identity = ["-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+    unsigned = ["-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"]
+    return subprocess.run(
+        ["git", *identity, *unsigned, *args], cwd=cwd, capture_output=True, text=True, check=True
+    ).stdout
+
+
+@pytest.mark.parametrize("variant", ["basic-git-core", "header-key-write", "open", "nested"])
+def test_answers_file_is_copiers_canonical_form(
+    template_src: Path, tmp_path: Path, variant: str
+) -> None:
+    """The merge-class check trusts an answers file only as copier writes it back.
+
+    It re-renders the template at ``_commit`` (by SHA) with the answers less ``_commit``
+    and ``_src_path`` as ``--data-file`` and compares the answers file byte for byte
+    (merge classes, rule 4); a render from a tagged template must survive that.
+    """
+    repo = tmp_path / "template"
+    shutil.copytree(template_src, repo)
+    git(repo, "init", "-q", "-b", "main")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "template")
+    git(repo, "tag", "v0.0.1")
+    sha = git(repo, "rev-parse", "HEAD").strip()
+    first = tmp_path / "first"
+    run_copy(
+        str(repo),
+        str(first),
+        data={**BASE_ANSWERS, **VARIANTS[variant]},
+        defaults=True,
+        vcs_ref="v0.0.1",
+        quiet=True,
+    )
+    written = (first / ".copier-answers.yml").read_bytes()
+    assert b"_commit: v0.0.1\n" in written
+    kept = [
+        line
+        for line in written.decode().splitlines()
+        if not line.startswith(("_commit:", "_src_path:"))
+    ]
+    data_file = tmp_path / "answers.yml"
+    data_file.write_text("\n".join(kept) + "\n")
+    again = tmp_path / "again"
+    copy = [sys.executable, "-m", "copier", "copy", "--defaults", "--trust", "--skip-tasks"]
+    subprocess.run(
+        [*copy, "--quiet", "--vcs-ref", sha, "--data-file", str(data_file), str(repo), str(again)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert (again / ".copier-answers.yml").read_bytes() == written
+
+
+def test_readme_status_table_names_the_format_the_family_check_reads(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """The family check reads the tables under ``## Status`` with a Task function column."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
+    readme = (dst / "README.md").read_text()
+    status = readme[readme.index("\n## Status\n") :]
+    status = status[: status.index("\n## ", 1)]
+    comment = " ".join(status[status.index("<!--") : status.index("-->")].split())
+    assert "Core's family check (tests/test_family.py) reads this table" in comment
+    assert "starts with the task's name in backticks" in comment
+    assert "backticked names separated by commas" in comment
+    assert "| Upstream operation | Task function | MCP tool | Status |" in status
+
+
+# Instruction files: what a session or a human reads to act. CHANGELOG history is not one.
+INSTRUCTION_FILES = ["copier.yml", "README.md", "CLAUDE.md", ".claude", "scripts", "template"]
+HUMAN_TAGS = re.compile(r"\btag v[0-9<]|push the tag|human tags|\bgit tag\b")
+
+
+def test_no_instruction_tells_a_human_to_tag() -> None:
+    """The release train (conventions §12): a release PR's merge tags, through a workflow."""
+    for name in INSTRUCTION_FILES:
+        root = ROOT / name
+        for path in [root] if root.is_file() else sorted(root.rglob("*")):
+            if not path.is_file() or ".github/workflows" in path.as_posix():
+                continue
+            for number, line in enumerate(path.read_text().splitlines(), 1):
+                assert not HUMAN_TAGS.search(line), f"{path.relative_to(ROOT)}:{number}: {line}"
