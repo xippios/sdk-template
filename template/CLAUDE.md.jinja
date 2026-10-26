@@ -28,7 +28,8 @@ wrapper from memory of the API.
 1. `docs/upstream/FETCHED.md` and the files it lists: what the upstream actually offers
 2. The family conventions: `../sdk-core/docs/conventions.md` and `../sdk-core/docs/adr/`
    (also at https://github.com/xippios/sdk-core/tree/main/docs)
-3. `../sdk-core/docs/definition-of-done.md`: what a PR must satisfy
+3. `../sdk-core/docs/definition-of-done.md`: what a PR must satisfy, and
+   `../sdk-core/docs/review-checklist.md`: what the reviewer checks it against
 4. The family file `../CLAUDE.md`
 5. When a new core minor or template release comes: conventions §15, the adoption
    checklist, which `/adopt-release` walks
@@ -71,15 +72,18 @@ scripts/
 tests/
   conftest.py      enables xippios.core.testing.plugin, which keeps the run offline
   fixtures/        recorded responses, <endpoint>/<case>.json, never hand-written
-  test_tasks.py    structural checks on every task plus per-task replay tests
-  test_adapters.py the adapters expose exactly tasks.__all__
-  test_layout.py   namespace levels stay empty; py.typed ships
+  test_family.py   core's family check, one line: namespace levels, py.typed, __version__,
+                   the adapters serving exactly the tasks, task shapes and docstrings, the
+                   README status table, the template tag, the core bound
+  test_tasks.py    per-task replay tests
 {% if needs_write_tools %}
   test_tasks_write.py  the write server serves exactly tasks_write.__all__, each confirm-gated
 {% endif %}
   test_live.py     @pytest.mark.live smoke tests, one per task
 docs/upstream/     documentation snapshot and FETCHED.md
-.github/workflows/ ci.yml (the required ci check), publish.yml (tag to PyPI), live.yml (nightly live tests)
+.github/workflows/ ci.yml (the required ci check, with the CHANGELOG and fixture-size steps),
+                   publish.yml (the release train: tag, build, PyPI), live.yml (nightly live
+                   tests), gates.yml (the merge gates as jobs, off until GATES_CALLER is 1)
 .claude/commands/  add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
                    adopt-release
 ```
@@ -87,7 +91,7 @@ docs/upstream/     documentation snapshot and FETCHED.md
 `src/xippios/` has **no** `__init__.py`: it is a PEP 420 namespace package shared with
 `xippios-core` and every other source package{% if '/' in package_dir %}, and so is every level
 between it and the package (`src/xippios/{{ package_dir.rsplit('/', 1)[0] }}/`){% endif %}.
-Never add one; `tests/test_layout.py` fails if it appears. The import path is
+Never add one; `tests/test_family.py` fails if it appears. The import path is
 `xippios.{{ source_pkg }}` (ADR-0006).
 
 ## How to add an endpoint
@@ -111,7 +115,8 @@ Run `/add-endpoint <upstream operation>`. In short:
    calls the tool end to end with `xippios.core.testing.mcp_call` (and compares what was
    sent through `sent_urls(route)`, never a request from `route.calls`), a live smoke test
    in `test_live.py`.
-7. `CHANGELOG.md` under Unreleased, README status table, then the full check suite.
+7. `CHANGELOG.md` under Unreleased, README status table (the task's name first in its
+   cell, in backticks, as the comment above the table says), then the full check suite.
 
 Reference lookups (commodities, countries, attributes) are tasks too, named
 `list_<thing>`, so agents can form valid calls; one whose whole list an agent needs and
@@ -121,9 +126,12 @@ subset of an upstream record builds its model with `UpstreamModel.project`; noth
 renamed or computed, parsing a value (`parse_decimal`) is the only override. Upstream's
 documented error shapes go into `ClientConfig.classify` in `_client.py`, once; wrappers
 use `client.get_json` and never inspect status codes. An upstream that reports an hourly
-or daily quota gets one `QuotaPolicy` installed on `config` there, as the commented block
-in `_client.py` shows, and `classify` maps its answer to a spent quota to
-`RateLimitError` with `retry_after` (ADR-0010, ADR-0015).
+or daily quota gets one `QuotaPolicy` installed on `config` there
+(`config = QuotaPolicy(window=..., limit_header=..., remaining_header=...,
+source=SOURCE).install(config)`, with the headers and window the upstream documents; a
+repository generated from template v0.2.0 on carries it as a commented block), and
+`classify` maps its answer to a spent quota to `RateLimitError` with `retry_after`
+(ADR-0010, ADR-0015).
 
 ## How to record a fixture
 
@@ -172,14 +180,27 @@ The API needs no key, so the workflow uses no secret.
   Never commit to `main`.
 - Commit small, with Conventional Commits messages (`feat(tasks): add get_balance_sheet`).
 - Open the PR with `gh pr create`; the body is the definition-of-done checklist from
-  `.github/PULL_REQUEST_TEMPLATE.md`, ticked honestly, with assumptions listed.
+  `.github/PULL_REQUEST_TEMPLATE.md`, ticked honestly, with assumptions and open
+  questions listed, the live calls the PR spent counted (keyed calls by number; `none`
+  is a count), and, after the checklist, a `## Decisions taken` block: one line per
+  decision the session made, each backed by a convention, an ADR, a coordination rule, a
+  dated decision of Johannes's or `gap, row N`. The reviewer judges the PR against
+  sdk-core's `docs/review-checklist.md`.
+- Every PR but a release, an adoption or Dependabot's adds an entry under Unreleased in
+  `CHANGELOG.md`; `ci.yml` fails without one (conventions §12).
+- Releases follow the release train (conventions §12): `/release-prep` opens a release
+  PR that changes only `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`,
+  `CLAUDE.md` and `docs/handover.md`; its merge runs `publish.yml`, which tags the
+  version on the merge commit, and Johannes approves the `pypi` run. A reference-data
+  refresh or a core pin's removal is a PR of its own before it.
 - `ruff` leaves `docs/` alone; never reformat the upstream snapshot.
 - Template and core updates: a new sdk-template release, and the core minor it carries,
   arrive in one adoption PR, `chore/template-update-<tag>`, before the next release
-  (conventions §15); `/adopt-release <tag>` walks it, and it auto-merges after the
-  reviewer's `ready`. `uvx copier update` re-renders the files the template owns
-  (`tests/conftest.py`, `tests/test_layout.py` and `tests/test_adapters.py` among them;
-  answers are in `.copier-answers.yml`) and never overwrites the files this package fills:
+  (conventions §15); `/adopt-release <tag>` walks it, and when its merge class is `auto`
+  the session enables auto-merge after the reviewer's `ready` (ADR-0018, amendment (e)).
+  `uvx copier update` re-renders the files the template owns (`tests/conftest.py` and
+  `tests/test_family.py` among them; answers are in `.copier-answers.yml`) and never
+  overwrites the files this package fills:
   `__init__.py`, `_client.py`, `models.py`, `api/`, `tasks.py`, `tasks_write.py`,
   `params.py`, `enums.py`, `reference/`, `scripts/`, `tests/test_tasks.py`,
   `tests/test_tasks_write.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
@@ -201,9 +222,10 @@ The API needs no key, so the workflow uses no secret.
   `meta.request`, or commit one in a fixture (ADR-0017).
 - Never edit `docs/upstream/` by hand; `/refresh-upstream` fetches, a PR reviews.
 - Never add `src/xippios/__init__.py`{% if '/' in package_dir %} or `src/xippios/{{ package_dir.rsplit('/', 1)[0] }}/__init__.py`, the provider level{% endif %}.
-- Never tag, merge, release, force-push, or touch `gh secret`. Those are human actions;
-  the one exception is enabling auto-merge on a `chore/template-update*` or
-  `chore/release-*` PR after the reviewer's `ready` (ADR-0018).
+- Never tag, merge, release, force-push, or touch `gh secret`: a release PR's merge tags
+  through `publish.yml`, and Johannes approves the `pypi` run. The one exception is
+  enabling auto-merge on a `chore/template-update*` or `chore/release-*` PR whose merge
+  class is `auto`, after the reviewer's `ready` (ADR-0018, amendment (e)).
 
 ## When something is unclear
 
