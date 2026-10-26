@@ -63,10 +63,11 @@ adapter tests every source carried. A source adopts this release in one adoption
 - `scripts/new-source.sh` enables auto-merge and branch deletion on merge on the new
   repository (`gh repo edit --enable-auto-merge --delete-branch-on-merge`; queue row 45,
   D62), gives the team `sdk-sessions` write access to it when the team exists (D14; until
-  then, D59, it prints a notice and goes on), and reminds that a session owns
-  `sdk-<slug>` in the workspace's `coordination/owners.toml` before the repository is
-  generated there, since the workspace's guard refuses work in a directory no session
-  owns.
+  then, D59, it prints a notice and goes on), reading the team in the pre-flight beside
+  the organisation's default-branch check so that any other error stops it before
+  anything is created, and reminds that a session owns `sdk-<slug>` in the workspace's
+  `coordination/owners.toml` before the repository is generated there, since the
+  workspace's guard refuses work in a directory no session owns.
 - `copier.yml`: `core_git_ref` accepts only an empty value, `main` or a full
   40-character lowercase commit SHA, the forms uv and the merge-class check read as one
   commit; a short SHA, a tag or another branch is refused.

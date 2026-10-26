@@ -95,21 +95,29 @@ to 'main', then re-run this command. Nothing was created; $dest is generated and
 MSG
   exit 1
 fi
+# The sessions' team gets write access (plan D14), read here, before anything is created.
+# Until the team exists (D59 deferred the identity work), its 404 is a notice and the
+# script goes on; any other error stops it with nothing created.
+team="sdk-sessions"
+team_found=0
+if team_reply="$(gh api "orgs/xippios/teams/$team" 2>&1)"; then
+  team_found=1
+elif grep -q 'HTTP 404' <<<"$team_reply"; then
+  echo "notice: the team $team does not exist yet (D59); $repo will be added to no team"
+else
+  cat >&2 <<MSG
+error: cannot read the team $team: $team_reply
+Nothing was created; $dest is generated and verified.
+MSG
+  exit 1
+fi
 gh repo create "$repo" --public --license Apache-2.0 --description "xippios SDK for $source_name"
 gh repo edit "$repo" --add-topic xippios-sdk --add-topic python --add-topic mcp --add-topic "$domain_topic"
 # Adoption and release PRs of merge class `auto` auto-merge after the reviewer's `ready`
 # (ADR-0018, amendment (e)); merged branches are deleted, as in every sdk-* repository.
 gh repo edit "$repo" --enable-auto-merge --delete-branch-on-merge
-# The sessions' team gets write access (plan D14). Until the team exists (D59 deferred the
-# identity work), the step says so and the script goes on.
-team="sdk-sessions"
-if answer="$(gh api "orgs/xippios/teams/$team" 2>&1)"; then
+if [ "$team_found" = 1 ]; then
   gh api -X PUT "orgs/xippios/teams/$team/repos/$repo" -f permission=push --silent
-elif grep -q 'HTTP 404' <<<"$answer"; then
-  echo "notice: the team $team does not exist yet (D59); $repo was added to no team"
-else
-  echo "error: cannot read the team $team: $answer" >&2
-  exit 1
 fi
 reviewer="${XIPPIOS_PYPI_REVIEWER:-jdidaskalu}"
 reviewer_id="$(gh api "users/$reviewer" --jq .id)"
