@@ -77,7 +77,7 @@ tests/
                    README status table, the template tag, the core bound
   test_tasks.py    per-task replay tests
 {% if needs_write_tools %}
-  test_tasks_write.py  the write server serves exactly tasks_write.__all__, each confirm-gated
+  test_tasks_write.py  each write task takes confirm last and documents it; the write server is the family check's
 {% endif %}
   test_live.py     @pytest.mark.live smoke tests, one per task
 docs/upstream/     documentation snapshot and FETCHED.md

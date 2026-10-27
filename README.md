@@ -88,8 +88,8 @@ sdk-<slug>/
 The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit` before
 any endpoint is added. `tests/test_family.py`, one line, collects core's family check,
 which then keeps the layout, the adapters, the task shapes, the README status table, the
-template tag and the core bound honest as tasks are added, and `tests/test_tasks_write.py`
-the write server. `ci.yml` also requires a CHANGELOG entry on every PR but a release, an
+template tag, the core bound and the write server honest as tasks are added, while
+`tests/test_tasks_write.py` checks each write task's `confirm` parameter and docstring. `ci.yml` also requires a CHANGELOG entry on every PR but a release, an
 adoption or Dependabot's, and warns on a fixture file over 256 KiB; `publish.yml` is the
 release train; `gates.yml` calls the merge gates as jobs once Johannes sets the
 repository variable `GATES_CALLER`. `live.yml` runs every `live`
