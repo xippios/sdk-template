@@ -1,36 +1,12 @@
 """The packaged reference lists, read from ``reference/`` without a call (conventions §3).
 
-``/refresh-reference-data`` writes them.
+``/refresh-reference-data`` writes them; ``PackagedList.load(PACKAGE, name)`` reads one.
 """
 
-from datetime import date
-
-from xippios.core import UpstreamModel, load_json
-
-__all__ = ["PACKAGED_LISTS", "PackagedValues", "packaged_values"]
+__all__ = ["PACKAGED_LISTS"]
 
 PACKAGE = "xippios.{{ import_path }}"
 
 PACKAGED_LISTS: tuple[str, ...] = ()
-"""Names of the lists that ship inside the package; keep in step with the refresh script."""
-
-
-class PackagedValues(UpstreamModel):
-    """One packaged value list: ``reference/<name>.json``.
-
-    Attributes:
-        param: The upstream list the values belong to.
-        fetched: Day the list was fetched.
-        values: The values, as upstream lists them.
-    """
-
-    param: str
-    fetched: date
-    values: list[str]
-
-
-def packaged_values(name: str) -> PackagedValues | None:
-    """The packaged list ``name``, or ``None`` when it is not packaged."""
-    if name not in PACKAGED_LISTS:
-        return None
-    return PackagedValues.model_validate(load_json(PACKAGE, f"{name}.json"))
+"""The lists that ship inside the package, ``reference/<name>.json``; the refresh script
+writes exactly these, its ``LISTS``, ``ID_LISTS`` and ``TABLES``."""
