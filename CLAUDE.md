@@ -50,8 +50,9 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 - `tests/test_template.py` renders each of the family's variants once per session, keyed
   nested, keyless flat and keyless nested; a check no answer changes reads one render,
   and an answer outside the variants (a key location, a core pin, a name at its bound,
-  an `import_path` override) is tested by its own rule. The tests assert mechanics, never rendered prose: a file
-  rendered or not, a name present, no Jinja left, a digest equal, a script's behaviour.
+  an `import_path` override) is tested by its own rule. The tests assert mechanics, never
+  rendered prose: a file rendered or not, a name present, no Jinja left, a digest equal,
+  a script's behaviour.
 - Files a session fills with source content (`__init__.py`, `_client.py`, `errors.py`,
   `models.py`, `api/`, `tasks.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
   `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
