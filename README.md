@@ -39,10 +39,12 @@ scripts/new-source.sh usda-nass \
   -d "api_base_url=https://quickstats.nass.usda.gov/api" \
   -d "api_key_env=NASS_API_KEY" -d "api_key_location=query" -d "api_key_name=key" \
   -d "rate_limit_per_minute=30" -d "rate_limit_provenance=self-imposed" \
-  -d "domain_topic=agriculture"
+  --topic agriculture
 ```
 
-Add `--local-only` to generate and check without touching GitHub. The script generates
+`--topic` names the GitHub topic for the domain, added beside `xippios-sdk`, `python`
+and `mcp` (conventions §13); it is no copier answer. Add `--local-only` to generate and
+check without touching GitHub, where `--topic` may be left out. The script generates
 from this template's GitHub URL at its latest tag, so `.copier-answers.yml` records a
 source that `copier update` can reach from any machine. It refuses to create a repository
 while the organisation's default branch is not `main`: the `sdk-main-protection` ruleset
@@ -65,7 +67,6 @@ afterwards by rename or push.
 | `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, or a self-imposed pace where upstream documents neither, an hourly or daily quota notwithstanding (ADR-0010) | `30` |
 | `rate_limit_burst` | requests let through at once before the pace applies; `1` unless upstream documents a burst | `1` |
 | `rate_limit_provenance` | `documented` or `self-imposed`: where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
-| `domain_topic` | GitHub topic for the domain | `agriculture` |
 | `core_version` | the xippios-core release depended on, rendered `xippios-core~=<version>`, the extras likewise (one core minor, from its `.0` or from the patch that shipped what the source adopts: conventions §12, ADR-0018); default `0.2.1`, the release whose family check `tests/test_family.py` collects | `0.2.1` |
 | `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); removing it before a release, in a PR of its own, raises `core_version` to the release that carries the pinned change: `X.Y.Z` with `Z` the patch that shipped it, or `X.Y.0` when the minor itself did; still one minor | `main` |
 

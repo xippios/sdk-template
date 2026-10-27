@@ -123,15 +123,6 @@ rate_limit_provenance:
     self-imposed, upstream documents no limit: self-imposed
   default: documented
 
-domain_topic:
-  type: str
-  help: GitHub topic for the domain, e.g. agriculture, trade-data, accounting
-  placeholder: agriculture
-  validator: >-
-    {% if not (domain_topic | regex_search('^[a-z0-9]+(-[a-z0-9]+)*$')) %}
-    Use lowercase letters, digits and single hyphens, e.g. trade-data
-    {% endif %}
-
 core_version:
   type: str
   help: >-

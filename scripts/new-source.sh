@@ -3,6 +3,9 @@
 #
 # usage: scripts/new-source.sh <source-slug> [options] [-d key=value ...]
 #   -d key=value     answer to a question in copier.yml; unspecified questions take defaults
+#   --topic DOMAIN   the GitHub topic for the domain (agriculture, trade-data, accounting),
+#                    added beside xippios-sdk, python and mcp (conventions §13); required
+#                    unless --local-only
 #   --local-only     generate and run the checks, do not touch GitHub
 #   --dest DIR       where to generate (default: $XIPPIOS_SDK_ROOT or ~/github/sdk, then sdk-<slug>)
 #   --template SRC   template source (default: the GitHub repository at its latest tag, so generated
@@ -15,15 +18,17 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-slug="${1:?usage: new-source.sh <source-slug> [--local-only] [--dest DIR] [-d key=value ...]}"
+slug="${1:?usage: new-source.sh <source-slug> [--topic DOMAIN] [--local-only] [--dest DIR] [-d key=value ...]}"
 shift
 root="${XIPPIOS_SDK_ROOT:-$HOME/github/sdk}"
 dest=""
 template="https://github.com/xippios/sdk-template.git"
 local_only=0
+topic=""
 data=()
 while [ $# -gt 0 ]; do
   case "$1" in
+    --topic) topic="$2"; shift ;;
     --local-only) local_only=1 ;;
     --dest) dest="$2"; shift ;;
     --template) template="$2"; shift ;;
@@ -37,6 +42,16 @@ repo="xippios/sdk-$slug"
 if [ -e "$dest" ]; then
   echo "error: $dest already exists" >&2
   exit 1
+fi
+# The domain topic is checked before anything is generated, so a missing or malformed one
+# costs nothing: GitHub takes lowercase letters, digits and hyphens.
+if [ -n "$topic" ] && ! [[ "$topic" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+  echo "error: --topic $topic: use lowercase letters, digits and single hyphens, e.g. trade-data" >&2
+  exit 2
+fi
+if [ -z "$topic" ] && [ "$local_only" = 0 ]; then
+  echo "error: --topic DOMAIN is required to create the repository (or pass --local-only)" >&2
+  exit 2
 fi
 
 answer() { grep -E "^$1:" "$dest/.copier-answers.yml" | sed -E "s/^$1: *//; s/^'(.*)'$/\1/; s/^\"(.*)\"$/\1/"; }
@@ -60,7 +75,6 @@ echo "==> generating $dest from template ref $ref"
 uv run --project "$here" copier copy --defaults --vcs-ref "$ref" -d "source_slug=$slug" "${data[@]}" "$template" "$dest"
 cd "$dest"
 source_name="$(answer source_name)"
-domain_topic="$(answer domain_topic)"
 api_key_env="$(answer api_key_env)"
 
 echo "==> environment"
@@ -112,7 +126,7 @@ MSG
   exit 1
 fi
 gh repo create "$repo" --public --license Apache-2.0 --description "xippios SDK for $source_name"
-gh repo edit "$repo" --add-topic xippios-sdk --add-topic python --add-topic mcp --add-topic "$domain_topic"
+gh repo edit "$repo" --add-topic xippios-sdk --add-topic python --add-topic mcp --add-topic "$topic"
 # Adoption and release PRs of merge class `auto` auto-merge after the reviewer's `ready`
 # (ADR-0018, amendment (e)); merged branches are deleted, as in every sdk-* repository.
 gh repo edit "$repo" --enable-auto-merge --delete-branch-on-merge

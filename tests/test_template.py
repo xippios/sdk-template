@@ -22,7 +22,6 @@ BASE_ANSWERS: dict[str, object] = {
     "upstream_docs_url": "https://api.example.org/docs",
     "api_base_url": "https://api.example.org/v1",
     "rate_limit_per_minute": 120,
-    "domain_topic": "example-domain",
 }
 
 
@@ -206,9 +205,30 @@ def test_answers_file_round_trips(generated: tuple[str, Path]) -> None:
     assert answers["source_slug"] == VARIANTS[name]["source_slug"]
     assert answers["api_key_env"] == VARIANTS[name]["api_key_env"]
     assert answers["import_path"] == package_dir(VARIANTS[name]).replace("/", ".")
-    assert "source_pkg" not in answers, "computed answers are derived, never recorded"
-    assert "package_dir" not in answers
+    assert "package_dir" not in answers, "computed answers are derived, never recorded"
     assert "live_schedule" not in answers
+    for gone in ["source_pkg", "domain_topic", "needs_write_tools"]:
+        assert gone not in answers, f"{gone}: no question asks it"
+
+
+@pytest.mark.parametrize(
+    ("args", "error"),
+    [
+        ([], "--topic DOMAIN is required to create the repository"),
+        (["--local-only", "--topic", "Trade_Data"], "--topic Trade_Data: use lowercase letters"),
+        (["--topic", "trade--data"], "--topic trade--data: use lowercase letters"),
+    ],
+)
+def test_new_source_checks_the_topic_before_it_generates(
+    tmp_path: Path, args: list[str], error: str
+) -> None:
+    """The domain topic is new-source.sh's flag, no copier answer; a bad one costs nothing."""
+    dest = tmp_path / "sdk-ex"
+    script = [str(ROOT / "scripts/new-source.sh"), "ex", "--dest", str(dest), *args]
+    run = subprocess.run(script, capture_output=True, text=True, check=False)
+    assert run.returncode == 2, run.stdout + run.stderr
+    assert error in run.stderr
+    assert not dest.exists(), "refused before anything is generated"
 
 
 def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:

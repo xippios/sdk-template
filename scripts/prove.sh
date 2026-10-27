@@ -56,14 +56,14 @@ git -C "$snapshot" -c user.name=prove -c user.email=prove@example.invalid \
   -c commit.gpgsign=false commit -q --no-verify -m "the working tree of sdk-template"
 git -C "$snapshot" -c tag.gpgsign=false tag "v$version"
 
-"$here/scripts/new-source.sh" "$slug" --local-only --dest "$dest" --template "$snapshot" \
+"$here/scripts/new-source.sh" "$slug" --local-only --topic example-domain --dest "$dest" \
+  --template "$snapshot" \
   -d "source_name=Example Data Service" \
   -d "upstream_url=https://api.example.org" \
   -d "upstream_docs_url=https://api.example.org/docs" \
   -d "api_base_url=https://api.example.org/v1" \
   "${key[@]}" \
   -d "rate_limit_per_minute=120" \
-  -d "domain_topic=example-domain" \
   -d "core_git_ref=$core_ref" \
   "${extra[@]}"
 
