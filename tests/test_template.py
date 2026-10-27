@@ -375,6 +375,8 @@ def test_upstream_snapshot_is_kept_byte_for_byte(generated: tuple[str, Path]) ->
     fetched = (dst / "docs/upstream/FETCHED.md").read_text()
     assert "| File | URL | Fetched | Note |" in fetched
     assert "## Attribution" in fetched
+    flat = " ".join(fetched.split())
+    assert "the publisher's objection" in flat, "a vendor or a public-sector publisher"
     assert "UTC time of the run in ISO 8601 with an explicit `Z`" in fetched
 
 
