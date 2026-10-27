@@ -669,11 +669,16 @@ def workflow_uses(path: Path) -> list[tuple[str, str]]:
 
 
 def test_workflow_actions_are_pinned_by_sha(generated: tuple[str, Path]) -> None:
-    """ci.yml, publish.yml and live.yml pin every action to a commit, its version in a
-    comment (conventions §13); live.yml takes ci.yml's pins."""
+    """ci.yml, publish.yml, live.yml and, where rendered, siblings.yml pin every action to a
+    commit, its version in a comment (conventions §13); live.yml and siblings.yml take
+    ci.yml's pins."""
     _, dst = generated
     workflows = dst / ".github/workflows"
-    for rel in ["ci.yml", "publish.yml", "live.yml"]:
+    rendered = sorted(path.name for path in workflows.glob("*.yml"))
+    assert rendered in [CORE_WORKFLOWS, sorted([*CORE_WORKFLOWS, "siblings.yml"])]
+    for rel in rendered:
+        if rel == "gates.yml":
+            continue  # core's bytes, calling the gates at @main by design (conventions §13)
         uses = workflow_uses(workflows / rel)
         assert uses, rel
         for action, comment in uses:
@@ -681,7 +686,51 @@ def test_workflow_actions_are_pinned_by_sha(generated: tuple[str, Path]) -> None
                 continue
             assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{rel}: {action}"
             assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{rel}: {action}{comment}"
-    assert set(workflow_uses(workflows / "live.yml")) <= set(workflow_uses(workflows / "ci.yml"))
+    for rel in set(rendered) & {"live.yml", "siblings.yml"}:
+        assert set(workflow_uses(workflows / rel)) <= set(workflow_uses(workflows / "ci.yml"))
+
+
+CORE_WORKFLOWS = ["ci.yml", "gates.yml", "live.yml", "publish.yml"]
+SIBLINGS_SCRIPT = ROOT / "template/.github/{% if '.' in import_path %}scripts{% endif %}"
+
+
+def test_siblings_check_renders_where_the_import_path_nests(generated: tuple[str, Path]) -> None:
+    """ADR-0006's sibling proof is the template's (T10): siblings.yml and the script it runs
+    render, byte for byte and executable, only where the import path nests, outside the
+    skip-listed scripts/ so that a source's copy is trusted when identical to the render;
+    a visible job, `ci` never aggregates it (ci.yml stays core's)."""
+    name, dst = generated
+    nested = "/" in package_dir(VARIANTS[name])
+    workflow = dst / ".github/workflows/siblings.yml"
+    script = dst / ".github/scripts/check-siblings.sh"
+    assert workflow.is_file() is nested
+    assert (dst / ".github/scripts").exists() is nested, "no empty directory where flat"
+    assert not (dst / "scripts/check-siblings.sh").exists()
+    claude = (dst / "CLAUDE.md").read_text()
+    assert ("siblings.yml" in claude) is nested
+    if not nested:
+        return
+    assert script.read_bytes() == (SIBLINGS_SCRIPT / "check-siblings.sh").read_bytes()
+    assert script.stat().st_mode & 0o111, "executable, as the render the merge classes compare"
+    syntax = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
+    assert syntax.returncode == 0, syntax.stderr
+    patterns = yaml.safe_load((ROOT / "copier.yml").read_text())["_skip_if_exists"]
+    assert not [p for p in patterns if p.startswith((".github", "scripts/check"))]
+    text = workflow.read_text()
+    assert "{{" not in text.replace("${{", ""), "copied verbatim: only its name is rendered"
+    parsed = yaml.safe_load(text)
+    assert parsed[True] == {"push": {"branches": ["main"]}, "pull_request": None}
+    assert parsed["permissions"] == {"contents": "read"}
+    (job,) = parsed["jobs"].values()
+    assert job["name"] == "siblings"
+    checkout, setup, run = job["steps"]
+    assert checkout["with"] == {"persist-credentials": False}, "conventions §13"
+    assert setup["uses"].startswith("astral-sh/setup-uv@")
+    assert run["run"] == ".github/scripts/check-siblings.sh"
+    assert run["env"] == {"GITHUB_TOKEN": "${{ github.token }}"}, "the job's read-only token"
+    assert "secrets." not in text
+    ci = yaml.safe_load((dst / ".github/workflows/ci.yml").read_text())
+    assert "siblings" not in json.dumps(ci), "ci.yml stays core's file (row 34 c)"
 
 
 def test_the_templates_own_workflows_are_hardened() -> None:
