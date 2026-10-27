@@ -43,13 +43,15 @@ are not listed.
   `ci.yml` stays core's file. The script reads the package from `.copier-answers.yml`,
   finds the siblings as the organisation's `sdk-<provider>-*` repositories whose
   distribution is on PyPI (the listing authenticated by the job's read-only token),
-  builds the wheel and installs it beside every sibling that shares its core minor; a
-  sibling on another core minor only is left out with a warning, so the check is not red
-  through an adoption wave. It fails on a namespace level that is a regular package, a
-  sibling that does not import, a tracked file of the package the wheel lacks or a
-  `uv pip check` conflict, and takes core from its git pin where `pyproject.toml` has
-  one; `XIPPIOS_SIBLINGS` names the siblings by hand, a checkout in the workspace or a
-  git URL before a sibling is on PyPI.
+  builds the wheel and installs it beside every sibling that shares its core minor. A
+  sibling every release of which needs another core minor, told by the versions uv
+  resolves for it alone and held to this wheel's minor, is left out with a warning, never
+  a failure, so the check is not red through an adoption wave; any other conflict fails
+  it. It fails, too, on a namespace level that is a regular package, a sibling that does
+  not import, a tracked file of the package the wheel lacks or a `uv pip check`
+  conflict, and takes core from its git pin where `pyproject.toml` has one;
+  `XIPPIOS_SIBLINGS` names the siblings by hand, a checkout in the workspace or a git
+  URL before a sibling is on PyPI.
   Both files are copied verbatim, only their names rendered, outside the skip-listed
   `scripts/`, so a source's copy identical to the render is the template's for the merge
   classes. sdk-usda-psd, sdk-usda-esr and sdk-usda-gats each carried a copy of their own.
@@ -259,8 +261,10 @@ are not listed.
   skeleton's and the skeleton imports only the standard library; and they run the
   skeleton offline against pages served on the loopback interface, `--check` before and
   after a change, and its stop on an unrecorded copyright line. `scripts/prove.sh` runs
-  the rendered sibling check with the wheel alone on a nested proof, requires none on
-  the flat one, and requires the unfilled skeleton to refuse to run.
+  the rendered sibling check on each nested proof with the wheel alone, with
+  `httpx<0.20`, which must fail it, and with a sibling built on another core minor,
+  which must be left out with a warning; it requires none on the flat proof, and
+  requires the unfilled skeleton to refuse to run.
 - Template-internal: the template tests render the family's three variants, keyed and
   nested (sdk-usda-psd's shape), keyless and flat (sdk-eurostat's) and keyless and
   nested (sdk-usda-esmis's, with the 64-character name that broke four docstrings), each

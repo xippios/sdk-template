@@ -7,13 +7,14 @@
 # the import path nests; copier update keeps both as the template's. The siblings are the
 # repositories of the xippios organisation named sdk-<provider>-* whose distribution,
 # xippios-<provider>-*, is on PyPI; uv installs the newest release of each that shares one
-# xippios-core minor with this wheel, and a sibling with no such release is left out with a
-# warning. The script builds the wheel, installs it with them into a
-# fresh virtual environment, fails if a namespace level is a regular package (an
-# __init__.py at xippios/ or xippios/<provider>/), imports every package under the
-# provider namespace, checks that every tracked file of the package ships in the wheel and
-# runs `uv pip check`. It calls nothing upstream. Needs the network, no key. Run from
-# anywhere: .github/scripts/check-siblings.sh
+# xippios-core minor with this wheel. A sibling every release of which sits on another
+# core minor is left out with a warning, never a failure; every other conflict fails. The
+# script builds the wheel, installs it with the siblings into a fresh virtual environment,
+# fails if a namespace level is a regular package (an __init__.py at xippios/ or
+# xippios/<provider>/), imports every package under the provider namespace, checks that
+# every tracked file of the package ships in the wheel and runs `uv pip check`. It calls
+# nothing upstream. Needs the network, no key. Run from anywhere:
+# .github/scripts/check-siblings.sh
 #
 #   XIPPIOS_SIBLINGS  one requirement per line, replacing the discovered siblings: a
 #                     sibling not on PyPI yet, from its checkout in the workspace or from
@@ -126,23 +127,45 @@ fi
 
 uv build --quiet --wheel --out-dir "$work/dist"
 wheel=("$work"/dist/*.whl)
-# A sibling none of whose releases shares this wheel's xippios-core minor cannot install
-# beside it until one of the two adopts the other's minor (conventions §15): it is left out
-# with a warning, so the proof stays with the siblings on this wheel's minor. Any other
-# conflict fails the check.
+uv pip install --quiet --python "$python" "${wheel[@]}" ${core:+"$core"}
+own_core="$("$python" -c 'from importlib.metadata import version; print(version("xippios-core"))')"
+
+minor() { local rest="${1#*.}"; echo "${1%%.*}.${rest%%.*}"; }
+# The xippios-core release that the requirements given resolve to, on their own; fails when
+# they do not resolve. A resolved version, read from uv's pinned output, never its errors.
+resolved_core() {
+  local pinned
+  pinned="$(printf '%s\n' "$@" | uv pip compile --quiet --no-header --no-annotate \
+    --python "$python" - 2> /dev/null)" || return 1
+  sed -n 's/^xippios-core==//p' <<< "$pinned"
+}
+
+# A sibling every release of which sits on another xippios-core minor cannot install beside
+# this wheel until one of the two adopts the other's minor (conventions §15): it is left out
+# with a warning, so the proof stays with the siblings on this wheel's minor. It is told by
+# resolved versions: on its own the sibling resolves to a core of another minor, and held to
+# this wheel's minor it resolves to none. Any other conflict fails the check.
 kept=()
 for requirement in "${requirements[@]}"; do
   if trial="$(uv pip install --dry-run --python "$python" "${wheel[@]}" "$requirement" \
     ${core:+"$core"} 2>&1)"; then
     kept+=("$requirement")
-  elif grep -q 'xippios-core' <<< "$trial"; then
-    echo "::warning::${requirement}: no release shares this wheel's xippios-core minor; left out"
+    continue
+  fi
+  alone="$(resolved_core "$requirement" || true)"
+  if [ -n "$alone" ] && [ "$(minor "$alone")" != "$(minor "$own_core")" ] \
+    && ! resolved_core "$requirement" "xippios-core==$(minor "$own_core").*" > /dev/null; then
+    echo "::warning::${requirement}: every release needs xippios-core $(minor "$alone").*, this" \
+      "wheel $(minor "$own_core").*; left out until both share a minor"
   else
     echo "$trial" >&2
+    echo "error: ${requirement} does not install beside this wheel" >&2
     exit 1
   fi
 done
-uv pip install --python "$python" "${wheel[@]}" "${kept[@]}" ${core:+"$core"}
+if [ "${#kept[@]}" != 0 ]; then
+  uv pip install --python "$python" "${wheel[@]}" "${kept[@]}" ${core:+"$core"}
+fi
 
 "$python" - "$package" <<'PY'
 """Every level above the package stays a namespace portion; every package under it imports."""

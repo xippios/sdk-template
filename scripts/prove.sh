@@ -3,9 +3,10 @@
 # run the full check suite on it (uv sync, ruff, mypy, pytest with core's family check,
 # pre-commit), then re-render enums.py from the (empty) packaged lists and require it
 # unchanged, require the unfilled refresh_upstream.py skeleton to refuse to run, and run
-# the sibling check where the import path nests, with the wheel alone (none renders where
-# it is flat). No GitHub involved. The placeholder key is core's plugin's to guarantee,
-# and its own suite tests it. The template's CI runs the three shapes.
+# the sibling check where the import path nests (none renders where it is flat): with the
+# wheel alone, failing on a conflicting requirement, and warning on a sibling on another
+# core minor. No GitHub involved. The placeholder key is core's plugin's to guarantee, and
+# its own suite tests it. The template's CI runs the three shapes.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF] [--keyless | --keyless-nested]
 #                         [--keep] [-d key=value ...]
@@ -118,6 +119,47 @@ else
   # on GitHub; the namespace levels, the import and the shipped files are checked as in CI.
   echo "==> .github/scripts/check-siblings.sh on the nested render (xippios.$import_path), the wheel alone"
   (cd "$dest" && XIPPIOS_SIBLINGS='' .github/scripts/check-siblings.sh)
+
+  echo
+  echo "==> the sibling check fails on a conflict that is not the core minor: httpx<0.20"
+  if (cd "$dest" && XIPPIOS_SIBLINGS='httpx<0.20' .github/scripts/check-siblings.sh) \
+    > "$work/conflict.log" 2>&1; then
+    cat "$work/conflict.log" >&2
+    echo "error: the sibling check passed a conflicting sibling" >&2
+    exit 1
+  fi
+  if ! grep -qx "error: httpx<0.20 does not install beside this wheel" "$work/conflict.log"; then
+    cat "$work/conflict.log" >&2
+    exit 1
+  fi
+  echo "failed, as it must: $(tail -n 1 "$work/conflict.log")"
+
+  # A sibling built here whose one release needs a core minor on PyPI that this wheel does
+  # not take (0.3 beside 0.2, else 0.2; 0.1.0 is yanked): the check leaves it out with a
+  # warning and passes.
+  echo
+  echo "==> a sibling on another core minor only is left out with a warning, never a failure"
+  own_core="$("$dest/.venv/bin/python" -c \
+    'from importlib.metadata import version; print(version("xippios-core"))')"
+  case "$own_core" in
+    0.3.*) other_core="0.2.0" ;;
+    *) other_core="0.3.0" ;;
+  esac
+  other="$work/sdk-example-other"
+  mkdir -p "$other/src/xippios/example/other"
+  : > "$other/src/xippios/example/other/__init__.py"
+  printf '%s\n' '[project]' 'name = "xippios-example-other"' 'version = "0.1.0"' \
+    "dependencies = [\"xippios-core~=$other_core\"]" '' '[build-system]' \
+    'requires = ["hatchling>=1.27"]' 'build-backend = "hatchling.build"' '' \
+    '[tool.hatch.build.targets.wheel]' 'packages = ["src/xippios"]' > "$other/pyproject.toml"
+  if ! (cd "$dest" && XIPPIOS_SIBLINGS="xippios-example-other @ file://$other" \
+    .github/scripts/check-siblings.sh) > "$work/minor.log" 2>&1; then
+    cat "$work/minor.log" >&2
+    echo "error: the sibling check failed on a sibling on another core minor" >&2
+    exit 1
+  fi
+  grep "^::warning::xippios-example-other" "$work/minor.log" \
+    || { cat "$work/minor.log" >&2; exit 1; }
 fi
 
 echo

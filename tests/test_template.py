@@ -434,6 +434,10 @@ def test_siblings_check_renders_where_the_import_path_nests(variant: tuple[str, 
     assert lines.index("unset GITHUB_TOKEN") < first_uv, "conventions §13"
     (handed,) = [line for line in lines if '"$token"' in line]
     assert handed.startswith('  siblings="$(GITHUB_TOKEN="$token" "$python" - '), "listing only"
+    # D87: a sibling on another core minor is told by resolved versions, never by the text
+    # of uv's error; prove.sh runs both outcomes, since each needs PyPI.
+    assert not [line for line in lines if "$trial" in line and "grep" in line]
+    assert "uv pip compile --quiet --no-header --no-annotate" in script.read_text()
     skipped = skip_matcher(package_dir(VARIANTS[name]))
     assert skipped("scripts/check-siblings.sh"), "why the script is not under scripts/"
     for rel in [".github/workflows/siblings.yml", ".github/scripts/check-siblings.sh"]:
