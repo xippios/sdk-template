@@ -4,9 +4,9 @@
 # as portions of the PEP 420 namespaces between xippios and the package.
 #
 # sdk-template renders this file, and .github/workflows/siblings.yml that runs it, where
-# the import path nests; copier update keeps both as the template's. The siblings are the
-# repositories of the xippios organisation named sdk-<provider>-* whose distribution,
-# xippios-<provider>-*, is on PyPI; uv installs the newest release of each that shares one
+# the import path nests or the source declares a source package it depends on; copier
+# update keeps both as the template's. The siblings are the repositories of the xippios
+# organisation named sdk-<provider>-* whose distribution, xippios-<provider>-*, is on PyPI; uv installs the newest release of each that shares one
 # xippios-core minor with this wheel. A sibling every release of which sits on another
 # core minor is left out with a warning, never a failure; every other conflict fails. The
 # script builds the wheel, installs it with the siblings into a fresh virtual environment,
@@ -15,6 +15,13 @@
 # every tracked file of the package ships in the wheel and runs `uv pip check`. It calls
 # nothing upstream. Needs the network, no key. Run from anywhere:
 # .github/scripts/check-siblings.sh
+#
+# The source packages this one depends on (ADR-0021), as pyproject.toml declares them
+# (xippios-<slug>~=X.Y.0), install with the wheel from PyPI at their bound and import
+# beside it, each namespace level above them a portion too. A declared dependency is never
+# left out as a sibling on another core minor is: a conflict, another xippios-core minor
+# included, fails the check, since both share one core minor. A flat source that declares
+# one has no siblings to find, and the check proves the dependencies alone.
 #
 #   XIPPIOS_SIBLINGS  one requirement per line, replacing the discovered siblings: a
 #                     sibling not on PyPI yet, from its checkout in the workspace or from
@@ -54,9 +61,38 @@ prefix="sdk-${provider//_/-}-"
 uv venv --quiet --python "${PYTHON:-3.12}" "$work/venv"
 python="$work/venv/bin/python"
 
+# The source packages this one depends on, by distribution name: every xippios-* but core
+# in [project] dependencies (ADR-0021). The wheel requires them at their bound.
+declared=()
+names="$("$python" - <<'PY'
+import re
+import tomllib
+
+with open("pyproject.toml", "rb") as file:
+    requirements = tomllib.load(file).get("project", {}).get("dependencies", [])
+for requirement in requirements:
+    match = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)", requirement)
+    name = re.sub(r"[-_.]+", "-", match[1]).lower() if match else ""
+    if name.startswith("xippios-") and name != "xippios-core":
+        print(name)
+PY
+)"
+while IFS= read -r line; do
+  if [ -n "$line" ]; then
+    declared+=("$line")
+  fi
+done <<< "$names"
+if [ "${#declared[@]}" != 0 ]; then
+  echo "declared dependencies, from pyproject.toml, installed with the wheel at their bound:"
+  printf '  %s\n' "${declared[@]}"
+fi
+
 if [ -n "${XIPPIOS_SIBLINGS+set}" ]; then
   siblings="$XIPPIOS_SIBLINGS"
   echo "siblings from XIPPIOS_SIBLINGS"
+elif [[ "$import_path" != *.* ]]; then
+  siblings=""
+  echo "no siblings: the import path is flat"
 else
   siblings="$(GITHUB_TOKEN="$token" "$python" - "$prefix" "$distribution" <<'PY'
 """Print the siblings on PyPI: xippios-<provider>-* for each sdk-<provider>-* of xippios."""
@@ -100,13 +136,17 @@ PY
 fi
 requirements=()
 while IFS= read -r line; do
-  if [ -n "$line" ]; then
+  if [[ " ${declared[*]} " == *" $line "* ]]; then
+    echo "  $line: a declared dependency, installed with the wheel"
+  elif [ -n "$line" ]; then
     requirements+=("$line")
     echo "  $line"
   fi
 done <<< "$siblings"
-if [ "${#requirements[@]}" = 0 ]; then
+if [ "${#requirements[@]}" = 0 ] && [ "${#declared[@]}" = 0 ]; then
   echo "  none: the wheel is installed alone"
+elif [ "${#requirements[@]}" = 0 ]; then
+  echo "  none beside the declared dependencies"
 fi
 
 # A development pin of core (conventions §12): while pyproject.toml takes xippios-core from
@@ -127,7 +167,12 @@ fi
 
 uv build --quiet --wheel --out-dir "$work/dist"
 wheel=("$work"/dist/*.whl)
-uv pip install --quiet --python "$python" "${wheel[@]}" ${core:+"$core"}
+# The wheel installs first, with the source packages it depends on at their bound: a
+# conflict there fails the check, a declared dependency on another core minor included.
+if ! uv pip install --quiet --python "$python" "${wheel[@]}" ${core:+"$core"}; then
+  echo "error: the wheel does not install${declared[*]:+ with its declared dependencies}" >&2
+  exit 1
+fi
 own_core="$("$python" -c 'from importlib.metadata import version; print(version("xippios-core"))')"
 
 minor() { local rest="${1#*.}"; echo "${1%%.*}.${rest%%.*}"; }
@@ -167,28 +212,53 @@ if [ "${#kept[@]}" != 0 ]; then
   uv pip install --python "$python" "${wheel[@]}" "${kept[@]}" ${core:+"$core"}
 fi
 
-"$python" - "$package" <<'PY'
-"""Every level above the package stays a namespace portion; every package under it imports."""
+"$python" - "$package" "${declared[@]}" <<'PY'
+"""Every level above the package stays a namespace portion; every package under it imports,
+and so does every source package it depends on, beside it (ADR-0021)."""
 import importlib
 import pkgutil
 import sys
-from importlib.metadata import version
+from importlib.metadata import distribution, version
 
-package = sys.argv[1]
-levels = package.split(".")
-namespaces = [".".join(levels[:depth]) for depth in range(1, len(levels))]
-for name in namespaces:
-    module = importlib.import_module(name)
-    if getattr(module, "__file__", None) is not None:
-        sys.exit(f"error: {name} is a regular package ({module.__file__}), not a portion")
-provider = sys.modules[namespaces[-1]]
-found = pkgutil.iter_modules(provider.__path__, f"{provider.__name__}.")
-names = sorted(info.name for info in found if info.ispkg)
-if package not in names:
-    sys.exit(f"error: {package} is not installed under {provider.__name__}")
+package, *declared = sys.argv[1:]
+
+
+def portions(name: str) -> list[str]:
+    """The namespace levels above a package, each required to be a portion."""
+    levels = name.split(".")
+    namespaces = [".".join(levels[:depth]) for depth in range(1, len(levels))]
+    for level in namespaces:
+        module = importlib.import_module(level)
+        if getattr(module, "__file__", None) is not None:
+            sys.exit(f"error: {level} is a regular package ({module.__file__}), not a portion")
+    return namespaces
+
+
+namespaces = portions(package)
+names = [package]
+if len(namespaces) > 1:
+    provider = sys.modules[namespaces[-1]]
+    found = pkgutil.iter_modules(provider.__path__, f"{provider.__name__}.")
+    names = sorted(info.name for info in found if info.ispkg)
+    if package not in names:
+        sys.exit(f"error: {package} is not installed under {provider.__name__}")
 for name in names:
     module = importlib.import_module(name)
     print(f"imported {name} {getattr(module, '__version__', '')}")
+for dependency in declared:
+    # Its package is the shallowest directory below xippios/ the distribution installs an
+    # __init__.py in: xippios/usda/esmis/__init__.py for xippios-usda-esmis.
+    inits = [
+        file.parts[:-1]
+        for file in distribution(dependency).files or []
+        if file.parts[0] == "xippios" and file.name == "__init__.py" and len(file.parts) > 2
+    ]
+    if not inits:
+        sys.exit(f"error: {dependency} installs no package under xippios")
+    name = ".".join(min(inits, key=len))
+    namespaces += [level for level in portions(name) if level not in namespaces]
+    module = importlib.import_module(name)
+    print(f"imported {name} {version(dependency)}, a declared dependency ({dependency})")
 core = version("xippios-core")
 print(f"ok: {' and '.join(namespaces)} stay namespace portions, on xippios-core {core}")
 PY
