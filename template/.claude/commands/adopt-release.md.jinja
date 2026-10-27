@@ -86,11 +86,12 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
 
 7. **Item 6: generated enums.** Re-render `enums.py` once with the release's renderers
    from the packaged lists, `uv run python scripts/refresh_reference.py --render-only`
-   (step 4 ports the flag where the script lacks it), and commit it as rendered: no
-   formatting step after it. An adoption fetches nothing: the packaged lists stay as
-   they are, since the PR changes nothing else, and so does `docs/upstream/FETCHED.md`,
-   left to the next `/refresh-upstream`; only the capture script's changes are ported
-   (conventions §15, ADR-0003 amendment).
+   (step 4 ports the flag where the script lacks it; a script of the source's own shape
+   gains the flag and passes `mypy --strict`, and need not take the template's shape),
+   and commit it as the script writes it. An adoption fetches nothing: the packaged
+   lists stay as they are, since the PR changes nothing else, and so does
+   `docs/upstream/FETCHED.md`, left to the next `/refresh-upstream`; only the capture
+   script's changes are ported (conventions §15, ADR-0003 amendment).
 
 8. **Item 7: scripts.** `uv run mypy` covers `scripts/` too
    (`files = ["src", "tests", "scripts"]`); fix what `--strict` reports there.

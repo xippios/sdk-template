@@ -34,17 +34,29 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
    ```
 
    Error cases (a 404 for an unknown code, for instance) are worth recording too; the
-   recorder keeps them instead of raising.
+   recorder keeps them instead of raising. A source whose upstream counts a quota records
+   through a client that never retries, so a 5xx spends no quota on a retry; core's
+   `record` takes no `retry=`, so pass such a client in place of `client`:
+   `AsyncClient(dataclasses.replace(config, retry=RetryPolicy(max_attempts=1)){% if api_key_env %}, auth=auth{% endif %})`,
+   with `AsyncClient` and `RetryPolicy` from `xippios.core` and
+   `config`{% if api_key_env %} and `auth`{% endif %} from `xippios.{{ source_pkg }}._client`.
 
 4. Check the file: `grep -niE 'api[_-]?key|token|secret|authorization' tests/fixtures/<endpoint>/<case>.json`
-   must print nothing but `REDACTED` values. If a credential slipped through, delete the
-   file and stop: report which field leaked so the scrubber in `xippios-core` can learn it.
-   Where the response carries a documented personal identifier the source keeps out of
-   its projections (`ssn`, `iban` and their like, ADR-0017), record with
-   `scrub=Scrub(secrets=[...])` or `Scrub(rewrite=...)` from `xippios.core.testing`, and
-   grep the file for those fields too (`grep -nE '"(ssn|iban)"' <file>`, with the fields
-   the source declares): every match must show a scrubbed value. A real value found means
-   the file is deleted, never committed.
+   must print nothing but `REDACTED` values. A match in upstream's own text (a word such
+   as `SECRETARY` in a name or a description) is no credential: read every match by eye.
+   If a credential slipped through, delete the file and stop: report which field leaked
+   so the scrubber in `xippios-core` can learn it. Where the response carries a documented
+   personal identifier the source keeps out of its projections (`ssn`, `iban` and their
+   like, ADR-0017), record with `scrub=Scrub(secrets=[...])` from `xippios.core.testing`,
+   or rewrite those values by key in a recorder step of the source's own, on the
+   `Fixture` before the write (ADR-0024), and grep the file for those fields too
+   (`grep -nE '"(ssn|iban)"' <file>`, with the fields the source declares): every match
+   must show a scrubbed value. A real value found means the file is deleted, never
+   committed.
 
-5. Keep the fixture small enough to review (narrow the query if the body is huge), then
-   reference it from a test with the `replay_fixture("<endpoint>", "<case>")` fixture.
+5. The fixture file stays under 256 KiB (conventions §10, ADR-0019): narrow the query,
+   or record a JSON array or a text body with `max_bytes=` (`80_000` keeps the file under
+   the cap), which keeps the body's start and marks the fixture `truncated: true`; the
+   recorder refuses that for a JSON object or a body that is not text, so record a small
+   real answer there. Then reference it from a test with the
+   `replay_fixture("<endpoint>", "<case>")` fixture.

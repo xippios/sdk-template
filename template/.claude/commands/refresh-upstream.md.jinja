@@ -24,7 +24,9 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
    time, and the note saying where a table is kept as HTML; and under Attribution the
    copyright line as the documentation states it (`© 2026 Example Ltd.`), or that it
    states none. Where `scripts/refresh_upstream.py` writes the file itself, it writes the
-   same, and you check it instead.
+   same, and you check it instead; it also checks the attribution on every run and stops
+   when a page it reads starts to state a licence, terms of use or a copyright line that
+   `FETCHED.md` does not record.
 4. Diff against the previous snapshot: `git diff --stat docs/upstream/` and read the
    changes. Summarise in the PR description what changed upstream: new or removed
    operations, renamed or newly required parameters, changed semantics, and which
@@ -32,4 +34,7 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
 5. Do not change any code in this PR, with one exception: `scripts/refresh_upstream.py`,
    the capture script, may change with the snapshot it captures. If wrappers must follow,
    list them as follow-up issues or `/add-endpoint` runs.
-6. Open the PR, its body as the definition of done says. Do not merge.
+6. Stage the snapshot (`git add docs/upstream scripts`) before
+   `uv run pre-commit run --all-files`, which checks only the files in git's index: an
+   unstaged new file would escape the secret scan.
+7. Open the PR, its body as the definition of done says. Do not merge.
