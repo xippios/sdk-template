@@ -75,7 +75,7 @@ afterwards by rename or push.
 sdk-<slug>/
   src/xippios/<import path as dirs>/   __init__, py.typed, _version, _client, errors, models,
                        tasks, api/, mcp, http, reference/
-  tests/               conftest, test_family, test_tasks, test_live, fixtures/
+  tests/               conftest, test_family, test_tasks, test_live
   docs/upstream/       FETCHED.md
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
                        adopt-release
@@ -142,12 +142,14 @@ scripts/prove.sh --keyless         # a keyless flat source instead of the keyed 
 ## Releasing the template
 
 The template follows the release train (conventions §12): a `chore/release-X.Y.Z` PR
-turns `## [Unreleased]` in `CHANGELOG.md` into `## [X.Y.Z] - <date>` and changes nothing
-else, since the template has no version to bump. Its merge on `main` runs
-`.github/workflows/release.yml`, which tags `vX.Y.Z` on the merge commit with that section
-as the tag's message; every other push to `main` finds the top heading tagged and ends
-quietly. No session and no human pushes the tag. Generated repositories record the tag in
-`.copier-answers.yml`, and `copier update` reaches it.
+turns `## [Unreleased]` in `CHANGELOG.md` into `## [X.Y.Z] - <date>`, the section
+perhaps with a lead paragraph and its internal labels put into plain words, and changes
+no file outside conventions §12's release subset; the template has no version to bump.
+Its merge on `main` runs `.github/workflows/release.yml`, which tags `vX.Y.Z` on the
+merge commit with that section as the tag's message; every other push to `main` finds
+the top heading tagged and ends quietly. No session and no human pushes the tag.
+Generated repositories record the tag in `.copier-answers.yml`, and `copier update`
+reaches it.
 
 ## Licence
 
