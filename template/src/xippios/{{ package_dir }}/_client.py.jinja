@@ -1,8 +1,4 @@
-"""The configured ``xippios.core`` client for {{ source_name }}.
-
-One ``AsyncClient`` for the whole package: task functions share its rate limiter and
-cache, and the same instance serves the sync facades and the MCP server.
-"""
+"""The package's one configured ``AsyncClient`` and its error mapping (conventions §6)."""
 
 import httpx
 {% if api_key_env %}
@@ -51,12 +47,7 @@ config = ClientConfig(
 )
 
 # An upstream that reports an hourly or daily quota installs one QuotaPolicy, from
-# xippios.core, on config: it reads the quota headers of every answer and never sends
-# into a spent quota, waiting within the retry backoff or raising RateLimitError
-# (ADR-0015; ADR-0010 decisions 3 and 4). Name only headers that count that quota, never
-# a pace (None turns one off); window is the fallback wait, 86400.0 for a daily quota.
-# classify, the ClientConfig hook, maps upstream's answer to a spent quota to
-# RateLimitError with retry_after. A source without a quota adds nothing.
+# xippios.core, on config (conventions §6, ADR-0015); a source without one adds nothing:
 #
 # policy = QuotaPolicy(
 #     window=3600.0,

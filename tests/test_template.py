@@ -92,7 +92,6 @@ EXPECTED_FILES = [
     "tests/test_family.py",
     "tests/test_tasks.py",
     "tests/test_live.py",
-    "tests/fixtures/README.md",
     "docs/upstream/FETCHED.md",
     "CLAUDE.md",
     ".claude/family.md",
@@ -170,6 +169,8 @@ def test_layout(generated: tuple[str, Path]) -> None:
         assert (dst / rel.format(pkg=pkg)).is_file(), rel
     for rel in REMOVED_FILES:
         assert not (dst / rel).exists(), f"{rel}: the family check makes its checks"
+    fixture_rule = "the fixture rule lives in /record-fixture and conventions §10"
+    assert not (dst / "tests/fixtures").exists(), fixture_rule
     assert (dst / "tests/test_family.py").read_text() == FAMILY_TEST
     level = (dst / "src/xippios" / pkg).parent
     while level != dst / "src":
@@ -319,11 +320,7 @@ def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Pa
     slug = str(VARIANTS[name]["source_slug"])
     prefix = slug.replace("-", "_")
     dotted = package_dir(VARIANTS[name]).replace("/", ".")
-    for rel in [
-        "README.md",
-        ".claude/commands/add-endpoint.md",
-        f"src/xippios/{package_dir(VARIANTS[name])}/reference/README.md",
-    ]:
+    for rel in ["README.md", ".claude/commands/add-endpoint.md"]:
         text = (dst / rel).read_text()
         assert f"`{prefix}_" in text, rel
         if "." in dotted:
@@ -384,16 +381,18 @@ def test_upstream_snapshot_is_kept_byte_for_byte(generated: tuple[str, Path]) ->
 def test_models_use_validation_alias(generated: tuple[str, Path]) -> None:
     """Adapters serialise by alias: a plain alias would hand agents the upstream spelling.
 
-    The scaffold and the fixture check also carry ADR-0017's rule on personal identifiers.
+    The commands also carry ADR-0017's rule on personal identifiers.
     """
     name, dst = generated
     plain_alias = re.compile(r"Field\((?:[^)]*[\s,])?alias=")
     for path in dst.rglob("*.py"):
         assert not plain_alias.search(path.read_text()), path
-    assert "`Field(validation_alias=...)`" in (dst / ".claude/commands/add-endpoint.md").read_text()
+    add_endpoint = (dst / ".claude/commands/add-endpoint.md").read_text()
+    assert "`Field(validation_alias=...)`" in add_endpoint
     models = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/models.py").read_text()
-    assert "fixtures never carry their values (ADR-0017)" in models
-    assert "ADR-0017" in (dst / ".claude/commands/record-fixture.md").read_text()
+    assert "``/add-endpoint`` give the rules" in models, "the scaffold points at them"
+    for command in ["add-endpoint", "record-fixture"]:
+        assert "ADR-0017" in (dst / f".claude/commands/{command}.md").read_text(), command
 
 
 def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
@@ -411,8 +410,8 @@ def test_servers_take_the_caps_kept_with_the_tasks(template_src: Path, tmp_path:
     pkg = dst / "src/xippios/ex"
     assert 'caps=getattr(tasks, "MCP_CAPS", None),' in (pkg / "mcp.py").read_text()
     tasks = (pkg / "tasks.py").read_text()
-    assert "#     MCP_CAPS = {" in tasks, "a commented scaffold"
-    assert '#     MCP_CAPS: "Mapping[str, ResultCap]" = {}' in tasks, "a base install's caps"
+    assert "# MCP_CAPS = {" in tasks, "a commented scaffold"
+    assert "# from xippios.core import ResultCap" in tasks, "core 0.3.0 exports it"
 
 
 def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:
