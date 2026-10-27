@@ -129,13 +129,12 @@ compares, so a live test asserts on shapes and counts, never on a raw payload.
   adopts (conventions §15 item 9); `ci.yml` fails without one (conventions §12).
 - Releases follow the release train (conventions §12): `/release-prep` opens a release
   PR that changes no file but `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`,
-  `CLAUDE.md` and `docs/handover.md` (and `scripts/check-siblings.sh` where the source
-  has one). In `CHANGELOG.md` it turns `## [Unreleased]` into `## [X.Y.Z] - <date>`;
-  the section may gain a lead paragraph and says internal labels (decisions, queue
-  rows, plan items) in plain words, since it becomes the tag's message. Its merge runs
-  `publish.yml`, which tags the version on the merge commit, and Johannes approves the
-  `pypi` run. A reference-data refresh or a core pin's removal is a PR of its own
-  before it.
+  `CLAUDE.md` and `docs/handover.md`. In `CHANGELOG.md` it turns `## [Unreleased]`
+  into `## [X.Y.Z] - <date>`; the section may gain a lead paragraph and says internal
+  labels (decisions, queue rows, plan items) in plain words, since it becomes the tag's
+  message. Its merge runs `publish.yml`, which tags the version on the merge commit, and
+  Johannes approves the `pypi` run. A reference-data refresh or a core pin's removal is
+  a PR of its own before it.
 - `ruff` leaves `docs/` alone; never reformat the upstream snapshot.
 - Template and core updates: a new sdk-template release, and the core minor it carries,
   arrive in one adoption PR, `chore/template-update-<tag>`, before the next release

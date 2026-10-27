@@ -7,11 +7,11 @@ at the `pypi` environment until Johannes approves the run. No session and no hum
 the tag.
 
 A release PR changes only `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`,
-`CLAUDE.md` and `docs/handover.md` (and `scripts/check-siblings.sh` where the source has
-one), the subset of conventions §12; the `merge-class` check makes any other changed path
-`human`. What a release needs beyond it is a PR of its own, merged before this one: the
-removal of a core pin (step 1) and the refresh of packaged reference data (step 2). The
-PR meets the definition of done,
+`CLAUDE.md` and `docs/handover.md`, the subset of conventions §12; the `merge-class` check
+makes any other changed path `human`. The sibling check is the template's and installs
+the siblings from PyPI, so a release no longer touches it. What a release needs beyond
+the subset is a PR of its own, merged before this one: the removal of a core pin (step 1)
+and the refresh of packaged reference data (step 2). The PR meets the definition of done,
 https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md, and the
 reviewer judges it against
 https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
