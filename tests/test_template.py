@@ -1010,6 +1010,19 @@ def test_publish_is_the_release_train(keyed_nested: Path) -> None:
     assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in release_prep
 
 
+def test_the_session_enables_auto_merge_in_the_repository(keyed_nested: Path) -> None:
+    """ADR-0018 decision 3 and amendment (e): core's settings allow the one merge action,
+    ``gh pr merge --auto``, and deny no ``gh pr merge``, so ``/adopt-release`` and
+    ``/release-prep`` run it in the repository's own panel."""
+    permissions = json.loads((keyed_nested / ".claude/settings.json").read_text())["permissions"]
+    assert "Bash(gh pr merge --auto *)" in permissions["allow"]
+    assert not [rule for rule in permissions["deny"] if rule.startswith("Bash(gh pr merge")]
+    slug = VARIANTS["keyed-nested"]["source_slug"]
+    for command in ["adopt-release.md", "release-prep.md"]:
+        text = (keyed_nested / ".claude/commands" / command).read_text()
+        assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in text, command
+
+
 def test_adopt_release_runs_the_update_for_this_source(render: Callable[[str], Path]) -> None:
     """Conventions §15, ADR-0018: one chore/template-update PR that names the nine items
     and whose commands name this source, the key's ini option only where there is a key,
