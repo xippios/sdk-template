@@ -8,8 +8,8 @@ lives here (ADR-0001). The consumer mounts it; it is never served standalone.
 
 from xippios.core.http import router_from_tasks
 
-from xippios.{{ source_pkg }} import tasks
-from xippios.{{ source_pkg }}._client import SOURCE
+from xippios.{{ import_path }} import tasks
+from xippios.{{ import_path }}._client import SOURCE
 
 router = router_from_tasks(SOURCE, [getattr(tasks, name) for name in tasks.__all__])
 

@@ -27,7 +27,7 @@ http = ["xippios-core[http]~={{ core_version }}"]
 testing = ["xippios-core[testing]~={{ core_version }}"]
 
 [project.scripts]
-xippios-{{ source_slug }}-mcp = "xippios.{{ source_pkg }}.mcp:run"
+xippios-{{ source_slug }}-mcp = "xippios.{{ import_path }}.mcp:run"
 
 [project.urls]
 Homepage = "https://github.com/xippios/sdk-{{ source_slug }}"
@@ -89,7 +89,7 @@ ignore = [
 convention = "google"
 
 [tool.ruff.lint.isort]
-known-first-party = ["xippios.{{ source_pkg }}"]
+known-first-party = ["xippios.{{ import_path }}"]
 known-third-party = ["xippios.core"]
 
 [tool.ruff.lint.per-file-ignores]

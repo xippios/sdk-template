@@ -13,7 +13,7 @@ from xippios.core import AsyncClient, BearerAuth, ClientConfig, RateLimit, Xippi
 from xippios.core import AsyncClient, ClientConfig, RateLimit, XippiosError
 {% endif %}
 
-from xippios.{{ source_pkg }}._version import __version__
+from xippios.{{ import_path }}._version import __version__
 
 SOURCE = "{{ source_slug }}"
 BASE_URL = "{{ api_base_url }}"

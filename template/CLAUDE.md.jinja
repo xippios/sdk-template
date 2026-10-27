@@ -64,7 +64,7 @@ docs/upstream/     documentation snapshot and FETCHED.md
                    adopt-release
 ```
 
-The import path is `xippios.{{ source_pkg }}` (ADR-0006); `src/xippios/` is a namespace
+The import path is `xippios.{{ import_path }}` (ADR-0006); `src/xippios/` is a namespace
 package{% if '/' in package_dir %}, and so is `src/xippios/{{ package_dir.rsplit('/', 1)[0] }}/`, the provider level{% endif %}.
 
 ## Commands

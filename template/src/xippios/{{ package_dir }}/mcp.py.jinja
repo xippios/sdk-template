@@ -6,9 +6,9 @@ Entry point: ``xippios-{{ source_slug }}-mcp``.
 
 from xippios.core.mcp import build_server, main
 
-from xippios.{{ source_pkg }} import tasks
-from xippios.{{ source_pkg }}._client import SOURCE
-from xippios.{{ source_pkg }}._version import __version__
+from xippios.{{ import_path }} import tasks
+from xippios.{{ import_path }}._client import SOURCE
+from xippios.{{ import_path }}._version import __version__
 
 INSTRUCTIONS = (
     "{{ source_name }} via xippios. "

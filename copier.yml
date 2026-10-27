@@ -24,11 +24,6 @@ import_path:
     Dotted lowercase identifiers only, e.g. usda.nass or comtrade
     {% endif %}
 
-source_pkg:
-  type: str
-  default: "{{ import_path }}"
-  when: false
-
 package_dir:
   type: str
   default: "{{ import_path | replace('.', '/') }}"
