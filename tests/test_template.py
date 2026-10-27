@@ -892,6 +892,9 @@ def test_servers_take_the_caps_kept_with_the_tasks(keyed_nested: Path) -> None:
     whole = "[getattr(tasks, name) for name in tasks.__all__]"
     for adapter in ["mcp.py", "http.py"]:
         assert whole in (pkg / adapter).read_text(), adapter
+    mcp = (pkg / "mcp.py").read_text()
+    assert "add_options=" in mcp, "core's hooks for a source's options (ADR-0014)"
+    assert "tenant_lock" not in mcp, "core 0.3.0's build_server has none"
 
 
 def test_generated_tests_need_no_key(keyed_nested: Path) -> None:
