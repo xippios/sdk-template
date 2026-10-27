@@ -234,8 +234,9 @@ are not listed.
   Python line and that a quote or a backslash is refused, that this repository's own
   workflows are hardened, that the dev group's ruff is the hook's, that `live.yml` takes
   `ci.yml`'s pins with `persist-credentials: false`, that no live command lacks
-  `--tb=short`, and that the CHANGELOG step no longer exempts an adoption; `scripts/prove.sh` passes a topic and an
-  evidence file and checks the PR body it prints, the one a real run opens.
+  `--tb=short`, and that the CHANGELOG step no longer exempts an adoption;
+  `scripts/prove.sh` passes a topic and an evidence file and checks the PR body it
+  prints, the one a real run opens.
 - This repository's own `ci.yml` pins `actions/checkout` and `astral-sh/setup-uv` by
   SHA, the version in a comment, and its checkout persists no credentials;
   `release.yml`'s tag job, which pushes the tag with the token, says why its checkout
@@ -262,19 +263,19 @@ are not listed.
   the flat one, and requires the unfilled skeleton to refuse to run.
 - Template-internal: the template tests render the family's three variants, keyed and
   nested (sdk-usda-psd's shape), keyless and flat (sdk-eurostat's) and keyless and
-  nested (sdk-usda-esmis's, with the 64-character name that broke four docstrings),
-  each once per session, and a check no answer changes reads one render. Eight variants
+  nested (sdk-usda-esmis's, with the 64-character name that broke four docstrings), each
+  once per session, and a check no answer changes reads one render. Eight variants
   become three: one of two identical ones goes, and so do those that differed in a
   single answer, which their own rules now test (the key locations, a git-pinned core, a
-  name at its bound). The assertions on rendered prose go too: the tests check mechanics, a file rendered or
-  not, a name present, no Jinja left, a digest equal, a script's behaviour.
-  `tests/test_template.py` goes from 1,465 lines, 57 tests and 293 cases to 1,345 lines,
-  54 tests and 110 cases. The digest test is named for what it checks, no longer for a
-  core version. The template's CI runs three proofs in its `ci` job: `scripts/prove.sh`,
-  `--keyless` (`sdk-example`, as sdk-eurostat starts) and the new `--keyless-nested`
-  (`sdk-example-files`, `xippios.example.files`, no key, as sdk-usda-esmis and
-  sdk-usda-wasde start), which runs the rendered sibling check as the keyed nested
-  proof does. Nothing a source renders changes, so no Hand-apply bullet.
+  name at its bound). The assertions on rendered prose go too: the tests check
+  mechanics, a file rendered or not, a name present, no Jinja left, a digest equal, a
+  script's behaviour. `tests/test_template.py` goes from 1,465 lines, 57 tests and 293
+  cases to 1,345 lines, 54 tests and 110 cases. The digest test is named for what it
+  checks, no longer for a core version. The template's CI runs three proofs in its `ci`
+  job: `scripts/prove.sh`, `--keyless` (`sdk-example`, as sdk-eurostat starts) and the
+  new `--keyless-nested` (`sdk-example-files`, `xippios.example.files`, no key, as
+  sdk-usda-esmis and sdk-usda-wasde start), which runs the rendered sibling check as the
+  keyed nested proof does. Nothing a source renders changes, so no Hand-apply bullet.
 
 ### Removed
 
