@@ -9,13 +9,51 @@ Every release ends with a **Hand-apply** list. `copier update` carries a templat
 into the files it renders, but never touches a file under `_skip_if_exists` in
 `copier.yml` once that file exists (the package `__init__.py`, the client, models,
 endpoint wrappers, the task layer, the packaged lists and enums, reference data,
-scripts, the task and live tests and the fixtures, upstream snapshot, README and
-CHANGELOG). Each change to such a file is one bullet,
+scripts, the task and live tests and the fixtures, upstream snapshot, README, CHANGELOG
+and, from 0.3.0, CLAUDE.md). Each change to such a file is one bullet,
 `` - `<path>` — <what> — <why> ``; port it by hand in the same `chore/template-update`
 PR. A new file under those patterns is created by the update where the repository has no
 file of that name. The list starts with 0.1.5; earlier tags are not listed.
 
 ## [Unreleased]
+
+### Added
+
+- `.claude/family.md`, template-owned: the family rules every source shares, moved out of
+  the generated `CLAUDE.md`: what to read first, with the family documents' GitHub URLs;
+  the three layers; the namespace packages; how to add an endpoint and record a fixture;
+  the family commands; the workflow rules, with the files a source fills (`CLAUDE.md` now
+  among them) and the release subset; the Never list; what to do when something is
+  unclear. It holds no Jinja, so it renders the same in every source, and `copier update`
+  carries every later change to it. The generated `CLAUDE.md` imports it with the line
+  `@.claude/family.md`: Claude Code resolves an import relative to the importing file, in
+  a worktree too, and never reads one inside backticks or a code block.
+
+### Changed
+
+- The generated `CLAUDE.md` holds the facts of the package only: the title and intro, the
+  import line right after the intro, the "What this package wraps" table with one line
+  pointing at `docs/upstream/FETCHED.md`, the Layout as the starting text a source
+  rewrites (the package's paths and namespace levels), the commands that depend on the
+  answers (the live run with the key's variable, the MCP entry point, the placeholder key
+  of a keyed source, the nightly start time and the secret the live workflow reads, or
+  that it needs none) and an empty "`<source name>` specifics" section whose comment says
+  what goes there; a source fills it or deletes it. `CLAUDE.md` joins `_skip_if_exists`:
+  once rendered, it is the source's, and `copier update` leaves it as it is.
+- The family documents are named by their GitHub URLs (sdk-core's conventions, ADRs,
+  definition of done and review checklist) instead of `../sdk-core/docs/...` and
+  `../CLAUDE.md`, which resolve neither from a worktree under `.worktrees/` nor on GitHub
+  (sdk-usda-esr's scaffold review); the workspace's own `CLAUDE.md` is named without a
+  path, since Claude Code loads it when a session works from the workspace.
+- `/adopt-release` lists `CLAUDE.md` among the files a source fills and
+  `.claude/family.md` among the template's, where a line of the source's own moves to
+  `CLAUDE.md`; `/adopt-release` and `/release-prep` call the workspace root the directory
+  that holds the workspace's own `CLAUDE.md`, no longer "the family `CLAUDE.md`".
+- Template-internal: the tests read each text in the file that now holds it and check
+  that `CLAUDE.md` renders the import line on its own line right after the intro, that
+  `.claude/family.md` is the template file byte for byte in every variant, keyed and
+  keyless, flat and nested, with no `../` path in either file, and that `CLAUDE.md` is
+  skip-listed while `.claude/family.md` is rendered again.
 
 ### Removed
 
@@ -42,7 +80,53 @@ file of that name. The list starts with 0.1.5; earlier tags are not listed.
 
 ### Hand-apply
 
-None. The scaffolds of `_client.py`, `README.md` and `CHANGELOG.md` lose their write and
+- `CLAUDE.md` (every source, once, in its 0.3.0 adoption) — split it: the facts stay, the
+  family rules go, and the line `@.claude/family.md` imports them — the family rules
+  were repeated in every source's `CLAUDE.md`, and a family change reached no source once
+  the file was its own; now one template-owned file carries them and `copier update`
+  keeps it current. `CLAUDE.md` joins `_skip_if_exists` with this release, so the update
+  renders `.claude/family.md` and leaves the existing `CLAUDE.md` byte for byte as it is
+  (checked with copier 9.19.1 on v0.2.2 renders: keyed and nested, keyless and flat, one
+  with lines of its own inside the family sections and a section of its own, one with
+  write tools; no conflict marker, no reject); until the hand edit the old family text
+  stays in `CLAUDE.md` and `.claude/family.md` is not read. The recipe, conventions §15
+  item 2's conflicts resolved by hand:
+  1. Run the update: it adds `.claude/family.md` and leaves `CLAUDE.md` untouched.
+  2. Rewrite `CLAUDE.md`: keep the title, the intro line, the facts table, the Layout
+     block as the source wrote it, the Commands lines that depend on the answers (the
+     live run with the key's variable, the MCP entry point, the placeholder key
+     sentence, the nightly start time and its secret) and every section of the source's
+     own; add `@.claude/family.md` on a line of its own, outside backticks, as the first
+     line after the intro; delete by heading the family sections `.claude/family.md`
+     now holds, once step 3 has moved the source's own lines out of them: "Read first,
+     in this order", "The one rule: three layers", "How to add an endpoint", "How to
+     record a fixture", the family lines of "Commands", "Workflow rules", "Never" and
+     "When something is unclear", with the Layout's "Never add one" sentence and the
+     snapshot paragraph's sentences after its first. The scaffold,
+     `template/CLAUDE.md.jinja` at this tag, shows the shape.
+  3. Move the source's own lines that sit inside those family sections into a
+     "`<source name>` specifics" section or the Layout:
+     - sdk-usda-psd: add-endpoint step 6 on its test modules (`test_lists.py`,
+       `test_slices.py`) and its `QuotaPolicy` sentence (`_client.py` installs the
+       policy).
+     - sdk-usda-esr: its `QuotaPolicy` sentence and the keyed-call count of its live run
+       in Commands; its gateway paragraph sits in "What this package wraps", which
+       stays, and may move to its specifics section.
+     - sdk-comtrade: the keyed-call count of its live run in Commands; its family
+       sections carry v0.1.5's wording, which `.claude/family.md` replaces whole.
+     - sdk-cashctrl, which stays on its last template tag and applies this only if it
+       ever updates: add-endpoint steps 2 to 4 and 6, its pagination, lookups and
+       `classify` paragraphs, the whole record-fixture body, its Commands lines
+       (`direnv exec`, `--org demo`, the write server, the demo organisation's secrets,
+       `--tb=short`) and its extended Never bullets; its own sections stay where they
+       are.
+     - sdk-usda-nass, sdk-usda-gats, sdk-eurostat and sdk-usda-esmis: nothing to move;
+       their family sections are the template's as rendered.
+  4. The result stays under 40,000 characters (`wc -m CLAUDE.md`), where Claude Code
+     cuts a file that loads on demand; `.claude/family.md` counts on its own.
+  5. Nothing else moves: the facts and the source's own sections keep their wording.
+
+The scaffolds of `_client.py`, `README.md` and `CHANGELOG.md` lose their write and
 `basic` branches and the README's status comment no longer names `tasks_write.__all__`,
 which matters to new repositories only. The two files under `_skip_if_exists` the
 template stops rendering, `src/xippios/<package>/tasks_write.py` and
@@ -50,9 +134,9 @@ template stops rendering, `src/xippios/<package>/tasks_write.py` and
 sdk-cashctrl alone, which stays on its last template tag. `copier update` to this
 release would delete both, a write task of its own included, with no conflict marker,
 and `mcp_write.py` with them; drop the `-mcp-write` entry point from `pyproject.toml`;
-turn its `basic` answer into the default `query` and add `api_key_name: key`; and
-re-render the generated `CLAUDE.md`'s credentials row as the `key` query parameter
-while the skip-listed `_client.py` keeps `BasicKeyAuth` (checked with copier 9.19.1).
+turn its `basic` answer into the default `query` and add `api_key_name: key`, while the
+skip-listed `_client.py` keeps `BasicKeyAuth` and the skip-listed `CLAUDE.md` its
+credentials row (checked with copier 9.19.1).
 No other repository has them.
 
 **Updating from 0.2.2.** `copier update` drops `needs_write_tools` from
