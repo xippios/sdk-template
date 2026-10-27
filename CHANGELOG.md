@@ -17,12 +17,17 @@ file of that name. The list starts with 0.1.5; earlier tags are not listed.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-27
+
 Generated repositories depend on xippios-core 0.2.1 (conventions 1.15) and take two
 things from it: the release train, in which a release PR's merge tags the release and
-Johannes approves the `pypi` run, and core's family check, which replaces the layout and
-adapter tests every source carried. A source adopts this release in one adoption PR
-(conventions §15) with `core_version=0.2.1` and the bound `~=0.2.1`, since
-`tests/test_family.py` imports what core 0.2.0 lacks; `/adopt-release v0.2.1` walks it.
+Johannes approves the `pypi` run, and core's family check, `tests/test_family.py`, which
+replaces the layout and adapter tests every source carried. The template tags its own
+releases the same way from this one on, through `release.yml`. A source adopts this
+release together with core 0.2.1 from PyPI, in one adoption PR (conventions §15) that
+`/adopt-release v0.2.1` walks, with `core_version=0.2.1` and the bound `~=0.2.1`, since
+`tests/test_family.py` imports what core 0.2.0 lacks; before the update it moves the
+tests of its own out of `tests/test_adapters.py`, which the update deletes (Hand-apply).
 
 ### Added
 
@@ -39,7 +44,8 @@ adapter tests every source carried. A source adopts this release in one adoption
 - `.github/workflows/gates.yml`, core 0.2.1's file: the `merge-class` and `family-review`
   workflows of `xippios/.github`, called as jobs, each only when the repository variable
   `GATES_CALLER` is `1`, which Johannes sets per repository if the ruleset editor offers
-  no "Require workflows" rule (D63). It ships off.
+  no "Require workflows" rule (the caller wiring of the `xippios/.github` README). It
+  ships off.
 - `ci.yml` carries the two family checks that read the pull request rather than the
   package, as core's `docs/handover.md` gives them: "CHANGELOG.md has an entry" on every
   PR but a release (`chore/release-*`), an adoption (`chore/template-update*`) or
@@ -59,12 +65,13 @@ adapter tests every source carried. A source adopts this release in one adoption
   that tags itself.
 - The template's own `.github/workflows/gates.yml`, core 0.2.1's file, byte for byte the
   one it ships, which the template tests check: sdk-template carries the gates caller as
-  every repository does (D63), off until Johannes sets `GATES_CALLER` on it.
+  every repository does, off until Johannes sets `GATES_CALLER` on it.
 - `scripts/new-source.sh` enables auto-merge and branch deletion on merge on the new
-  repository (`gh repo edit --enable-auto-merge --delete-branch-on-merge`; queue row 45,
-  D62), gives the team `sdk-sessions` write access to it when the team exists (D14; until
-  then, D59, it prints a notice and goes on), reading the team in the pre-flight beside
-  the organisation's default-branch check so that any other error stops it before
+  repository (`gh repo edit --enable-auto-merge --delete-branch-on-merge`; sdk-usda-esr
+  found that a new repository's first release or adoption PR could not auto-merge,
+  ADR-0018), gives the sessions' team `sdk-sessions` write access to it when the team
+  exists (until then it prints a notice and goes on), reading the team in the pre-flight
+  beside the organisation's default-branch check so that any other error stops it before
   anything is created, and reminds that a session owns `sdk-<slug>` in the workspace's
   `coordination/owners.toml` before the repository is generated there, since the
   workspace's guard refuses work in a directory no session owns.
@@ -99,13 +106,14 @@ adapter tests every source carried. A source adopts this release in one adoption
 - `/release-prep`: a release PR changes only the subset of conventions §12
   (`pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`, `CLAUDE.md`,
   `docs/handover.md`, and `scripts/check-siblings.sh` where a source has one); a core
-  pin's removal and a reference-data refresh are PRs of their own before it (D15; queue
-  row 36 h). Its merge tags through `publish.yml` and Johannes approves the `pypi` run,
-  so no step tells a human to tag; the session enables auto-merge only when the merge
-  class is `auto` (ADR-0018 amendment (e)). A first release keeps the scaffold's `0.1.0`
-  and needs the PyPI pending publisher before the approval; the heading is re-dated if
-  the merge slips to a later day; a moving `main` is merged in, never force-pushed (queue
-  row 40 a, b, d).
+  pin's removal and a reference-data refresh are PRs of their own before it (conventions
+  §12; the reference-data step from the sdk-usda-nass release review). Its merge tags
+  through `publish.yml` and Johannes approves the `pypi` run, so no step tells a human to
+  tag; the session enables auto-merge only when the merge class is `auto` (ADR-0018
+  amendment (e)). A first release keeps the scaffold's `0.1.0` and needs the PyPI pending
+  publisher before the approval; the heading is re-dated if the merge slips to a later
+  day; a moving `main` is merged in, never force-pushed (from the sdk-cashctrl 0.1.0
+  release review).
 - `/adopt-release` follows conventions 1.15's §15: the core release `X.Y.Z` the template
   release names, with the patch-case bound (`~=0.2.1` for v0.2.1); a helper core lacks is
   carried by the source and named in a queue row, a second copy only when the row names
@@ -127,9 +135,11 @@ adapter tests every source carried. A source adopts this release in one adoption
   release PR changes only conventions §12's subset (with `scripts/check-siblings.sh`
   where the source has one); the update and Never sections allow auto-merge by merge
   class only; the quota sentence shows the `QuotaPolicy` installation instead of pointing
-  at a commented block that a repository generated before v0.2.0 lacks (queue row 36 f).
-- `.github/PULL_REQUEST_TEMPLATE.md` is core 0.2.1's, sha256 `657a5d0e…` (queue row 31 a).
-  It mirrors the definition of done: the pointer to sdk-core's `docs/review-checklist.md`,
+  at a commented block that a repository generated before v0.2.0 lacks (from the
+  sdk-usda-nass adoption review).
+- `.github/PULL_REQUEST_TEMPLATE.md` is core 0.2.1's, sha256 `657a5d0e…`; v0.2.0's copy
+  lagged the definition of done, as the template's own core 0.2.0 adoption found. It
+  mirrors the definition of done: the pointer to sdk-core's `docs/review-checklist.md`,
   a core PR's consumers, the fixture grep for the fields a source keeps out of its
   projections, the fixture cap and file samples, the Adoption PR block and its intro,
   the Process lines (the session's auto-merge only when the merge class is `auto`,
@@ -145,7 +155,7 @@ adapter tests every source carried. A source adopts this release in one adoption
 - Template-internal: `scripts/prove.sh` renders from a git snapshot of the working tree
   tagged with the CHANGELOG's top release version, so the generated `.copier-answers.yml`
   names a tag as the family check requires, and `--keyless` proves a keyless flat source,
-  `sdk-example`, the shape eurostat starts in (D33). The template tests pin `gates.yml`,
+  `sdk-example`, the shape eurostat starts in. The template tests pin `gates.yml`,
   the template's own included, and the PR template to core's 0.2.1 bytes and `ci.yml` and
   `publish.yml` to core's bytes with the template's documented steps taken out; they
   render a keyless flat variant, check that the deleted test files are absent and the
@@ -190,7 +200,7 @@ adapter tests every source carried. A source adopts this release in one adoption
   under `Args:` — the family check's `test_family_write_server_serves_the_write_tasks`
   makes the registration (conventions §8), and conventions §6 makes the async variant
   optional; the scaffold dropped both (Removed, above).
-- The local test helpers core 0.2.1 provides (C12; core's `docs/handover.md`, "Adopting
+- The local test helpers core 0.2.1 provides (core's `docs/handover.md`, "Adopting
   core 0.2.1", names them per source) — `recorded()` in `tests/test_client.py`
   (sdk-usda-psd, sdk-usda-esr, sdk-usda-gats) and `tests/test_errors.py` (sdk-cashctrl) →
   `response_from_fixture(load_fixture(path))`; `_mount_recorded_404` in
@@ -218,7 +228,7 @@ after the tests of the source's own leave `tests/test_adapters.py`. The adoption
 `chore/template-update-v0.2.1`, is exempt from the CHANGELOG step but still writes §15
 item 9's line, and its family check needs core 0.2.1 installed. From the merge of the
 adoption on, the source's next release PR tags itself through `publish.yml`. A repository
-still on 0.1.5 (sdk-comtrade, until its v0.2.0 adoption, D41) reads 0.2.0's paragraph as
+still on 0.1.5 (sdk-comtrade, until its v0.2.0 adoption) reads 0.2.0's paragraph as
 well.
 
 ## [0.2.0] - 2026-10-25
