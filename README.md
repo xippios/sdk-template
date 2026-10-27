@@ -73,6 +73,7 @@ afterwards by rename or push.
 | `rate_limit_provenance` | `documented` or `self-imposed` (upstream documents no per-second or per-minute limit): where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
 | `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, ADR-0018 amendment (c)); default `0.2.1`, the release whose family check `tests/test_family.py` collects | `0.2.1` |
 | `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); empty, the default, for no pin; a release carries none, since `/release-prep` removes it first, in a PR of its own | `main` |
+| `source_dependencies` | the source packages this one uses the task layer of (ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default, the question's literal default for the merge classes | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |
 
 ## What gets generated
 
@@ -90,6 +91,7 @@ sdk-<slug>/
   CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
   .gitattributes       docs/upstream/** -text, so upstream files keep their bytes and line endings
   .github/workflows/siblings.yml  .github/scripts/check-siblings.sh   where the import path nests
+                       or the source declares a dependency
 ```
 
 The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit`
@@ -101,14 +103,17 @@ CHANGELOG entry on every PR but a release or Dependabot's, an adoption PR's incl
 (conventions §15 item 9), and warns on a fixture file over 256 KiB; `publish.yml` is the
 release train; `gates.yml` calls the merge gates as jobs once Johannes sets the
 repository variable `GATES_CALLER`. `live.yml` runs every `live` test every night and on
-demand. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources
-that share a key do not start together; only its pytest step sees the key, from the org
-secret named by `api_key_env`. Where the import path nests, `siblings.yml` runs
+demand. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources that
+share a key do not start together; only its pytest step sees the keys, from the org
+secrets named by `api_key_env` and by `source_dependencies`' `key_env`. Where the import
+path nests or the source declares a dependency, `siblings.yml` runs
 `.github/scripts/check-siblings.sh` on every pull request and push to `main`: it installs
 the wheel beside every sibling on PyPI under the same provider namespace that shares its
-core minor and proves the namespace levels stay portions (ADR-0006), a visible check the
-ruleset does not require. `scripts/refresh_upstream.py` is the skeleton of the capture
-script `/refresh-upstream` runs; it refuses to run until the source fills it.
+core minor and beside the source packages it depends on, at their bound, and proves the
+namespace levels stay portions (ADR-0006, ADR-0021), a visible check the ruleset does not
+require; a declared dependency on another core minor fails it.
+`scripts/refresh_upstream.py` is the skeleton of the capture script `/refresh-upstream`
+runs; it refuses to run until the source fills it.
 
 ## Updating generated repositories
 
@@ -146,7 +151,7 @@ source's own lines in it included, so the release's CHANGELOG says where they mo
 
 ```bash
 uv sync
-uv run pytest           # renders the family's three variants once each and checks them, ruff included
+uv run pytest           # renders the family's four variants once each and checks them, ruff included
 scripts/prove.sh        # full proof against the released core: generate, uv sync, ruff, mypy, pytest, pre-commit
 scripts/prove.sh --core-ref main   # against unreleased core
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one

@@ -23,8 +23,10 @@ template/                what gets generated; *.jinja files are rendered, others
   CLAUDE.md.jinja        the facts of a generated repo, importing the family rules; the source's once rendered
   .github/, .pre-commit-config.yaml, .secrets.baseline, LICENSE   copied from sdk-core, verbatim but for the deviations in Rules
   .github/workflows/live.yml.jinja   the nightly live workflow, the one rendered workflow (Rules)
-  .github/workflows/{% if '.' in import_path %}siblings.yml{% endif %}, .github/{% if '.' in import_path %}scripts{% endif %}/check-siblings.sh
-                         the sibling proof of ADR-0006, verbatim, only their names rendered (Rules)
+  .github/workflows/{% if '.' in import_path or depends_on %}siblings.yml{% endif %},
+  .github/{% if '.' in import_path or depends_on %}scripts{% endif %}/check-siblings.sh
+                         the sibling proof of ADR-0006 and ADR-0021, verbatim, only their names
+                         rendered (Rules)
   scripts/refresh_upstream.py.jinja  the capture skeleton a source fills (/refresh-upstream)
   tests/test_family.py   one line collecting xippios.core.testing.family
   .gitattributes         docs/upstream/** -text: the snapshot stays byte for byte (CRLF, mixed endings)
@@ -46,13 +48,16 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   and `pre-commit` out of the box. `scripts/prove.sh` is the proof, in the family's three
   shapes: keyed and nested (no flag), keyless and flat (`--keyless`), keyless and nested
   (`--keyless-nested`); CI runs all three. Run them before every PR and paste their tails
-  into the PR description.
+  into the PR description. A dependent (`source_dependencies`) has no proof of its own,
+  since a dependency that is not on PyPI cannot be installed; the template tests cover
+  its render.
 - `tests/test_template.py` renders each of the family's variants once per session, keyed
-  nested, keyless flat and keyless nested; a check no answer changes reads one render,
-  and an answer outside the variants (a key location, a core pin, a name at its bound,
-  an `import_path` override) is tested by its own rule. The tests assert mechanics, never
-  rendered prose: a file rendered or not, a name present, no Jinja left, a digest equal,
-  a script's behaviour.
+  nested, keyless flat, keyless nested and a dependent (keyless nested with
+  `source_dependencies`, one open and one keyed); a check no answer changes reads one
+  render, and an answer outside the variants (a key location, a core pin, a name at its
+  bound, an `import_path` override, a flat source with a dependency) is tested by its own
+  rule. The tests assert mechanics, never rendered prose: a file rendered or not, a name
+  present, no Jinja left, a digest equal, a script's behaviour.
 - Files a session fills with source content (`__init__.py`, `_client.py`, `errors.py`,
   `models.py`, `api/`, `tasks.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
   `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
@@ -71,17 +76,20 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   file under `_skip_if_exists` the template stops rendering, where the repository's
   earlier render had it, `_skip_if_exists` notwithstanding (copier 9.19.1).
 - Workflow files are copied verbatim (no `.jinja`) so GitHub's `${{ }}` never meets Jinja,
-  with one exception: `live.yml.jinja` is rendered, because the secret its pytest step
-  reads is named by the `api_key_env` answer and its start time comes from
+  with one exception: `live.yml.jinja` is rendered, because the secrets its pytest step
+  reads are named by the `api_key_env` answer and the `key_env` of each
+  `source_dependencies` entry (`key_envs`, a hidden answer) and its start time comes from
   `live_schedule`, a hidden answer `copier.yml` computes from the slug. It writes GitHub's
   own expressions as `{{ '${{' }}` and `{{ '}}' }}`; `tests/test_template.py` checks that
-  no Jinja survives, that a keyed source names its secret exactly once, on the pytest
-  step, and that an open one names none. Two verbatim files render only where the import
-  path nests, so only their names hold Jinja: `.github/workflows/siblings.yml` and the
-  script it runs, `.github/scripts/check-siblings.sh` (executable; copier keeps the
-  bit), the sibling proof of ADR-0006. They stay outside the skip-listed `scripts/`, so
-  the merge classes trust a source's copy identical to the render, and the name of the
-  script's directory is the conditional one, so a flat render gets no empty directory.
+  no Jinja survives, that a keyed source names each secret exactly once, on the pytest
+  step, and that one with no key names none. Two verbatim files render only where the
+  import path nests or the source declares a dependency, so only their names hold Jinja:
+  `.github/workflows/siblings.yml` and the script it runs,
+  `.github/scripts/check-siblings.sh` (executable; copier keeps the bit), the sibling
+  proof of ADR-0006, which installs and imports the declared dependencies too (ADR-0021).
+  They stay outside the skip-listed `scripts/`, so the merge classes trust a source's copy
+  identical to the render, and the name of the script's directory is the conditional one,
+  so a flat render gets no empty directory.
   `siblings` is a visible job the ruleset does not require: `ci.yml` stays core's file.
 - The verbatim files mirror sdk-core at the core release the template adopts (v0.2.1);
   `gates.yml` is core's file from after v0.2.1 (it calls `xippios/sdk-gates`);
