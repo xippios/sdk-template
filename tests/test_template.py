@@ -447,9 +447,9 @@ def test_rate_limit_renders_pace_burst_and_provenance(generated: tuple[str, Path
     assert "# config = policy.install(config)" in client, "ADR-0015, a commented scaffold"
     assert "one `QuotaPolicy` installed on `config`" in " ".join(family.split())
     if answers.get("rate_limit_provenance") == "self-imposed":
-        assert "# A self-imposed pace: upstream documents no limit" in client
-        pace = "a self-imposed pace: upstream documents no per-second or per-minute limit"
-        assert f"{pace} (ADR-0010)" in claude
+        own = "self-imposed pace: upstream documents no per-second or per-minute limit"
+        assert f"# A {own} (ADR-0010)." in client, "an hourly or daily quota may exist"
+        assert f"a {own} (ADR-0010)" in claude
     else:
         assert "# Paced within the limit upstream documents" in client
         assert "within the limit documented by upstream (ADR-0010)" in claude
