@@ -1061,6 +1061,60 @@ def test_source_name_is_bounded_by_the_longest_python_line(
         generate(template_src, tmp_path / "over", source_slug="ex", source_name="x" * (bound + 1))
 
 
+PR_TEMPLATE = ROOT / "template/.github/PULL_REQUEST_TEMPLATE.md"
+
+
+def write_body(tmp_path: Path, pr_template: str) -> subprocess.CompletedProcess[str]:
+    """new-source.sh's human_steps and write_body, run on a PR template and an answers file."""
+    script = (ROOT / "scripts/new-source.sh").read_text()
+    start = script.index("human_steps() {")
+    functions = script[start : script.index("\n}\n", script.index("write_body() {")) + 3]
+    (tmp_path / ".github").mkdir()
+    (tmp_path / ".github/PULL_REQUEST_TEMPLATE.md").write_text(pr_template)
+    (tmp_path / ".copier-answers.yml").write_text("_commit: v0.0.1\nsource_slug: ex\n")
+    (tmp_path / "scratch").mkdir()
+    harness = (
+        "set -euo pipefail\n"
+        "slug=ex source_name=Ex ref=v0.0.1 topic=data evidence= api_key_env= dest=/x/sdk-ex\n"
+        f"scratch={tmp_path / 'scratch'}\n{functions}\nwrite_body\n"
+    )
+    return subprocess.run(
+        ["bash", "-c", harness], cwd=tmp_path, capture_output=True, text=True, check=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "missing"),
+    [
+        ("", "", ""),
+        ("### Enforced by CI", "### Checked by CI", 'unticked items under "### Enforced by CI"'),
+        ("### Adoption PR", "### Adoption", 'the "### Adoption PR" block'),
+        ("## Assumptions\n\n<!--", "## Assumptions\n\n-", 'a comment line under "## Assumptions"'),
+    ],
+)
+def test_new_source_fills_the_pr_template_or_names_what_it_lacks(
+    tmp_path: Path, old: str, new: str, missing: str
+) -> None:
+    """The scaffold PR's body: the CI block ticked, no Adoption PR block; a PR template of
+    another shape stops the script loudly, before anything is created on GitHub."""
+    run = write_body(
+        tmp_path, PR_TEMPLATE.read_text().replace(old, new) if old else PR_TEMPLATE.read_text()
+    )
+    if not missing:
+        assert run.returncode == 0, run.stderr
+        body = (tmp_path / "scratch/body.md").read_text()
+        ci = body.split("### Enforced by CI\n", 1)[1].split("\n### ", 1)[0]
+        assert ci.count("- [x] ") == 4
+        assert "- [ ] " not in ci
+        assert "### Adoption PR" not in body
+        assert "  - `source_slug: ex`" in body
+        assert "_commit" not in body
+        return
+    assert run.returncode == 1
+    assert missing in run.stderr
+    assert "Nothing was\ncreated on GitHub; /x/sdk-ex is generated and verified." in run.stderr
+
+
 def test_core_answers_each_say_their_own() -> None:
     """One core_version answer, the bound's rule in its help; core_git_ref only the pin."""
     questions = yaml.safe_load((ROOT / "copier.yml").read_text())

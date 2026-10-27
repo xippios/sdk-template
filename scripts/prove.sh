@@ -69,7 +69,20 @@ echo "- Every answer is the proof's own: api.example.org is no upstream." > "$ev
   "${key[@]}" \
   -d "rate_limit_per_minute=120" \
   -d "core_git_ref=$core_ref" \
-  "${extra[@]}"
+  "${extra[@]}" | tee "$work/new-source.log"
+
+echo
+echo "==> the printed PR body: Enforced by CI ticked, no Adoption PR block, the assumptions"
+body="$(sed -n "/^==> the scaffold PR's body/,/^generated and verified/p" "$work/new-source.log")"
+ci_block="$(awk '/^### Enforced by CI/ { on = 1; next } /^##/ { on = 0 } on' <<<"$body")"
+fail() { echo "error: the printed PR body: $1" >&2; exit 1; }
+grep -q '^- \[x\] ' <<<"$ci_block" || fail "no ticked item under Enforced by CI"
+! grep -q '^- \[ \] ' <<<"$ci_block" || fail "an unticked item under Enforced by CI"
+! grep -q '^### Adoption PR' <<<"$body" || fail "the Adoption PR block is kept"
+grep -qxF -- "- The GitHub topic for the domain: \`example-domain\`." <<<"$body" \
+  || fail "no topic under Assumptions"
+grep -qxF -- "$(cat "$evidence")" <<<"$body" || fail "no evidence under Assumptions"
+echo "$(grep -c '^- \[x\] ' <<<"$ci_block") items ticked, no Adoption PR block, topic and evidence listed"
 
 echo
 echo "==> refresh_reference.py --render-only renders the shipped enums.py unchanged"
