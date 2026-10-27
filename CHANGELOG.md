@@ -82,28 +82,32 @@ file of that name. The list starts with 0.1.5; earlier tags are not listed.
 
 - `CLAUDE.md` (every source, once, in its 0.3.0 adoption) — split it: the facts stay, the
   family rules go, and the line `@.claude/family.md` imports them — the family rules
-  were repeated in every source's `CLAUDE.md`, and a family change reached no source once
-  the file was its own; now one template-owned file carries them and `copier update`
-  keeps it current. `CLAUDE.md` joins `_skip_if_exists` with this release, so the update
-  renders `.claude/family.md` and leaves the existing `CLAUDE.md` byte for byte as it is
-  (checked with copier 9.19.1 on v0.2.2 renders: keyed and nested, keyless and flat, one
-  with lines of its own inside the family sections and a section of its own, one with
-  write tools; no conflict marker, no reject); until the hand edit the old family text
-  stays in `CLAUDE.md` and `.claude/family.md` is not read. The recipe, conventions §15
-  item 2's conflicts resolved by hand:
+  were repeated in every source's `CLAUDE.md`, and with the file skip-listed a family
+  change would reach no source once the file became its own; now one template-owned file
+  carries them and `copier update` keeps it current. `CLAUDE.md` joins `_skip_if_exists`
+  with this release, so the update renders `.claude/family.md` and leaves the existing
+  `CLAUDE.md` byte for byte as it is (checked with copier 9.19.1 on all eight sources'
+  real tags, v0.1.5, v0.2.0 and v0.2.2, with their answers and files, and on v0.2.2
+  renders: keyed and nested, keyless and flat, one with lines of its own inside the
+  family sections and a section of its own, one with write tools; no conflict marker, no
+  reject); until the hand edit the old family text stays in `CLAUDE.md` and
+  `.claude/family.md` is not read. The recipe, conventions §15 item 2's conflicts
+  resolved by hand:
   1. Run the update: it adds `.claude/family.md` and leaves `CLAUDE.md` untouched.
   2. Rewrite `CLAUDE.md`: keep the title, the intro line, the facts table, the Layout
-     block as the source wrote it, the Commands lines that depend on the answers (the
-     live run with the key's variable, the MCP entry point, the placeholder key
-     sentence, the nightly start time and its secret) and every section of the source's
-     own; add `@.claude/family.md` on a line of its own, outside backticks, as the first
-     line after the intro; delete by heading the family sections `.claude/family.md`
-     now holds, once step 3 has moved the source's own lines out of them: "Read first,
-     in this order", "The one rule: three layers", "How to add an endpoint", "How to
-     record a fixture", the family lines of "Commands", "Workflow rules", "Never" and
-     "When something is unclear", with the Layout's "Never add one" sentence and the
-     snapshot paragraph's sentences after its first. The scaffold,
-     `template/CLAUDE.md.jinja` at this tag, shows the shape.
+     block as the source wrote it, which gains the line
+     `.claude/family.md  the family rules, the template's, imported above`, the
+     Commands lines that depend on the answers (the live run with the key's variable,
+     the MCP entry point, the placeholder key sentence, the nightly start time and its
+     secret) and every section of the source's own; add `@.claude/family.md` on a line
+     of its own, outside backticks, as the first line after the intro; delete by
+     heading the family sections `.claude/family.md` now holds, once step 3 has moved
+     the source's own lines out of them: "Read first, in this order", "The one rule:
+     three layers", "How to add an endpoint", "How to record a fixture", the family
+     lines of "Commands", "Workflow rules", "Never" and "When something is unclear",
+     with the Layout's "Never add one" sentence and the snapshot paragraph's sentences
+     after its first. The scaffold, `template/CLAUDE.md.jinja` at this tag, shows the
+     shape.
   3. Move the source's own lines that sit inside those family sections into a
      "`<source name>` specifics" section or the Layout:
      - sdk-usda-psd: add-endpoint step 6 on its test modules (`test_lists.py`,
