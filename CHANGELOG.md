@@ -29,6 +29,14 @@ are not listed.
   carries every later change to it. The generated `CLAUDE.md` imports it with the line
   `@.claude/family.md`: Claude Code resolves an import relative to the importing file, in
   a worktree too, and never reads one inside backticks or a code block.
+- `src/xippios/<package>/errors.py`, under `_skip_if_exists`: the package's own error
+  classes, empty (`__all__: list[str] = []`), its docstring pointing at conventions §5
+  and a commented `InvalidRequestError` subclass showing the pattern. `_client.py` gains
+  `classify(response) -> XippiosError | None`, which returns `None`: the
+  `ClientConfig.classify` hook of conventions §6, wired into `config` as
+  `classify=classify` and exported, where a source maps its documented error shapes.
+  `.claude/family.md`, `/adopt-release`, the generated `CLAUDE.md`'s Layout and this
+  repository's documents name `errors.py` with the files a source fills.
 
 ### Changed
 
@@ -55,6 +63,85 @@ are not listed.
   `.claude/family.md` is the template file byte for byte in every variant, keyed and
   keyless, flat and nested, with no `../` path in either file, and that `CLAUDE.md` is
   skip-listed while `.claude/family.md` is rendered again.
+- The scaffolds a source fills keep one pointer each instead of guidance: the docstrings
+  of `__init__.py`, `_client.py`, `models.py`, `params.py`, `tasks.py`,
+  `api/__init__.py`, `tests/test_tasks.py` and `tests/test_live.py` give the file's
+  purpose in one sentence and the convention or command that explains it (conventions
+  §2, §3, §6, §10, `/add-endpoint`, `/record-fixture`, `/refresh-reference-data`), and
+  `reference/README.md` keeps one paragraph above its provenance table. The `QuotaPolicy`
+  and `MCP_CAPS` comments point at conventions §6 and §8, and `MCP_CAPS` imports
+  `ResultCap` from `xippios.core`, which exports it from core 0.3.0. The source's name
+  leaves the summary lines (`__init__.py` names it on a line of its own below), where a
+  long name broke ruff's line length in four files (sdk-usda-esmis's render); a
+  long-name case in the template tests comes with a later change.
+- The six commands name the definition of done and the review checklist on sdk-core
+  `main` by URL instead of repeating the PR-body rules, and their last step says the
+  body is as the definition of done says; their examples name no source
+  (`get_example by_year year=2024`). `/adopt-release` names the gates repository by its
+  new name, `xippios/sdk-gates`, for the merge classes, and reads a local clone as
+  `<workspace root>/sdk-template` or `<workspace root>/sdk-core`, since `../` resolves
+  from no worktree (sdk-template's own review).
+- `/add-endpoint`: a wrapper module per upstream operation, or per service where
+  operation ids repeat across services, as the Layout says (sdk-eurostat); an
+  enumeration written by hand for a documented value set lives in `models.py`,
+  unexported, since `enums.py` is generated whole (sdk-usda-esr, sdk-eurostat); a
+  wrapper calls `get_json`, `get_answer` where the answer may come from the cache, or
+  `get` then `decode_json`, maps error shapes in `classify` and keeps its own error
+  classes in `errors.py`; core's `UnknownCode` refuses a code the packaged list lacks; a
+  test reads a packaged list's fetch date and counts from the packaged file instead of
+  pinning them (sdk-usda-nass). The write-task clause on `meta.request` goes, here and
+  in `.claude/family.md`: the template renders read-only packages.
+- `/record-fixture`: a source with a quota records through a client on
+  `RetryPolicy(max_attempts=1)`, since core's `record` takes no `retry=`, so a 5xx
+  spends no quota (sdk-usda-esr); a match of the key grep in upstream's own text is read
+  by eye (sdk-usda-gats); values the scrub cannot name are rewritten in the source's own
+  recorder step (ADR-0024); the fixture file stays under 256 KiB, a JSON array or a
+  text body recorded with `max_bytes=` (ADR-0019).
+- `/refresh-upstream`: the snapshot is staged before `pre-commit run --all-files`,
+  which scans only the files in git's index, and a capture script checks the
+  attribution on every run (sdk-usda-gats).
+- `/refresh-reference-data`: the refresh script's docstring gives the list shapes; the
+  provenance table names the `docs/upstream/` file a table was rebuilt from
+  (sdk-usda-nass); a step updates the counts and dates pinned in list-task docstrings
+  and tests (sdk-usda-psd). `/adopt-release`: a refresh script of the source's own
+  shape gains `--render-only` and passes `mypy --strict` without taking the template's
+  shape (sdk-usda-nass); the re-rendered enums are committed as the script writes them.
+- The generated `CLAUDE.md`: a self-imposed pace says upstream documents no per-second
+  or per-minute limit, and the rate-limit row carries a comment to name a documented
+  hourly or daily quota with its `QuotaPolicy` (sdk-usda-esr); the scaffold's
+  `_client.py` comment and this README's question row say the same. The Layout names the
+  key only for a keyed source (sdk-eurostat, sdk-usda-esmis), the packaged lists
+  without a constant's name (sdk-usda-nass), `errors.py`, the optional
+  `scripts/refresh_upstream.py` (sdk-usda-esmis, sdk-usda-gats) and the optional
+  `tests/test_api.py` for the wrappers' own tests (sdk-usda-esmis); the start time's
+  reason, sources sharing a key, is a keyed source's only (sdk-eurostat).
+- `.claude/family.md`: `api/` by operation or by service, the Layout saying which
+  (sdk-eurostat); the home of a hand-written enumeration (sdk-usda-esr, sdk-eurostat);
+  a release PR changes no file outside the release subset, and its `CHANGELOG.md`
+  section may gain a lead paragraph and says internal labels in plain words, since it
+  becomes the tag's message (the template's v0.2.1 and v0.2.2 release reviews).
+- The `README.md` scaffold: the MCP snippet of a keyless source closes the server on a
+  line of its own (sdk-eurostat), and the terms sentence holds where upstream states no
+  terms of use (sdk-usda-esmis). `docs/upstream/FETCHED.md`'s attribution placeholder
+  speaks of the publisher's objection, a vendor's or a public body's, and of the capture
+  script's check (sdk-usda-gats).
+- `live.yml` names the secret and the shared key as the start time's reason, and
+  `tests/conftest.py` points at `xippios_placeholder_key_envs`, only for a keyed source
+  (sdk-eurostat); the reachability probe of `tests/test_live.py` "spends no keyed call",
+  with or without a quota (sdk-usda-nass); the read server's instructions ask list tools
+  for valid values rather than codes, since a list tool may list releases or agencies
+  (sdk-usda-esmis); `pyproject.toml` sets `junit_family = "xunit1"`, so
+  `record_property` raises no warning under `--junitxml` (sdk-usda-gats).
+- Two blank lines a line-final Jinja tag took with it are back: in the generated
+  `CLAUDE.md`'s Commands block and between `/record-fixture`'s steps 1 and 2.
+- This repository's `CLAUDE.md` names sdk-core's documents by GitHub URL, and it and the
+  README say a release PR changes no file outside conventions §12's release subset,
+  its section perhaps with a lead and in plain words (the v0.2.2 release review).
+- Template-internal: the tests check that both new scaffolds render in every variant,
+  that the README's MCP snippet parses as JSON with the key's `env` only for a keyed
+  source, that every command names the definition of done and the review checklist by
+  URL and no `../` path, that the key, the shared-key reason and the conftest's ini
+  pointer appear only for a keyed source, and that no fixtures directory is generated.
 
 ### Removed
 
@@ -78,6 +165,8 @@ are not listed.
   git-pinned core now with a bearer key). They check that copier refuses
   `api_key_location=basic` and that the generated `CLAUDE.md` calls the package
   read-only.
+- `tests/fixtures/README.md`: the fixture rule lives in `/record-fixture` and
+  conventions §10, and its grep differed from `/record-fixture`'s (sdk-usda-gats).
 
 ### Hand-apply
 
@@ -130,6 +219,57 @@ are not listed.
   4. The result stays under 40,000 characters (`wc -m CLAUDE.md`), where Claude Code
      cuts a file that loads on demand; `.claude/family.md` counts on its own.
   5. Nothing else moves: the facts and the source's own sections keep their wording.
+- `src/xippios/<package>/errors.py` — new: the update creates it where the repository
+  has none, and leaves an `errors.py` of the source's own byte for byte (checked with
+  copier 9.19.1); nothing to port — the place for the package's own error classes
+  (conventions §5).
+- `src/xippios/<package>/_client.py` — add `classify(response: httpx.Response) ->
+  XippiosError | None` returning `None` (`import httpx`, `XippiosError` from
+  `xippios.core`), pass `classify=classify` to `ClientConfig` and export `"classify"`,
+  unless the source has a `classify` of its own; where the file still carries the
+  scaffold's text, its docstring becomes one sentence that mentions no cache, the
+  `QuotaPolicy` comment points at conventions §6 and ADR-0015, and a self-imposed pace's
+  comment says upstream documents no per-second or per-minute limit — the hook is where
+  a source maps its documented error shapes (conventions §6), and the docstring named a
+  cache no config sets (sdk-eurostat, sdk-usda-esmis).
+- `src/xippios/<package>/__init__.py` — the docstring's summary line names no source,
+  the name on a line of its own below it — a long name broke ruff's line length
+  (sdk-usda-esmis); port it if the file still carries the scaffold docstring.
+- `src/xippios/<package>/models.py` — the docstring is its purpose and a pointer to
+  conventions §3 and `/add-endpoint` — guidance only, and a long name broke the summary
+  line; port it if the file still carries the scaffold docstring.
+- `src/xippios/<package>/params.py` — the docstring is its purpose and a pointer to
+  conventions §3 and `/refresh-reference-data` — as for `models.py`.
+- `src/xippios/<package>/tasks.py` — the docstring is its purpose and a pointer to
+  conventions §2 and `/add-endpoint`; the `MCP_CAPS` comment imports `ResultCap` from
+  `xippios.core` without a guard — core 0.3.0 exports it from `xippios.core`, so the
+  `mcp` extra is no longer needed for it; an `MCP_CAPS` of the source's own may keep its
+  guarded import.
+- `src/xippios/<package>/api/__init__.py` — the docstring is its purpose and a pointer
+  to conventions §2 and `/add-endpoint` — guidance only; port it if the file still
+  carries the scaffold docstring.
+- `tests/test_tasks.py` — the docstring is its purpose and a pointer to conventions §10,
+  `/add-endpoint` and `/record-fixture`, whose step 6 now holds the `sent_query` and
+  `sent_urls` advice — guidance only; port it if the file still carries the scaffold
+  docstring.
+- `tests/test_live.py` — the module docstring is its purpose and a pointer; a keyed
+  source's reachability probe says it "spends no keyed call" instead of naming the
+  key's quota — a keyed source need not have a quota (sdk-usda-nass); port it if the
+  file still carries the scaffold's text.
+- `src/xippios/<package>/reference/README.md` — the rules list goes (conventions §3 and
+  `/refresh-reference-data` hold the rules), and the paragraph above the table says
+  that Origin names the endpoint or URL a file was fetched from, or the `docs/upstream/`
+  file it was rebuilt from, and Fetched that fetch's UTC time, or the snapshot's
+  `Fetched` time — the table could not tell a file rebuilt from the snapshot from one
+  fetched (sdk-usda-nass); port the provenance sentence and correct a rebuilt file's
+  row.
+- `tests/fixtures/README.md` — the update deletes it: copier 9.19.1 deletes a
+  skip-listed file the template stops rendering, a line of the source's own included,
+  with no conflict marker, and leaves the recorded fixtures beside it as they are
+  (checked); every source's copy is the template's text byte for byte, so nothing of its
+  own is lost, and sdk-cashctrl, whose copy carries lines of its own, moves them first
+  should it ever update — the fixture rule lives in `/record-fixture` and conventions
+  §10.
 
 The scaffolds of `_client.py`, `README.md` and `CHANGELOG.md` lose their write and
 `basic` branches and the README's status comment no longer names `tasks_write.__all__`,
@@ -144,8 +284,18 @@ skip-listed `_client.py` keeps `BasicKeyAuth` and the skip-listed `CLAUDE.md` it
 credentials row (checked with copier 9.19.1).
 No other repository has them.
 
+New repositories only, nothing to port: the `README.md` scaffold's MCP snippet and terms
+sentence (a keyless source's README may close the server's brace on a line of its own),
+the generated `CLAUDE.md`'s rate-limit row, Layout lines and start-time sentence, which
+the 0.3.0 split leaves as the source wrote them, and `docs/upstream/FETCHED.md`'s
+attribution placeholder, which the next `/refresh-upstream` rewrites. The update carries
+the rest: `.claude/family.md`, the six commands, `tests/conftest.py`, `live.yml`, the
+read server's instructions in `mcp.py` and `junit_family` in `pyproject.toml`, merged
+three ways where a source changed them.
+
 **Updating from 0.2.2.** `copier update` drops `needs_write_tools` from
-`.copier-answers.yml` (checked with copier 9.19.1); no `-d` answer is needed for it.
+`.copier-answers.yml` (checked with copier 9.19.1); no `-d` answer is needed for it. It
+creates `errors.py` where the package has none and deletes `tests/fixtures/README.md`.
 
 ## [0.2.2] - 2026-10-27
 
