@@ -146,10 +146,11 @@ source's own lines in it included, so the release's CHANGELOG says where they mo
 
 ```bash
 uv sync
-uv run pytest           # generates variants into a temp dir and runs ruff on them
+uv run pytest           # renders the family's three variants once each and checks them, ruff included
 scripts/prove.sh        # full proof against the released core: generate, uv sync, ruff, mypy, pytest, pre-commit
 scripts/prove.sh --core-ref main   # against unreleased core
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one
+scripts/prove.sh --keyless-nested  # a keyless nested source; CI runs all three proofs
 ```
 
 ## Releasing the template
