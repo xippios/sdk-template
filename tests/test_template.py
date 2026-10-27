@@ -410,6 +410,7 @@ def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
     mcp = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/mcp.py").read_text()
     assert "Call the list tools first" not in mcp
     assert f"Where list tools ({prefix}_list_*) exist" in mcp
+    assert "to find valid values, then query" in mcp, "codes, releases or agencies alike"
 
 
 def test_servers_take_the_caps_kept_with_the_tasks(template_src: Path, tmp_path: Path) -> None:
