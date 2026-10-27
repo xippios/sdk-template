@@ -252,6 +252,8 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
         client = (dst / "src/xippios/ex/_client.py").read_text()
         assert needle in client, location
         assert '    "auth",\n' in client, "auth is exported"
+    with pytest.raises(ValueError, match="api_key_location"):
+        generate(template_src, tmp_path / "basic", source_slug="ex", **keyed("EX_API_KEY", "basic"))
     dst = generate(template_src, tmp_path / "open", source_slug="ex", **keyed(""))
     client = (dst / "src/xippios/ex/_client.py").read_text()
     assert "Auth" not in client
@@ -783,6 +785,7 @@ def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> No
     assert ("xippios_placeholder_key_envs" in claude) is bool(VARIANTS[name]["api_key_env"])
     assert "xippios_placeholder_key_envs" not in family, "the same file for every source"
     assert "(ADR-0017)" in family
+    assert "| Write tools | no, this package is read-only |" in claude, "conventions §8"
 
 
 # Claude Code imports a line `@<path>` relative to the importing file, never one inside

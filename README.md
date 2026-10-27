@@ -119,7 +119,9 @@ package `__init__.py`, the client, models, endpoint wrappers, the task layer, th
 packaged lists and enums, reference data, scripts, the task and live tests and the
 fixtures, upstream snapshot, README, CHANGELOG and CLAUDE.md) are never overwritten
 once they exist, so a template fix to one of them does not reach existing repositories by
-itself. [CHANGELOG.md](CHANGELOG.md) lists those fixes per release under **Hand-apply**:
+itself; one the template stops rendering, though, is deleted by the update where the
+repository's earlier render had it, the source's content included.
+[CHANGELOG.md](CHANGELOG.md) lists those fixes per release under **Hand-apply**:
 path, change, reason; port each one by hand in the same PR. A new file under those
 patterns is created by the update where the repository has none of that name. Every other
 file is the template's: `.claude/family.md`, `tests/conftest.py` and `tests/test_family.py`

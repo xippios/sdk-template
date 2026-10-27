@@ -33,9 +33,12 @@ file of that name. The list starts with 0.1.5; earlier tags are not listed.
 - The `basic` key location (`BasicKeyAuth`, the key as the HTTP basic user name), which
   only sdk-cashctrl answered: `api_key_location` offers `query`, `header` and `bearer`,
   and `api_key_name` is asked for `query` and `header` as before.
-- Template-internal: the template tests lose the write variants, the `basic` case and
-  every assertion on them; the variants that carried them keep their other answers (a
-  header key, a long name, a git-pinned core, now with a bearer key).
+- Template-internal: the template tests drop the `basic` case and every write
+  assertion; the variants that carried the write side or `basic` stay under new names
+  with their other answers (`header-key`, `long-name`, and `bearer-git-core`, a
+  git-pinned core now with a bearer key). They check that copier refuses
+  `api_key_location=basic` and that the generated `CLAUDE.md` calls the package
+  read-only.
 
 ### Hand-apply
 
@@ -44,10 +47,13 @@ None. The scaffolds of `_client.py`, `README.md` and `CHANGELOG.md` lose their w
 which matters to new repositories only. The two files under `_skip_if_exists` the
 template stops rendering, `src/xippios/<package>/tasks_write.py` and
 `tests/test_tasks_write.py`, exist only in a repository generated with write tools,
-sdk-cashctrl alone, which stays on its last template tag: `copier update` to this
+sdk-cashctrl alone, which stays on its last template tag. `copier update` to this
 release would delete both, a write task of its own included, with no conflict marker,
-and turn its `basic` answer into the default `query` (checked with copier 9.19.1). No
-other repository has them.
+and `mcp_write.py` with them; drop the `-mcp-write` entry point from `pyproject.toml`;
+turn its `basic` answer into the default `query` and add `api_key_name: key`; and
+re-render the generated `CLAUDE.md`'s credentials row as the `key` query parameter
+while the skip-listed `_client.py` keeps `BasicKeyAuth` (checked with copier 9.19.1).
+No other repository has them.
 
 **Updating from 0.2.2.** `copier update` drops `needs_write_tools` from
 `.copier-answers.yml` (checked with copier 9.19.1); no `-d` answer is needed for it.
