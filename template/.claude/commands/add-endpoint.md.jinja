@@ -1,6 +1,10 @@
 Add an endpoint wrapper and a task function for the {{ source_name }} operation: $ARGUMENTS
 
-Work on a branch `feature/<operation>`. Follow the three layers (ADR-0001) exactly.
+Work on a branch `feature/<operation>`. Follow the three layers (ADR-0001) exactly. The
+PR meets the definition of done,
+https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md, and the
+reviewer judges it against
+https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
 
 1. **Read the upstream reference first.** Open `docs/upstream/FETCHED.md` and the file
    that documents this operation. If the snapshot does not cover it, stop and run
@@ -57,5 +61,5 @@ Work on a branch `feature/<operation>`. Follow the three layers (ADR-0001) exact
    and a route without touching `mcp.py` or `http.py`, returns `Result[T]` with an agent
    docstring, and is in the README status table.
 
-9. Open the PR with `gh pr create`; body is the definition-of-done checklist, ticked
-   honestly, with assumptions and open questions listed. Do not merge.
+9. Open the PR with `gh pr create`, its body as the definition of done says. Do not
+   merge.

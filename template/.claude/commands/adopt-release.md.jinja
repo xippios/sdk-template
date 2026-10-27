@@ -9,8 +9,11 @@ nothing more (ADR-0018, amendment (d)). Every step below is the session's: when 
 merge class is `auto`, the session enables auto-merge after the reviewer's `ready`; a
 `human` adoption (a source-owned workflow, a changed template answer, a protected path, a
 build or install route) waits for Johannes (ADR-0018, amendment (e); the merge classes
-are in the README of the organisation's `.github` repository). A release tag is not part
-of an adoption.
+are in the README of the gates repository, https://github.com/xippios/sdk-gates). A
+release tag is not part of an adoption. The PR meets the definition of done,
+https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md, and the
+reviewer judges it against
+https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
 
 1. **Where the repository stands.** Read `.copier-answers.yml`: `_commit` is the template
    tag the repository is on, `core_version` the core minor it depends on, `core_git_ref` a
@@ -19,16 +22,18 @@ of an adoption.
 
 2. **What the releases ask.** Read sdk-template's `CHANGELOG.md` at `<tag>`,
    `https://github.com/xippios/sdk-template/blob/<tag>/CHANGELOG.md` (or
-   `git -C ../sdk-template show <tag>:CHANGELOG.md` when the family workspace is checked
-   out beside this repository), for every release after `_commit` up to `<tag>`: its
-   entries, its **Hand-apply** list and its "Updating from" paragraph, which names the
-   `-d` answers an update from an older tag needs. Then the core release it adopts,
-   `X.Y.Z`, the one the template release names (`X.Y.0`, or the patch that shipped what
-   the template needs: core 0.2.1 for template v0.2.1, whose `tests/test_family.py`
-   imports what 0.2.0 lacks): sdk-core's `CHANGELOG.md` section, the ADRs it names, their
-   Consequences, and `docs/handover.md`, section "Adopting core X.Y.Z", for what this
+   `git -C <workspace root>/sdk-template show <tag>:CHANGELOG.md` where the family
+   workspace holds a clone, the workspace root being the directory that holds the
+   workspace's own `CLAUDE.md`; a relative path does not resolve from a worktree), for
+   every release after `_commit` up to `<tag>`: its entries, its **Hand-apply** list and
+   its "Updating from" paragraph, which names the `-d` answers an update from an older
+   tag needs. Then the core release it adopts, `X.Y.Z`, the one the template release
+   names (`X.Y.0`, or the patch that shipped what the template needs: core 0.2.1 for
+   template v0.2.1, whose `tests/test_family.py` imports what 0.2.0 lacks): sdk-core's
+   `CHANGELOG.md` section, the ADRs it names, their Consequences, and
+   `docs/handover.md`, section "Adopting core X.Y.Z", for what this
    source deletes and declares (`https://github.com/xippios/sdk-core/tree/vX.Y.Z`, or
-   `git -C ../sdk-core show vX.Y.Z:<path>` in the same workspace).
+   `git -C <workspace root>/sdk-core show vX.Y.Z:<path>`).
 
 3. **Items 1 and 2: the core floor and the template.** First move the tests of the
    source's own out of every file the template release removes, into `tests/test_tasks.py`,
@@ -102,13 +107,10 @@ of an adoption.
 11. **Checks**, all of them:
     `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest && uv run pre-commit run --all-files`.
 
-12. **The PR.** `gh pr create` from `chore/template-update-<tag>`; the body is
-    `.github/PULL_REQUEST_TEMPLATE.md` with its **Enforced by CI**, **Adoption PR** and
-    **Process** blocks only (Code, Tests and Docs deleted), ticked, an unticked item with
-    a one-line reason, the core change named for each deleted workaround, the live calls
-    spent counted (`none` is a count), assumptions and open questions listed, and the
-    `## Decisions taken` block. After the reviewer's `ready`, if the `merge-class` check
-    says `auto`, the session enables auto-merge from the family workspace root, the
+12. **The PR.** `gh pr create` from `chore/template-update-<tag>`, its body as the
+    definition of done says for an adoption PR, with the core change named for each
+    deleted workaround. After the reviewer's `ready`, if the `merge-class` check says
+    `auto`, the session enables auto-merge from the family workspace root, the
     directory that holds the workspace's own `CLAUDE.md`, because this repository's
     `.claude/settings.json` denies `gh pr merge`; `-R` names the repository, which `gh`
     cannot infer there:

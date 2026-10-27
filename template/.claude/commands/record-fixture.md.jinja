@@ -2,10 +2,14 @@ Record a fixture for {{ source_name }}: $ARGUMENTS
 
 Expected arguments: `<endpoint> <case> [key=value ...]`: the upstream operation the wrapper
 is named after, a short name for the case, and the request parameters, for example
-`get_records by_year year=2024`.
+`get_example by_year year=2024`.
 
-Fixtures are recorded through the real client, never typed in by hand. The file lands at
-`tests/fixtures/<endpoint>/<case>.json` with credentials scrubbed.
+Fixtures are recorded through the real client, never typed in by hand (conventions §10).
+The file lands at `tests/fixtures/<endpoint>/<case>.json` with credentials scrubbed. It
+rides in the PR of the task it tests: the definition of done,
+https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md, lists its
+checks, and the reviewer judges them against
+https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
 
 1. {% if api_key_env %}Confirm `{{ api_key_env }}` is set in the environment (`[ -n "${{ '{' }}{{ api_key_env }}{{ '}' }}" ] && echo ok`); never print its value.{% else %}No key is needed for this source.{% endif %}
 

@@ -1,7 +1,11 @@
 Refresh the upstream documentation snapshot for {{ source_name }}: $ARGUMENTS
 
 The snapshot in `docs/upstream/` is the reference for every endpoint wrapper
-(ADR-0003). It is refreshed deliberately, by PR, so changes are visible as diffs.
+(ADR-0003). It is refreshed deliberately, by PR, so changes are visible as diffs. The PR
+meets the definition of done,
+https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md, and the
+reviewer judges it against
+https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
 
 1. Work on a branch `docs/upstream-<yyyy-mm-dd>`.
 2. A source whose documentation needs a reproducible capture keeps
@@ -28,4 +32,4 @@ The snapshot in `docs/upstream/` is the reference for every endpoint wrapper
 5. Do not change any code in this PR, with one exception: `scripts/refresh_upstream.py`,
    the capture script, may change with the snapshot it captures. If wrappers must follow,
    list them as follow-up issues or `/add-endpoint` runs.
-6. Open the PR with the definition-of-done checklist. Do not merge.
+6. Open the PR, its body as the definition of done says. Do not merge.

@@ -671,7 +671,8 @@ def test_adopt_release_walks_the_adoption_checklist(template_src: Path, tmp_path
         assert (keyed_line in text) is bool(env), "the ini option, for a keyed source only"
         assert "gh pr merge --auto --squash -R xippios/sdk-ex <number>" in text, "from the root"
         github = "`https://github.com/xippios/sdk-template/blob/<tag>/CHANGELOG.md` (or"
-        assert text.index(github) < text.index("git -C ../sdk-template"), "GitHub first"
+        local = "git -C <workspace root>/sdk-template"
+        assert text.index(github) < text.index(local), "GitHub first, the local clone named"
         flat = " ".join(text.split())
         assert "(`~=0.2.1` for template v0.2.1)" in flat, "the patch case, ADR-0018 amendment c"
         assert "a third never: core takes it in that minor (ADR-0023)" in flat, "§15 item 4"
@@ -830,6 +831,18 @@ def test_claude_md_imports_the_family_rules(generated: tuple[str, Path]) -> None
     for text in [claude, family]:
         assert "../" not in text, "a relative path leaves the repository (worktree, GitHub)"
         assert len(text) < 40_000, "Claude Code cuts a file that loads on demand"
+
+
+def test_every_command_points_at_the_process(template_src: Path, tmp_path: Path) -> None:
+    """The definition of done and the review checklist, by URL, instead of repeated text."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
+    commands = sorted((dst / ".claude/commands").glob("*.md"))
+    assert len(commands) == 6
+    for path in commands:
+        flat = " ".join(path.read_text().split())
+        for doc in ["definition-of-done.md", "review-checklist.md"]:
+            assert SDK_CORE_DOCS + doc in flat, f"{path.name}: {doc}"
+        assert "../" not in flat, f"{path.name}: a relative path leaves a worktree"
 
 
 def test_generated_tree_names_no_source_and_no_workspace_file(generated: tuple[str, Path]) -> None:
