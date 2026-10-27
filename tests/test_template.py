@@ -61,7 +61,9 @@ VARIANTS: dict[str, dict[str, object]] = {
     "hyphenated-flat": {"source_slug": "world-bank", "import_path": "world_bank", **keyed("")},
     "long-name": {
         "source_slug": "fao-faostat-bulk",
-        "source_name": "Food and Agriculture Organization Statistics",
+        # sdk-usda-esmis's name, 64 characters, which broke the line length of four
+        # docstrings (test_a_long_source_name_passes_ruff)
+        "source_name": "USDA ESMIS (Economics, Statistics and Market Information System)",
         **keyed("FAOSTAT_API_KEY", "header", "X-Api-Key"),
     },
 }
@@ -342,6 +344,18 @@ def test_errors_module_and_classify_hook_are_scaffolded(generated: tuple[str, Pa
     assert "``ClientConfig.classify`` hook" in client
     assert "    return None\n" in client
     assert "    classify=classify,\n" in client, "wired into the config"
+
+
+def test_a_long_source_name_passes_ruff(template_src: Path, tmp_path: Path) -> None:
+    """The four docstrings that once put the name into their summary line pass ruff with a
+    64-character name, rendered and checked as the proof does."""
+    answers = VARIANTS["long-name"]
+    assert len(str(answers["source_name"])) >= 64
+    dst = generate(template_src, tmp_path / "repo", **answers)
+    pkg = f"src/xippios/{package_dir(answers)}"
+    files = [f"{pkg}/{name}" for name in ["__init__.py", "_client.py", "models.py", "params.py"]]
+    check = ruff(dst, "check", *files)
+    assert check.returncode == 0, check.stdout + check.stderr
 
 
 def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Path]) -> None:

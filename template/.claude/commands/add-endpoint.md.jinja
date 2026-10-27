@@ -58,12 +58,12 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
 6. **Tests.** Run `/record-fixture <operation> <case> <parameters>` for at least one
    realistic case, add a replay test in `tests/test_tasks.py` using the `replay_fixture`
    fixture, and a `@pytest.mark.live` smoke test in `tests/test_live.py`. A replay test
-   that checks what was sent compares `xippios.core.testing.sent_urls(route)`, the URLs
-   with credentials redacted, never a request kept from `route.calls`, which a failure or
-   `pytest -l` would print. A test of a task that answers from a packaged list reads the
-   list's fetch date and counts from the packaged file instead of pinning them, so a
-   refresh of the list breaks no test. Grep the fixture for key patterns before
-   committing.
+   that checks what was sent compares `xippios.core.testing.sent_query(route)`, the
+   scrubbed query of the last request, or `sent_urls(route)`, the URLs with credentials
+   redacted, never a request kept from `route.calls`, which a failure or `pytest -l`
+   would print. A test of a task that answers from a packaged list reads the list's
+   fetch date and counts from the packaged file instead of pinning them, so a refresh of
+   the list breaks no test. Grep the fixture for key patterns before committing.
 
 7. **Docs.** `CHANGELOG.md` under Unreleased; the README status table gets a row
    (upstream operation, task function, MCP tool name `{{ tool_prefix }}_<task>`, status),
