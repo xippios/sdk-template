@@ -228,15 +228,17 @@ def test_answers_file_round_trips(generated: tuple[str, Path]) -> None:
         ([], "--topic DOMAIN is required to create the repository"),
         (["--local-only", "--topic", "Trade_Data"], "--topic Trade_Data: use lowercase letters"),
         (["--topic", "trade--data"], "--topic trade--data: use lowercase letters"),
+        (["--topic", "trade-data", "--evidence", "absent.md"], "--evidence absent.md: no such"),
     ],
 )
-def test_new_source_checks_the_topic_before_it_generates(
+def test_new_source_checks_its_flags_before_it_generates(
     tmp_path: Path, args: list[str], error: str
 ) -> None:
-    """The domain topic is new-source.sh's flag, no copier answer; a bad one costs nothing."""
+    """The domain topic is new-source.sh's flag, no copier answer, and the evidence a file;
+    a bad one of either costs nothing."""
     dest = tmp_path / "sdk-ex"
     script = [str(ROOT / "scripts/new-source.sh"), "ex", "--dest", str(dest), *args]
-    run = subprocess.run(script, capture_output=True, text=True, check=False)
+    run = subprocess.run(script, cwd=tmp_path, capture_output=True, text=True, check=False)
     assert run.returncode == 2, run.stdout + run.stderr
     assert error in run.stderr
     assert not dest.exists(), "refused before anything is generated"

@@ -189,11 +189,13 @@ are not listed.
   errors without the payload).
 - Template-internal: the tests render the variants without `domain_topic` and check
   that no answers file records `source_pkg`, `domain_topic` or `needs_write_tools`, that
-  `new-source.sh` refuses a missing or malformed `--topic` before it generates, that the
-  two core answers' help texts keep apart, that `source_name`'s bound follows from the
-  template's longest Python line, that the dev group's ruff is the hook's, that
-  `live.yml` takes `ci.yml`'s pins with `persist-credentials: false`, that no live
-  command lacks `--tb=short`, and that the CHANGELOG step no longer exempts an adoption.
+  `new-source.sh` refuses a missing or malformed `--topic` and a missing evidence file
+  before it generates, that the two core answers' help texts keep apart, that
+  `source_name`'s bound follows from the template's longest Python line, that the dev
+  group's ruff is the hook's, that `live.yml` takes `ci.yml`'s pins with
+  `persist-credentials: false`, that no live command lacks `--tb=short`, and that the
+  CHANGELOG step no longer exempts an adoption; `scripts/prove.sh` passes a topic and an
+  evidence file, so the proof prints the PR body a real run opens.
 
 ### Removed
 

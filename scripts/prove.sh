@@ -56,8 +56,12 @@ git -C "$snapshot" -c user.name=prove -c user.email=prove@example.invalid \
   -c commit.gpgsign=false commit -q --no-verify -m "the working tree of sdk-template"
 git -C "$snapshot" -c tag.gpgsign=false tag "v$version"
 
-"$here/scripts/new-source.sh" "$slug" --local-only --topic example-domain --dest "$dest" \
-  --template "$snapshot" \
+# The evidence file and the topic go through the same path as in a real run: the PR body
+# new-source.sh prints under --local-only lists them under Assumptions.
+evidence="$work/evidence.md"
+echo "- Every answer is the proof's own: api.example.org is no upstream." > "$evidence"
+"$here/scripts/new-source.sh" "$slug" --local-only --topic example-domain \
+  --evidence "$evidence" --dest "$dest" --template "$snapshot" \
   -d "source_name=Example Data Service" \
   -d "upstream_url=https://api.example.org" \
   -d "upstream_docs_url=https://api.example.org/docs" \
