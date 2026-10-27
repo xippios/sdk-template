@@ -25,7 +25,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest
-      # The three shapes of the family's sources, each rendered and checked end to end
+      # The four shapes of the family's sources, each rendered and checked end to end
       # (T11): inside the required job, so a failing proof blocks the merge.
       - name: Prove the template, keyed and nested (sdk-example-api)
         run: scripts/prove.sh
@@ -33,3 +33,5 @@ jobs:
         run: scripts/prove.sh --keyless
       - name: Prove the template, keyless and nested (sdk-example-files, as esmis or wasde)
         run: scripts/prove.sh --keyless-nested
+      - name: Prove the template, behind api.data.gov (sdk-example-gov, as psd, esr and gats)
+        run: scripts/prove.sh --gateway
