@@ -23,7 +23,7 @@ API_KEY_ENV = "{{ api_key_env }}"  # pragma: allowlist secret (a variable name, 
 API_KEY_ENV: str | None = None
 {% endif %}
 {% if rate_limit_provenance == 'self-imposed' %}
-# A self-imposed pace: upstream documents no per-second or per-minute limit (ADR-0010).
+# A self-imposed pace: upstream documents no per-second or per-minute limit (ADR-0010 decision 1).
 {% else %}
 # Paced within the limit upstream documents (ADR-0010 decision 1).
 {% endif %}
