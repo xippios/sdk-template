@@ -102,8 +102,9 @@ rate_limit_per_minute:
   type: int
   help: >-
     The pace in requests per minute, enforced client-side: the upstream's documented
-    per-minute limit (or its per-second limit times 60), or, where upstream documents
-    none, a self-imposed pace (ADR-0010 decision 1)
+    per-minute limit (or its per-second limit times 60), or, where upstream documents no
+    per-second or per-minute limit, a self-imposed pace, an hourly or daily quota
+    notwithstanding (ADR-0010 decision 1)
   default: 60
   validator: "{% if rate_limit_per_minute < 1 %}Must be at least 1{% endif %}"
 
@@ -120,21 +121,18 @@ rate_limit_provenance:
   help: Where the pace comes from; the generated CLAUDE.md names it (ADR-0010 decision 1)
   choices:
     documented by upstream: documented
-    self-imposed, upstream documents no limit: self-imposed
+    self-imposed, upstream documents no per-second or per-minute limit: self-imposed
   default: documented
 
 core_version:
   type: str
   help: >-
-    The xippios-core release the package depends on, rendered as xippios-core~=<version>,
-    the extras likewise: that minor, from that release on. The family's floor is normally
-    the minor's .0 (xippios-core~=0.2.0, ADR-0018), raised when the source adopts a new
-    core minor in its adoption PR (conventions §12, §15). It is a patch, X.Y.Z, when that
-    patch shipped what the source adopts, still one minor (ADR-0018 amendment (c)): the
-    default 0.2.1 is that case, since core 0.2.1 shipped the family check that
-    tests/test_family.py imports and 0.2.0 lacks. After a core git pin it is the same:
-    the release that carries the pinned change, X.Y.Z with Z the patch that shipped it,
-    or X.Y.0 when the minor itself did.
+    The xippios-core release the package depends on, X.Y.Z, rendered as the bound
+    xippios-core~=X.Y.Z, the extras likewise: one core minor, from that release on
+    (conventions §12, ADR-0018). Z is 0 unless patch Z shipped what the source adopts
+    (ADR-0018 amendment (c)): the default 0.2.1 is that case, since core 0.2.1 shipped
+    the family check that tests/test_family.py imports. A source raises it in the
+    adoption PR of a new core minor (conventions §15).
   default: "0.2.1"
   validator: >-
     {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+\\Z')) %}
@@ -146,10 +144,8 @@ core_git_ref:
   help: >-
     Development only. The sdk-core commit to depend on for a core change that is not
     released yet: main, or the full 40-character SHA of a commit on main, which uv and
-    the merge-class check read as that commit. Leave empty to depend on the release named
-    by core_version. Removing the pin before a release raises core_version to the release
-    that carries the pinned change: X.Y.Z with Z the patch that shipped it, or X.Y.0 when
-    the minor itself did; still one minor.
+    the merge-class check read as that commit. Leave it empty, the default, for no pin;
+    a release carries none (/release-prep removes it first, in a PR of its own).
   default: ""
   validator: >-
     {% if core_git_ref and not (core_git_ref | regex_search('^(main|[0-9a-f]{40})\\Z')) %}

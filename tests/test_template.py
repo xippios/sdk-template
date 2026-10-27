@@ -974,6 +974,17 @@ def test_core_version_is_a_release_version(
         )
 
 
+def test_core_answers_each_say_their_own() -> None:
+    """One core_version answer, the bound's rule in its help; core_git_ref only the pin."""
+    questions = yaml.safe_load((ROOT / "copier.yml").read_text())
+    version, ref = questions["core_version"]["help"], questions["core_git_ref"]["help"]
+    assert "xippios-core~=X.Y.Z" in version
+    assert "(ADR-0018 amendment (c))" in version
+    assert "pin" not in version, "the pin is core_git_ref's"
+    assert "core_version" not in ref, "the bound is core_version's"
+    assert "main, or the full 40-character SHA of a commit on main" in ref
+
+
 def test_core_git_ref_takes_main(template_src: Path, tmp_path: Path) -> None:
     dst = generate(template_src, tmp_path / "repo", source_slug="ex", core_git_ref="main")
     assert 'rev = "main" }' in (dst / "pyproject.toml").read_text()
