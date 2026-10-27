@@ -15,7 +15,8 @@ template/                what gets generated; *.jinja files are rendered, others
                          tests, live smoke
   .claude/commands/      add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
                          adopt-release (walks conventions §15 for an adoption PR)
-  CLAUDE.md.jinja        the contract a session gets in a generated repo; keep it readable by a new engineer
+  .claude/family.md.jinja  the family rules a generated repo's CLAUDE.md imports; no Jinja, the same in every source
+  CLAUDE.md.jinja        the facts of a generated repo, importing the family rules; the source's once rendered
   .github/, .pre-commit-config.yaml, .secrets.baseline, LICENSE   copied from sdk-core, verbatim but for the deviations in Rules
   .github/workflows/live.yml.jinja   the nightly live workflow, the one rendered workflow (Rules)
   tests/test_family.py   one line collecting xippios.core.testing.family
@@ -38,12 +39,15 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 - Files a session fills with source content (`__init__.py`, `_client.py`, `models.py`,
   `api/`, `tasks.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
   `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
-  `README.md`, `CHANGELOG.md`) are listed in `_skip_if_exists` so `copier update` never
-  overwrites them; copier renders the patterns, so those inside the package name
-  `{{ package_dir }}`, never `**`, which would match a whole package named like a
-  protected directory (`example-api`'s `xippios/example/api/`).
-  Every other rendered file is the template's and updates with it, `tests/conftest.py`
-  and `tests/test_family.py` among them: keep in those only what every source shares.
+  `README.md`, `CHANGELOG.md`, `CLAUDE.md`) are listed in `_skip_if_exists` so
+  `copier update` never overwrites them; copier renders the patterns, so those inside the
+  package name `{{ package_dir }}`, never `**`, which would match a whole package named
+  like a protected directory (`example-api`'s `xippios/example/api/`).
+  Every other rendered file is the template's and updates with it, `.claude/family.md`,
+  `tests/conftest.py` and `tests/test_family.py` among them: keep in those only what every
+  source shares. `.claude/family.md.jinja` holds no Jinja, so every source renders the same
+  file, which the tests check; a line that depends on an answer belongs in
+  `CLAUDE.md.jinja`, which a source owns once rendered and keeps its facts in.
   What every source shares and can be tested belongs in core's family check, not in a
   rendered test. A template-owned file the template removes is deleted by `copier update`,
   a source's own lines in it included: the CHANGELOG says where they move first.
