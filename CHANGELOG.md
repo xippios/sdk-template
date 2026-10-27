@@ -351,7 +351,8 @@ are not listed.
   for a source that installed a policy (sdk-usda-psd's adoption review), and names
   `xippios.core.data_gov` for a source behind api.data.gov.
 - `_min_copier_version` is 9.19.0, the copier release that brought the `ask` setting
-  the key answers take behind a gateway; this README says so.
+  the key answers take behind a gateway; this README says so, and this repository's dev
+  group requires it.
 - Template-internal: a fifth variant renders once per session, sdk-usda-psd's shape
   behind the gateway (nested, `gateway: api.data.gov`, no key answer passed), and the
   keyed nested variant moves to sdk-usda-nass's shape, a query key of its own without
