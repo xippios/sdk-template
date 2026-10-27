@@ -333,6 +333,12 @@ CONFTEST = """\
 # named under xippios_placeholder_key_envs in pyproject.toml, not here.
 pytest_plugins = ["xippios.core.testing.plugin"]
 """
+# A keyless source names no key variable, so its conftest points at none (row 61 d).
+CONFTEST_KEYLESS = """\
+# Core's plugin keeps the default run offline (ADR-0013), runs anyio tests on asyncio and
+# serves the family check in tests/test_family.py.
+pytest_plugins = ["xippios.core.testing.plugin"]
+"""
 
 
 def test_the_plugin_sends_the_placeholder_unless_live(generated: tuple[str, Path]) -> None:
@@ -342,7 +348,7 @@ def test_the_plugin_sends_the_placeholder_unless_live(generated: tuple[str, Path
     """
     name, dst = generated
     env = str(VARIANTS[name]["api_key_env"])
-    assert (dst / "tests/conftest.py").read_text() == CONFTEST
+    assert (dst / "tests/conftest.py").read_text() == (CONFTEST if env else CONFTEST_KEYLESS)
     ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
     assert ini.get("xippios_placeholder_key_envs") == ([env] if env else None)
     assert "placeholder" not in (dst / "tests/test_tasks.py").read_text()
@@ -727,6 +733,8 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Pa
     else:
         assert "secrets." not in text
     assert pytest_step["env"] == expected_env
+    for reason in ["the secret it names", "so that sources sharing a key do not start"]:
+        assert (reason in " ".join(text.split())) is bool(env_var), f"keyed only: {reason}"
     claude = (dst / "CLAUDE.md").read_text()
     if env_var:
         step = "Only its `uv run pytest -m live` step sees the key"
@@ -772,7 +780,9 @@ def test_generated_tests_need_no_key(generated: tuple[str, Path]) -> None:
     """The reachability probe sends no key."""
     name, dst = generated
     live = (dst / "tests/test_live.py").read_text()
-    assert ("the key's quota" in live) is bool(VARIANTS[name]["api_key_env"]), "keyed only"
+    flat = " ".join(live.split())
+    assert ("it spends no keyed call" in flat) is bool(VARIANTS[name]["api_key_env"])
+    assert "quota" not in live, "a keyed source need not have a quota"
     assert "httpx.AsyncClient(" in live
     assert "await http.get(BASE_URL)" in live
     assert "follow_redirects=True" in live
