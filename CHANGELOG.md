@@ -19,12 +19,11 @@ file of that name. The list starts with 0.1.5; earlier tags are not listed.
 
 ## [0.2.2] - 2026-10-27
 
-The gates repository `xippios/.github` was renamed to `xippios/sdk-gates` on 2026-10-27,
-and v0.2.1 renders `gates.yml` with the old name, which works only while that name
-redirects; v0.2.2 renders the new one. A source adopts this release together with core
-0.2.1 from PyPI, in one adoption PR (conventions §15) that `/adopt-release v0.2.2` walks,
-with `core_version=0.2.1` and the bound `~=0.2.1`; a source already on v0.2.1 updates
-with nothing to hand-apply.
+The gates repository `xippios/.github` was renamed to `xippios/sdk-gates` on 2026-10-27;
+v0.2.1 renders `gates.yml` calling the old name, v0.2.2 the new one. A source adopts this
+release together with core 0.2.1 from PyPI, in one adoption PR (conventions §15) that
+`/adopt-release v0.2.2` walks, with `core_version=0.2.1` and the bound `~=0.2.1`; a
+source already on v0.2.1 updates with nothing to hand-apply.
 
 ### Changed
 
@@ -37,8 +36,9 @@ with nothing to hand-apply.
 
 None.
 
-**Updating from 0.2.1.** `copier update` carries the two `uses:` lines; no answer
-changes. A repository still on 0.2.0 reads 0.2.1's paragraph as well.
+**Updating from 0.2.1.** `copier update` carries `gates.yml`; no answer changes. A
+repository still on 0.2.0 reads 0.2.1's paragraph as well (with v0.2.2 in place of
+v0.2.1).
 
 ## [0.2.1] - 2026-10-27
 
