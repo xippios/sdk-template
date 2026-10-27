@@ -644,17 +644,25 @@ def test_ci_reads_the_pull_request_and_runs_once_on_main(generated: tuple[str, P
     assert "262144" in cap["run"]
 
 
+def workflow_uses(path: Path) -> list[tuple[str, str]]:
+    """Each ``uses:`` of a workflow: the action and what follows it on the line."""
+    return re.findall(r"^\s+(?:- )?uses: (\S+)(.*)$", path.read_text(), re.MULTILINE)
+
+
 def test_workflow_actions_are_pinned_by_sha(generated: tuple[str, Path]) -> None:
-    """ci.yml and publish.yml pin every action to a commit, its version in a comment."""
+    """ci.yml, publish.yml and live.yml pin every action to a commit, its version in a
+    comment (conventions §13); live.yml takes ci.yml's pins."""
     _, dst = generated
-    for rel in [".github/workflows/ci.yml", ".github/workflows/publish.yml"]:
-        uses = re.findall(r"^\s+(?:- )?uses: (\S+)(.*)$", (dst / rel).read_text(), re.MULTILINE)
+    workflows = dst / ".github/workflows"
+    for rel in ["ci.yml", "publish.yml", "live.yml"]:
+        uses = workflow_uses(workflows / rel)
         assert uses, rel
         for action, comment in uses:
             if action.startswith("./"):
                 continue
             assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{rel}: {action}"
             assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{rel}: {action}{comment}"
+    assert set(workflow_uses(workflows / "live.yml")) <= set(workflow_uses(workflows / "ci.yml"))
 
 
 def test_publish_is_the_release_train(generated: tuple[str, Path]) -> None:
@@ -756,6 +764,9 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Pa
     *setup, pytest_step = job["steps"]
     assert pytest_step["run"] == "uv run pytest -m live", "every live test"
     assert all("env" not in step for step in setup), "checkout and uv sync never see it"
+    checkout = setup[0]
+    assert checkout["uses"].startswith("actions/checkout@")
+    assert checkout["with"] == {"persist-credentials": False}, "conventions §13"
     expected_env: dict[str, str] = {"XIPPIOS_LIVE_TESTS": "1"}
     if env_var:
         expected_env[env_var] = f"${{{{ secrets.{env_var} }}}}"
