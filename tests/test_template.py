@@ -118,6 +118,13 @@ VARIANTS: dict[str, dict[str, object]] = {
         "rate_limit_provenance": "self-imposed",
         "core_version": "0.3.0",
     },
+    # A source that parses the files it downloads (T-ADR-0020), keyless and nested as
+    # sdk-usda-wasde starts: has_files renders parse/ and the samples' provenance table.
+    "files": {
+        "source_slug": "example-files",
+        "has_files": True,
+        **keyed(""),
+    },
 }
 # A source on unreleased core: the keyed nested answers with a full-SHA core pin.
 PINNED = {**VARIANTS["keyed-nested"], "core_git_ref": FAKE_CORE_SHA}
@@ -133,6 +140,11 @@ def dependencies(answers: dict[str, object]) -> list[dict[str, str]]:
     parsed = yaml.safe_load(str(answers.get("source_dependencies", "[]")))
     assert isinstance(parsed, list)
     return parsed
+
+
+def has_files(answers: dict[str, object]) -> bool:
+    """Whether a variant parses the files it downloads (ADR-0020); copier's default no."""
+    return answers.get("has_files", False) is True
 
 
 def key_envs(answers: dict[str, object]) -> list[str]:
@@ -285,7 +297,9 @@ def test_layout(variant: tuple[str, Path]) -> None:
         assert (dst / rel).is_file(), rel
     for rel in REMOVED_FILES:
         assert not (dst / rel.format(pkg=pkg)).exists(), rel
-    assert not (dst / "tests/fixtures").exists(), "the fixture rule lives in /record-fixture"
+    fixtures = sorted(p.relative_to(dst).as_posix() for p in dst.glob("tests/fixtures/**/*"))
+    expected = ["tests/fixtures/files", "tests/fixtures/files/README.md"]
+    assert fixtures == (expected if has_files(answers) else []), "the rule is /record-fixture's"
     assert (dst / "tests/test_family.py").read_text() == FAMILY_TEST
     level = (dst / "src/xippios" / pkg).parent
     while level != dst / "src":
@@ -322,6 +336,7 @@ def test_answers_file_round_trips(variant: tuple[str, Path]) -> None:
         assert "api_key_name" not in answers
     assert answers["source_dependencies"] == expected.get("source_dependencies", "[]")
     assert yaml.safe_load(answers["source_dependencies"]) == dependencies(expected)
+    assert answers["has_files"] is has_files(expected), "recorded, the default included"
     for computed in ["package_dir", "tool_prefix", "live_schedule", "depends_on", "key_envs"]:
         assert computed not in answers, f"{computed}: derived, never recorded"
     for gone in ["source_pkg", "domain_topic", "needs_write_tools"]:
@@ -482,6 +497,38 @@ def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
     assert project["optional-dependencies"] == {
         extra: [f"xippios-core[{extra}]~={version}"] for extra in ["mcp", "http", "testing"]
     }
+
+
+FILES_TABLE = "| File | Release | URL | Bytes | sha256 | Fetched |"
+
+
+def test_has_files_renders_the_parsers_and_the_samples_table(variant: tuple[str, Path]) -> None:
+    """ADR-0020: a source that parses the files it downloads gets ``parse/``, a package of
+    one docstring, and ``tests/fixtures/files/README.md``, the samples' provenance table,
+    both skip-listed, and its CLAUDE.md names them in a Files row and in the Layout; every
+    other source renders none of it, a retrieval-only one included (row 57)."""
+    name, dst = variant
+    answers = VARIANTS[name]
+    parses, pkg = has_files(answers), package_dir(answers)
+    parse = dst / "src/xippios" / pkg / "parse"
+    samples = dst / "tests/fixtures/files/README.md"
+    assert parse.exists() is parses
+    assert samples.exists() is parses
+    claude = (dst / "CLAUDE.md").read_text().splitlines()
+    assert len([line for line in claude if line.startswith("| Files | ")]) == parses
+    layout = [line.split()[0] for line in claude if line.startswith("  ") and line.strip()]
+    assert ("parse/" in layout) is parses
+    assert ("fixtures/files/" in layout) is parses
+    if not parses:
+        return
+    assert [path.name for path in parse.iterdir()] == ["__init__.py"]
+    module = ast.parse((parse / "__init__.py").read_text())
+    assert len(module.body) == 1, "a docstring, no code"
+    assert ast.get_docstring(module)
+    assert f"{FILES_TABLE}\n" in samples.read_text()
+    skipped = skip_matcher(pkg)
+    for rel in [f"src/xippios/{pkg}/parse/__init__.py", "tests/fixtures/files/README.md"]:
+        assert skipped(rel), f"{rel}: the source's once rendered"
 
 
 def workflow_uses(path: Path) -> list[tuple[str, str]]:
@@ -827,12 +874,25 @@ def test_models_use_validation_alias(keyed_nested: Path) -> None:
 
 
 def test_servers_take_the_caps_kept_with_the_tasks(keyed_nested: Path) -> None:
-    """ADR-0016: per-tool caps live next to the tasks as MCP_CAPS; the server reads them."""
+    """ADR-0016: per-tool caps live next to the tasks as MCP_CAPS; the server reads them.
+    ADR-0019 decision 4: beside them ``BULK_TASKS``, empty in the scaffold, names the
+    Python-only tasks; the adapters pass ``tasks.__all__`` whole, since core's
+    ``register_tasks`` and ``router_from_tasks`` skip those names themselves (row 64)."""
     pkg = keyed_nested / "src/xippios" / package_dir(VARIANTS["keyed-nested"])
     assert 'caps=getattr(tasks, "MCP_CAPS", None),' in (pkg / "mcp.py").read_text()
     tasks = (pkg / "tasks.py").read_text()
     assert "# MCP_CAPS = {" in tasks, "a commented scaffold"
     assert "# from xippios.core import ResultCap" in tasks, "core 0.3.0 exports it"
+    (bulk,) = [
+        node
+        for node in ast.parse(tasks).body
+        if isinstance(node, ast.AnnAssign) and ast.unparse(node.target) == "BULK_TASKS"
+    ]
+    assert ast.unparse(bulk) == "BULK_TASKS: frozenset[str] = frozenset()"
+    assert tasks.index("BULK_TASKS") < tasks.index("# MCP_CAPS"), "beside MCP_CAPS"
+    whole = "[getattr(tasks, name) for name in tasks.__all__]"
+    for adapter in ["mcp.py", "http.py"]:
+        assert whole in (pkg / adapter).read_text(), adapter
 
 
 def test_generated_tests_need_no_key(keyed_nested: Path) -> None:
@@ -1159,6 +1219,12 @@ def test_answers_file_stays_in_the_merge_classes_subset(variant: tuple[str, Path
     block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
     assert "\n  default: none\n" in block, "one plain scalar, a literal for rule 2"
     assert f"\ngateway: {gateway_of(VARIANTS[name])}\n" in text
+    # has_files likewise: a bool whose default, false, is one plain scalar.
+    assert (QUESTIONS["has_files"]["type"], QUESTIONS["has_files"]["default"]) == ("bool", False)
+    raw = (ROOT / "copier.yml").read_text().split("\nhas_files:\n", 1)[1]
+    block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
+    assert "\n  default: false\n" in block, "one plain scalar, a literal for rule 2"
+    assert f"\nhas_files: {str(has_files(VARIANTS[name])).lower()}\n" in text
 
 
 @pytest.mark.parametrize(
@@ -1300,6 +1366,7 @@ def test_answers_file_is_copiers_canonical_form(
     recorded = yaml.safe_load(written)
     expected = {**VARIANTS, "pinned": PINNED}[case]
     assert recorded["gateway"] == gateway_of(expected)
+    assert recorded["has_files"] is has_files(expected)
     key = key_answers(expected)
     assert recorded["api_key_env"] == key["api_key_env"]
     for answer, value in key.items() if key["api_key_env"] else []:
@@ -1351,17 +1418,19 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
     """A source's files survive a re-render; the template's own are rendered again.
 
     The slug ends in -api, so the package itself is .../api/: the patterns name the package
-    directory, and its mcp.py is the template's while its api/ is the source's.
+    directory, and its mcp.py is the template's while its api/ is the source's, as are the
+    parsers' package and the samples' table that has_files renders (ADR-0020).
     """
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex-api", **keyed(""))
+    answers = {"source_slug": "ex-api", "has_files": True, **keyed("")}
+    dst = generate(template_src, tmp_path / "repo", **answers)
     pkg = "src/xippios/ex/api"
     names = ["tasks.py", "_client.py", "errors.py", "__init__.py", "api/__init__.py"]
-    mine = [f"{pkg}/{n}" for n in names]
-    mine += ["tests/test_tasks.py", "CLAUDE.md"]
+    mine = [f"{pkg}/{n}" for n in [*names, "parse/__init__.py"]]
+    mine += ["tests/test_tasks.py", "tests/fixtures/files/README.md", "CLAUDE.md"]
     templates = [".claude/family.md", "tests/conftest.py", f"{pkg}/mcp.py"]
     for rel in [*mine, *templates]:
         (dst / rel).write_text("# edited\n")
-    generate(template_src, dst, source_slug="ex-api", **keyed(""))
+    generate(template_src, dst, **answers)
     for rel in mine:
         assert (dst / rel).read_text() == "# edited\n", f"{rel} is the source's"
     for rel in templates:
@@ -1647,8 +1716,8 @@ def test_the_templates_own_workflows_are_hardened() -> None:
 
 def test_ci_proves_the_familys_variants() -> None:
     """T11: the required ``ci`` job runs scripts/prove.sh on the keyed nested, the keyless
-    flat, the keyless nested and the gateway shape (T9), so a proof that fails blocks the
-    merge."""
+    flat, the keyless nested, the keyless nested that parses files (``has_files``,
+    ADR-0020) and the gateway shape (T9), so a proof that fails blocks the merge."""
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     (job,) = workflow["jobs"].values()
     assert job["name"] == "ci", "the check the org ruleset requires"
@@ -1658,6 +1727,7 @@ def test_ci_proves_the_familys_variants() -> None:
         "scripts/prove.sh",
         "scripts/prove.sh --keyless",
         "scripts/prove.sh --keyless-nested",
+        "scripts/prove.sh --keyless-nested -d has_files=true",
         "scripts/prove.sh --gateway",
     ]
 
