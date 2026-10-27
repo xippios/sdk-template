@@ -12,13 +12,14 @@ import subprocess
 import sys
 import threading
 import tomllib
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 import yaml
 from copier import run_copy
+from pathspec import PathSpec
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -829,6 +830,16 @@ def test_workflow_actions_are_pinned_by_sha(generated: tuple[str, Path]) -> None
 
 
 CORE_WORKFLOWS = ["ci.yml", "gates.yml", "live.yml", "publish.yml"]
+
+
+def skip_matcher(pkg: str) -> Callable[[str], bool]:
+    """Whether copier's ``_skip_if_exists`` protects a path, matched as copier 9.19.1 does:
+    the patterns rendered, read as gitignore lines by pathspec."""
+    patterns = yaml.safe_load((ROOT / "copier.yml").read_text())["_skip_if_exists"]
+    rendered = [pattern.replace("{{ package_dir }}", pkg) for pattern in patterns]
+    return PathSpec.from_lines("gitignore", rendered).match_file
+
+
 SIBLINGS_SCRIPT = ROOT / "template/.github/{% if '.' in import_path %}scripts{% endif %}"
 
 
@@ -852,8 +863,10 @@ def test_siblings_check_renders_where_the_import_path_nests(generated: tuple[str
     assert script.stat().st_mode & 0o111, "executable, as the render the merge classes compare"
     syntax = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
     assert syntax.returncode == 0, syntax.stderr
-    patterns = yaml.safe_load((ROOT / "copier.yml").read_text())["_skip_if_exists"]
-    assert not [p for p in patterns if p.startswith((".github", "scripts/check"))]
+    skipped = skip_matcher(package_dir(VARIANTS[name]))
+    assert skipped("scripts/check-siblings.sh"), "why the script is not under scripts/"
+    for rel in [".github/workflows/siblings.yml", ".github/scripts/check-siblings.sh"]:
+        assert not skipped(rel), f"{rel}: the template's, trusted when identical to the render"
     text = workflow.read_text()
     assert "{{" not in text.replace("${{", ""), "copied verbatim: only its name is rendered"
     parsed = yaml.safe_load(text)
