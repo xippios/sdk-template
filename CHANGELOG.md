@@ -231,10 +231,10 @@ are not listed.
   `new-source.sh` refuses a missing or malformed `--topic` and a missing evidence file
   before it generates, that it fills core's PR template and names what a template of
   another shape lacks, that `source_name`'s bound follows from the template's longest
-  Python line and that a quote or a backslash is refused, that this repository's own workflows are hardened, that the
-  dev group's ruff is the hook's, that `live.yml` takes `ci.yml`'s pins with
-  `persist-credentials: false`, that no live command lacks `--tb=short`, and that the
-  CHANGELOG step no longer exempts an adoption; `scripts/prove.sh` passes a topic and an
+  Python line and that a quote or a backslash is refused, that this repository's own
+  workflows are hardened, that the dev group's ruff is the hook's, that `live.yml` takes
+  `ci.yml`'s pins with `persist-credentials: false`, that no live command lacks
+  `--tb=short`, and that the CHANGELOG step no longer exempts an adoption; `scripts/prove.sh` passes a topic and an
   evidence file and checks the PR body it prints, the one a real run opens.
 - This repository's own `ci.yml` pins `actions/checkout` and `astral-sh/setup-uv` by
   SHA, the version in a comment, and its checkout persists no credentials;
@@ -263,10 +263,10 @@ are not listed.
 - Template-internal: the template tests render the family's three variants, keyed and
   nested (sdk-usda-psd's shape), keyless and flat (sdk-eurostat's) and keyless and
   nested (sdk-usda-esmis's, with the 64-character name that broke four docstrings),
-  each once per session, and a check no answer changes reads one render. The variants
-  that differed in a single answer go, two of them identical; those answers (the key
-  locations, a git-pinned core, a name at its bound) are tested by their own rules. The
-  assertions on rendered prose go too: the tests check mechanics, a file rendered or
+  each once per session, and a check no answer changes reads one render. Eight variants
+  become three: one of two identical ones goes, and so do those that differed in a
+  single answer, which their own rules now test (the key locations, a git-pinned core, a
+  name at its bound). The assertions on rendered prose go too: the tests check mechanics, a file rendered or
   not, a name present, no Jinja left, a digest equal, a script's behaviour.
   `tests/test_template.py` goes from 1,465 lines, 57 tests and 293 cases to 1,345 lines,
   54 tests and 110 cases. The digest test is named for what it checks, no longer for a
