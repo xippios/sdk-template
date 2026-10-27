@@ -5,12 +5,12 @@
 # unchanged, require the unfilled refresh_upstream.py skeleton to refuse to run, and run
 # the sibling check where the import path nests (none renders where it is flat): with the
 # wheel alone, failing on a conflicting requirement, and warning on a sibling on another
-# core minor; and require parse/ and tests/fixtures/files/ exactly where has_files is true.
+# core minor; require parse/ and tests/fixtures/files/ exactly where has_files is true;
+# check offline that a task named in BULK_TASKS gets no tool and no route, and that the
+# refresh script renders a value list and an id list into one enums.py, as ruff leaves it.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
-# suite tests it. The template's CI runs the first three shapes, and the keyless nested
-# one again with -d has_files=true, a source that parses the files it downloads
-# (ADR-0020); --gateway runs locally, and stops at mypy on the generated
-# scripts/refresh_reference.py until that script takes core 0.3.0's render_enums.
+# suite tests it. The template's CI runs every shape below, and the keyless nested one
+# again with -d has_files=true, a source that parses the files it downloads (ADR-0020).
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF]
 #                         [--keyless | --keyless-nested | --gateway] [--keep] [-d key=value ...]
@@ -22,8 +22,8 @@
 #                      as esmis or wasde
 #   --gateway          a nested source behind api.data.gov, sdk-example-gov
 #                      (xippios.example.gov), as psd, esr and gats: the gateway answer
-#                      derives the key answers, and core is 0.3.0, the first release with
-#                      xippios.core.data_gov
+#                      derives the key answers, on the default core, 0.3.0, the first
+#                      release with xippios.core.data_gov
 #   --keep             leave the generated repository in place
 #   -d key=value       one more copier answer, e.g. -d has_files=true
 set -euo pipefail
@@ -53,7 +53,7 @@ done
 case "$shape" in
   keyless) slug="example"; key=() ;;
   keyless-nested) slug="example-files"; key=() ;;
-  gateway) slug="example-gov"; key=(-d "gateway=api.data.gov" -d "core_version=0.3.0") ;;
+  gateway) slug="example-gov"; key=(-d "gateway=api.data.gov") ;;
   *) slug="example-api"; key=(-d "api_key_env=EXAMPLE_API_KEY" -d "api_key_location=query") ;;
 esac
 work="$(mktemp -d "${TMPDIR:-/tmp}/sdk-template-prove.XXXXXX")"
@@ -220,6 +220,82 @@ else
   grep "^::warning::xippios-example-other" "$work/minor.log" \
     || { cat "$work/minor.log" >&2; exit 1; }
 fi
+
+# Offline, on core's adapters as the render calls them: a task named in BULK_TASKS gets no
+# tool and no route, while mcp.py and http.py pass tasks.__all__ whole (ADR-0019).
+echo
+echo "==> a bulk task gets no tool and no route; the adapters pass tasks.__all__ whole"
+(cd "$dest" && uv run python - "xippios.$import_path" "$slug" <<'PY'
+import asyncio
+import importlib
+import sys
+
+package, slug = sys.argv[1], sys.argv[2]
+tasks = importlib.import_module(f"{package}.tasks")
+
+
+def get_example() -> str:
+    """A task the adapters serve."""
+    return "served"
+
+
+def download_example() -> str:
+    """A bulk task, Python-only."""
+    return "a file"
+
+
+for task in (get_example, download_example):
+    task.__module__ = tasks.__name__
+    setattr(tasks, task.__name__, task)
+tasks.__all__ = ["get_example", "download_example"]
+tasks.BULK_TASKS = frozenset({"download_example"})
+server = importlib.import_module(f"{package}.mcp").server
+tools = [tool.name for tool in asyncio.run(server.list_tools())]
+routes = [route.path for route in importlib.import_module(f"{package}.http").router.routes]
+assert tools == [f"{slug.replace('-', '_')}_get_example"], tools
+assert routes == [f"/{slug}/get_example"], routes
+print(f"tools {tools}, routes {routes}: download_example, in BULK_TASKS, neither")
+PY
+)
+
+# The refresh script's render on two packaged lists fetched on different days, a value
+# list and an id list whose names repeat: one enums.py of a StrEnum and an IntEnum, each
+# with its date, as ruff leaves it (conventions §3, ADR-0008). The tree is restored after.
+echo
+echo "==> refresh_reference.py renders a value list and an id list into one enums.py"
+(cd "$dest" && uv run python - "xippios.$import_path" <<'PY'
+import importlib
+import importlib.util
+import sys
+from datetime import UTC, datetime
+
+from xippios.core import PackagedList
+
+spec = importlib.util.spec_from_file_location("refresh", "scripts/refresh_reference.py")
+assert spec is not None and spec.loader is not None
+script = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(script)
+script.LISTS = {"state_alpha": ("get_param_values", None)}
+script.ID_LISTS = {"unitsOfMeasure": ("GetUnitsOfMeasure", None, "unitId", "unitDescription")}
+script.REFERENCE.mkdir(exist_ok=True)
+for param, endpoint, day, records in [
+    ("state_alpha", "get_param_values", 25, [{"state_alpha": "AK"}, {"state_alpha": "C\u00f4te"}]),
+    ("unitsOfMeasure", "GetUnitsOfMeasure", 23, [{"unitId": 33, "unitDescription": "Crates"},
+                                                 {"unitId": 105, "unitDescription": "Crates"}]),
+]:
+    fetched = datetime(2026, 10, day, 9, 15, tzinfo=UTC)
+    listed = PackagedList(param=param, endpoint=endpoint, fetched=fetched, records=records)
+    listed.write(script.REFERENCE / f"{param}.json")
+script.render()
+enums = importlib.import_module(f"{sys.argv[1]}.enums")
+assert enums.__all__ == ["StateAlpha", "UnitId"], enums.__all__
+assert [enums.StateAlpha.AK, enums.StateAlpha.C_TE] == ["AK", "C\u00f4te"]
+assert [enums.UnitId.CRATES_33, enums.UnitId.CRATES_105] == [33, 105]
+assert "(fetched 2026-10-25)" in (enums.StateAlpha.__doc__ or "")
+assert "(fetched 2026-10-23)" in (enums.UnitId.__doc__ or "")
+PY
+)
+(cd "$dest" && uv run ruff format --check . && uv run ruff check . && git checkout -q -- . && git clean -fdq)
 
 echo
 echo "==> generated tree"
