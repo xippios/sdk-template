@@ -173,9 +173,14 @@ def generate(template_src: Path, dst: Path, **answers: object) -> Path:
     return dst
 
 
-def ruff(dst: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def ruff(dst: Path, command: str, *args: str) -> subprocess.CompletedProcess[str]:
+    """``ruff <command>`` in ``dst``, writing no cache into a render the tests share."""
     return subprocess.run(
-        [sys.executable, "-m", "ruff", *args], cwd=dst, capture_output=True, text=True, check=False
+        [sys.executable, "-m", "ruff", command, "--no-cache", *args],
+        cwd=dst,
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 
@@ -787,11 +792,14 @@ def test_publish_is_the_release_train(keyed_nested: Path) -> None:
 def test_adopt_release_runs_the_update_for_this_source(
     keyed_nested: Path, keyless_flat: Path
 ) -> None:
-    """Conventions §15, ADR-0018: one chore/template-update PR whose commands name this
-    source, the key's ini option only where there is a key."""
+    """Conventions §15, ADR-0018: one chore/template-update PR that names the nine items
+    and whose commands name this source, the key's ini option only where there is a key."""
     update = "uvx copier update --defaults --vcs-ref=<tag> -d core_version=X.Y.Z -d core_git_ref="
+    items = ["Items 1 and 2", "Items 3 and 4", *(f"Item {n}:" for n in range(5, 10))]
     for name, dst in [("keyed-nested", keyed_nested), ("keyless-flat", keyless_flat)]:
         text = (dst / ".claude/commands/adopt-release.md").read_text()
+        for item in items:
+            assert item in text, f"{item}: every item of conventions §15"
         assert update in text
         assert "`chore/template-update-<tag>`" in text
         assert "`https://github.com/xippios/sdk-template/blob/<tag>/CHANGELOG.md`" in text
@@ -1038,6 +1046,31 @@ def test_answers_file_is_copiers_canonical_form(
     assert (again / ".copier-answers.yml").read_bytes() == written
 
 
+def test_import_path_overrides_the_slug_for_every_package_path(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """ADR-0006 and ``import_path``'s help: a single-API provider whose slug carries a
+    hyphen overrides the import path (world-bank, world_bank). Every package path and the
+    entry point follow ``import_path``; a line that derived one from the slug instead
+    would render world.bank or world/bank."""
+    dst = generate(
+        template_src, tmp_path / "repo", source_slug="world-bank", import_path="world_bank"
+    )
+    for part in PACKAGE_FILES:
+        assert (dst / "src/xippios/world_bank" / part).is_file(), part
+    assert sorted(path.name for path in (dst / "src/xippios").iterdir()) == ["world_bank"]
+    scripts = tomllib.loads((dst / "pyproject.toml").read_text())["project"]["scripts"]
+    assert scripts == {"xippios-world-bank-mcp": "xippios.world_bank.mcp:run"}
+    for path in dst.rglob("*"):
+        if path.is_file() and path.suffix in TEXT_SUFFIXES:
+            text = path.read_text()
+            assert "world.bank" not in text, path
+            assert "world/bank" not in text, path
+    for args in [("check", "."), ("format", "--check", ".")]:
+        run = ruff(dst, *args)
+        assert run.returncode == 0, run.stdout + run.stderr
+
+
 def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Path) -> None:
     """A source's files survive a re-render; the template's own are rendered again.
 
@@ -1277,6 +1310,32 @@ def test_refresh_upstream_skeleton_stops_on_an_unrecorded_statement(
 
 
 # The template's own files.
+
+
+JINJA_BLOCK_TAG = re.compile(r"\{%-?\s*(\w+)[^%]*?-?%\}")
+OPENS_A_BLOCK = {"if", "for", "macro", "block", "call", "filter", "raw", "with"}
+
+
+def test_block_tags_that_span_lines_stand_on_their_own() -> None:
+    """``trim_blocks`` drops the newline after a block tag that ends a line, so a tag after
+    content takes that line's newline with it (481f479: the blank lines lost in the
+    generated CLAUDE.md's Commands and between /record-fixture's steps 1 and 2), and a
+    block opened mid-line puts the line's newline inside it (row 61 a: the keyless
+    README's MCP snippet closing its server on the args line). In every ``.jinja`` file a
+    block tag stands alone on its line or opens and closes there, before the line's end."""
+    misplaced = []
+    for path in sorted((ROOT / "template").rglob("*.jinja")):
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            tags = JINJA_BLOCK_TAG.findall(line)
+            if not tags or JINJA_BLOCK_TAG.fullmatch(line.strip()):
+                continue
+            depth = lowest = 0
+            for word in tags:
+                depth += (word in OPENS_A_BLOCK) - word.startswith("end")
+                lowest = min(lowest, depth)
+            if depth or lowest or line.rstrip().endswith("%}"):
+                misplaced.append(f"{path.relative_to(ROOT)}:{number}: {line}")
+    assert not misplaced, "\n".join(misplaced)
 
 
 def test_the_templates_own_gates_caller_is_the_one_it_ships() -> None:
