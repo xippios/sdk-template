@@ -113,7 +113,7 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 ## Commands
 
 ```bash
-uv sync                         # copier, pytest, ruff, pyyaml, detect-secrets
+uv sync                         # copier, pytest, ruff, pyyaml, detect-secrets, pathspec
 uv run pytest                   # template tests (fast: generation + ruff on the output)
 scripts/prove.sh                  # full proof against the xippios-core release on PyPI
 scripts/prove.sh --core-ref main  # against unreleased core, before a core change lands
