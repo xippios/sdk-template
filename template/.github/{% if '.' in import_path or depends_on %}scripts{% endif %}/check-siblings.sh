@@ -136,7 +136,7 @@ PY
 fi
 requirements=()
 while IFS= read -r line; do
-  if [[ " ${declared[*]} " == *" $line "* ]]; then
+  if [ -n "$line" ] && [[ " ${declared[*]} " == *" $line "* ]]; then
     echo "  $line: a declared dependency, installed with the wheel"
   elif [ -n "$line" ]; then
     requirements+=("$line")
