@@ -45,8 +45,10 @@ scripts/new-source.sh usda-nass \
 ```
 
 `--topic` names the GitHub topic for the domain, added beside `xippios-sdk`, `python`
-and `mcp` (conventions §13); it is no copier answer. Add `--local-only` to generate and
-check without touching GitHub, where `--topic` may be left out. The script generates
+and `mcp` (conventions §13); it is no copier answer. `--evidence FILE`, markdown list
+items, puts the evidence for the answers under the PR body's Assumptions. Add
+`--local-only` to generate and check without touching GitHub, where `--topic` may be
+left out; it prints the PR body instead. The script generates
 from this template's GitHub URL at its latest tag, so `.copier-answers.yml` records a
 source that `copier update` can reach from any machine. It refuses to create a repository
 while the organisation's default branch is not `main`: the `sdk-main-protection` ruleset
