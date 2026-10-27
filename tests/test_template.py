@@ -438,7 +438,8 @@ def test_rate_limit_renders_pace_burst_and_provenance(generated: tuple[str, Path
     assert "one `QuotaPolicy` installed on `config`" in " ".join(family.split())
     if answers.get("rate_limit_provenance") == "self-imposed":
         assert "# A self-imposed pace: upstream documents no limit" in client
-        assert "a self-imposed pace, upstream documents none (ADR-0010)" in claude
+        pace = "a self-imposed pace: upstream documents no per-second or per-minute limit"
+        assert f"{pace} (ADR-0010)" in claude
     else:
         assert "# Paced within the limit upstream documents" in client
         assert "within the limit documented by upstream (ADR-0010)" in claude
@@ -799,7 +800,12 @@ def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> No
     assert "Hand-apply" in family
     assert "`/adopt-release <tag>` walks it" in family, "conventions §15, ADR-0018"
     assert "`tests/conftest.py` and `tests/test_family.py` among them" in " ".join(family.split())
-    assert ("xippios_placeholder_key_envs" in claude) is bool(VARIANTS[name]["api_key_env"])
+    keyed_source = bool(VARIANTS[name]["api_key_env"])
+    assert ("xippios_placeholder_key_envs" in claude) is keyed_source
+    assert ("(base URL, key, rate limit)" in claude) is keyed_source, "a key only if there is one"
+    stagger = "so that sources sharing a key never start together"
+    assert (stagger in flat) is keyed_source, "the start time's reason, keyed sources only"
+    assert "PACKAGED_LISTS" not in claude, "the Layout names the lists generically"
     assert "xippios_placeholder_key_envs" not in family, "the same file for every source"
     assert "(ADR-0017)" in family
     assert "| Write tools | no, this package is read-only |" in claude, "conventions §8"
