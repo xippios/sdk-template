@@ -10,10 +10,11 @@ into the files it renders, but never touches a file under `_skip_if_exists` in
 `copier.yml` once that file exists (the package `__init__.py`, the client, models,
 endpoint wrappers, the task layer, the packaged lists and enums, reference data,
 scripts, the task and live tests and the fixtures, upstream snapshot, README, CHANGELOG
-and, from 0.3.0, CLAUDE.md). Each change to such a file is one bullet,
-`` - `<path>` — <what> — <why> ``; port it by hand in the same `chore/template-update`
-PR. A new file under those patterns is created by the update where the repository has no
-file of that name. The list starts with 0.1.5; earlier tags are not listed.
+and, from 0.3.0, the package's errors and CLAUDE.md). Each change to such a file is one
+bullet, `` - `<path>` — <what> — <why> ``; port it by hand in the same
+`chore/template-update` PR. A new file under those patterns is created by the update
+where the repository has no file of that name. The list starts with 0.1.5; earlier tags
+are not listed.
 
 ## [Unreleased]
 

@@ -66,9 +66,10 @@ the default result cap (200 rows or 64 KB) would cut gets a cap of its own in `M
 in `tasks.py`, which `mcp.py` passes through (ADR-0016). A task-shaped function that returns a
 subset of an upstream record builds its model with `UpstreamModel.project`; nothing is
 renamed or computed, parsing a value (`parse_decimal`) is the only override. Upstream's
-documented error shapes go into `ClientConfig.classify` in `_client.py`, once; wrappers
-use `client.get_json` and never inspect status codes. An upstream that reports an hourly
-or daily quota gets one `QuotaPolicy` installed on `config` there
+documented error shapes go into `classify` in `_client.py`, the `ClientConfig.classify`
+hook, once, and an error class of the package's own into `errors.py` (conventions §5,
+§6); wrappers use `client.get_json` and never inspect status codes. An upstream that
+reports an hourly or daily quota gets one `QuotaPolicy` installed on `config` there
 (`config = QuotaPolicy(window=..., limit_header=..., remaining_header=...,
 source=SOURCE).install(config)`, with the headers and window the upstream documents; a
 repository generated from template v0.2.0 on carries it as a commented block), and
@@ -132,10 +133,10 @@ never run live tests.
   `uvx copier update` re-renders the files the template owns (this file,
   `tests/conftest.py` and `tests/test_family.py` among them; answers are in
   `.copier-answers.yml`) and never overwrites the files this package fills:
-  `__init__.py`, `_client.py`, `models.py`, `api/`, `tasks.py`, `params.py`, `enums.py`,
-  `reference/`, `scripts/`, `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`,
-  `docs/upstream/`, `README.md`, `CHANGELOG.md` and `CLAUDE.md`. Template changes to
-  those are listed per release under "Hand-apply" in sdk-template's
+  `__init__.py`, `_client.py`, `errors.py`, `models.py`, `api/`, `tasks.py`, `params.py`,
+  `enums.py`, `reference/`, `scripts/`, `tests/test_tasks.py`, `tests/test_live.py`,
+  `tests/fixtures/`, `docs/upstream/`, `README.md`, `CHANGELOG.md` and `CLAUDE.md`.
+  Template changes to those are listed per release under "Hand-apply" in sdk-template's
   [CHANGELOG](https://github.com/xippios/sdk-template/blob/main/CHANGELOG.md); port them
   by hand in the same PR.
 - This file is the template's and the same in every source: what is this package's own

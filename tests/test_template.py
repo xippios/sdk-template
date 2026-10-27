@@ -78,6 +78,7 @@ EXPECTED_FILES = [
     "src/xippios/{pkg}/py.typed",
     "src/xippios/{pkg}/_version.py",
     "src/xippios/{pkg}/_client.py",
+    "src/xippios/{pkg}/errors.py",
     "src/xippios/{pkg}/models.py",
     "src/xippios/{pkg}/tasks.py",
     "src/xippios/{pkg}/api/__init__.py",
@@ -270,7 +271,8 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
     """
     dst = generate(template_src, tmp_path / "repo", source_slug="ex-api", **keyed(""))
     pkg = "src/xippios/ex/api"
-    mine = [f"{pkg}/{n}" for n in ["tasks.py", "_client.py", "__init__.py", "api/__init__.py"]]
+    names = ["tasks.py", "_client.py", "errors.py", "__init__.py", "api/__init__.py"]
+    mine = [f"{pkg}/{n}" for n in names]
     mine += ["tests/test_tasks.py", "CLAUDE.md"]
     templates = [".claude/family.md", "tests/conftest.py", f"{pkg}/mcp.py"]
     for rel in [*mine, *templates]:
@@ -294,6 +296,21 @@ def test_the_files_a_source_fills_are_one_list(template_src: Path, tmp_path: Pat
     assert names[-1] == "`CLAUDE.md`", "the facts are the source's"
     for rel in [".claude/family.md", ".claude/commands/adopt-release.md"]:
         assert listing in " ".join((dst / rel).read_text().split()), rel
+
+
+def test_errors_module_and_classify_hook_are_scaffolded(generated: tuple[str, Path]) -> None:
+    """A source's own error classes (conventions §5) and the classify hook (§6), both empty."""
+    name, dst = generated
+    pkg = dst / "src/xippios" / package_dir(VARIANTS[name])
+    errors = (pkg / "errors.py").read_text()
+    assert "conventions §5" in errors.splitlines()[0]
+    assert "# class UnknownFilter(InvalidRequestError):" in errors, "a commented pattern"
+    assert errors.endswith("\n__all__: list[str] = []\n")
+    client = (pkg / "_client.py").read_text()
+    assert "def classify(response: httpx.Response) -> XippiosError | None:" in client
+    assert "``ClientConfig.classify`` hook" in client
+    assert "    return None\n" in client
+    assert "    classify=classify,\n" in client, "wired into the config"
 
 
 def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Path]) -> None:

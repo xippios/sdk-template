@@ -4,16 +4,17 @@ One ``AsyncClient`` for the whole package: task functions share its rate limiter
 cache, and the same instance serves the sync facades and the MCP server.
 """
 
+import httpx
 {% if api_key_env %}
 {% if api_key_location == 'query' %}
-from xippios.core import AsyncClient, ClientConfig, QueryKeyAuth, RateLimit
+from xippios.core import AsyncClient, ClientConfig, QueryKeyAuth, RateLimit, XippiosError
 {% elif api_key_location == 'header' %}
-from xippios.core import AsyncClient, ClientConfig, HeaderKeyAuth, RateLimit
+from xippios.core import AsyncClient, ClientConfig, HeaderKeyAuth, RateLimit, XippiosError
 {% elif api_key_location == 'bearer' %}
-from xippios.core import AsyncClient, BearerAuth, ClientConfig, RateLimit
+from xippios.core import AsyncClient, BearerAuth, ClientConfig, RateLimit, XippiosError
 {% endif %}
 {% else %}
-from xippios.core import AsyncClient, ClientConfig, RateLimit
+from xippios.core import AsyncClient, ClientConfig, RateLimit, XippiosError
 {% endif %}
 
 from xippios.{{ source_pkg }}._version import __version__
@@ -32,11 +33,21 @@ API_KEY_ENV: str | None = None
 {% endif %}
 RATE_LIMIT = RateLimit(per_minute={{ rate_limit_per_minute }}, burst={{ rate_limit_burst }})
 
+
+def classify(response: httpx.Response) -> XippiosError | None:
+    """Upstream's documented error shapes as taxonomy errors, else ``None`` (conventions §6).
+
+    The ``ClientConfig.classify`` hook: it sees every response before core's status mapping.
+    """
+    return None
+
+
 config = ClientConfig(
     source=SOURCE,
     version=__version__,
     base_url=BASE_URL,
     rate_limit=RATE_LIMIT,
+    classify=classify,
 )
 
 # An upstream that reports an hourly or daily quota installs one QuotaPolicy, from
@@ -77,6 +88,7 @@ __all__ = [
 {% if api_key_env %}
     "auth",
 {% endif %}
+    "classify",
     "client",
     "config",
 ]

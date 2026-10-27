@@ -73,8 +73,8 @@ afterwards by rename or push.
 
 ```
 sdk-<slug>/
-  src/xippios/<import path as dirs>/   __init__, py.typed, _version, _client, models, tasks,
-                       api/, mcp, http, reference/
+  src/xippios/<import path as dirs>/   __init__, py.typed, _version, _client, errors, models,
+                       tasks, api/, mcp, http, reference/
   tests/               conftest, test_family, test_tasks, test_live, fixtures/
   docs/upstream/       FETCHED.md
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
@@ -115,12 +115,12 @@ git diff                             # review; resolve conflicts
 Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, as above
 to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the answers
 without moving the template). Files listed under `_skip_if_exists` in `copier.yml` (the
-package `__init__.py`, the client, models, endpoint wrappers, the task layer, the
-packaged lists and enums, reference data, scripts, the task and live tests and the
-fixtures, upstream snapshot, README, CHANGELOG and CLAUDE.md) are never overwritten
-once they exist, so a template fix to one of them does not reach existing repositories by
-itself; one the template stops rendering, though, is deleted by the update where the
-repository's earlier render had it, the source's content included.
+package `__init__.py`, the client, the package's errors, models, endpoint wrappers, the
+task layer, the packaged lists and enums, reference data, scripts, the task and live
+tests and the fixtures, upstream snapshot, README, CHANGELOG and CLAUDE.md) are never
+overwritten once they exist, so a template fix to one of them does not reach existing
+repositories by itself; one the template stops rendering, though, is deleted by the
+update where the repository's earlier render had it, the source's content included.
 [CHANGELOG.md](CHANGELOG.md) lists those fixes per release under **Hand-apply**:
 path, change, reason; port each one by hand in the same PR. A new file under those
 patterns is created by the update where the repository has none of that name. Every other

@@ -10,7 +10,7 @@ then `README.md` here.
 ```
 copier.yml               questions and copier settings (subdirectory, skip-if-exists, envops)
 template/                what gets generated; *.jinja files are rendered, others copied verbatim
-  src/xippios/{{ package_dir }}/  the package (import_path as directories, ADR-0006): _client, models, tasks, api/, mcp, http, reference/
+  src/xippios/{{ package_dir }}/  the package (import_path as directories, ADR-0006): _client, errors, models, tasks, api/, mcp, http, reference/
   tests/                 conftest (plugin), test_family (core's family check, one line), task replay
                          tests, live smoke
   .claude/commands/      add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
@@ -36,8 +36,8 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 - Generated code must pass `ruff check`, `ruff format --check`, `mypy --strict`, `pytest`
   and `pre-commit` out of the box. `scripts/prove.sh` is the proof; run it before every PR
   and paste its tail into the PR description.
-- Files a session fills with source content (`__init__.py`, `_client.py`, `models.py`,
-  `api/`, `tasks.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
+- Files a session fills with source content (`__init__.py`, `_client.py`, `errors.py`,
+  `models.py`, `api/`, `tasks.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
   `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
   `README.md`, `CHANGELOG.md`, `CLAUDE.md`) are listed in `_skip_if_exists` so
   `copier update` never overwrites them; copier renders the patterns, so those inside the
