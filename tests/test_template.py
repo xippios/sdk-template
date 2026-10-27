@@ -802,7 +802,8 @@ def test_claude_md_imports_the_family_rules(generated: tuple[str, Path]) -> None
     claude = (dst / "CLAUDE.md").read_text()
     family = (dst / ".claude/family.md").read_text()
     title, intro, first = claude.split("\n\n")[:3]
-    assert title.startswith("# sdk-") and intro.startswith("`xippios-"), claude[:200]
+    assert title.startswith("# sdk-"), title
+    assert intro.startswith("`xippios-"), intro
     assert first == IMPORT_LINE, "the import on a line of its own, first after the intro"
     assert [line for line in claude.splitlines() if line.startswith("@")] == [IMPORT_LINE]
     assert family == FAMILY_RULES.read_text(), "no Jinja: identical in every source"
