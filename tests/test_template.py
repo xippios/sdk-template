@@ -483,6 +483,44 @@ def refresh_upstream(template_src: Path, dst: Path) -> ModuleType:
     return module
 
 
+def test_refresh_upstream_command_follows_the_skeleton(template_src: Path, tmp_path: Path) -> None:
+    """The command names what the skeleton defines: the hooks a source fills, --check, the
+    shell and excerpt rows, the spec URL convention (row 67 b) and the one converter a
+    capture script may declare (row 70); the skeleton itself declares no dependency."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
+    command = " ".join((dst / ".claude/commands/refresh-upstream.md").read_text().split())
+    script = (dst / "scripts/refresh_upstream.py").read_text()
+    tree = ast.parse(script)
+    defined = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+    defined |= {
+        target.id
+        for node in tree.body
+        if isinstance(node, ast.AnnAssign | ast.Assign)
+        for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+        if isinstance(target, ast.Name)
+    }
+    for name in ["PAGES", "SPEC_URL", "SPEC_FILE", "ATTRIBUTION", "CAPTURE"]:
+        assert f"`{name}`" in command, name
+        assert name in defined, name
+    for name in ["reduce", "load_json", "dump_json"]:
+        assert f"`{name}`" in command, name
+        assert name in defined, name
+    for field in ["status=403", "stable=False", "excerpt=True"]:
+        assert field in command, field
+    assert "uv run scripts/refresh_upstream.py --check" in command
+    assert '`dependencies = ["markdownify==X.Y.Z"]`' in command
+    assert "the same pin in the dev group of `pyproject.toml`" in command, "row 37 c"
+    assert "`git add docs/upstream scripts`" in command, "row 35 a"
+    assert script.startswith('# /// script\n# requires-python = ">=3.12"\n# dependencies = []\n')
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported |= {alias.name.split(".")[0] for alias in node.names}
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+    assert imported <= set(sys.stdlib_module_names), imported - set(sys.stdlib_module_names)
+
+
 def test_refresh_upstream_skeleton_checks_offline(
     template_src: Path, tmp_path: Path, site: tuple[Path, str]
 ) -> None:
