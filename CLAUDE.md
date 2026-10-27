@@ -46,7 +46,9 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   and `tests/test_family.py` among them: keep in those only what every source shares.
   What every source shares and can be tested belongs in core's family check, not in a
   rendered test. A template-owned file the template removes is deleted by `copier update`,
-  a source's own lines in it included: the CHANGELOG says where they move first.
+  a source's own lines in it included: the CHANGELOG says where they move first. So is a
+  file under `_skip_if_exists` the template stops rendering, where the repository's
+  earlier render had it, `_skip_if_exists` notwithstanding (copier 9.19.1).
 - Workflow files are copied verbatim (no `.jinja`) so GitHub's `${{ }}` never meets Jinja,
   with one exception: `live.yml.jinja` is rendered, because the secret its pytest step
   reads is named by the `api_key_env` answer and its start time comes from

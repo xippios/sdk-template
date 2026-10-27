@@ -251,6 +251,8 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
         client = (dst / "src/xippios/ex/_client.py").read_text()
         assert needle in client, location
         assert '    "auth",\n' in client, "auth is exported"
+    with pytest.raises(ValueError, match="api_key_location"):
+        generate(template_src, tmp_path / "basic", source_slug="ex", **keyed("EX_API_KEY", "basic"))
     dst = generate(template_src, tmp_path / "open", source_slug="ex", **keyed(""))
     client = (dst / "src/xippios/ex/_client.py").read_text()
     assert "Auth" not in client
@@ -771,6 +773,7 @@ def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> No
     assert "`tests/conftest.py` and `tests/test_family.py` among them" in " ".join(claude.split())
     assert ("xippios_placeholder_key_envs" in claude) is bool(VARIANTS[name]["api_key_env"])
     assert "(ADR-0017)" in claude
+    assert "| Write tools | no, this package is read-only |" in claude, "conventions §8"
 
 
 def test_generated_tree_names_no_source_and_no_workspace_file(generated: tuple[str, Path]) -> None:
