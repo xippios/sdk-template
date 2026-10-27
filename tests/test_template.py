@@ -503,9 +503,9 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Pat
 # SHA-256 of sdk-core's files at v0.2.1, which the template copies verbatim, taken at
 # core's `feature/release-train-and-family-tests` head 4aa24b8; re-verified against the
 # v0.2.1 tag at gate 4b: git -C ../sdk-core show <ref>:<path> | sha256sum (digests, not
-# secrets). gates.yml's is core's file past v0.2.1, at core's `chore/gates-sdk-gates` head
-# 118e0be: it calls the gates repository under its new name xippios/sdk-gates (renamed
-# from .github on 2026-10-27).
+# secrets). gates.yml's is core's `.github/workflows/gates.yml` from after v0.2.1 (the
+# gates repository renamed to `xippios/sdk-gates`, 2026-10-27), pinned by digest;
+# re-verify against core `main` once that change merges.
 CORE_VERBATIM = {
     ".github/workflows/gates.yml": (
         # pragma: allowlist nextline secret

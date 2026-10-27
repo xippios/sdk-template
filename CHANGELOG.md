@@ -21,12 +21,8 @@ file of that name. The list starts with 0.1.5; earlier tags are not listed.
 
 - `gates.yml` (the template's own and the one it renders) calls the gates repository
   under its new name `xippios/sdk-gates` (renamed from `.github` on 2026-10-27).
-
-### Hand-apply
-
-- `.github/workflows/gates.yml` — `uses: xippios/sdk-gates/.github/workflows/…` on both
-  lines — the gates repository was renamed from `.github` on 2026-10-27; a source that
-  adopted v0.2.1 before this change re-renders or edits the two lines.
+  `copier update` carries it (`gates.yml` is not under `_skip_if_exists`), so it needs
+  no Hand-apply bullet.
 
 ## [0.2.1] - 2026-10-27
 
