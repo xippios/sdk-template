@@ -1758,8 +1758,8 @@ def test_the_templates_own_workflows_are_hardened() -> None:
 
 def test_ci_proves_the_familys_variants() -> None:
     """T11: the required ``ci`` job runs scripts/prove.sh on the keyed nested, the keyless
-    flat, the keyless nested and the keyless nested shape that parses files
-    (``has_files``, ADR-0020), so a proof that fails blocks the merge."""
+    flat, the keyless nested, the keyless nested shape that parses files (``has_files``,
+    ADR-0020) and the gateway shape (T9), so a proof that fails blocks the merge."""
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     (job,) = workflow["jobs"].values()
     assert job["name"] == "ci", "the check the org ruleset requires"
@@ -1770,6 +1770,7 @@ def test_ci_proves_the_familys_variants() -> None:
         "scripts/prove.sh --keyless",
         "scripts/prove.sh --keyless-nested",
         "scripts/prove.sh --keyless-nested -d has_files=true",
+        "scripts/prove.sh --gateway",
     ]
 
 

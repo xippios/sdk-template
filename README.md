@@ -164,8 +164,8 @@ scripts/prove.sh        # full proof against the released core: generate, uv syn
 scripts/prove.sh --core-ref main   # against unreleased core
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one
 scripts/prove.sh --keyless-nested  # a keyless nested source
-scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files; CI runs these four proofs
-scripts/prove.sh --gateway         # a nested source behind api.data.gov, on core 0.3.0, run locally
+scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files
+scripts/prove.sh --gateway         # a nested source behind api.data.gov; CI runs these five proofs
 ```
 
 ## Releasing the template
