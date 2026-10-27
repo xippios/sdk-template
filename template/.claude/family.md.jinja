@@ -121,8 +121,9 @@ never run live tests.
   decision the session made, each backed by a convention, an ADR, a coordination rule, a
   dated decision of Johannes's or `gap, row N`. The reviewer judges the PR against
   sdk-core's `docs/review-checklist.md`.
-- Every PR but a release, an adoption or Dependabot's adds an entry under Unreleased in
-  `CHANGELOG.md`; `ci.yml` fails without one (conventions §12).
+- Every PR but a release or Dependabot's adds an entry under Unreleased in
+  `CHANGELOG.md`, an adoption PR's naming the core, template and conventions versions it
+  adopts (conventions §15 item 9); `ci.yml` fails without one (conventions §12).
 - Releases follow the release train (conventions §12): `/release-prep` opens a release
   PR that changes no file but `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`,
   `CLAUDE.md` and `docs/handover.md` (and `scripts/check-siblings.sh` where the source

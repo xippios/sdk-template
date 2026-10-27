@@ -650,8 +650,11 @@ def test_ci_reads_the_pull_request_and_runs_once_on_main(generated: tuple[str, P
     assert steps[0]["with"] == {"fetch-depth": 0, "persist-credentials": False}
     changelog, cap = steps[1], steps[2]
     assert changelog["name"] == "CHANGELOG.md has an entry"
-    for prefix in ["chore/release-", "chore/template-update", "dependabot/"]:
+    for prefix in ["chore/release-", "dependabot/"]:
         assert f"!startsWith(github.head_ref, '{prefix}')" in changelog["if"], prefix
+    assert "chore/template-update" not in changelog["if"], "conventions §15 item 9"
+    rules = " ".join((dst / ".claude/family.md").read_text().split())
+    assert "Every PR but a release or Dependabot's adds an entry" in rules, "as ci.yml checks"
     assert cap["name"] == "Fixture files under 256 KiB"
     assert cap["env"]["LEVEL"] == "warning", "an error from template v0.3.0 (ADR-0019)"
     assert "--no-renames --diff-filter=AM" in cap["run"]
