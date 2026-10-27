@@ -83,7 +83,9 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   cannot be published (conventions §12); core has no pin to guard. `ci.yml` deviates by
   `fetch-depth: 0` and the two steps after the checkout that read the pull request, the
   CHANGELOG entry and the fixture cap, which core's `docs/handover.md` gives for the
-  template ("Template v0.2.1: the two family checks that are CI steps").
+  template ("Template v0.2.1: the two family checks that are CI steps"); from v0.3.0 the
+  CHANGELOG step exempts a release and Dependabot only, no longer an adoption, whose line
+  conventions §15 item 9 requires.
 - Every template release has an entry in `CHANGELOG.md` (Keep a Changelog), and every
   entry ends with a `### Hand-apply` list: one bullet per generated file under
   `_skip_if_exists` that the release changes, `` - `<path>` — <what> — <why> ``, because

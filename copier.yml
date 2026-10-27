@@ -53,11 +53,14 @@ source_name:
   type: str
   help: >-
     Human-readable name of the source, at most 77 characters: the generated Python puts
-    it on a line, the longest of them http.py's first, which ruff keeps within 100 columns
+    it on a line, the longest of them http.py's first, which ruff keeps within 100
+    columns; no double quote or backslash, since the generated Python quotes it
   placeholder: USDA NASS Quick Stats
   validator: >-
     {% if not source_name %}Required{% elif source_name | length > 77 %}
     At most 77 characters, so every generated Python line stays within 100 columns
+    {% elif '"' in source_name or '\\' in source_name %}
+    No double quote and no backslash: the generated Python quotes the name
     {% endif %}
 
 upstream_url:

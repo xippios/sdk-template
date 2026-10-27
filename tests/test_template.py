@@ -684,6 +684,30 @@ def test_workflow_actions_are_pinned_by_sha(generated: tuple[str, Path]) -> None
     assert set(workflow_uses(workflows / "live.yml")) <= set(workflow_uses(workflows / "ci.yml"))
 
 
+def test_the_templates_own_workflows_are_hardened() -> None:
+    """Conventions §13 for this repository's own workflows too: SHA pins with the version
+    in a comment (the gates at ``@main`` by design), ``contents: read`` at the top, and no
+    checkout keeps its credentials but the one in a job that pushes, which says so."""
+    for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        for action, comment in workflow_uses(path):
+            if action.startswith("xippios/sdk-gates/") and action.endswith("@main"):
+                continue
+            assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{path.name}: {action}"
+            assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{path.name}: {action}{comment}"
+        text = path.read_text()
+        workflow = yaml.safe_load(text)
+        assert workflow["permissions"] == {"contents": "read"}, path.name
+        for name, job in workflow["jobs"].items():
+            steps = job.get("steps", [])
+            pushes = any("git push" in step.get("run", "") for step in steps)
+            for step in steps:
+                if str(step.get("uses", "")).startswith("actions/checkout@"):
+                    kept = step.get("with", {}).get("persist-credentials", True)
+                    assert kept is pushes, f"{path.name}: {name}"
+            if pushes:
+                assert "The one checkout that keeps its credentials" in text, path.name
+
+
 def test_publish_is_the_release_train(generated: tuple[str, Path]) -> None:
     """Conventions §12: every push to main; a release tags itself; no concurrency group.
 
@@ -1057,8 +1081,9 @@ def test_source_name_is_bounded_by_the_longest_python_line(
     for args in [("check", "."), ("format", "--check", ".")]:
         run = ruff(dst, *args)
         assert run.returncode == 0, run.stdout + run.stderr
-    with pytest.raises(ValueError, match="source_name"):
-        generate(template_src, tmp_path / "over", source_slug="ex", source_name="x" * (bound + 1))
+    for refused in ["x" * (bound + 1), 'The "Data" Service', "Data\\Service"]:
+        with pytest.raises(ValueError, match="source_name"):
+            generate(template_src, tmp_path / "refused", source_slug="ex", source_name=refused)
 
 
 PR_TEMPLATE = ROOT / "template/.github/PULL_REQUEST_TEMPLATE.md"

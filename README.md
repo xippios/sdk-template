@@ -90,17 +90,18 @@ sdk-<slug>/
   .gitattributes       docs/upstream/** -text, so upstream files keep their bytes and line endings
 ```
 
-The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit` before
-any endpoint is added. `tests/test_family.py`, one line, collects core's family check,
-which then keeps the layout, the adapters, the task shapes, the README status table, the
-template tag and the core bound honest as tasks are added. A generated package is
-read-only: the template renders no write tools. `ci.yml` also requires a CHANGELOG entry
-on every PR but a release or Dependabot's, an adoption PR's included (conventions §15
-item 9), and warns on a fixture file over 256 KiB; `publish.yml` is the release train; `gates.yml` calls the merge gates as jobs
-once Johannes sets the repository variable `GATES_CALLER`. `live.yml` runs every `live`
-test every night and on demand. Its start time derives from the slug, between 01:00 and
-05:59 UTC, so sources that share a key do not start together; only its pytest step sees
-the key, from the org secret named by `api_key_env`.
+The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit`
+before any endpoint is added. `tests/test_family.py`, one line, collects core's family
+check, which then keeps the layout, the adapters, the task shapes, the README status
+table, the template tag and the core bound honest as tasks are added. A generated
+package is read-only: the template renders no write tools. `ci.yml` also requires a
+CHANGELOG entry on every PR but a release or Dependabot's, an adoption PR's included
+(conventions §15 item 9), and warns on a fixture file over 256 KiB; `publish.yml` is the
+release train; `gates.yml` calls the merge gates as jobs once Johannes sets the
+repository variable `GATES_CALLER`. `live.yml` runs every `live` test every night and on
+demand. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources
+that share a key do not start together; only its pytest step sees the key, from the org
+secret named by `api_key_env`.
 
 ## Updating generated repositories
 

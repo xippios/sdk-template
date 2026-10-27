@@ -155,7 +155,8 @@ are not listed.
   (ADR-0018 amendment (c)), and `core_git_ref`'s says what the pin is and that a release
   carries none, neither telling what to answer for the other. `source_name` takes at
   most 77 characters, the bound that keeps the generated `http.py`'s first line, the
-  longest that names it, within ruff's 100 columns (sdk-usda-esmis's render). The
+  longest that names it, within ruff's 100 columns (sdk-usda-esmis's render), and no
+  double quote or backslash, which would break the strings that quote it. The
   `rate_limit_provenance` choice and the pace's help say "no per-second or per-minute
   limit", as the generated `CLAUDE.md`'s row does (sdk-usda-esr). The README's question
   table follows.
@@ -164,7 +165,8 @@ are not listed.
   Assumptions the answers as `.copier-answers.yml` records them, the topic and the
   evidence for the answers (`--evidence FILE`: the pages and the status-only probes they
   rest on); the "Enforced by CI" block ticked, since its checks passed; the Adoption PR
-  block deleted. It writes the body before anything is created on GitHub, and
+  block deleted. It writes the body before anything is created on GitHub, and stops
+  there, naming the part, where the PR template lacks one of the four it fills;
   `--local-only` prints it; `/new-source` passes the evidence and completes the body
   with `gh pr edit` (sdk-usda-esr's scaffold review). The human steps it prints are the
   one copy, the sessions' team in plain words: where the team does not exist yet, a
@@ -187,15 +189,21 @@ are not listed.
   payload. A failing parse printed its raw upstream payload in a traceback, which the
   nightly run writes into a public log (sdk-cashctrl; core 0.3.0 raises its validation
   errors without the payload).
-- Template-internal: the tests render the variants without `domain_topic` and check
-  that no answers file records `source_pkg`, `domain_topic` or `needs_write_tools`, that
+- Template-internal: the tests render the variants without `domain_topic` and check that
+  no answers file records `source_pkg`, `domain_topic` or `needs_write_tools`, that
   `new-source.sh` refuses a missing or malformed `--topic` and a missing evidence file
-  before it generates, that the two core answers' help texts keep apart, that
-  `source_name`'s bound follows from the template's longest Python line, that the dev
-  group's ruff is the hook's, that `live.yml` takes `ci.yml`'s pins with
+  before it generates, that it fills core's PR template and names what a template of
+  another shape lacks, that the two core answers' help texts keep apart, that
+  `source_name`'s bound follows from the template's longest Python line and that a quote
+  or a backslash is refused, that this repository's own workflows are hardened, that the
+  dev group's ruff is the hook's, that `live.yml` takes `ci.yml`'s pins with
   `persist-credentials: false`, that no live command lacks `--tb=short`, and that the
   CHANGELOG step no longer exempts an adoption; `scripts/prove.sh` passes a topic and an
-  evidence file, so the proof prints the PR body a real run opens.
+  evidence file and checks the PR body it prints, the one a real run opens.
+- This repository's own `ci.yml` pins `actions/checkout` and `astral-sh/setup-uv` by
+  SHA, the version in a comment, and its checkout persists no credentials;
+  `release.yml`'s tag job, which pushes the tag with the token, says why its checkout
+  keeps them (conventions §13, every workflow of the family).
 
 ### Removed
 
