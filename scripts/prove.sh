@@ -7,8 +7,10 @@
 # wheel alone, failing on a conflicting requirement, and warning on a sibling on another
 # core minor; and require parse/ and tests/fixtures/files/ exactly where has_files is true.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
-# suite tests it. The template's CI runs each shape, and the keyless nested one again with
-# -d has_files=true, a source that parses the files it downloads (ADR-0020).
+# suite tests it. The template's CI runs the first three shapes, and the keyless nested
+# one again with -d has_files=true, a source that parses the files it downloads
+# (ADR-0020); --gateway runs locally, and stops at mypy on the generated
+# scripts/refresh_reference.py until that script takes core 0.3.0's render_enums.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF]
 #                         [--keyless | --keyless-nested | --gateway] [--keep] [-d key=value ...]

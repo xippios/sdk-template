@@ -44,7 +44,7 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
    and `tests/test_layout.py`). Then run
 
    ```bash
-   uvx copier update --defaults --vcs-ref=<tag> -d core_version=X.Y.Z -d core_git_ref=
+   uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=<tag> -d core_version=X.Y.Z -d core_git_ref=
    ```
 
    adding every `-d` answer the "Updating from" paragraphs name. Resolve the conflicts:

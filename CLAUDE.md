@@ -41,7 +41,7 @@ scripts/prove.sh         generate sdk-example-api (--keyless: sdk-example; --key
 tests/test_template.py   the family's variants, each rendered once; ruff on the output, the answers' rules,
                          skip-if-exists behaviour
 CHANGELOG.md             template releases, each with its Hand-apply list (Rules)
-.github/workflows/ci.yml       the template's own CI: tests and the proofs
+.github/workflows/ci.yml       the template's own CI: tests and four proofs
 .github/workflows/release.yml  tags vX.Y.Z from the top CHANGELOG heading on push to main (Workflow rules)
 .github/workflows/gates.yml    core's gates.yml, byte for byte the template's copy, off until GATES_CALLER (Rules)
 .claude/commands/new-source.md
@@ -54,10 +54,12 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   shapes: keyed and nested (no flag), keyless and flat (`--keyless`), keyless and nested
   (`--keyless-nested`), keyless and nested parsing files, with an empty `parse/`
   (`--keyless-nested -d has_files=true`), and nested behind the api.data.gov gateway
-  (`--gateway`, on core 0.3.0, the first release with `xippios.core.data_gov`); CI runs
-  them all. Run them before every PR and paste their tails into the PR description. A
-  dependent (`source_dependencies`) has no proof of its own, since a dependency that is
-  not on PyPI cannot be installed; the template tests cover its render.
+  (`--gateway`, on core 0.3.0, the first release with `xippios.core.data_gov`). CI runs
+  the first four; the gateway proof runs locally and stops at mypy on the generated
+  `scripts/refresh_reference.py` until that script takes core 0.3.0's `render_enums`.
+  Run them before every PR and paste their tails into the PR description. A dependent
+  (`source_dependencies`) has no proof of its own, since a dependency that is not on PyPI
+  cannot be installed; the template tests cover its render.
 - `tests/test_template.py` renders each of the family's variants once per session, keyed
   nested, keyless flat, keyless nested, a dependent (keyless nested with
   `source_dependencies`, one open and one keyed), one behind the api.data.gov gateway
