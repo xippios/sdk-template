@@ -60,7 +60,7 @@ afterwards by rename or push.
 | Question | Meaning | Example |
 | --- | --- | --- |
 | `source_slug` | provider, plus API when one provider has several; names the repo, the distribution and the import | `usda-nass` |
-| `source_name` | human name | `USDA NASS Quick Stats` |
+| `source_name` | human name; at most 77 characters, so every generated Python line stays within 100 columns, and no `"` or `\`, which the generated Python quotes | `USDA NASS Quick Stats` |
 | `import_path` | import path under `xippios`; defaults to the slug with dots, so multi-API providers nest (ADR-0006); override for a hyphenated single-API provider | `usda.nass` |
 | `upstream_url` | provider page, linked from the README | `https://quickstats.nass.usda.gov` |
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
