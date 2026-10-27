@@ -2,8 +2,10 @@
 # Prove the template: generate a throwaway sdk-example-api from the WORKING TREE and run
 # the full check suite on it (uv sync, ruff, mypy, pytest with core's family check,
 # pre-commit), then re-render enums.py from the (empty) packaged lists and require it
-# unchanged. No GitHub involved. The placeholder key is core's plugin's to guarantee, and
-# its own suite tests it.
+# unchanged, require the unfilled refresh_upstream.py skeleton to refuse to run, and run
+# the sibling check on the nested render with the wheel alone (none renders where flat).
+# No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
+# suite tests it.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF] [--keyless] [--keep] [-d key=value ...]
 #   --core-ref REF   sdk-core commit to depend on, main or a full SHA; default "" = the
@@ -87,6 +89,31 @@ echo "$(grep -c '^- \[x\] ' <<<"$ci_block") items ticked, no Adoption PR block, 
 echo
 echo "==> refresh_reference.py --render-only renders the shipped enums.py unchanged"
 (cd "$dest" && uv run python scripts/refresh_reference.py --render-only && git diff --exit-code)
+
+echo
+echo "==> refresh_upstream.py, the skeleton, refuses to run until a source fills it"
+if (cd "$dest" && uv run python scripts/refresh_upstream.py --check) 2> "$work/refresh.err"; then
+  echo "error: the unfilled skeleton ran" >&2
+  exit 1
+fi
+refusal="$(grep "Nothing to fetch: fill PAGES" "$work/refresh.err")" \
+  || { cat "$work/refresh.err" >&2; exit 1; }
+echo "refused: $refusal"
+
+echo
+if [ "$keyless" = 1 ]; then
+  echo "==> no sibling check where the import path is flat"
+  if [ -e "$dest/.github/workflows/siblings.yml" ] || [ -e "$dest/.github/scripts" ]; then
+    echo "error: a flat source renders the sibling check" >&2
+    exit 1
+  fi
+  echo "neither .github/workflows/siblings.yml nor .github/scripts/ rendered"
+else
+  # XIPPIOS_SIBLINGS set and empty: the wheel alone, so the proof lists no repositories
+  # on GitHub; the namespace levels, the import and the shipped files are checked as in CI.
+  echo "==> .github/scripts/check-siblings.sh on the nested render, the wheel alone"
+  (cd "$dest" && XIPPIOS_SIBLINGS= .github/scripts/check-siblings.sh)
+fi
 
 echo
 echo "==> generated tree"
