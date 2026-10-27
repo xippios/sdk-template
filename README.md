@@ -129,12 +129,13 @@ reviewer's `ready`, and a `human` adoption waits for Johannes. The generated
 the generated repository:
 
 ```bash
-uvx copier update --defaults --vcs-ref=v0.2.2 -d core_version=0.2.1 -d core_git_ref=
+uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.2.2 -d core_version=0.2.1 -d core_git_ref=
 git diff                             # review; resolve conflicts
 ```
 
 The template needs copier 9.19.0 or later (`_min_copier_version`), whose `ask` setting
-lets the gateway answer derive the key answers and still record them.
+lets the gateway answer derive the key answers and still record them; `--from
+'copier>=9.19'` keeps a stale tool cache from refusing it.
 Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, as above
 to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the answers
 without moving the template). Files listed under `_skip_if_exists` in `copier.yml` (the
@@ -160,8 +161,8 @@ uv run pytest           # renders the family's five variants once each and check
 scripts/prove.sh        # full proof against the released core: generate, uv sync, ruff, mypy, pytest, pre-commit
 scripts/prove.sh --core-ref main   # against unreleased core
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one
-scripts/prove.sh --keyless-nested  # a keyless nested source
-scripts/prove.sh --gateway         # a nested source behind api.data.gov, on core 0.3.0; CI runs all four
+scripts/prove.sh --keyless-nested  # a keyless nested source; CI runs these three proofs
+scripts/prove.sh --gateway         # a nested source behind api.data.gov, on core 0.3.0, run locally
 ```
 
 ## Releasing the template

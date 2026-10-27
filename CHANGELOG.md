@@ -352,7 +352,10 @@ are not listed.
   `xippios.core.data_gov` for a source behind api.data.gov.
 - `_min_copier_version` is 9.19.0, the copier release that brought the `ask` setting
   the key answers take behind a gateway; this README says so, and this repository's dev
-  group requires it.
+  group requires it. `/adopt-release`, `/release-prep`, the core pin's comment in
+  `pyproject.toml` and this README run `uvx --from 'copier>=9.19' copier update`, so a
+  stale tool cache cannot refuse the update; in a source without a core pin the render
+  changes only in those two commands' lines.
 - Template-internal: a fifth variant renders once per session, sdk-usda-psd's shape
   behind the gateway (nested, `gateway: api.data.gov`, no key answer passed), and the
   keyed nested variant moves to sdk-usda-nass's shape, a query key of its own without
@@ -366,7 +369,8 @@ are not listed.
   sdk-usda-esr and sdk-usda-gats on the gateway answer. `scripts/prove.sh --gateway`
   proves `sdk-example-gov` (`xippios.example.gov`) against core 0.3.0, with an offline
   step that the client takes the gateway's auth, its policy's hooks and its `classify`;
-  the template's CI runs it as its fourth proof.
+  it runs locally beside the three proofs CI runs, and stops at mypy on the generated
+  `scripts/refresh_reference.py` until that script takes core 0.3.0's `render_enums`.
 
 ### Removed
 
@@ -565,27 +569,29 @@ import path nests, `tests/conftest.py`, `live.yml` and `ci.yml`, the read server
 instructions in `mcp.py`, and `junit_family`, the ruff pin and the keywords in
 `pyproject.toml`, merged three ways where a source changed them.
 
-**Updating from 0.2.2.** The update needs copier 9.19.0 or later. `copier update
---defaults` answers the two new questions, `source_dependencies` and `gateway`, with
-their defaults, recorded as `source_dependencies: '[]'` and `gateway: none`, the literal
-defaults the merge classes leave free, so every existing source passes no `-d` for them
-(checked with copier 9.19.1 on v0.2.2 renders). sdk-usda-psd, sdk-usda-esr and
-sdk-usda-gats pass `-d gateway=api.data.gov`, their one changed answer: the update keeps
-their recorded `api_key_env`, `api_key_location` and `api_key_name`, which equal the
-derived ones, and adds `gateway: api.data.gov`, a value other than the default, so their
-adoption is a `human` merge; `live.yml` gains the comment on the shared key, and
-`_client.py` and `CLAUDE.md` are theirs to port (Hand-apply above; checked with copier
-9.19.1 on v0.2.2 renders with sdk-usda-psd's, sdk-usda-nass's and sdk-eurostat's key
-answers). The update drops `needs_write_tools` and `domain_topic` from
-`.copier-answers.yml` (checked with copier 9.19.1 on v0.2.2 renders, keyed and keyless;
-`source_pkg` was never recorded); no `-d` answer is needed for them. The domain's topic
-stays on the GitHub repository; the `pyproject.toml` keywords lose it. Every source's
-`source_name` is within the new 77-character bound. The update creates `errors.py` where
-the package has none and deletes `tests/fixtures/README.md`; `uv lock` after it resolves
-ruff to the pinned 0.17.1. It creates `scripts/refresh_upstream.py` where the repository
-has none, and in a nested source `.github/scripts/check-siblings.sh` and
-`.github/workflows/siblings.yml`, the latter in conflict where the source kept its own
-(Hand-apply above).
+**Updating from 0.2.2.** The update needs copier 9.19.0 or later: run it as `uvx --from
+'copier>=9.19' copier update ...`, since the `/adopt-release` a source has from 0.2.2
+shows a bare `uvx copier update`, which a stale tool cache may run on an older copier
+that refuses the template. `copier update --defaults` answers the two new questions,
+`source_dependencies` and `gateway`, with their defaults, recorded as
+`source_dependencies: '[]'` and `gateway: none`, the literal defaults the merge classes
+leave free, so every existing source passes no `-d` for them (checked with copier 9.19.1
+on v0.2.2 renders). sdk-usda-psd, sdk-usda-esr and sdk-usda-gats pass `-d
+gateway=api.data.gov`, their one changed answer: the update keeps their recorded
+`api_key_env`, `api_key_location` and `api_key_name`, which equal the derived ones, and
+adds `gateway: api.data.gov`, a value other than the default, so their adoption is a
+`human` merge; `live.yml` gains the comment on the shared key, and `_client.py` and
+`CLAUDE.md` are theirs to port (Hand-apply above; checked with copier 9.19.1 on v0.2.2
+renders with sdk-usda-psd's, sdk-usda-nass's and sdk-eurostat's key answers). The update
+drops `needs_write_tools` and `domain_topic` from `.copier-answers.yml` (checked with
+copier 9.19.1 on v0.2.2 renders, keyed and keyless; `source_pkg` was never recorded); no
+`-d` answer is needed for them. The domain's topic stays on the GitHub repository; the
+`pyproject.toml` keywords lose it. Every source's `source_name` is within the new
+77-character bound. The update creates `errors.py` where the package has none and deletes
+`tests/fixtures/README.md`; `uv lock` after it resolves ruff to the pinned 0.17.1. It
+creates `scripts/refresh_upstream.py` where the repository has none, and in a nested
+source `.github/scripts/check-siblings.sh` and `.github/workflows/siblings.yml`, the
+latter in conflict where the source kept its own (Hand-apply above).
 
 ## [0.2.2] - 2026-10-27
 
