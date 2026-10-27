@@ -159,7 +159,7 @@ source's own lines in it included, so the release's CHANGELOG says where they mo
 
 ```bash
 uv sync
-uv run pytest           # renders the family's six variants once each and checks them, ruff included
+uv run pytest           # renders the family's five variants once each and checks them, ruff included
 scripts/prove.sh        # full proof against the released core: generate, uv sync, ruff, mypy, pytest, pre-commit
 scripts/prove.sh --core-ref main   # against unreleased core
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one

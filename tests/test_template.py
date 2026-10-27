@@ -100,13 +100,15 @@ VARIANTS: dict[str, dict[str, object]] = {
     },
     # sdk-usda-wasde's, as it will start (ADR-0021): no key, a nested import path, and the
     # source packages it depends on, one open and one keyed, whose variable then reaches
-    # the offline placeholder and live.yml (D47).
+    # the offline placeholder and live.yml (D47); the first parser package, it parses the
+    # files it downloads (ADR-0020), so has_files renders parse/ and the samples' table.
     "dependency": {
         "source_slug": "usda-wasde",
         "source_dependencies": (
             '[{name: example-base, minor: "0.3", key_env: ""},'
             ' {name: example-keyed, minor: "0.1", key_env: EXAMPLE_KEYED_API_KEY}]'
         ),
+        "has_files": True,
         **keyed(""),
     },
     # sdk-usda-psd's (and sdk-usda-esr's and sdk-usda-gats's): behind the api.data.gov
@@ -117,13 +119,6 @@ VARIANTS: dict[str, dict[str, object]] = {
         "rate_limit_per_minute": 60,
         "rate_limit_provenance": "self-imposed",
         "core_version": "0.3.0",
-    },
-    # A source that parses the files it downloads (T-ADR-0020), keyless and nested as
-    # sdk-usda-wasde starts: has_files renders parse/ and the samples' provenance table.
-    "files": {
-        "source_slug": "example-files",
-        "has_files": True,
-        **keyed(""),
     },
 }
 # A source on unreleased core: the keyed nested answers with a full-SHA core pin.
