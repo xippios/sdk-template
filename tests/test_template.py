@@ -820,6 +820,10 @@ def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> No
     stagger = "so that sources sharing a key never start together"
     assert (stagger in flat) is keyed_source, "the start time's reason, keyed sources only"
     assert "PACKAGED_LISTS" not in claude, "the Layout names the lists generically"
+    # A block tag that ends a line eats its newline (trim_blocks); these blank lines stay.
+    assert "\n\nuv run xippios-" in claude, "a blank line between the two commands"
+    record = (dst / ".claude/commands/record-fixture.md").read_text()
+    assert "\n\n2. Find the request path" in record
     assert "xippios_placeholder_key_envs" not in family, "the same file for every source"
     rules = " ".join(family.split())
     assert "or one per service where operation ids repeat across services" in rules

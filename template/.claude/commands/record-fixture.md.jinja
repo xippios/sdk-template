@@ -11,7 +11,11 @@ https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md, lists 
 checks, and the reviewer judges them against
 https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
 
-1. {% if api_key_env %}Confirm `{{ api_key_env }}` is set in the environment (`[ -n "${{ '{' }}{{ api_key_env }}{{ '}' }}" ] && echo ok`); never print its value.{% else %}No key is needed for this source.{% endif %}
+{% if api_key_env %}
+1. Confirm `{{ api_key_env }}` is set in the environment (`[ -n "${{ '{' }}{{ api_key_env }}{{ '}' }}" ] && echo ok`); never print its value.
+{% else %}
+1. No key is needed for this source.
+{% endif %}
 
 2. Find the request path and parameters for the endpoint in `docs/upstream/` and in the
    wrapper under `src/xippios/{{ package_dir }}/api/`. Use the wrapper's parameter names.

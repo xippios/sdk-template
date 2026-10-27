@@ -70,7 +70,7 @@ package{% if '/' in package_dir %}, and so is `src/xippios/{{ package_dir.rsplit
 ## Commands
 
 ```bash
-uv run pytest -m live              # needs XIPPIOS_LIVE_TESTS=1{% if api_key_env %} and {{ api_key_env }}{% endif %}
+uv run pytest -m live              # needs XIPPIOS_LIVE_TESTS=1{{ ' and ' ~ api_key_env if api_key_env else '' }}
 
 uv run xippios-{{ source_slug }}-mcp   # stdio; add --http for streamable HTTP
 ```
