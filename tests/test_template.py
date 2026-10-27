@@ -955,7 +955,10 @@ def test_adopt_release_runs_the_update_for_this_source(render: Callable[[str], P
     """Conventions §15, ADR-0018: one chore/template-update PR that names the nine items
     and whose commands name this source, the key's ini option only where there is a key,
     and a dependency's minor raised with the core's only where there is one (ADR-0021)."""
-    update = "uvx copier update --defaults --vcs-ref=<tag> -d core_version=X.Y.Z -d core_git_ref="
+    update = (
+        "uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=<tag>"
+        " -d core_version=X.Y.Z -d core_git_ref="
+    )
     items = ["Items 1 and 2", "Items 3 and 4", *(f"Item {n}:" for n in range(5, 10))]
     for name in ["keyed-nested", "keyless-flat", "dependency"]:
         dst = render(name)
@@ -1082,7 +1085,8 @@ def test_core_git_ref_pins_core_and_keeps_the_bound(
     git_source = {"git": "https://github.com/xippios/sdk-core.git", "rev": ref}
     assert parsed["tool"]["uv"]["sources"] == {"xippios-core": git_source}
     assert parsed["project"]["dependencies"] == [f"xippios-core~={CORE_DEFAULT}"]
-    assert "uvx copier update --defaults --vcs-ref=:current: -d core_git_ref=" in pyproject
+    update = "uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=:current:"
+    assert f"{update} -d core_git_ref=" in pyproject, "copier 9.19.0 on, _min_copier_version"
     (rev,) = [line for line in pyproject.splitlines() if line.startswith("xippios-core = {")]
     assert "# pragma: allowlist secret" in rev
     if ref == "main":
