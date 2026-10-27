@@ -54,7 +54,9 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   own expressions as `{{ '${{' }}` and `{{ '}}' }}`; `tests/test_template.py` checks that
   no Jinja survives, that a keyed source names its secret exactly once, on the pytest
   step, and that an open one names none.
-- The verbatim files mirror sdk-core at the core release the template adopts (v0.2.1);
+- The verbatim files mirror sdk-core at the core release the template adopts (v0.2.1),
+  `gates.yml` core's file past it, which calls the gates repository under its new name
+  `xippios/sdk-gates` (renamed from `.github` on 2026-10-27);
   `tests/test_template.py` pins `gates.yml` and `PULL_REQUEST_TEMPLATE.md` to its bytes,
   and `ci.yml` and `publish.yml` to its bytes once the template's own steps below are
   taken out. sdk-template's own `.github/workflows/gates.yml` is the same file, byte for
