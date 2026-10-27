@@ -1202,13 +1202,15 @@ def test_source_dependencies_are_slugs_minors_and_key_variables(
         ({"gateway": DATA_GOV, **keyed("")}, "api_key_env"),
         ({"gateway": DATA_GOV, **keyed("DATA_GOV_API_KEY")}, "api_key_location"),
         ({"gateway": DATA_GOV, **keyed("DATA_GOV_API_KEY", "header", "Key")}, "api_key_name"),
+        ({"gateway": DATA_GOV, "core_version": "0.2.1"}, "core_version"),
     ],
 )
 def test_the_gateway_derives_the_key_answers(
     template_src: Path, tmp_path: Path, answers: dict[str, object], refused: str
 ) -> None:
     """D84 (1): behind api.data.gov the three key answers are derived, never asked, so an
-    answer that differs from the gateway's is refused rather than rendered beside it."""
+    answer that differs from the gateway's is refused rather than rendered beside it, and
+    so is a core before 0.3.0, which has no ``xippios.core.data_gov``."""
     with pytest.raises(ValueError, match=refused):
         generate(template_src, tmp_path / "repo", source_slug="ex", **answers)
 

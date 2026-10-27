@@ -90,9 +90,9 @@ gateway:
   help: >-
     The shared gateway the API sits behind: api.data.gov for an agency API it fronts
     (USDA FAS's PSD, ESR and GATS), whose key, documented error answers and hourly quota
-    come from xippios.core.data_gov (ADR-0009); the key answers then follow from it,
-    DATA_GOV_API_KEY in the X-Api-Key header, and are not asked. none, the default, for
-    every other API.
+    come from xippios.core.data_gov, core 0.3.0 on (ADR-0009); the key answers then follow
+    from it, DATA_GOV_API_KEY in the X-Api-Key header, and are not asked. none, the
+    default, for every other API.
   choices:
     - none
     - api.data.gov
@@ -175,6 +175,8 @@ core_version:
   validator: >-
     {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+\\Z')) %}
     Use a release version, e.g. 0.2.0
+    {% elif gateway == 'api.data.gov' and (core_version.split('.')[:2] | map('int') | list) < [0, 3] %}
+    Behind api.data.gov use 0.3.0 or later: core 0.3.0 brought xippios.core.data_gov
     {% endif %}
 
 core_git_ref:
