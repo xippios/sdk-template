@@ -49,8 +49,8 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   into the PR description.
 - `tests/test_template.py` renders each of the family's variants once per session, keyed
   nested, keyless flat and keyless nested; a check no answer changes reads one render,
-  and an answer outside the variants (a key location, a core pin, a name at its bound)
-  is tested by its own rule. The tests assert mechanics, never rendered prose: a file
+  and an answer outside the variants (a key location, a core pin, a name at its bound,
+  an `import_path` override) is tested by its own rule. The tests assert mechanics, never rendered prose: a file
   rendered or not, a name present, no Jinja left, a digest equal, a script's behaviour.
 - Files a session fills with source content (`__init__.py`, `_client.py`, `errors.py`,
   `models.py`, `api/`, `tasks.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
@@ -111,7 +111,10 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   file adds its bullet under Unreleased; a change that matters to new repositories only
   (a scaffold's starting text) says so instead of a bullet.
 - Jinja renders with `trim_blocks` and `lstrip_blocks`, so a line holding only a block tag
-  disappears. Mind blank lines in generated Python: the formatter check is strict.
+  disappears, and a block tag at the end of a line takes that line's newline with it. A
+  block tag therefore stands alone on its line or opens and closes there, before the
+  line's end; the tests check every `.jinja` file for it. Mind blank lines in generated
+  Python: the formatter check is strict.
 - Keep `copier.yml` questions mechanical: every answer must come from the upstream
   documentation or the human, never be guessed by a session.
 - `detect-secrets` flags Jinja lines that mention `api_key_location` as if they held a

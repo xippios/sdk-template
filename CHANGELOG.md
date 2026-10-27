@@ -271,15 +271,21 @@ are not listed.
   once per session, and a check no answer changes reads one render. Eight variants
   become three: one of two identical ones goes, and so do those that differed in a
   single answer, which their own rules now test (the key locations, a git-pinned core, a
-  name at its bound). The assertions on rendered prose go too: the tests check
-  mechanics, a file rendered or not, a name present, no Jinja left, a digest equal, a
-  script's behaviour. `tests/test_template.py` goes from 1,465 lines, 57 tests and 293
-  cases to 1,345 lines, 54 tests and 110 cases. The digest test is named for what it
-  checks, no longer for a core version. The template's CI runs three proofs in its `ci`
-  job: `scripts/prove.sh`, `--keyless` (`sdk-example`, as sdk-eurostat starts) and the
-  new `--keyless-nested` (`sdk-example-files`, `xippios.example.files`, no key, as
-  sdk-usda-esmis and sdk-usda-wasde start), which runs the rendered sibling check as the
-  keyed nested proof does. Nothing a source renders changes, so no Hand-apply bullet.
+  name at its bound, an `import_path` override, rendered as `world-bank` with
+  `world_bank`). The assertions on rendered prose go too: the tests check mechanics, a
+  file rendered or not, a name present, no Jinja left, a digest equal, a script's
+  behaviour. A new one keeps the `trim_blocks` mistakes out of every `.jinja` file: a
+  block tag stands alone on its line or opens and closes there, before the line's end,
+  since a line-final tag after content takes the line's newline with it (the blank lines
+  lost in the generated `CLAUDE.md`'s Commands and in `/record-fixture`) and a block
+  opened mid-line takes it inside (the keyless README's MCP snippet).
+  `tests/test_template.py` goes from 1,469 lines, 57 tests and 293 cases to 1,408 lines,
+  56 tests and 112 cases. The digest test is named for what it checks, no longer for a
+  core version. The template's CI runs three proofs in its `ci` job: `scripts/prove.sh`,
+  `--keyless` (`sdk-example`, as sdk-eurostat starts) and the new `--keyless-nested`
+  (`sdk-example-files`, `xippios.example.files`, no key, as sdk-usda-esmis and
+  sdk-usda-wasde start), which runs the rendered sibling check as the keyed nested proof
+  does. Nothing a source renders changes, so no Hand-apply bullet.
 
 ### Removed
 
