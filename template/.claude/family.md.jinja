@@ -75,10 +75,12 @@ hook, once, and an error class of the package's own into `errors.py` (convention
 §6); wrappers use `client.get_json` and never inspect status codes. An upstream that
 reports an hourly or daily quota gets one `QuotaPolicy` installed on `config` there
 (`config = QuotaPolicy(window=..., limit_header=..., remaining_header=...,
-source=SOURCE).install(config)`, with the headers and window the upstream documents; a
-repository generated from template v0.2.0 on carries it as a commented block), and
-`classify` maps its answer to a spent quota to `RateLimitError` with `retry_after`
-(ADR-0010, ADR-0015).
+source=SOURCE).install(config)`, with the headers and window the upstream documents, as
+core's README shows), and `classify` maps its answer to a spent quota to
+`RateLimitError` with `retry_after` (ADR-0010, ADR-0015). A source behind api.data.gov
+takes both from `xippios.core.data_gov`'s `Gateway(SOURCE)`: its `install` puts the one
+policy per process for the shared key on `config`, and its `classify` comes first in the
+source's (ADR-0009).
 
 ## How to record a fixture
 

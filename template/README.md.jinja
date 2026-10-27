@@ -20,6 +20,10 @@ It depends on {% for dep in depends_on %}`xippios-{{ dep.name }}`{{ ', ' if not 
 {% endif %}
 {% if key_envs %}
 Set `{{ key_envs | join('` and `') }}` in the environment. Nothing is read from files.
+{% if gateway == 'api.data.gov' %}
+`{{ api_key_env }}` holds an api.data.gov key: one key serves every package behind the
+gateway, and they share its hourly quota.
+{% endif %}
 {% else %}
 No API key is needed.
 {% endif %}
