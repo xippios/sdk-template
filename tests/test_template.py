@@ -980,7 +980,7 @@ def test_ci_reads_the_pull_request_and_runs_once_on_main(keyed_nested: Path) -> 
         assert f"!startsWith(github.head_ref, '{prefix}')" in changelog["if"], prefix
     assert "chore/template-update" not in changelog["if"], "conventions §15 item 9"
     assert cap["name"] == "Fixture files under 256 KiB"
-    assert cap["env"]["LEVEL"] == "warning", "an error from template v0.3.0 (ADR-0019)"
+    assert cap["env"]["LEVEL"] == "error", "the cap binds a source from v0.3.0 (ADR-0019)"
     assert "--no-renames --diff-filter=AM" in cap["run"]
     assert "262144" in cap["run"]
 

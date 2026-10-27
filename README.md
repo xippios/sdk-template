@@ -105,7 +105,7 @@ check, which then keeps the layout, the adapters, the task shapes, the README st
 table, the template tag and the core bound honest as tasks are added. A generated
 package is read-only: the template renders no write tools. `ci.yml` also requires a
 CHANGELOG entry on every PR but a release or Dependabot's, an adoption PR's included
-(conventions §15 item 9), and warns on a fixture file over 256 KiB; `publish.yml` is the
+(conventions §15 item 9), and fails on a fixture file over 256 KiB; `publish.yml` is the
 release train; `gates.yml` calls the merge gates as jobs once Johannes sets the
 repository variable `GATES_CALLER`. `live.yml` runs every `live` test every night and on
 demand. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources that

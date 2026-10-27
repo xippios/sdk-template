@@ -67,7 +67,7 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
    committed.
 
 5. The fixture file stays under 256 KiB (conventions §10, ADR-0019 decision 5); `ci.yml`
-   warns on a larger one. Narrow the query first. A text body or a JSON array too large
+   fails on a larger one. Narrow the query first. A text body or a JSON array too large
    for the cap is recorded with `max_bytes=` (`80_000` keeps the file under the cap: it
    bounds the body, which the file escapes as a JSON string): a JSON array keeps its
    first whole elements, cut in upstream's own text, a text its first bytes, and the
