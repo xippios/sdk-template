@@ -19,9 +19,15 @@
 #                     sibling not on PyPI yet, from its checkout in the workspace or from
 #                     git; set and empty, the wheel is installed alone
 #   GITHUB_TOKEN      where set, authenticates the listing of the organisation's
-#                     repositories (siblings.yml passes the job's read-only token)
+#                     repositories (siblings.yml passes the job's read-only token); the
+#                     listing alone sees it
 #   PYTHON            the environment's Python version, 3.12 unless set
 set -euo pipefail
+
+# The token reaches the listing below and nothing else: uv build and the installs run the
+# packages' code and never see it (conventions §13).
+token="${GITHUB_TOKEN:-}"
+unset GITHUB_TOKEN
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 work="$(mktemp -d)"
@@ -40,6 +46,9 @@ fi
 distribution="xippios-$slug"
 package="xippios.$import_path"
 provider="${import_path%%.*}"
+# Repositories are named by slug, so an underscore of the import path is a hyphen there:
+# world_bank.wdi lives in sdk-world-bank-wdi.
+prefix="sdk-${provider//_/-}-"
 
 uv venv --quiet --python "${PYTHON:-3.12}" "$work/venv"
 python="$work/venv/bin/python"
@@ -48,7 +57,7 @@ if [ -n "${XIPPIOS_SIBLINGS+set}" ]; then
   siblings="$XIPPIOS_SIBLINGS"
   echo "siblings from XIPPIOS_SIBLINGS"
 else
-  siblings="$("$python" - "$provider" "$distribution" <<'PY'
+  siblings="$(GITHUB_TOKEN="$token" "$python" - "$prefix" "$distribution" <<'PY'
 """Print the siblings on PyPI: xippios-<provider>-* for each sdk-<provider>-* of xippios."""
 import json
 import os
@@ -56,7 +65,7 @@ import sys
 import urllib.error
 import urllib.request
 
-provider, own = sys.argv[1:]
+prefix, own = sys.argv[1:]
 agent = {"User-Agent": "xippios check-siblings (+https://github.com/xippios)"}
 headers = {**agent, "Accept": "application/vnd.github+json"}
 if os.environ.get("GITHUB_TOKEN"):
@@ -73,7 +82,7 @@ while True:
     page += 1
 for name in sorted(repositories):
     distribution = "xippios-" + name.removeprefix("sdk-")
-    if not name.startswith(f"sdk-{provider}-") or distribution == own:
+    if not name.startswith(prefix) or distribution == own:
         continue
     simple = urllib.request.Request(f"https://pypi.org/simple/{distribution}/", headers=agent)
     try:
@@ -86,7 +95,7 @@ for name in sorted(repositories):
     print(distribution)
 PY
 )"
-  echo "siblings on PyPI, from the repositories sdk-$provider-* of xippios"
+  echo "siblings on PyPI, from the repositories ${prefix}* of xippios"
 fi
 requirements=()
 while IFS= read -r line; do

@@ -69,10 +69,11 @@ are not listed.
   family's ruff.
 - Two conventions in `/refresh-upstream` and the skeleton: the one converter a capture
   script may declare is `markdownify`, in its `# /// script` block and at the same pin in
-  the dev group, so `mypy --strict` reads its types (sdk-eurostat, sdk-cashctrl); the
-  template ships no converter module. A machine-readable API document (OpenAPI, Swagger)
-  that a page names rather than links is recorded in the skeleton's `SPEC_URL` and kept
-  beside the pages, a convention and no copier answer (sdk-usda-esmis).
+  the dev group, so `mypy --strict` reads its types (sdk-eurostat, sdk-cashctrl,
+  sdk-comtrade); the template ships no converter module. A machine-readable API document
+  (OpenAPI, Swagger) that a page names rather than links is recorded in the skeleton's
+  `SPEC_URL` and kept beside the pages, a convention and no copier answer
+  (sdk-usda-esmis).
 
 ### Changed
 
@@ -267,7 +268,7 @@ are not listed.
   locations, a git-pinned core, a name at its bound) are tested by their own rules. The
   assertions on rendered prose go too: the tests check mechanics, a file rendered or
   not, a name present, no Jinja left, a digest equal, a script's behaviour.
-  `tests/test_template.py` goes from 1,459 lines, 57 tests and 293 cases to 1,339 lines,
+  `tests/test_template.py` goes from 1,465 lines, 57 tests and 293 cases to 1,345 lines,
   54 tests and 110 cases. The digest test is named for what it checks, no longer for a
   core version. The template's CI runs three proofs in its `ci` job: `scripts/prove.sh`,
   `--keyless` (`sdk-example`, as sdk-eurostat starts) and the new `--keyless-nested`
@@ -414,13 +415,14 @@ are not listed.
 - `scripts/check-siblings.sh` (sdk-usda-psd, sdk-usda-esr, sdk-usda-gats) — delete it
   (`git rm scripts/check-siblings.sh`), and take the template's
   `.github/workflows/siblings.yml` whole: the update renders the workflow over the
-  source's own one with conflict markers around the whole file (git shows it `UU`), and
-  `git checkout --theirs .github/workflows/siblings.yml` keeps the render; it adds
-  `.github/scripts/check-siblings.sh`, executable (checked with copier 9.19.1 on a
-  render carrying sdk-usda-psd's two files) — the template's pair replaces the copies
-  and finds the siblings itself, so no sibling list is kept by hand and a release no
-  longer edits the script; a copy identical to the render is the template's for the
-  merge classes, and the deleted script is no protected path.
+  source's own one with conflict markers around the whole file (git shows it `UU`);
+  `git checkout --theirs .github/workflows/siblings.yml` keeps the render, and
+  `git add .github/workflows/siblings.yml` marks it resolved, since it stays unmerged
+  until then; the update adds `.github/scripts/check-siblings.sh`, executable (checked
+  with copier 9.19.1 on a render carrying sdk-usda-psd's two files) — the template's pair
+  replaces the copies and finds the siblings itself, so no sibling list is kept by hand
+  and a release no longer edits the script; a copy identical to the render is the
+  template's for the merge classes, and the deleted script is no protected path.
 - `CLAUDE.md` (sdk-usda-psd, sdk-usda-esr) — the Layout's lines on the sibling check name
   `.github/scripts/check-siblings.sh`, the template's, instead of
   `scripts/check-siblings.sh`, "this package's own" — the old path is gone after the
@@ -444,11 +446,11 @@ sentence (a keyless source's README may close the server's brace on a line of it
 the generated `CLAUDE.md`'s rate-limit row, Layout lines and start-time sentence, which
 the 0.3.0 split leaves as the source wrote them (the capture script's line and the
 Documentation row's `SPEC_URL` pointer among them), and `docs/upstream/FETCHED.md`'s
-attribution placeholder and example rows, which the next `/refresh-upstream` rewrites. The update carries
-the rest: `.claude/family.md`, the six commands, the sibling check where the import path
-nests, `tests/conftest.py`, `live.yml` and
-`ci.yml`, the read server's instructions in `mcp.py`, and `junit_family`, the ruff pin
-and the keywords in `pyproject.toml`, merged three ways where a source changed them.
+attribution placeholder and example rows, which the next `/refresh-upstream` rewrites.
+The update carries the rest: `.claude/family.md`, the six commands, the sibling check
+where the import path nests, `tests/conftest.py`, `live.yml` and `ci.yml`, the read
+server's instructions in `mcp.py`, and `junit_family`, the ruff pin and the keywords in
+`pyproject.toml`, merged three ways where a source changed them.
 
 **Updating from 0.2.2.** `copier update` asks nothing new and drops `needs_write_tools`
 and `domain_topic` from `.copier-answers.yml` (checked with copier 9.19.1 on v0.2.2

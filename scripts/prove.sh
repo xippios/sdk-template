@@ -117,7 +117,7 @@ else
   # XIPPIOS_SIBLINGS set and empty: the wheel alone, so the proof lists no repositories
   # on GitHub; the namespace levels, the import and the shipped files are checked as in CI.
   echo "==> .github/scripts/check-siblings.sh on the nested render (xippios.$import_path), the wheel alone"
-  (cd "$dest" && XIPPIOS_SIBLINGS= .github/scripts/check-siblings.sh)
+  (cd "$dest" && XIPPIOS_SIBLINGS='' .github/scripts/check-siblings.sh)
 fi
 
 echo

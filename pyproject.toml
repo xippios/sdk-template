@@ -1,6 +1,7 @@
 # sdk-template is not a Python package: this file holds the development tooling for the
 # template itself (copier, the template tests, ruff for scripts and tests, detect-secrets
-# for the test that scans a rendered core pin).
+# for the test that scans a rendered core pin, pathspec for the test that reads the skip
+# patterns as copier does).
 [project]
 name = "sdk-template"
 version = "0.1.0"
@@ -15,6 +16,7 @@ dev = [
   "ruff>=0.14",
   "pyyaml>=6",
   "detect-secrets>=1.5",
+  "pathspec>=1",
 ]
 
 [tool.uv]

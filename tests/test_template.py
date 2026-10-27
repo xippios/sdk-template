@@ -424,6 +424,11 @@ def test_siblings_check_renders_where_the_import_path_nests(variant: tuple[str, 
     assert script.stat().st_mode & 0o111, "executable, as the render the merge classes compare"
     syntax = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
     assert syntax.returncode == 0, syntax.stderr
+    lines = script.read_text().splitlines()
+    first_uv = min(n for n, line in enumerate(lines) if line.lstrip().startswith("uv "))
+    assert lines.index("unset GITHUB_TOKEN") < first_uv, "conventions §13"
+    (handed,) = [line for line in lines if '"$token"' in line]
+    assert handed.startswith('  siblings="$(GITHUB_TOKEN="$token" "$python" - '), "listing only"
     skipped = skip_matcher(package_dir(VARIANTS[name]))
     assert skipped("scripts/check-siblings.sh"), "why the script is not under scripts/"
     for rel in [".github/workflows/siblings.yml", ".github/scripts/check-siblings.sh"]:
@@ -1166,6 +1171,7 @@ def site(tmp_path: Path) -> Iterator[tuple[Path, str]]:
     thread.start()
     yield root, f"http://127.0.0.1:{server.server_port}"
     server.shutdown()
+    server.server_close()
     thread.join()
 
 
