@@ -109,15 +109,17 @@ to 'main', then re-run this command. Nothing was created; $dest is generated and
 MSG
   exit 1
 fi
-# The sessions' team gets write access (plan D14), read here, before anything is created.
-# Until the team exists (D59 deferred the identity work), its 404 is a notice and the
+# The sessions' team gets write access: sessions are to work on GitHub as a machine user
+# that is a member of it. The team is read here, before anything is created. Until it
+# exists (the machine user and its team are set up later), its 404 is a notice and the
 # script goes on; any other error stops it with nothing created.
 team="sdk-sessions"
 team_found=0
 if team_reply="$(gh api "orgs/xippios/teams/$team" 2>&1)"; then
   team_found=1
 elif grep -q 'HTTP 404' <<<"$team_reply"; then
-  echo "notice: the team $team does not exist yet (D59); $repo will be added to no team"
+  echo "notice: the team $team does not exist yet, so $repo is added to no team; give the"
+  echo "        team write access to it once the team exists"
 else
   cat >&2 <<MSG
 error: cannot read the team $team: $team_reply
