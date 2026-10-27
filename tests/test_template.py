@@ -503,11 +503,13 @@ def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Pat
 # SHA-256 of sdk-core's files at v0.2.1, which the template copies verbatim, taken at
 # core's `feature/release-train-and-family-tests` head 4aa24b8; re-verified against the
 # v0.2.1 tag at gate 4b: git -C ../sdk-core show <ref>:<path> | sha256sum (digests, not
-# secrets).
+# secrets). gates.yml's is core's `.github/workflows/gates.yml` from after v0.2.1 (the
+# gates repository renamed to `xippios/sdk-gates`, 2026-10-27), pinned by digest;
+# re-verify against core `main` once that change merges.
 CORE_VERBATIM = {
     ".github/workflows/gates.yml": (
         # pragma: allowlist nextline secret
-        "d5dccf9823d784ffe21ebebd023fb423a2bc2b00c31503a0c58e2d3e94800890"
+        "cf3097a2a34f40b98d4e511435204fdb07a7edf8aed94bcf5de467bbb0b814c5"
     ),
     ".github/PULL_REQUEST_TEMPLATE.md": (
         # pragma: allowlist nextline secret
@@ -542,7 +544,7 @@ def without(text: str, first: str, stop: str) -> str:
 
 
 def test_workflows_and_pr_template_are_core_v0_2_1(template_src: Path, tmp_path: Path) -> None:
-    """The verbatim files are core 0.2.1's bytes; ci.yml and publish.yml core's plus ours."""
+    """The verbatim files are core's bytes; ci.yml and publish.yml core's plus ours."""
     dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
     for rel, digest in CORE_VERBATIM.items():
         assert hashlib.sha256((dst / rel).read_bytes()).hexdigest() == digest, rel

@@ -17,6 +17,13 @@ file of that name. The list starts with 0.1.5; earlier tags are not listed.
 
 ## [Unreleased]
 
+### Changed
+
+- `gates.yml` (the template's own and the one it renders) calls the gates repository
+  under its new name `xippios/sdk-gates` (renamed from `.github` on 2026-10-27).
+  `copier update` carries it (`gates.yml` is not under `_skip_if_exists`), so it needs
+  no Hand-apply bullet.
+
 ## [0.2.1] - 2026-10-27
 
 Generated repositories depend on xippios-core 0.2.1 (conventions 1.15) and take two
