@@ -1,4 +1,10 @@
-"""Generation tests: variants render, pass ruff, and respect skip-if-exists."""
+"""Generation tests: the family's variants render, pass ruff, and respect skip-if-exists.
+
+Each variant renders once per session; a check that differs between variants reads every
+render, a check no answer changes reads one. The tests assert mechanics only: a file
+rendered or not, a name present or absent, no Jinja left, a digest equal, a script's
+behaviour. ``scripts/prove.sh`` proves that a render passes its own suite.
+"""
 
 import ast
 import functools
@@ -22,6 +28,8 @@ from copier import run_copy
 from pathspec import PathSpec
 
 ROOT = Path(__file__).resolve().parents[1]
+QUESTIONS = yaml.safe_load((ROOT / "copier.yml").read_text())
+CORE_DEFAULT = str(QUESTIONS["core_version"]["default"])
 
 BASE_ANSWERS: dict[str, object] = {
     "source_name": "Example Data Service",
@@ -45,35 +53,34 @@ def keyed(env: str, location: str = "query", name: str | None = None) -> dict[st
     return answers
 
 
+# The family's variants (T11 as narrowed): the shapes its sources take. Their pace answers
+# differ so that both provenances and a burst render; the key locations, a core pin and a
+# name at its bound are answers of their own, each tested by its rule below.
 VARIANTS: dict[str, dict[str, object]] = {
-    "query-key": {"source_slug": "usda-nass", **keyed("NASS_API_KEY", "query", "key")},
-    "header-key": {
-        "source_slug": "comtrade",
-        **keyed("COMTRADE_API_KEY", "header", "Ocp-Apim-Subscription-Key"),
+    # sdk-usda-psd's shape: a key, shared with usda-esr and usda-gats, and a nested import
+    # path (ADR-0006).
+    "keyed-nested": {"source_slug": "usda-psd", **keyed("DATA_GOV_API_KEY", "header", "X-Api-Key")},
+    # sdk-eurostat's: no key, a flat import path.
+    "keyless-flat": {
+        "source_slug": "eurostat",
+        "rate_limit_provenance": "self-imposed",
+        **keyed(""),
     },
-    "bearer": {
-        "source_slug": "abc-data",
+    # sdk-usda-esmis's (and sdk-usda-wasde's): no key, a nested import path; with the
+    # 64-character name that broke four docstrings' line length (row 60), which
+    # test_generated_code_is_lint_and_format_clean checks with every other file.
+    "keyless-nested": {
+        "source_slug": "usda-esmis",
+        "source_name": "USDA ESMIS (Economics, Statistics and Market Information System)",
         "rate_limit_burst": 3,
         "rate_limit_provenance": "self-imposed",
         "core_version": "0.3.0",
-        **keyed("ABC_API_KEY", "bearer"),
+        **keyed(""),
     },
-    "bearer-git-core": {
-        "source_slug": "pinned-data",
-        "core_git_ref": FAKE_CORE_SHA,
-        **keyed("PINNED_API_KEY", "bearer"),
-    },
-    "open": {"source_slug": "eurostat", **keyed("")},
-    "nested": {"source_slug": "usda-nass", **keyed("NASS_API_KEY", "query", "key")},
-    "hyphenated-flat": {"source_slug": "world-bank", "import_path": "world_bank", **keyed("")},
-    "long-name": {
-        "source_slug": "fao-faostat-bulk",
-        # sdk-usda-esmis's name, 64 characters, which broke the line length of four
-        # docstrings (test_a_long_source_name_passes_ruff)
-        "source_name": "USDA ESMIS (Economics, Statistics and Market Information System)",
-        **keyed("FAOSTAT_API_KEY", "header", "X-Api-Key"),
-    },
+    # The gateway variant (T9) joins here with template v0.3.0's PR 7.
 }
+# A source on unreleased core: the keyed nested answers with a full-SHA core pin.
+PINNED = {**VARIANTS["keyed-nested"], "core_git_ref": FAKE_CORE_SHA}
 
 
 def package_dir(answers: dict[str, object]) -> str:
@@ -81,33 +88,37 @@ def package_dir(answers: dict[str, object]) -> str:
     return import_path.replace(".", "/")
 
 
-EXPECTED_FILES = [
-    "src/xippios/{pkg}/__init__.py",
-    "src/xippios/{pkg}/py.typed",
-    "src/xippios/{pkg}/_version.py",
-    "src/xippios/{pkg}/_client.py",
-    "src/xippios/{pkg}/errors.py",
-    "src/xippios/{pkg}/models.py",
-    "src/xippios/{pkg}/tasks.py",
-    "src/xippios/{pkg}/api/__init__.py",
-    "src/xippios/{pkg}/mcp.py",
-    "src/xippios/{pkg}/http.py",
-    "src/xippios/{pkg}/reference/README.md",
-    "src/xippios/{pkg}/params.py",
-    "src/xippios/{pkg}/enums.py",
+# Every file a render has: the package's at the import path's directories, the rest at the
+# repository's root (the sibling check, where the import path nests, is tested on its own).
+PACKAGE_FILES = [
+    "__init__.py",
+    "py.typed",
+    "_version.py",
+    "_client.py",
+    "errors.py",
+    "models.py",
+    "tasks.py",
+    "api/__init__.py",
+    "mcp.py",
+    "http.py",
+    "params.py",
+    "enums.py",
+    "reference/README.md",
+]
+REPOSITORY_FILES = [
     "scripts/refresh_reference.py",
     "scripts/refresh_upstream.py",
+    "docs/upstream/FETCHED.md",
     "tests/conftest.py",
     "tests/test_family.py",
     "tests/test_tasks.py",
     "tests/test_live.py",
-    "docs/upstream/FETCHED.md",
     "CLAUDE.md",
-    ".claude/family.md",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
     "pyproject.toml",
+    ".copier-answers.yml",
     ".pre-commit-config.yaml",
     ".secrets.baseline",
     ".gitattributes",
@@ -118,6 +129,7 @@ EXPECTED_FILES = [
     ".github/workflows/gates.yml",
     ".github/workflows/live.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
+    ".claude/family.md",
     ".claude/settings.json",
     ".claude/commands/add-endpoint.md",
     ".claude/commands/record-fixture.md",
@@ -125,12 +137,18 @@ EXPECTED_FILES = [
     ".claude/commands/refresh-reference-data.md",
     ".claude/commands/release-prep.md",
     ".claude/commands/adopt-release.md",
-    ".copier-answers.yml",
 ]
 
-# Template v0.2.1 deleted them: core's family check, which tests/test_family.py collects,
-# makes their checks (conventions §10).
-REMOVED_FILES = ["tests/test_layout.py", "tests/test_adapters.py"]
+# Template v0.2.1 deleted the two structural tests: core's family check, which
+# tests/test_family.py collects, makes their checks (conventions §10). v0.3.0 renders
+# read-only packages (D35).
+REMOVED_FILES = [
+    "tests/test_layout.py",
+    "tests/test_adapters.py",
+    "tests/test_tasks_write.py",
+    "src/xippios/{pkg}/tasks_write.py",
+    "src/xippios/{pkg}/mcp_write.py",
+]
 FAMILY_TEST = "from xippios.core.testing.family import *  # noqa: F403\n"
 
 
@@ -161,109 +179,96 @@ def ruff(dst: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-@pytest.fixture(params=sorted(VARIANTS), scope="session")
-def generated(
-    request: pytest.FixtureRequest, template_src: Path, tmp_path_factory: pytest.TempPathFactory
-) -> tuple[str, Path]:
-    name = request.param
-    dst = generate(template_src, tmp_path_factory.mktemp(name) / "repo", **VARIANTS[name])
-    return name, dst
+@pytest.fixture(scope="session")
+def render(template_src: Path, tmp_path_factory: pytest.TempPathFactory) -> Callable[[str], Path]:
+    """Each variant rendered once per session, when a test first reads it. The renders are
+    shared: a test reads them and writes nothing into them."""
+    renders: dict[str, Path] = {}
+
+    def get(name: str) -> Path:
+        if name not in renders:
+            dst = tmp_path_factory.mktemp(name) / "repo"
+            renders[name] = generate(template_src, dst, **VARIANTS[name])
+        return renders[name]
+
+    return get
 
 
-def test_layout(generated: tuple[str, Path]) -> None:
-    name, dst = generated
+@pytest.fixture(params=list(VARIANTS), scope="session")
+def variant(request: pytest.FixtureRequest, render: Callable[[str], Path]) -> tuple[str, Path]:
+    """A check that differs between variants, run on each render."""
+    return request.param, render(request.param)
+
+
+@pytest.fixture(scope="session")
+def keyed_nested(render: Callable[[str], Path]) -> Path:
+    """The render a check no answer changes reads."""
+    return render("keyed-nested")
+
+
+@pytest.fixture(scope="session")
+def keyless_flat(render: Callable[[str], Path]) -> Path:
+    return render("keyless-flat")
+
+
+# The checks every variant runs.
+
+TEXT_SUFFIXES = {".py", ".md", ".toml", ".yml", ".yaml", ".json"}
+
+
+def test_layout(variant: tuple[str, Path]) -> None:
+    """Every file at the import path's directories, no ``__init__.py`` at a namespace level
+    (ADR-0006), none of the removed files, one read server and no core pin."""
+    name, dst = variant
     answers = VARIANTS[name]
     pkg = package_dir(answers)
-    for rel in EXPECTED_FILES:
-        assert (dst / rel.format(pkg=pkg)).is_file(), rel
+    for rel in [*(f"src/xippios/{pkg}/{part}" for part in PACKAGE_FILES), *REPOSITORY_FILES]:
+        assert (dst / rel).is_file(), rel
     for rel in REMOVED_FILES:
-        assert not (dst / rel).exists(), f"{rel}: the family check makes its checks"
-    fixture_rule = "the fixture rule lives in /record-fixture and conventions §10"
-    assert not (dst / "tests/fixtures").exists(), fixture_rule
+        assert not (dst / rel.format(pkg=pkg)).exists(), rel
+    assert not (dst / "tests/fixtures").exists(), "the fixture rule lives in /record-fixture"
     assert (dst / "tests/test_family.py").read_text() == FAMILY_TEST
     level = (dst / "src/xippios" / pkg).parent
     while level != dst / "src":
         assert not (level / "__init__.py").exists(), level
         level = level.parent
-    pyproject = (dst / "pyproject.toml").read_text()
-    assert ("[tool.uv.sources]" in pyproject) is bool(answers.get("core_git_ref"))
-    tool = tomllib.loads(pyproject)["tool"]
-    assert tool["mypy"]["files"] == ["src", "tests", "scripts"], "scripts/ is type-checked"
-    assert tool["pytest"]["ini_options"]["junit_family"] == "xunit1", "record_property"
-    sdist = tool["hatch"]["build"]["targets"]["sdist"]
-    assert sdist == {"include": ["/src", "/docs", "/README.md", "/CHANGELOG.md", "/LICENSE"]}
-    assert "tests" not in json.dumps(sdist), "the sdist ships no tests; they live in the repo"
+    pyproject = tomllib.loads((dst / "pyproject.toml").read_text())
+    slug, dotted = answers["source_slug"], pkg.replace("/", ".")
+    assert pyproject["project"]["scripts"] == {f"xippios-{slug}-mcp": f"xippios.{dotted}.mcp:run"}
+    assert "uv" not in pyproject["tool"], "no [tool.uv.sources] without core_git_ref"
 
 
-def test_dev_ruff_is_the_pre_commit_hooks(generated: tuple[str, Path]) -> None:
-    """A new lock resolves the ruff the pre-commit hook runs, not the newest one."""
-    _, dst = generated
-    hooks = yaml.safe_load((dst / ".pre-commit-config.yaml").read_text())["repos"]
-    (rev,) = [repo["rev"] for repo in hooks if repo["repo"].endswith("/ruff-pre-commit")]
-    dev = tomllib.loads((dst / "pyproject.toml").read_text())["dependency-groups"]["dev"]
-    assert [spec for spec in dev if spec.startswith("ruff")] == [f"ruff=={rev.removeprefix('v')}"]
-
-
-def test_generated_code_is_lint_and_format_clean(generated: tuple[str, Path]) -> None:
-    _, dst = generated
+def test_generated_code_is_lint_and_format_clean(variant: tuple[str, Path]) -> None:
+    _, dst = variant
     check = ruff(dst, "check", ".")
     assert check.returncode == 0, check.stdout + check.stderr
     fmt = ruff(dst, "format", "--check", ".")
     assert fmt.returncode == 0, fmt.stdout + fmt.stderr
 
 
-def test_generated_python_compiles(generated: tuple[str, Path]) -> None:
-    _, dst = generated
-    for path in dst.rglob("*.py"):
-        compile(path.read_text(), str(path), "exec")
-
-
-def test_answers_file_round_trips(generated: tuple[str, Path]) -> None:
-    name, dst = generated
+def test_answers_file_round_trips(variant: tuple[str, Path]) -> None:
+    name, dst = variant
+    expected = VARIANTS[name]
     answers = yaml.safe_load((dst / ".copier-answers.yml").read_text())
-    assert answers["source_slug"] == VARIANTS[name]["source_slug"]
-    assert answers["api_key_env"] == VARIANTS[name]["api_key_env"]
-    assert answers["import_path"] == package_dir(VARIANTS[name]).replace("/", ".")
-    assert "package_dir" not in answers, "computed answers are derived, never recorded"
-    assert "live_schedule" not in answers
+    assert answers["source_slug"] == expected["source_slug"]
+    assert answers["import_path"] == package_dir(expected).replace("/", ".")
+    assert answers["api_key_env"] == expected["api_key_env"]
+    if expected["api_key_env"]:
+        assert answers["api_key_location"] == expected["api_key_location"]
+    else:
+        assert "api_key_location" not in answers, "not asked without a key"
+        assert "api_key_name" not in answers
+    for computed in ["package_dir", "tool_prefix", "live_schedule"]:
+        assert computed not in answers, f"{computed}: derived, never recorded"
     for gone in ["source_pkg", "domain_topic", "needs_write_tools"]:
         assert gone not in answers, f"{gone}: no question asks it"
 
 
-@pytest.mark.parametrize(
-    ("args", "error"),
-    [
-        ([], "--topic DOMAIN is required to create the repository"),
-        (["--local-only", "--topic", "Trade_Data"], "--topic Trade_Data: use lowercase letters"),
-        (["--topic", "trade--data"], "--topic trade--data: use lowercase letters"),
-        (["--topic", "trade-data", "--evidence", "absent.md"], "--evidence absent.md: no such"),
-    ],
-)
-def test_new_source_checks_its_flags_before_it_generates(
-    tmp_path: Path, args: list[str], error: str
-) -> None:
-    """The domain topic is new-source.sh's flag, no copier answer, and the evidence a file;
-    a bad one of either costs nothing."""
-    dest = tmp_path / "sdk-ex"
-    script = [str(ROOT / "scripts/new-source.sh"), "ex", "--dest", str(dest), *args]
-    run = subprocess.run(script, cwd=tmp_path, capture_output=True, text=True, check=False)
-    assert run.returncode == 2, run.stdout + run.stderr
-    assert error in run.stderr
-    assert not dest.exists(), "refused before anything is generated"
-
-
-def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:
+def test_no_jinja_left_behind(variant: tuple[str, Path]) -> None:
     """Workflow files carry GitHub's own ${{ }}; nothing else may, and nothing else in them."""
-    _, dst = generated
+    _, dst = variant
     for path in dst.rglob("*"):
-        if not path.is_file() or path.suffix not in {
-            ".py",
-            ".md",
-            ".toml",
-            ".yml",
-            ".yaml",
-            ".json",
-        }:
+        if not path.is_file() or path.suffix not in TEXT_SUFFIXES:
             continue
         text = path.read_text()
         assert "{%" not in text, path
@@ -273,104 +278,20 @@ def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:
             assert "{{" not in text, path
 
 
-def test_no_dotted_import_path_used_as_a_directory(generated: tuple[str, Path]) -> None:
-    """A nested import path (usda.nass) must appear as usda/nass wherever a path is meant."""
-    name, dst = generated
+def test_no_dotted_import_path_used_as_a_directory(variant: tuple[str, Path]) -> None:
+    """A nested import path (usda.psd) must appear as usda/psd wherever a path is meant."""
+    name, dst = variant
     dotted = package_dir(VARIANTS[name]).replace("/", ".")
     if "." not in dotted:
         pytest.skip("flat import path")
     for path in dst.rglob("*"):
-        if path.is_file() and path.suffix in {".py", ".md", ".toml", ".yml", ".yaml"}:
+        if path.is_file() and path.suffix in TEXT_SUFFIXES:
             assert f"src/xippios/{dotted}" not in path.read_text(), path
 
 
-def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
-    for location, needle in [
-        ("query", 'auth = QueryKeyAuth("key", API_KEY_ENV, source=SOURCE)'),
-        ("header", 'auth = HeaderKeyAuth("X-Api-Key", API_KEY_ENV, source=SOURCE)'),
-        ("bearer", "auth = BearerAuth(API_KEY_ENV, source=SOURCE)"),
-    ]:
-        dst = generate(
-            template_src, tmp_path / location, source_slug="ex", **keyed("EX_API_KEY", location)
-        )
-        client = (dst / "src/xippios/ex/_client.py").read_text()
-        assert needle in client, location
-        assert '    "auth",\n' in client, "auth is exported"
-    with pytest.raises(ValueError, match="api_key_location"):
-        generate(template_src, tmp_path / "basic", source_slug="ex", **keyed("EX_API_KEY", "basic"))
-    dst = generate(template_src, tmp_path / "open", source_slug="ex", **keyed(""))
-    client = (dst / "src/xippios/ex/_client.py").read_text()
-    assert "Auth" not in client
-    assert '"auth"' not in client
-    assert "API_KEY_ENV: str | None = None" in client
-    assert "client = AsyncClient(config)" in client
-
-
-def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Path) -> None:
-    """A source's files survive a re-render; the template's own are rendered again.
-
-    The slug ends in -api, so the package itself is .../api/: the patterns name the package
-    directory, and its mcp.py is the template's while its api/ is the source's.
-    """
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex-api", **keyed(""))
-    pkg = "src/xippios/ex/api"
-    names = ["tasks.py", "_client.py", "errors.py", "__init__.py", "api/__init__.py"]
-    mine = [f"{pkg}/{n}" for n in names]
-    mine += ["tests/test_tasks.py", "CLAUDE.md"]
-    templates = [".claude/family.md", "tests/conftest.py", f"{pkg}/mcp.py"]
-    for rel in [*mine, *templates]:
-        (dst / rel).write_text("# edited\n")
-    generate(template_src, dst, source_slug="ex-api", **keyed(""))
-    for rel in mine:
-        assert (dst / rel).read_text() == "# edited\n", f"{rel} is the source's"
-    for rel in templates:
-        assert (dst / rel).read_text() != "# edited\n", f"{rel} is the template's"
-
-
-def test_the_files_a_source_fills_are_one_list(template_src: Path, tmp_path: Path) -> None:
-    """The family rules and /adopt-release name every protected path, in skip order."""
-    patterns = yaml.safe_load((template_src / "copier.yml").read_text())["_skip_if_exists"]
-    names = [
-        f"`{p.removeprefix('src/xippios/{{ package_dir }}/').replace('/**', '/')}`"
-        for p in patterns
-    ]
-    listing = ", ".join(names[:-1]) + f" and {names[-1]}"
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
-    assert names[-1] == "`CLAUDE.md`", "the facts are the source's"
-    for rel in [".claude/family.md", ".claude/commands/adopt-release.md"]:
-        assert listing in " ".join((dst / rel).read_text().split()), rel
-
-
-def test_errors_module_and_classify_hook_are_scaffolded(generated: tuple[str, Path]) -> None:
-    """A source's own error classes (conventions §5) and the classify hook (§6), both empty."""
-    name, dst = generated
-    pkg = dst / "src/xippios" / package_dir(VARIANTS[name])
-    errors = (pkg / "errors.py").read_text()
-    assert "conventions §5" in errors.splitlines()[0]
-    assert "# class UnknownFilter(InvalidRequestError):" in errors, "a commented pattern"
-    assert errors.endswith("\n__all__: list[str] = []\n")
-    client = (pkg / "_client.py").read_text()
-    assert "def classify(response: httpx.Response) -> XippiosError | None:" in client
-    assert "``ClientConfig.classify`` hook" in client
-    assert "    return None\n" in client
-    assert "    classify=classify,\n" in client, "wired into the config"
-
-
-def test_a_long_source_name_passes_ruff(template_src: Path, tmp_path: Path) -> None:
-    """The four docstrings that once put the name into their summary line pass ruff with a
-    64-character name, rendered and checked as the proof does."""
-    answers = VARIANTS["long-name"]
-    assert len(str(answers["source_name"])) >= 64
-    dst = generate(template_src, tmp_path / "repo", **answers)
-    pkg = f"src/xippios/{package_dir(answers)}"
-    files = [f"{pkg}/{name}" for name in ["__init__.py", "_client.py", "models.py", "params.py"]]
-    check = ruff(dst, "check", *files)
-    assert check.returncode == 0, check.stdout + check.stderr
-
-
-def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Path]) -> None:
+def test_tool_prefix_is_the_underscored_slug_everywhere(variant: tuple[str, Path]) -> None:
     """The MCP tool prefix is the slug with underscores, never the dotted import path."""
-    name, dst = generated
+    name, dst = variant
     slug = str(VARIANTS[name]["source_slug"])
     prefix = slug.replace("-", "_")
     dotted = package_dir(VARIANTS[name]).replace("/", ".")
@@ -381,267 +302,40 @@ def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Pa
             assert f"{dotted}_" not in text, rel
 
 
-CONFTEST = """\
-# Core's plugin keeps the default run offline and free of real keys (ADR-0013), runs anyio
-# tests on asyncio and serves the family check in tests/test_family.py; a key's variable is
-# named under xippios_placeholder_key_envs in pyproject.toml, not here.
-pytest_plugins = ["xippios.core.testing.plugin"]
-"""
-# A keyless source names no key variable, so its conftest points at none (row 61 d).
-CONFTEST_KEYLESS = """\
-# Core's plugin keeps the default run offline (ADR-0013), runs anyio tests on asyncio and
-# serves the family check in tests/test_family.py.
-pytest_plugins = ["xippios.core.testing.plugin"]
-"""
-
-
-def test_the_plugin_sends_the_placeholder_unless_live(generated: tuple[str, Path]) -> None:
-    """ADR-0013: core's plugin pins the key; a keyed source only names its variable.
-
-    No placeholder fixture, constant or test of the source's own, keyed or open.
-    """
-    name, dst = generated
+def test_the_plugin_sends_the_placeholder_unless_live(variant: tuple[str, Path]) -> None:
+    """ADR-0013: core's plugin pins the key; a keyed source only names its variable, and
+    only a keyed source's conftest names the option (row 61 d). No placeholder fixture,
+    constant or test of the source's own."""
+    name, dst = variant
     env = str(VARIANTS[name]["api_key_env"])
-    assert (dst / "tests/conftest.py").read_text() == (CONFTEST if env else CONFTEST_KEYLESS)
+    conftest = (dst / "tests/conftest.py").read_text()
+    code = [line for line in conftest.splitlines() if not line.startswith("#")]
+    assert code == ['pytest_plugins = ["xippios.core.testing.plugin"]']
+    assert ("xippios_placeholder_key_envs" in conftest) is bool(env)
     ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
     assert ini.get("xippios_placeholder_key_envs") == ([env] if env else None)
     assert "placeholder" not in (dst / "tests/test_tasks.py").read_text()
 
 
-def test_secret_detection_skips_the_answers_file(generated: tuple[str, Path]) -> None:
-    """The hook and a baseline rescan exclude the same files, the answers file among them."""
-    _, dst = generated
-    baseline = json.loads((dst / ".secrets.baseline").read_text())
-    (excluded,) = [
-        pattern
-        for entry in baseline["filters_used"]
-        if entry["path"].endswith(".should_exclude_file")
-        for pattern in entry["pattern"]
-    ]
-    config = yaml.safe_load((dst / ".pre-commit-config.yaml").read_text())
-    (hook,) = [h for repo in config["repos"] for h in repo["hooks"] if h["id"] == "detect-secrets"]
-    for name in ["uv.lock", ".copier-answers.yml"]:
-        assert re.search(excluded, name), name
-        assert re.search(hook["exclude"], name), name
-
-
-def test_upstream_snapshot_is_kept_byte_for_byte(generated: tuple[str, Path]) -> None:
-    """Git never converts line endings under docs/upstream/: upstream files may carry CRLF.
-
-    FETCHED.md records a UTC time, the attribution and HTML-kept tables (ADR-0003).
-    """
-    _, dst = generated
-    assert (dst / ".gitattributes").read_text() == "docs/upstream/** -text\n"
-    fetched = (dst / "docs/upstream/FETCHED.md").read_text()
-    assert f"{TABLE_HEADER}\n" in fetched, "the columns scripts/refresh_upstream.py writes"
-    assert "## Attribution" in fetched
-    flat = " ".join(fetched.split())
-    assert "the publisher's objection" in flat, "a vendor or a public-sector publisher"
-    assert "UTC time of the run in ISO 8601 with an explicit `Z`" in fetched
-    example = fetched.split("```text\n", 1)[1].split("```", 1)[0].splitlines()
-    assert [row.split(" | ")[0] for row in example] == [
-        "| openapi/openapi.json",
-        "| (no file)",
-        "| openapi/part.json",
-    ], "a file row, a shell row and an excerpt row"
-    assert "Bytes and sha256 are the whole document's" in example[2], "conventions §3"
-
-
-TABLE_HEADER = "| File | URL | Fetched | HTTP | Bytes | sha256 | ETag | Last-Modified | Note |"
-
-
-class QuietHandler(http.server.SimpleHTTPRequestHandler):
-    """Serves a directory on the loopback interface, without a log line per request."""
-
-    def log_message(self, format: str, *args: object) -> None:
-        pass
-
-
-@pytest.fixture
-def site(tmp_path: Path) -> Iterator[tuple[Path, str]]:
-    """A local directory served over HTTP on 127.0.0.1: the pages, and their base URL."""
-    root = tmp_path / "site"
-    root.mkdir()
-    handler = functools.partial(QuietHandler, directory=str(root))
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield root, f"http://127.0.0.1:{server.server_port}"
-    server.shutdown()
-    thread.join()
-
-
-def refresh_upstream(template_src: Path, dst: Path) -> ModuleType:
-    """The rendered scripts/refresh_upstream.py of a fresh repository, imported, no pause."""
-    generate(template_src, dst, source_slug="ex", **keyed(""))
-    path = dst / "scripts/refresh_upstream.py"
-    spec = importlib.util.spec_from_file_location("refresh_upstream", path)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    module.PAUSE = 0.0
-    return module
-
-
-def test_refresh_upstream_command_follows_the_skeleton(template_src: Path, tmp_path: Path) -> None:
-    """The command names what the skeleton defines: the hooks a source fills, --check, the
-    shell and excerpt rows, the spec URL convention (row 67 b) and the one converter a
-    capture script may declare (row 70); the skeleton itself declares no dependency."""
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
-    command = " ".join((dst / ".claude/commands/refresh-upstream.md").read_text().split())
-    script = (dst / "scripts/refresh_upstream.py").read_text()
-    tree = ast.parse(script)
-    defined = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
-    defined |= {
-        target.id
-        for node in tree.body
-        if isinstance(node, ast.AnnAssign | ast.Assign)
-        for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
-        if isinstance(target, ast.Name)
-    }
-    for name in ["PAGES", "SPEC_URL", "SPEC_FILE", "ATTRIBUTION", "CAPTURE"]:
-        assert f"`{name}`" in command, name
-        assert name in defined, name
-    for name in ["reduce", "load_json", "dump_json"]:
-        assert f"`{name}`" in command, name
-        assert name in defined, name
-    for field in ["status=403", "stable=False", "excerpt=True"]:
-        assert field in command, field
-    assert "uv run scripts/refresh_upstream.py --check" in command
-    assert '`dependencies = ["markdownify==X.Y.Z"]`' in command
-    assert "the same pin in the dev group of `pyproject.toml`" in command, "row 37 c"
-    assert "`git add docs/upstream scripts`" in command, "row 35 a"
-    assert script.startswith('# /// script\n# requires-python = ">=3.12"\n# dependencies = []\n')
-    imported: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            imported |= {alias.name.split(".")[0] for alias in node.names}
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imported.add(node.module.split(".")[0])
-    assert imported <= set(sys.stdlib_module_names), imported - set(sys.stdlib_module_names)
-
-
-def test_refresh_upstream_skeleton_checks_offline(
-    template_src: Path, tmp_path: Path, site: tuple[Path, str]
-) -> None:
-    """Rows 35 c and 67 c: the skeleton fetches through its one fetch function, writes a
-    file row and a shell row, and ``--check`` compares without writing (here against pages
-    served on the loopback interface)."""
-    root, base = site
-    (root / "openapi.json").write_text('{"openapi": "3.1.0"}\n')
-    module = refresh_upstream(template_src, tmp_path / "repo")
-    out = tmp_path / "repo/docs/upstream"
-    with pytest.raises(SystemExit, match="Nothing to fetch: fill PAGES"):
-        module.main(["--out", str(out)])
-    module.SPEC_URL = f"{base}/openapi.json"
-    module.PAGES = (module.Page(f"{base}/legal", status=404, note="404 Not Found"),)
-    assert module.main(["--out", str(out), "--check"]) == 1, "the stub records nothing"
-    assert module.main(["--out", str(out)]) == 0
-    assert (out / "openapi/openapi.json").read_text() == '{"openapi": "3.1.0"}\n'
-    fetched = (out / "FETCHED.md").read_text()
-    file_row = r"\| \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ \| 200 \| 21 \| [0-9a-f]{64} \| "
-    assert re.search(file_row, fetched), "the UTC time with Z, the status, size and sha256"
-    assert f"| (no file) | {base}/legal | " in fetched
-    assert "| 404 |" in fetched
-    assert f"{TABLE_HEADER}\n" in fetched
-    assert "None stated: no page this script reads states" in " ".join(fetched.split())
-    assert module.main(["--out", str(out), "--check"]) == 0, "Fetched aside, all the same"
-    (root / "openapi.json").write_text('{"openapi": "3.1.1"}\n')
-    assert module.main(["--out", str(out), "--check"]) == 1
-    assert (out / "openapi/openapi.json").read_text() == '{"openapi": "3.1.0"}\n', "unwritten"
-
-
-def test_refresh_upstream_skeleton_stops_on_an_unrecorded_statement(
-    template_src: Path, tmp_path: Path, site: tuple[Path, str]
-) -> None:
-    """Row 35 b: every run checks the attribution, and stops before writing on a copyright,
-    licence or terms that ATTRIBUTION does not record; a recorded one passes."""
-    root, base = site
-    (root / "guide.html").write_text("<p>Guide</p><footer>&copy; 2026 Example Ltd.</footer>\n")
-    module = refresh_upstream(template_src, tmp_path / "repo")
-    out = tmp_path / "repo/docs/upstream"
-    stub = (out / "FETCHED.md").read_bytes()
-    module.PAGES = (module.Page(f"{base}/guide.html", "pages/guide.html"),)
-    with pytest.raises(SystemExit, match="ATTRIBUTION does not record"):
-        module.main(["--out", str(out)])
-    assert (out / "FETCHED.md").read_bytes() == stub, "nothing written"
-    module.ATTRIBUTION = ("\N{COPYRIGHT SIGN} 2026 Example Ltd.",)
-    assert module.main(["--out", str(out)]) == 0
-    assert "The documentation states `\N{COPYRIGHT SIGN} 2026" in (out / "FETCHED.md").read_text()
-
-
-def test_models_use_validation_alias(generated: tuple[str, Path]) -> None:
-    """Adapters serialise by alias: a plain alias would hand agents the upstream spelling.
-
-    The commands also carry ADR-0017's rule on personal identifiers.
-    """
-    name, dst = generated
-    plain_alias = re.compile(r"Field\((?:[^)]*[\s,])?alias=")
-    for path in dst.rglob("*.py"):
-        assert not plain_alias.search(path.read_text()), path
-    add_endpoint = (dst / ".claude/commands/add-endpoint.md").read_text()
-    assert "`Field(validation_alias=...)`" in add_endpoint
-    models = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/models.py").read_text()
-    assert "``/add-endpoint`` give the rules" in models, "the scaffold points at them"
-    for command in ["add-endpoint", "record-fixture"]:
-        assert "ADR-0017" in (dst / f".claude/commands/{command}.md").read_text(), command
-
-
-def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
-    """A new repository has no list_<thing> tool yet; the wording must hold either way."""
-    name, dst = generated
-    prefix = str(VARIANTS[name]["source_slug"]).replace("-", "_")
-    mcp = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/mcp.py").read_text()
-    assert "Call the list tools first" not in mcp
-    assert f"Where list tools ({prefix}_list_*) exist" in mcp
-    assert "to find valid values, then query" in mcp, "codes, releases or agencies alike"
-
-
-def test_servers_take_the_caps_kept_with_the_tasks(template_src: Path, tmp_path: Path) -> None:
-    """ADR-0016: per-tool caps live next to the tasks as MCP_CAPS; the server reads them."""
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex")
-    pkg = dst / "src/xippios/ex"
-    assert 'caps=getattr(tasks, "MCP_CAPS", None),' in (pkg / "mcp.py").read_text()
-    tasks = (pkg / "tasks.py").read_text()
-    assert "# MCP_CAPS = {" in tasks, "a commented scaffold"
-    assert "# from xippios.core import ResultCap" in tasks, "core 0.3.0 exports it"
-
-
-def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:
-    """Belt and braces: no variant of a local env file is ever committed."""
-    _, dst = generated
-    ignored = set((dst / ".gitignore").read_text().splitlines())
-    assert {".env", ".env.*", ".envrc", ".envrc.*"} <= ignored
-
-
-def test_rate_limit_renders_pace_burst_and_provenance(generated: tuple[str, Path]) -> None:
-    """ADR-0010 decision 1: the pace, a burst of 1 unless upstream documents one, and where
-    the pace comes from, in the client and in the contract; a quota's policy commented."""
-    name, dst = generated
+def test_rate_limit_renders_pace_burst_and_provenance(variant: tuple[str, Path]) -> None:
+    """ADR-0010 decision 1: the pace and the burst in the client and in the facts, and where
+    the pace comes from; a quota's policy commented (ADR-0015)."""
+    name, dst = variant
     answers = {**BASE_ANSWERS, **VARIANTS[name]}
-    burst = answers.get("rate_limit_burst", 1)
+    per_minute, burst = answers["rate_limit_per_minute"], answers.get("rate_limit_burst", 1)
+    self_imposed = answers.get("rate_limit_provenance") == "self-imposed"
     client = (dst / f"src/xippios/{package_dir(answers)}/_client.py").read_text()
-    pace = f"RATE_LIMIT = RateLimit(per_minute={answers['rate_limit_per_minute']}, burst={burst})"
-    assert pace in client
-    claude = (dst / "CLAUDE.md").read_text()
-    family = (dst / ".claude/family.md").read_text()
-    row = f"| Rate limit | {answers['rate_limit_per_minute']} requests per minute, burst {burst}; "
-    assert row in claude
-    assert "# config = policy.install(config)" in client, "ADR-0015, a commented scaffold"
-    assert "one `QuotaPolicy` installed on `config`" in " ".join(family.split())
-    if answers.get("rate_limit_provenance") == "self-imposed":
-        own = "self-imposed pace: upstream documents no per-second or per-minute limit"
-        assert f"# A {own} (ADR-0010 decision 1)." in client, "a daily quota may exist"
-        assert f"a {own} (ADR-0010)" in claude
-    else:
-        assert "# Paced within the limit upstream documents" in client
-        assert "within the limit documented by upstream (ADR-0010)" in claude
+    assert f"RATE_LIMIT = RateLimit(per_minute={per_minute}, burst={burst})" in client
+    assert "# config = policy.install(config)" in client
+    assert ("self-imposed" in client) is self_imposed
+    (row,) = [line for line in (dst / "CLAUDE.md").read_text().splitlines() if "Rate limit" in line]
+    assert row.startswith(f"| Rate limit | {per_minute} requests per minute, burst {burst}; ")
+    assert ("self-imposed" in row) is self_imposed
 
 
-def test_client_exports_one_sorted_name_per_line(generated: tuple[str, Path]) -> None:
+def test_client_exports_one_sorted_name_per_line(variant: tuple[str, Path]) -> None:
     """One name per line, so a source's extra export never conflicts on copier update."""
-    name, dst = generated
+    name, dst = variant
     client = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/_client.py").read_text()
     (node,) = [
         node
@@ -658,61 +352,329 @@ def test_client_exports_one_sorted_name_per_line(generated: tuple[str, Path]) ->
     assert lines[start + 1 + len(names)] == "]"
 
 
-def detect_secrets_hook(directory: Path, *files: str) -> subprocess.CompletedProcess[str]:
-    """The generated repository's detect-secrets hook, on ``files`` in ``directory``."""
-    hook = [sys.executable, "-m", "detect_secrets.pre_commit_hook"]
-    return subprocess.run(
-        [*hook, "--baseline", ".secrets.baseline", *files],
-        cwd=directory,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-
-def test_core_dependency_is_one_minor(generated: tuple[str, Path], tmp_path: Path) -> None:
-    """Conventions §12: one core minor, the extras likewise; a git pin keeps the bound.
-
-    uv takes a pinned core from ``[tool.uv.sources]`` and does not check the bound against
-    it, so the bound stays ``~=``; the pin's ``rev`` line is allowlisted for detect-secrets,
-    which a 40-character commit SHA trips without the pragma.
-    """
-    name, dst = generated
-    answers = VARIANTS[name]
-    version = str(answers.get("core_version", "0.2.1"))
-    pyproject = (dst / "pyproject.toml").read_text()
-    project = tomllib.loads(pyproject)["project"]
+def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
+    """Conventions §12: one core minor, the extras likewise."""
+    name, dst = variant
+    version = str(VARIANTS[name].get("core_version", CORE_DEFAULT))
+    project = tomllib.loads((dst / "pyproject.toml").read_text())["project"]
     assert project["dependencies"] == [f"xippios-core~={version}"]
     assert project["optional-dependencies"] == {
         extra: [f"xippios-core[{extra}]~={version}"] for extra in ["mcp", "http", "testing"]
     }
-    assert ">=0.1.0" not in pyproject
-    if answers.get("core_git_ref"):
-        (rev,) = [line for line in pyproject.splitlines() if line.startswith("xippios-core = {")]
-        assert f'rev = "{answers["core_git_ref"]}" }}' in rev
-        assert "# pragma: allowlist secret" in rev
-        assert "until it is on PyPI" not in pyproject
-        assert "uvx copier update --defaults --vcs-ref=:current: -d core_git_ref=" in pyproject
-        assert "X.Y.Z with Z the patch that shipped it, or X.Y.0 when the minor" in pyproject
-        if len(str(answers["core_git_ref"])) == 40:
-            shutil.copy(dst / ".secrets.baseline", tmp_path / ".secrets.baseline")
-            (tmp_path / "pyproject.toml").write_text(pyproject)
-            (tmp_path / "unmarked.toml").write_text(
-                pyproject.replace(rev, rev.split("  # pragma")[0])
-            )
-            hook = detect_secrets_hook(tmp_path, "pyproject.toml")
-            assert hook.returncode == 0, hook.stdout + hook.stderr
-            control = detect_secrets_hook(tmp_path, "unmarked.toml")
-            assert control.returncode == 1, "without the pragma the SHA must be flagged"
-            assert "Hex High Entropy String" in control.stdout, control.stdout
 
 
-# SHA-256 of sdk-core's files at v0.2.1, which the template copies verbatim, taken at
-# core's `feature/release-train-and-family-tests` head 4aa24b8; re-verified against the
-# v0.2.1 tag at gate 4b: git -C ../sdk-core show <ref>:<path> | sha256sum (digests, not
-# secrets). gates.yml's is core's `.github/workflows/gates.yml` from after v0.2.1 (the
-# gates repository renamed to `xippios/sdk-gates`, 2026-10-27), pinned by digest;
-# re-verify against core `main` once that change merges.
+def workflow_uses(path: Path) -> list[tuple[str, str]]:
+    """Each ``uses:`` of a workflow: the action and what follows it on the line."""
+    return re.findall(r"^\s+(?:- )?uses: (\S+)(.*)$", path.read_text(), re.MULTILINE)
+
+
+CORE_WORKFLOWS = ["ci.yml", "gates.yml", "live.yml", "publish.yml"]
+
+
+def test_workflow_actions_are_pinned_by_sha(variant: tuple[str, Path]) -> None:
+    """ci.yml, publish.yml, live.yml and, where rendered, siblings.yml pin every action to a
+    commit, its version in a comment (conventions §13); live.yml and siblings.yml take
+    ci.yml's pins."""
+    _, dst = variant
+    workflows = dst / ".github/workflows"
+    rendered = sorted(path.name for path in workflows.glob("*.yml"))
+    assert rendered in [CORE_WORKFLOWS, sorted([*CORE_WORKFLOWS, "siblings.yml"])]
+    for rel in rendered:
+        if rel == "gates.yml":
+            continue  # core's bytes, calling the gates at @main by design (conventions §13)
+        uses = workflow_uses(workflows / rel)
+        assert uses, rel
+        for action, comment in uses:
+            if action.startswith("./"):
+                continue
+            assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{rel}: {action}"
+            assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{rel}: {action}{comment}"
+    for rel in set(rendered) & {"live.yml", "siblings.yml"}:
+        assert set(workflow_uses(workflows / rel)) <= set(workflow_uses(workflows / "ci.yml"))
+
+
+def skip_matcher(pkg: str) -> Callable[[str], bool]:
+    """Whether copier's ``_skip_if_exists`` protects a path, matched as copier 9.19.1 does:
+    the patterns rendered, read as gitignore lines by pathspec."""
+    rendered = [p.replace("{{ package_dir }}", pkg) for p in QUESTIONS["_skip_if_exists"]]
+    return PathSpec.from_lines("gitignore", rendered).match_file
+
+
+SIBLINGS_SCRIPT = ROOT / "template/.github/{% if '.' in import_path %}scripts{% endif %}"
+
+
+def test_siblings_check_renders_where_the_import_path_nests(variant: tuple[str, Path]) -> None:
+    """ADR-0006's sibling proof is the template's (T10): siblings.yml and the script it runs
+    render, byte for byte and executable, only where the import path nests, outside the
+    skip-listed scripts/ so that a source's copy is trusted when identical to the render;
+    a visible job, `ci` never aggregates it (ci.yml stays core's)."""
+    name, dst = variant
+    nested = "/" in package_dir(VARIANTS[name])
+    workflow = dst / ".github/workflows/siblings.yml"
+    script = dst / ".github/scripts/check-siblings.sh"
+    assert workflow.is_file() is nested
+    assert (dst / ".github/scripts").exists() is nested, "no empty directory where flat"
+    assert not (dst / "scripts/check-siblings.sh").exists()
+    claude = (dst / "CLAUDE.md").read_text()
+    assert ("siblings.yml" in claude) is nested
+    if not nested:
+        return
+    assert script.read_bytes() == (SIBLINGS_SCRIPT / "check-siblings.sh").read_bytes()
+    assert script.stat().st_mode & 0o111, "executable, as the render the merge classes compare"
+    syntax = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
+    assert syntax.returncode == 0, syntax.stderr
+    skipped = skip_matcher(package_dir(VARIANTS[name]))
+    assert skipped("scripts/check-siblings.sh"), "why the script is not under scripts/"
+    for rel in [".github/workflows/siblings.yml", ".github/scripts/check-siblings.sh"]:
+        assert not skipped(rel), f"{rel}: the template's, trusted when identical to the render"
+    text = workflow.read_text()
+    assert "{{" not in text.replace("${{", ""), "copied verbatim: only its name is rendered"
+    parsed = yaml.safe_load(text)
+    assert parsed[True] == {"push": {"branches": ["main"]}, "pull_request": None}
+    assert parsed["permissions"] == {"contents": "read"}
+    (job,) = parsed["jobs"].values()
+    assert job["name"] == "siblings"
+    checkout, setup, run = job["steps"]
+    assert checkout["with"] == {"persist-credentials": False}, "conventions §13"
+    assert setup["uses"].startswith("astral-sh/setup-uv@")
+    assert run["run"] == ".github/scripts/check-siblings.sh"
+    assert run["env"] == {"GITHUB_TOKEN": "${{ github.token }}"}, "the job's read-only token"
+    assert "secrets." not in text
+    ci = yaml.safe_load((dst / ".github/workflows/ci.yml").read_text())
+    assert "siblings" not in json.dumps(ci), "ci.yml stays core's file (row 34 c)"
+
+
+def test_live_workflow_hands_the_key_to_its_pytest_step(variant: tuple[str, Path]) -> None:
+    """Conventions §10: nightly and on demand; the secret in the pytest step's env only, and
+    a keyless render's workflow names no key at all (row 61 b)."""
+    name, dst = variant
+    env_var = str(VARIANTS[name]["api_key_env"])
+    text = (dst / ".github/workflows/live.yml").read_text()
+    workflow = yaml.safe_load(text)
+    triggers = workflow[True]  # YAML 1.1 reads the key `on` as a boolean
+    assert set(triggers) == {"schedule", "workflow_dispatch"}
+    assert workflow["permissions"] == {"contents": "read"}
+    assert "env" not in workflow, "the secret reaches the pytest step only"
+    (job,) = workflow["jobs"].values()
+    assert "env" not in job, "the secret reaches the pytest step only"
+    *setup, pytest_step = job["steps"]
+    assert pytest_step["run"] == "uv run pytest -m live --tb=short", "every live test"
+    assert all("env" not in step for step in setup), "checkout and uv sync never see it"
+    checkout = setup[0]
+    assert checkout["uses"].startswith("actions/checkout@")
+    assert checkout["with"] == {"persist-credentials": False}, "conventions §13"
+    expected_env: dict[str, str] = {"XIPPIOS_LIVE_TESTS": "1"}
+    if env_var:
+        expected_env[env_var] = f"${{{{ secrets.{env_var} }}}}"
+        assert text.count(f"${{{{ secrets.{env_var} }}}}") == 1
+        assert text.count("secrets.") == 1
+    else:
+        assert "key" not in text.lower()
+    assert pytest_step["env"] == expected_env
+
+
+def live_start(dst: Path) -> tuple[int, int]:
+    """(hour, minute) of the nightly live run, checked against its cron and the CLAUDE.md."""
+    workflow = yaml.safe_load((dst / ".github/workflows/live.yml").read_text())
+    (schedule,) = workflow[True]["schedule"]
+    match = re.fullmatch(r"(\d{1,2}) (\d) \* \* \*", schedule["cron"])
+    assert match, schedule["cron"]
+    minute, hour = int(match[1]), int(match[2])
+    assert 0 <= minute <= 59, schedule["cron"]
+    assert 1 <= hour <= 5, f"{schedule['cron']}: inside the night window, 01:00 to 05:59 UTC"
+    assert f"nightly at {hour:02d}:{minute:02d} UTC" in (dst / "CLAUDE.md").read_text()
+    return hour, minute
+
+
+def test_live_workflow_runs_inside_the_night_window(variant: tuple[str, Path]) -> None:
+    _, dst = variant
+    live_start(dst)
+
+
+def test_every_live_run_keeps_payloads_out_of_tracebacks(variant: tuple[str, Path]) -> None:
+    """Row 42: every live command, run or documented, takes ``--tb=short``."""
+    _, dst = variant
+    runs = 0
+    for path in sorted(dst.rglob("*")):
+        if path.is_file() and path.suffix in TEXT_SUFFIXES:
+            text = path.read_text()
+            assert not re.search(r"pytest -m live(?! --tb=short)", text), path
+            runs += text.count("pytest -m live --tb=short")
+    assert runs >= 4, "live.yml, CLAUDE.md, .claude/family.md and /release-prep"
+
+
+# Claude Code imports a line `@<path>` relative to the importing file, never one inside
+# backticks or a code block, and cuts a file that loads on demand at 40,000 characters.
+FAMILY_RULES = ROOT / "template/.claude/family.md.jinja"
+IMPORT_LINE = "@.claude/family.md"
+SDK_CORE_DOCS = "https://github.com/xippios/sdk-core/blob/main/docs/"
+
+
+def test_claude_md_holds_the_facts_and_imports_the_family_rules(
+    variant: tuple[str, Path],
+) -> None:
+    """The source's CLAUDE.md imports the family rules on the line after its intro and names
+    its own import path, the provider level where it nests, and the key's ini option only
+    for a keyed source (row 61)."""
+    name, dst = variant
+    answers = VARIANTS[name]
+    slug, pkg = answers["source_slug"], package_dir(answers)
+    claude = (dst / "CLAUDE.md").read_text()
+    title, intro, first = claude.split("\n\n")[:3]
+    assert title.startswith(f"# sdk-{slug} "), title
+    assert intro.startswith(f"`xippios-{slug}`"), intro
+    assert first == IMPORT_LINE, "the import on a line of its own, first after the intro"
+    assert [line for line in claude.splitlines() if line.startswith("@")] == [IMPORT_LINE]
+    assert f"`xippios.{pkg.replace('/', '.')}`" in claude
+    if "/" in pkg:
+        assert f"`src/xippios/{pkg.rsplit('/', 1)[0]}/`" in claude, "the provider level"
+    assert ("xippios_placeholder_key_envs" in claude) is bool(answers["api_key_env"])
+    assert "../" not in claude, "a relative path leaves the repository (worktree, GitHub)"
+    assert len(claude) < 40_000, "Claude Code cuts a file that loads on demand"
+
+
+def test_generated_tree_names_no_source_and_no_workspace_file(variant: tuple[str, Path]) -> None:
+    """Nothing source-specific is scaffolded (ADR-0008), nor a workspace-local reference."""
+    _, dst = variant
+    caches = {".ruff_cache", "__pycache__"}
+    for path in dst.rglob("*"):
+        if not path.is_file() or path.name == ".copier-answers.yml" or caches & set(path.parts):
+            continue
+        text = path.read_text()
+        for needle in ["commodity_desc", "corn_2024", "api_GET", "row 12", "COORDINATION"]:
+            assert needle not in text, f"{path}: {needle}"
+
+
+def test_readme_mcp_snippet_is_json(variant: tuple[str, Path]) -> None:
+    """The MCP client snippet parses, the key's env only for a keyed source, and no line
+    carries a closing brace after the args (the keyless render's trailing brace)."""
+    name, dst = variant
+    readme = (dst / "README.md").read_text()
+    block = readme.split("```json\n", 1)[1].split("```", 1)[0]
+    (server,) = json.loads(block)["mcpServers"].values()
+    env = str(VARIANTS[name]["api_key_env"])
+    assert server.get("env") == ({env: "..."} if env else None)
+    (args,) = [line for line in block.splitlines() if '"args"' in line]
+    assert args.rstrip().endswith(("]", "],")), args
+
+
+# The checks no answer changes, on one render.
+
+
+def test_family_rules_render_the_same_in_every_source(keyed_nested: Path) -> None:
+    """``.claude/family.md`` holds no Jinja, so a render is the template's file byte for
+    byte, in every source: it imports nothing and names sdk-core's documents by URL."""
+    family = (keyed_nested / ".claude/family.md").read_text()
+    assert family == FAMILY_RULES.read_text()
+    assert not [line for line in family.splitlines() if line.startswith("@")], "no import"
+    for doc in ["conventions.md", "definition-of-done.md", "review-checklist.md"]:
+        assert SDK_CORE_DOCS + doc in family, doc
+    assert "https://github.com/xippios/sdk-core/tree/main/docs/adr" in family
+    assert "../" not in family, "a relative path leaves the repository (worktree, GitHub)"
+    assert len(family) < 40_000, "Claude Code cuts a file that loads on demand"
+
+
+def test_pyproject_tooling(keyed_nested: Path) -> None:
+    """mypy covers scripts/; record_property raises no warning; the sdist ships no tests."""
+    tool = tomllib.loads((keyed_nested / "pyproject.toml").read_text())["tool"]
+    assert tool["mypy"]["files"] == ["src", "tests", "scripts"]
+    assert tool["pytest"]["ini_options"]["junit_family"] == "xunit1"
+    sdist = tool["hatch"]["build"]["targets"]["sdist"]
+    assert sdist == {"include": ["/src", "/docs", "/README.md", "/CHANGELOG.md", "/LICENSE"]}
+
+
+def test_dev_ruff_is_the_pre_commit_hooks(keyed_nested: Path) -> None:
+    """A new lock resolves the ruff the pre-commit hook runs, not the newest one."""
+    hooks = yaml.safe_load((keyed_nested / ".pre-commit-config.yaml").read_text())["repos"]
+    (rev,) = [repo["rev"] for repo in hooks if repo["repo"].endswith("/ruff-pre-commit")]
+    dev = tomllib.loads((keyed_nested / "pyproject.toml").read_text())["dependency-groups"]["dev"]
+    assert [spec for spec in dev if spec.startswith("ruff")] == [f"ruff=={rev.removeprefix('v')}"]
+
+
+def test_secret_detection_skips_the_answers_file(keyed_nested: Path) -> None:
+    """The hook and a baseline rescan exclude the same files, the answers file among them."""
+    baseline = json.loads((keyed_nested / ".secrets.baseline").read_text())
+    (excluded,) = [
+        pattern
+        for entry in baseline["filters_used"]
+        if entry["path"].endswith(".should_exclude_file")
+        for pattern in entry["pattern"]
+    ]
+    config = yaml.safe_load((keyed_nested / ".pre-commit-config.yaml").read_text())
+    (hook,) = [h for repo in config["repos"] for h in repo["hooks"] if h["id"] == "detect-secrets"]
+    for name in ["uv.lock", ".copier-answers.yml"]:
+        assert re.search(excluded, name), name
+        assert re.search(hook["exclude"], name), name
+
+
+def test_generated_baseline_scans_swagger_files(keyed_nested: Path) -> None:
+    """sdk-core dropped is_swagger_file: an upstream Swagger snapshot is scanned too."""
+    baseline = json.loads((keyed_nested / ".secrets.baseline").read_text())
+    filters = {entry["path"] for entry in baseline["filters_used"]}
+    assert "detect_secrets.filters.heuristic.is_swagger_file" not in filters
+    assert baseline["results"] == {}
+
+
+def test_local_env_files_are_ignored(keyed_nested: Path) -> None:
+    """Belt and braces: no variant of a local env file is ever committed."""
+    ignored = set((keyed_nested / ".gitignore").read_text().splitlines())
+    assert {".env", ".env.*", ".envrc", ".envrc.*"} <= ignored
+
+
+TABLE_HEADER = "| File | URL | Fetched | HTTP | Bytes | sha256 | ETag | Last-Modified | Note |"
+
+
+def test_upstream_snapshot_is_kept_byte_for_byte(keyed_nested: Path) -> None:
+    """Git never converts line endings under docs/upstream/: upstream files may carry CRLF.
+    FETCHED.md's stub has the columns and the shell row's marker refresh_upstream.py writes."""
+    assert (keyed_nested / ".gitattributes").read_text() == "docs/upstream/** -text\n"
+    fetched = (keyed_nested / "docs/upstream/FETCHED.md").read_text()
+    assert f"{TABLE_HEADER}\n" in fetched
+    assert "| (no file) |" in fetched
+    assert "## Attribution" in fetched
+
+
+def test_errors_module_and_classify_hook_are_scaffolded(keyed_nested: Path) -> None:
+    """A source's own error classes (conventions §5) and the classify hook (§6), both empty."""
+    pkg = keyed_nested / "src/xippios" / package_dir(VARIANTS["keyed-nested"])
+    assert (pkg / "errors.py").read_text().endswith("\n__all__: list[str] = []\n")
+    client = (pkg / "_client.py").read_text()
+    assert "def classify(response: httpx.Response) -> XippiosError | None:" in client
+    assert "    return None\n" in client
+    assert "    classify=classify,\n" in client, "wired into the config"
+
+
+def test_models_use_validation_alias(keyed_nested: Path) -> None:
+    """Adapters serialise by alias: a plain alias would hand agents the upstream spelling."""
+    plain_alias = re.compile(r"Field\((?:[^)]*[\s,])?alias=")
+    for path in keyed_nested.rglob("*.py"):
+        assert not plain_alias.search(path.read_text()), path
+    add_endpoint = (keyed_nested / ".claude/commands/add-endpoint.md").read_text()
+    assert "`Field(validation_alias=...)`" in add_endpoint
+
+
+def test_servers_take_the_caps_kept_with_the_tasks(keyed_nested: Path) -> None:
+    """ADR-0016: per-tool caps live next to the tasks as MCP_CAPS; the server reads them."""
+    pkg = keyed_nested / "src/xippios" / package_dir(VARIANTS["keyed-nested"])
+    assert 'caps=getattr(tasks, "MCP_CAPS", None),' in (pkg / "mcp.py").read_text()
+    tasks = (pkg / "tasks.py").read_text()
+    assert "# MCP_CAPS = {" in tasks, "a commented scaffold"
+    assert "# from xippios.core import ResultCap" in tasks, "core 0.3.0 exports it"
+
+
+def test_generated_tests_need_no_key(keyed_nested: Path) -> None:
+    """The reachability probe is a plain request: the package's client would send the key."""
+    live = (keyed_nested / "tests/test_live.py").read_text()
+    assert "httpx.AsyncClient(" in live
+    assert "await http.get(BASE_URL)" in live
+    assert "follow_redirects=True" in live
+    assert "client.request" not in live
+
+
+# SHA-256 of sdk-core's files the template copies verbatim, at v0.2.1, the core release the
+# template adopts: git -C <workspace root>/sdk-core show v0.2.1:<path> | sha256sum (digests,
+# not secrets). gates.yml's is core's from sdk-core#26 on (merged at 9d7ff47: the gates
+# repository renamed `xippios/sdk-gates`), core main's since.
 CORE_VERBATIM = {
     ".github/workflows/gates.yml": (
         # pragma: allowlist nextline secret
@@ -750,28 +712,20 @@ def without(text: str, first: str, stop: str) -> str:
     return text[:start] + text[text.index(stop, start) :]
 
 
-def test_workflows_and_pr_template_are_core_v0_2_1(template_src: Path, tmp_path: Path) -> None:
+def test_workflows_and_pr_template_are_cores_bytes(keyed_nested: Path) -> None:
     """The verbatim files are core's bytes; ci.yml and publish.yml core's plus ours."""
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
     for rel, digest in CORE_VERBATIM.items():
-        assert hashlib.sha256((dst / rel).read_bytes()).hexdigest() == digest, rel
-    ci = (dst / ".github/workflows/ci.yml").read_text()
+        assert hashlib.sha256((keyed_nested / rel).read_bytes()).hexdigest() == digest, rel
+    ci = (keyed_nested / ".github/workflows/ci.yml").read_text()
     assert ci.count(FETCH_DEPTH) == 1
     core_ci = without(ci.replace(FETCH_DEPTH, ""), *CI_STEPS)
-    publish = (dst / ".github/workflows/publish.yml").read_text()
+    publish = (keyed_nested / ".github/workflows/publish.yml").read_text()
     core_publish = without(publish, *PUBLISH_STEP)
     for rel, core in [
         (".github/workflows/ci.yml", core_ci),
         (".github/workflows/publish.yml", core_publish),
     ]:
         assert hashlib.sha256(core.encode()).hexdigest() == CORE_EXTENDED[rel], rel
-
-
-def test_the_templates_own_gates_caller_is_the_one_it_ships() -> None:
-    """sdk-template carries core's gates.yml as every repository does, off until GATES_CALLER."""
-    own = (ROOT / ".github/workflows/gates.yml").read_bytes()
-    assert own == (ROOT / "template/.github/workflows/gates.yml").read_bytes()
-    assert hashlib.sha256(own).hexdigest() == CORE_VERBATIM[".github/workflows/gates.yml"]
 
 
 def steps_of(workflow: dict[str, object], job: str) -> list[dict[str, object]]:
@@ -782,10 +736,9 @@ def steps_of(workflow: dict[str, object], job: str) -> list[dict[str, object]]:
     return steps
 
 
-def test_ci_reads_the_pull_request_and_runs_once_on_main(generated: tuple[str, Path]) -> None:
+def test_ci_reads_the_pull_request_and_runs_once_on_main(keyed_nested: Path) -> None:
     """No push trigger (publish.yml calls it for a release); the two family CI steps."""
-    _, dst = generated
-    workflow = yaml.safe_load((dst / ".github/workflows/ci.yml").read_text())
+    workflow = yaml.safe_load((keyed_nested / ".github/workflows/ci.yml").read_text())
     assert set(workflow[True]) == {"pull_request", "workflow_call"}, "conventions §12"
     steps = steps_of(workflow, "test")
     assert steps[0]["with"] == {"fetch-depth": 0, "persist-credentials": False}
@@ -794,128 +747,19 @@ def test_ci_reads_the_pull_request_and_runs_once_on_main(generated: tuple[str, P
     for prefix in ["chore/release-", "dependabot/"]:
         assert f"!startsWith(github.head_ref, '{prefix}')" in changelog["if"], prefix
     assert "chore/template-update" not in changelog["if"], "conventions §15 item 9"
-    rules = " ".join((dst / ".claude/family.md").read_text().split())
-    assert "Every PR but a release or Dependabot's adds an entry" in rules, "as ci.yml checks"
     assert cap["name"] == "Fixture files under 256 KiB"
     assert cap["env"]["LEVEL"] == "warning", "an error from template v0.3.0 (ADR-0019)"
     assert "--no-renames --diff-filter=AM" in cap["run"]
     assert "262144" in cap["run"]
 
 
-def workflow_uses(path: Path) -> list[tuple[str, str]]:
-    """Each ``uses:`` of a workflow: the action and what follows it on the line."""
-    return re.findall(r"^\s+(?:- )?uses: (\S+)(.*)$", path.read_text(), re.MULTILINE)
-
-
-def test_workflow_actions_are_pinned_by_sha(generated: tuple[str, Path]) -> None:
-    """ci.yml, publish.yml, live.yml and, where rendered, siblings.yml pin every action to a
-    commit, its version in a comment (conventions §13); live.yml and siblings.yml take
-    ci.yml's pins."""
-    _, dst = generated
-    workflows = dst / ".github/workflows"
-    rendered = sorted(path.name for path in workflows.glob("*.yml"))
-    assert rendered in [CORE_WORKFLOWS, sorted([*CORE_WORKFLOWS, "siblings.yml"])]
-    for rel in rendered:
-        if rel == "gates.yml":
-            continue  # core's bytes, calling the gates at @main by design (conventions §13)
-        uses = workflow_uses(workflows / rel)
-        assert uses, rel
-        for action, comment in uses:
-            if action.startswith("./"):
-                continue
-            assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{rel}: {action}"
-            assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{rel}: {action}{comment}"
-    for rel in set(rendered) & {"live.yml", "siblings.yml"}:
-        assert set(workflow_uses(workflows / rel)) <= set(workflow_uses(workflows / "ci.yml"))
-
-
-CORE_WORKFLOWS = ["ci.yml", "gates.yml", "live.yml", "publish.yml"]
-
-
-def skip_matcher(pkg: str) -> Callable[[str], bool]:
-    """Whether copier's ``_skip_if_exists`` protects a path, matched as copier 9.19.1 does:
-    the patterns rendered, read as gitignore lines by pathspec."""
-    patterns = yaml.safe_load((ROOT / "copier.yml").read_text())["_skip_if_exists"]
-    rendered = [pattern.replace("{{ package_dir }}", pkg) for pattern in patterns]
-    return PathSpec.from_lines("gitignore", rendered).match_file
-
-
-SIBLINGS_SCRIPT = ROOT / "template/.github/{% if '.' in import_path %}scripts{% endif %}"
-
-
-def test_siblings_check_renders_where_the_import_path_nests(generated: tuple[str, Path]) -> None:
-    """ADR-0006's sibling proof is the template's (T10): siblings.yml and the script it runs
-    render, byte for byte and executable, only where the import path nests, outside the
-    skip-listed scripts/ so that a source's copy is trusted when identical to the render;
-    a visible job, `ci` never aggregates it (ci.yml stays core's)."""
-    name, dst = generated
-    nested = "/" in package_dir(VARIANTS[name])
-    workflow = dst / ".github/workflows/siblings.yml"
-    script = dst / ".github/scripts/check-siblings.sh"
-    assert workflow.is_file() is nested
-    assert (dst / ".github/scripts").exists() is nested, "no empty directory where flat"
-    assert not (dst / "scripts/check-siblings.sh").exists()
-    claude = (dst / "CLAUDE.md").read_text()
-    assert ("siblings.yml" in claude) is nested
-    if not nested:
-        return
-    assert script.read_bytes() == (SIBLINGS_SCRIPT / "check-siblings.sh").read_bytes()
-    assert script.stat().st_mode & 0o111, "executable, as the render the merge classes compare"
-    syntax = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
-    assert syntax.returncode == 0, syntax.stderr
-    skipped = skip_matcher(package_dir(VARIANTS[name]))
-    assert skipped("scripts/check-siblings.sh"), "why the script is not under scripts/"
-    for rel in [".github/workflows/siblings.yml", ".github/scripts/check-siblings.sh"]:
-        assert not skipped(rel), f"{rel}: the template's, trusted when identical to the render"
-    text = workflow.read_text()
-    assert "{{" not in text.replace("${{", ""), "copied verbatim: only its name is rendered"
-    parsed = yaml.safe_load(text)
-    assert parsed[True] == {"push": {"branches": ["main"]}, "pull_request": None}
-    assert parsed["permissions"] == {"contents": "read"}
-    (job,) = parsed["jobs"].values()
-    assert job["name"] == "siblings"
-    checkout, setup, run = job["steps"]
-    assert checkout["with"] == {"persist-credentials": False}, "conventions §13"
-    assert setup["uses"].startswith("astral-sh/setup-uv@")
-    assert run["run"] == ".github/scripts/check-siblings.sh"
-    assert run["env"] == {"GITHUB_TOKEN": "${{ github.token }}"}, "the job's read-only token"
-    assert "secrets." not in text
-    ci = yaml.safe_load((dst / ".github/workflows/ci.yml").read_text())
-    assert "siblings" not in json.dumps(ci), "ci.yml stays core's file (row 34 c)"
-
-
-def test_the_templates_own_workflows_are_hardened() -> None:
-    """Conventions §13 for this repository's own workflows too: SHA pins with the version
-    in a comment (the gates at ``@main`` by design), ``contents: read`` at the top, and no
-    checkout keeps its credentials but the one in a job that pushes, which says so."""
-    for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
-        for action, comment in workflow_uses(path):
-            if action.startswith("xippios/sdk-gates/") and action.endswith("@main"):
-                continue
-            assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{path.name}: {action}"
-            assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{path.name}: {action}{comment}"
-        text = path.read_text()
-        workflow = yaml.safe_load(text)
-        assert workflow["permissions"] == {"contents": "read"}, path.name
-        for name, job in workflow["jobs"].items():
-            steps = job.get("steps", [])
-            pushes = any("git push" in step.get("run", "") for step in steps)
-            for step in steps:
-                if str(step.get("uses", "")).startswith("actions/checkout@"):
-                    kept = step.get("with", {}).get("persist-credentials", True)
-                    assert kept is pushes, f"{path.name}: {name}"
-            if pushes:
-                assert "The one checkout that keeps its credentials" in text, path.name
-
-
-def test_publish_is_the_release_train(generated: tuple[str, Path]) -> None:
+def test_publish_is_the_release_train(keyed_nested: Path) -> None:
     """Conventions §12: every push to main; a release tags itself; no concurrency group.
 
     A release cannot carry a git-pinned core: the tag job refuses it before the tag, so no
     tag is left without a release.
     """
-    name, dst = generated
-    workflow = yaml.safe_load((dst / ".github/workflows/publish.yml").read_text())
+    workflow = yaml.safe_load((keyed_nested / ".github/workflows/publish.yml").read_text())
     assert workflow[True] == {"push": {"branches": ["main"]}, "workflow_dispatch": None}
     assert "concurrency" not in workflow, "a pending release run would be cancelled"
     assert list(workflow["jobs"]) == ["release-check", "ci", "tag", "build", "publish"]
@@ -928,243 +772,47 @@ def test_publish_is_the_release_train(generated: tuple[str, Path]) -> None:
     guard = names.index("Refuse a pyproject with [tool.uv.sources]")
     assert names[guard + 1] == "Tag the merge commit with its CHANGELOG section"
     assert "[tool\\.uv\\.sources\\]" in tag[guard]["run"]
-    release_prep = (dst / ".claude/commands/release-prep.md").read_text()
-    assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep
-    assert "`X.Y.Z` with `Z` the patch that shipped it, or `X.Y.0`" in release_prep
-    assert release_prep.index("No git-pinned core") < release_prep.index("set `version`")
-    flat = " ".join(release_prep.split())
-    subset = (
-        "`pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`, `CLAUDE.md` and "
-        "`docs/handover.md`"
-    )
-    assert subset in flat, "the release subset of conventions §12"
-    assert "`/refresh-reference-data`, merged before this one" in flat, "its own PR first"
-    assert "if the `merge-class` check says `auto`" in flat, "ADR-0018, amendment (e)"
-    slug = VARIANTS[name]["source_slug"]
+    release_prep = (keyed_nested / ".claude/commands/release-prep.md").read_text()
+    assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep, "the pin goes first"
+    slug = VARIANTS["keyed-nested"]["source_slug"]
     assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in release_prep
 
 
-def test_adopt_release_walks_the_adoption_checklist(template_src: Path, tmp_path: Path) -> None:
-    """Conventions §15, ADR-0018: the nine items in order, one chore/template-update PR."""
-    items = ["Items 1 and 2", "Items 3 and 4", *(f"Item {n}:" for n in range(5, 10))]
+def test_adopt_release_runs_the_update_for_this_source(
+    keyed_nested: Path, keyless_flat: Path
+) -> None:
+    """Conventions §15, ADR-0018: one chore/template-update PR whose commands name this
+    source, the key's ini option only where there is a key."""
     update = "uvx copier update --defaults --vcs-ref=<tag> -d core_version=X.Y.Z -d core_git_ref="
-    keyed_line = "`xippios_placeholder_key_envs` under `[tool.pytest.ini_options]` names"
-    for env in ["EX_API_KEY", ""]:
-        dst = generate(template_src, tmp_path / (env or "open"), source_slug="ex", **keyed(env))
+    for name, dst in [("keyed-nested", keyed_nested), ("keyless-flat", keyless_flat)]:
         text = (dst / ".claude/commands/adopt-release.md").read_text()
-        positions = [text.index(item) for item in items]
-        assert positions == sorted(positions)
         assert update in text
-        moved = text.index("First move the tests of the\n   source's own out of every file")
-        assert moved < text.index(update), "the update deletes a removed file, no marker"
-        assert "`git show HEAD:tests/test_adapters.py` brings its tests back" in text
         assert "`chore/template-update-<tag>`" in text
-        assert (keyed_line in text) is bool(env), "the ini option, for a keyed source only"
-        assert "gh pr merge --auto --squash -R xippios/sdk-ex <number>" in text, "from the root"
-        github = "`https://github.com/xippios/sdk-template/blob/<tag>/CHANGELOG.md` (or"
-        local = "git -C <workspace root>/sdk-template"
-        assert text.index(github) < text.index(local), "GitHub first, the local clone named"
-        flat = " ".join(text.split())
-        assert "(`~=0.2.1` for template v0.2.1)" in flat, "the patch case, ADR-0018 amendment c"
-        assert "a third never: core takes it in that minor (ADR-0023)" in flat, "§15 item 4"
-        assert "`docs/upstream/FETCHED.md`, left to the next `/refresh-upstream`" in flat
-        assert "nothing more (ADR-0018, amendment (d))" in flat, "dead fixtures may go"
-        assert "sdk-template v0.2.1 and conventions 1.15" in flat
-        assert "if the `merge-class` check says `auto`" in flat, "ADR-0018, amendment (e)"
+        assert "`https://github.com/xippios/sdk-template/blob/<tag>/CHANGELOG.md`" in text
+        assert "`git show HEAD:tests/test_adapters.py`" in text
+        assert "uv run python scripts/refresh_reference.py --render-only" in text, "§15 item 6"
+        slug = VARIANTS[name]["source_slug"]
+        assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in text
+        keyed_source = bool(VARIANTS[name]["api_key_env"])
+        assert ("xippios_placeholder_key_envs" in text) is keyed_source, name
 
 
-def test_reference_data_has_both_enum_paths(template_src: Path, tmp_path: Path) -> None:
+def test_reference_data_has_both_enum_paths(keyless_flat: Path) -> None:
     """ADR-0008 amendment: StrEnum for value lists, IntEnum for integer ids, as rendered;
     ``--render-only`` re-renders them from the packaged files, as an adoption does."""
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
-    script = (dst / "scripts/refresh_reference.py").read_text()
+    script = (keyless_flat / "scripts/refresh_reference.py").read_text()
     for call in ["render_str_enums(values,", "id_name_pairs(records,", "render_int_enums(pairs,"]:
         assert call in script, call
-    command = (dst / ".claude/commands/refresh-reference-data.md").read_text()
-    assert "ruff format" not in command, "core 0.2.0 renders enums.py ruff-clean"
     assert "records = [upstream_record(record) for record in" in script, "upstream's names"
-    render_only = "uv run python scripts/refresh_reference.py --render-only"
     assert '"--render-only",' in script
-    assert render_only in command
-    assert render_only in (dst / ".claude/commands/adopt-release.md").read_text(), "§15 item 6"
-    enums = (dst / "src/xippios/ex/enums.py").read_text()
-    assert enums.startswith('"""StrEnums for packaged value lists (conventions, section 3).')
+    command = (keyless_flat / ".claude/commands/refresh-reference-data.md").read_text()
+    assert "uv run python scripts/refresh_reference.py --render-only" in command
+    assert "ruff format" not in command, "core 0.2.0 renders enums.py ruff-clean"
 
 
-def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Path]) -> None:
-    """Conventions §10: nightly and on demand; the secret in the pytest step's env only."""
-    name, dst = generated
-    answers = VARIANTS[name]
-    env_var = str(answers["api_key_env"])
-    text = (dst / ".github/workflows/live.yml").read_text()
-    workflow = yaml.safe_load(text)
-    triggers = workflow[True]  # YAML 1.1 reads the key `on` as a boolean
-    assert set(triggers) == {"schedule", "workflow_dispatch"}
-    assert workflow["permissions"] == {"contents": "read"}
-    assert "env" not in workflow, "the secret reaches the pytest step only"
-    (job,) = workflow["jobs"].values()
-    assert "env" not in job, "the secret reaches the pytest step only"
-    *setup, pytest_step = job["steps"]
-    assert pytest_step["run"] == "uv run pytest -m live --tb=short", "every live test"
-    assert all("env" not in step for step in setup), "checkout and uv sync never see it"
-    checkout = setup[0]
-    assert checkout["uses"].startswith("actions/checkout@")
-    assert checkout["with"] == {"persist-credentials": False}, "conventions §13"
-    expected_env: dict[str, str] = {"XIPPIOS_LIVE_TESTS": "1"}
-    if env_var:
-        expected_env[env_var] = f"${{{{ secrets.{env_var} }}}}"
-        assert text.count(f"${{{{ secrets.{env_var} }}}}") == 1
-        assert text.count("secrets.") == 1
-    else:
-        assert "secrets." not in text
-    assert pytest_step["env"] == expected_env
-    for reason in ["the secret it names", "so that sources sharing a key do not start"]:
-        assert (reason in " ".join(text.split())) is bool(env_var), f"keyed only: {reason}"
-    claude = (dst / "CLAUDE.md").read_text()
-    if env_var:
-        step = "Only its `uv run pytest -m live --tb=short` step sees the key"
-        assert f"{step}, from the org secret `{env_var}`." in claude
-    else:
-        assert "The API needs no key, so the workflow uses no secret." in claude
-
-
-def test_every_live_run_keeps_payloads_out_of_tracebacks(generated: tuple[str, Path]) -> None:
-    """Row 42: every live command, run or documented, takes ``--tb=short``; a live test
-    asserts on shapes and counts, since assertion introspection prints what it compares."""
-    _, dst = generated
-    runs = 0
-    for path in sorted(dst.rglob("*")):
-        if path.is_file() and path.suffix in {".md", ".yml", ".toml", ".py"}:
-            text = path.read_text()
-            assert not re.search(r"pytest -m live(?! --tb=short)", text), path
-            runs += text.count("pytest -m live --tb=short")
-    assert runs >= 4, "live.yml, CLAUDE.md, .claude/family.md and /release-prep"
-    rules = " ".join((dst / ".claude/family.md").read_text().split())
-    assert "pytest's assertion introspection still prints the values an `assert`" in rules
-    assert "a live test asserts on shapes and counts, never on a raw payload" in rules
-
-
-def live_start(dst: Path) -> tuple[int, int]:
-    """(hour, minute) of the nightly live run, checked against its cron and the CLAUDE.md."""
-    workflow = yaml.safe_load((dst / ".github/workflows/live.yml").read_text())
-    (schedule,) = workflow[True]["schedule"]
-    match = re.fullmatch(r"(\d{1,2}) (\d) \* \* \*", schedule["cron"])
-    assert match, schedule["cron"]
-    minute, hour = int(match[1]), int(match[2])
-    assert 0 <= minute <= 59, schedule["cron"]
-    assert 1 <= hour <= 5, f"{schedule['cron']}: inside the night window, 01:00 to 05:59 UTC"
-    assert f"nightly at {hour:02d}:{minute:02d} UTC" in (dst / "CLAUDE.md").read_text()
-    return hour, minute
-
-
-def test_live_workflow_runs_inside_the_night_window(generated: tuple[str, Path]) -> None:
-    _, dst = generated
-    live_start(dst)
-
-
-def test_sources_sharing_a_key_start_at_stable_different_times(
-    template_src: Path, tmp_path: Path
-) -> None:
-    """ADR-0009: usda-psd, usda-esr and usda-gats share one key and one gateway quota; their
-    nightly runs never start together, and a render keeps a repository's time."""
-    shared = keyed("DATA_GOV_API_KEY", "query", "api_key")
-    starts = {
-        slug: live_start(generate(template_src, tmp_path / slug, source_slug=slug, **shared))
-        for slug in ["usda-psd", "usda-esr", "usda-gats"]
-    }
-    assert len(set(starts.values())) == 3, starts
-    again = generate(template_src, tmp_path / "again", source_slug="usda-psd", **shared)
-    assert live_start(again) == starts["usda-psd"], "stable across renders"
-
-
-def test_generated_tests_need_no_key(generated: tuple[str, Path]) -> None:
-    """The reachability probe sends no key."""
-    name, dst = generated
-    live = (dst / "tests/test_live.py").read_text()
-    flat = " ".join(live.split())
-    assert ("it spends no keyed call" in flat) is bool(VARIANTS[name]["api_key_env"])
-    assert "quota" not in live, "a keyed source need not have a quota"
-    assert "httpx.AsyncClient(" in live
-    assert "await http.get(BASE_URL)" in live
-    assert "follow_redirects=True" in live
-    assert "client.request" not in live, "the package's client would send the key"
-
-
-def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> None:
-    """The http docstring states ADR-0007; the CLAUDE.md names every namespace level, the
-    family rules forbid an ``__init__.py`` at any of them."""
-    name, dst = generated
-    pkg = package_dir(VARIANTS[name])
-    http = (dst / f"src/xippios/{pkg}/http.py").read_text()
-    assert "is a ``GET`` with query parameters" in http
-    assert "is a ``POST`` whose JSON body is keyed by parameter name (ADR-0007)" in http
-    claude = (dst / "CLAUDE.md").read_text()
-    family = (dst / ".claude/family.md").read_text()
-    flat = " ".join(claude.split())
-    if "/" in pkg:
-        provider = pkg.rsplit("/", 1)[0]
-        assert f"and so is `src/xippios/{provider}/`, the provider level" in flat
-    else:
-        assert "the provider level" not in claude
-    assert f"The import path is `xippios.{pkg.replace('/', '.')}` (ADR-0006)" in flat
-    never = "nor an `__init__.py` at a level between it and the package (the provider level"
-    assert never in " ".join(family.split()), "every namespace level, in every source"
-    assert ".github/workflows/live.yml" in claude
-    assert "Hand-apply" in family
-    assert "`/adopt-release <tag>` walks it" in family, "conventions §15, ADR-0018"
-    assert "`tests/conftest.py` and `tests/test_family.py` among them" in " ".join(family.split())
-    keyed_source = bool(VARIANTS[name]["api_key_env"])
-    assert ("xippios_placeholder_key_envs" in claude) is keyed_source
-    assert ("(base URL, key, rate limit)" in claude) is keyed_source, "a key only if there is one"
-    stagger = "so that sources sharing a key never start together"
-    assert (stagger in flat) is keyed_source, "the start time's reason, keyed sources only"
-    assert "PACKAGED_LISTS" not in claude, "the Layout names the lists generically"
-    # A block tag that ends a line eats its newline (trim_blocks); these blank lines stay.
-    assert "\n\nuv run xippios-" in claude, "a blank line between the two commands"
-    record = (dst / ".claude/commands/record-fixture.md").read_text()
-    assert "\n\n2. Find the request path" in record
-    assert "xippios_placeholder_key_envs" not in family, "the same file for every source"
-    rules = " ".join(family.split())
-    assert "or one per service where operation ids repeat across services" in rules
-    assert "lives there too, unexported, since `enums.py` is generated whole" in rules
-    assert "may gain a lead paragraph" in rules, "the released section is the tag's message"
-    assert "a write task" not in rules, "the template renders read-only packages"
-    assert "(ADR-0017)" in family
-    assert "| Write tools | no, this package is read-only |" in claude, "conventions §8"
-
-
-# Claude Code imports a line `@<path>` relative to the importing file, never one inside
-# backticks or a code block, and cuts a file that loads on demand at 40,000 characters.
-FAMILY_RULES = ROOT / "template/.claude/family.md.jinja"
-IMPORT_LINE = "@.claude/family.md"
-SDK_CORE_DOCS = "https://github.com/xippios/sdk-core/blob/main/docs/"
-
-
-def test_claude_md_imports_the_family_rules(generated: tuple[str, Path]) -> None:
-    """The source's CLAUDE.md holds its facts and imports the family rules on the line after
-    its intro; the family rules hold no Jinja, so they render the same in every source."""
-    _, dst = generated
-    claude = (dst / "CLAUDE.md").read_text()
-    family = (dst / ".claude/family.md").read_text()
-    title, intro, first = claude.split("\n\n")[:3]
-    assert title.startswith("# sdk-"), title
-    assert intro.startswith("`xippios-"), intro
-    assert first == IMPORT_LINE, "the import on a line of its own, first after the intro"
-    assert [line for line in claude.splitlines() if line.startswith("@")] == [IMPORT_LINE]
-    assert family == FAMILY_RULES.read_text(), "no Jinja: identical in every source"
-    assert not [line for line in family.splitlines() if line.startswith("@")], "no import"
-    for doc in ["conventions.md", "definition-of-done.md", "review-checklist.md"]:
-        assert SDK_CORE_DOCS + doc in family, doc
-    assert "https://github.com/xippios/sdk-core/tree/main/docs/adr" in family
-    for text in [claude, family]:
-        assert "../" not in text, "a relative path leaves the repository (worktree, GitHub)"
-        assert len(text) < 40_000, "Claude Code cuts a file that loads on demand"
-
-
-def test_every_command_points_at_the_process(template_src: Path, tmp_path: Path) -> None:
+def test_every_command_points_at_the_process(keyless_flat: Path) -> None:
     """The definition of done and the review checklist, by URL, instead of repeated text."""
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
-    commands = sorted((dst / ".claude/commands").glob("*.md"))
+    commands = sorted((keyless_flat / ".claude/commands").glob("*.md"))
     assert len(commands) == 6
     for path in commands:
         flat = " ".join(path.read_text().split())
@@ -1173,54 +821,99 @@ def test_every_command_points_at_the_process(template_src: Path, tmp_path: Path)
         assert "../" not in flat, f"{path.name}: a relative path leaves a worktree"
 
 
-def test_generated_tree_names_no_source_and_no_workspace_file(generated: tuple[str, Path]) -> None:
-    """Nothing source-specific is scaffolded (ADR-0008), nor a workspace-local reference."""
-    _, dst = generated
-    caches = {".ruff_cache", "__pycache__"}
-    for path in dst.rglob("*"):
-        if not path.is_file() or path.name == ".copier-answers.yml" or caches & set(path.parts):
-            continue
-        text = path.read_text()
-        for needle in ["commodity_desc", "corn_2024", "api_GET", "row 12", "COORDINATION"]:
-            assert needle not in text, f"{path}: {needle}"
+def test_readme_status_table_has_the_columns_the_family_check_reads(keyless_flat: Path) -> None:
+    """Core's family check reads the tables under ``## Status`` by their Task function column."""
+    readme = (keyless_flat / "README.md").read_text()
+    status = readme[readme.index("\n## Status\n") :]
+    status = status[: status.index("\n## ", 1)]
+    assert "| Upstream operation | Task function | MCP tool | Status |" in status
 
 
-def test_generated_baseline_scans_swagger_files(generated: tuple[str, Path]) -> None:
-    """sdk-core dropped is_swagger_file: an upstream Swagger snapshot is scanned too."""
-    _, dst = generated
-    baseline = json.loads((dst / ".secrets.baseline").read_text())
-    filters = {entry["path"] for entry in baseline["filters_used"]}
-    assert "detect_secrets.filters.heuristic.is_swagger_file" not in filters
-    assert baseline["results"] == {}
+def test_the_files_a_source_fills_are_one_list(keyless_flat: Path) -> None:
+    """The family rules and /adopt-release name every protected path, in skip order."""
+    names = [
+        f"`{p.removeprefix('src/xippios/{{ package_dir }}/').replace('/**', '/')}`"
+        for p in QUESTIONS["_skip_if_exists"]
+    ]
+    listing = ", ".join(names[:-1]) + f" and {names[-1]}"
+    assert names[-1] == "`CLAUDE.md`", "the facts are the source's"
+    for rel in [".claude/family.md", ".claude/commands/adopt-release.md"]:
+        assert listing in " ".join((keyless_flat / rel).read_text().split()), rel
 
 
-def test_keyless_flat_render_is_how_eurostat_starts(template_src: Path, tmp_path: Path) -> None:
-    """A keyless flat source (eurostat's start on v0.2.1, roadmap §4) names no key anywhere.
+# The answers: what each renders, and what copier refuses.
 
-    The family check runs on it as on a keyed one: its test file is the same line.
-    """
-    dst = generate(template_src, tmp_path / "repo", source_slug="eurostat", **keyed(""))
-    assert (dst / "src/xippios/eurostat/tasks.py").is_file(), "flat: xippios.eurostat"
-    assert not (dst / "src/xippios/__init__.py").exists()
-    answers = yaml.safe_load((dst / ".copier-answers.yml").read_text())
-    assert answers["api_key_env"] == ""
-    assert "api_key_location" not in answers, "not asked without a key"
-    assert "api_key_name" not in answers
-    pyproject = tomllib.loads((dst / "pyproject.toml").read_text())
-    assert "xippios_placeholder_key_envs" not in pyproject["tool"]["pytest"]["ini_options"]
-    assert "xippios_package" not in pyproject["tool"]["pytest"]["ini_options"], "one tasks.py"
-    assert pyproject["project"]["dependencies"] == ["xippios-core~=0.2.1"]
-    assert "secrets." not in (dst / ".github/workflows/live.yml").read_text()
-    client = (dst / "src/xippios/eurostat/_client.py").read_text()
-    assert "API_KEY_ENV: str | None = None" in client
-    assert "Auth" not in client
-    assert "No API key is needed." in (dst / "README.md").read_text()
-    assert "| Credentials | none; the API is open |" in (dst / "CLAUDE.md").read_text()
-    assert (dst / "tests/test_family.py").read_text() == FAMILY_TEST
-    for rel in REMOVED_FILES:
-        assert not (dst / rel).exists(), rel
-    check = ruff(dst, "check", ".")
-    assert check.returncode == 0, check.stdout + check.stderr
+
+def test_key_auth_matches_location(
+    template_src: Path, tmp_path: Path, keyed_nested: Path, keyless_flat: Path
+) -> None:
+    """Each key location renders its auth, exported; a keyless client has none; ``basic``
+    is refused (D35)."""
+    clients = {
+        "header": keyed_nested / "src/xippios/usda/psd/_client.py",
+        "": keyless_flat / "src/xippios/eurostat/_client.py",
+    }
+    for location in ["query", "bearer"]:
+        answers = keyed("EX_API_KEY", location)
+        dst = generate(template_src, tmp_path / location, source_slug="ex", **answers)
+        clients[location] = dst / "src/xippios/ex/_client.py"
+    for location, auth in [
+        ("query", 'QueryKeyAuth("key", API_KEY_ENV, source=SOURCE)'),
+        ("header", 'HeaderKeyAuth("X-Api-Key", API_KEY_ENV, source=SOURCE)'),
+        ("bearer", "BearerAuth(API_KEY_ENV, source=SOURCE)"),
+    ]:
+        client = clients[location].read_text()
+        assert f"auth = {auth}" in client, location
+        assert '    "auth",\n' in client, "auth is exported"
+    keyless = clients[""].read_text()
+    assert "Auth" not in keyless
+    assert '"auth"' not in keyless
+    assert "API_KEY_ENV: str | None = None" in keyless
+    assert "client = AsyncClient(config)" in keyless
+    with pytest.raises(ValueError, match="api_key_location"):
+        generate(template_src, tmp_path / "basic", source_slug="ex", **keyed("EX_API_KEY", "basic"))
+
+
+def detect_secrets_hook(directory: Path, *files: str) -> subprocess.CompletedProcess[str]:
+    """The generated repository's detect-secrets hook, on ``files`` in ``directory``."""
+    hook = [sys.executable, "-m", "detect_secrets.pre_commit_hook"]
+    return subprocess.run(
+        [*hook, "--baseline", ".secrets.baseline", *files],
+        cwd=directory,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+@pytest.mark.parametrize("ref", ["main", FAKE_CORE_SHA])
+def test_core_git_ref_pins_core_and_keeps_the_bound(
+    template_src: Path, tmp_path: Path, ref: str
+) -> None:
+    """uv takes a pinned core from ``[tool.uv.sources]`` and does not check the bound against
+    it, so the bound stays ``~=``; the pin's ``rev`` line is allowlisted for detect-secrets,
+    which a 40-character commit SHA trips without the pragma."""
+    dst = generate(template_src, tmp_path / "repo", **{**PINNED, "core_git_ref": ref})
+    pyproject = (dst / "pyproject.toml").read_text()
+    parsed = tomllib.loads(pyproject)
+    git_source = {"git": "https://github.com/xippios/sdk-core.git", "rev": ref}
+    assert parsed["tool"]["uv"]["sources"] == {"xippios-core": git_source}
+    assert parsed["project"]["dependencies"] == [f"xippios-core~={CORE_DEFAULT}"]
+    assert "uvx copier update --defaults --vcs-ref=:current: -d core_git_ref=" in pyproject
+    (rev,) = [line for line in pyproject.splitlines() if line.startswith("xippios-core = {")]
+    assert "# pragma: allowlist secret" in rev
+    if ref == "main":
+        return
+    scan = tmp_path / "scan"
+    scan.mkdir()
+    shutil.copy(dst / ".secrets.baseline", scan / ".secrets.baseline")
+    (scan / "pyproject.toml").write_text(pyproject)
+    (scan / "unmarked.toml").write_text(pyproject.replace(rev, rev.split("  # pragma")[0]))
+    hook = detect_secrets_hook(scan, "pyproject.toml")
+    assert hook.returncode == 0, hook.stdout + hook.stderr
+    control = detect_secrets_hook(scan, "unmarked.toml")
+    assert control.returncode == 1, "without the pragma the SHA must be flagged"
+    assert "Hex High Entropy String" in control.stdout, control.stdout
 
 
 @pytest.mark.parametrize(
@@ -1259,11 +952,9 @@ SOURCE_NAME = "{{ source_name }}"
 def test_source_name_is_bounded_by_the_longest_python_line(
     template_src: Path, tmp_path: Path
 ) -> None:
-    """A name at the bound renders ruff-clean (E501 at 100 columns); one more is refused.
-
-    The long-name variant, sdk-usda-esmis's 64-character name, is within it and renders
-    ruff-clean with every variant.
-    """
+    """A name at the bound renders ruff-clean (E501 at 100 columns); one more is refused, as
+    are the characters the generated Python cannot quote. The keyless nested variant's
+    64-character name, sdk-usda-esmis's (row 60), lies between 60 and the bound."""
     lines = [
         line
         for path in (ROOT / "template").rglob("*.py.jinja")
@@ -1271,11 +962,8 @@ def test_source_name_is_bounded_by_the_longest_python_line(
         if SOURCE_NAME in line
     ]
     bound = 100 - max(len(line) - len(SOURCE_NAME) for line in lines)
-    assert (
-        f"at most {bound} characters"
-        in yaml.safe_load((ROOT / "copier.yml").read_text())["source_name"]["help"]
-    )
-    assert len(str(VARIANTS["long-name"]["source_name"])) <= bound
+    assert f"at most {bound} characters" in QUESTIONS["source_name"]["help"]
+    assert 60 < len(str(VARIANTS["keyless-nested"]["source_name"])) <= bound
     name = ("Data Service " * 7)[: bound - 1] + "s"
     dst = generate(template_src, tmp_path / "bound", source_slug="ex", source_name=name)
     for args in [("check", "."), ("format", "--check", ".")]:
@@ -1284,6 +972,122 @@ def test_source_name_is_bounded_by_the_longest_python_line(
     for refused in ["x" * (bound + 1), 'The "Data" Service', "Data\\Service"]:
         with pytest.raises(ValueError, match="source_name"):
             generate(template_src, tmp_path / "refused", source_slug="ex", source_name=refused)
+
+
+def git(cwd: Path, *args: str) -> str:
+    """git with a fixed identity and no signing, independent of the user's configuration."""
+    identity = ["-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+    unsigned = ["-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"]
+    return subprocess.run(
+        ["git", *identity, *unsigned, *args], cwd=cwd, capture_output=True, text=True, check=True
+    ).stdout
+
+
+@pytest.mark.parametrize("case", [*VARIANTS, "pinned"])
+def test_answers_file_is_copiers_canonical_form(
+    template_src: Path, tmp_path: Path, case: str
+) -> None:
+    """The merge-class check trusts an answers file only as copier writes it back.
+
+    It re-renders the template at ``_commit`` (by SHA) with the answers less ``_commit``
+    and ``_src_path`` as ``--data-file`` and compares the answers file byte for byte
+    (merge classes, rule 4); a render from a tagged template must survive that.
+    """
+    repo = tmp_path / "template"
+    shutil.copytree(template_src, repo)
+    git(repo, "init", "-q", "-b", "main")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "template")
+    git(repo, "tag", "v0.0.1")
+    sha = git(repo, "rev-parse", "HEAD").strip()
+    first = tmp_path / "first"
+    run_copy(
+        str(repo),
+        str(first),
+        data={**BASE_ANSWERS, **{**VARIANTS, "pinned": PINNED}[case]},
+        defaults=True,
+        vcs_ref="v0.0.1",
+        quiet=True,
+    )
+    written = (first / ".copier-answers.yml").read_bytes()
+    assert b"_commit: v0.0.1\n" in written
+    kept = [
+        line
+        for line in written.decode().splitlines()
+        if not line.startswith(("_commit:", "_src_path:"))
+    ]
+    data_file = tmp_path / "answers.yml"
+    data_file.write_text("\n".join(kept) + "\n")
+    again = tmp_path / "again"
+    copy = [sys.executable, "-m", "copier", "copy", "--defaults", "--trust", "--skip-tasks"]
+    subprocess.run(
+        [*copy, "--quiet", "--vcs-ref", sha, "--data-file", str(data_file), str(repo), str(again)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert (again / ".copier-answers.yml").read_bytes() == written
+
+
+def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Path) -> None:
+    """A source's files survive a re-render; the template's own are rendered again.
+
+    The slug ends in -api, so the package itself is .../api/: the patterns name the package
+    directory, and its mcp.py is the template's while its api/ is the source's.
+    """
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex-api", **keyed(""))
+    pkg = "src/xippios/ex/api"
+    names = ["tasks.py", "_client.py", "errors.py", "__init__.py", "api/__init__.py"]
+    mine = [f"{pkg}/{n}" for n in names]
+    mine += ["tests/test_tasks.py", "CLAUDE.md"]
+    templates = [".claude/family.md", "tests/conftest.py", f"{pkg}/mcp.py"]
+    for rel in [*mine, *templates]:
+        (dst / rel).write_text("# edited\n")
+    generate(template_src, dst, source_slug="ex-api", **keyed(""))
+    for rel in mine:
+        assert (dst / rel).read_text() == "# edited\n", f"{rel} is the source's"
+    for rel in templates:
+        assert (dst / rel).read_text() != "# edited\n", f"{rel} is the template's"
+
+
+def test_sources_sharing_a_key_start_at_stable_different_times(
+    template_src: Path, tmp_path: Path, keyed_nested: Path
+) -> None:
+    """ADR-0009: usda-psd, usda-esr and usda-gats share one key and one gateway quota; their
+    nightly runs never start together, and a render keeps a repository's time."""
+    shared = VARIANTS["keyed-nested"]
+    starts = {"usda-psd": live_start(keyed_nested)}
+    for slug in ["usda-esr", "usda-gats"]:
+        dst = generate(template_src, tmp_path / slug, **{**shared, "source_slug": slug})
+        starts[slug] = live_start(dst)
+    assert len(set(starts.values())) == 3, starts
+    again = generate(template_src, tmp_path / "again", **shared)
+    assert live_start(again) == starts["usda-psd"], "stable across renders"
+
+
+# The scripts: new-source.sh and the capture skeleton.
+
+
+@pytest.mark.parametrize(
+    ("args", "error"),
+    [
+        ([], "--topic DOMAIN is required to create the repository"),
+        (["--local-only", "--topic", "Trade_Data"], "--topic Trade_Data: use lowercase letters"),
+        (["--topic", "trade--data"], "--topic trade--data: use lowercase letters"),
+        (["--topic", "trade-data", "--evidence", "absent.md"], "--evidence absent.md: no such"),
+    ],
+)
+def test_new_source_checks_its_flags_before_it_generates(
+    tmp_path: Path, args: list[str], error: str
+) -> None:
+    """The domain topic is new-source.sh's flag, no copier answer, and the evidence a file;
+    a bad one of either costs nothing."""
+    dest = tmp_path / "sdk-ex"
+    script = [str(ROOT / "scripts/new-source.sh"), "ex", "--dest", str(dest), *args]
+    run = subprocess.run(script, cwd=tmp_path, capture_output=True, text=True, check=False)
+    assert run.returncode == 2, run.stdout + run.stderr
+    assert error in run.stderr
+    assert not dest.exists(), "refused before anything is generated"
 
 
 PR_TEMPLATE = ROOT / "template/.github/PULL_REQUEST_TEMPLATE.md"
@@ -1340,103 +1144,175 @@ def test_new_source_fills_the_pr_template_or_names_what_it_lacks(
     assert "Nothing was\ncreated on GitHub; /x/sdk-ex is generated and verified." in run.stderr
 
 
-def test_core_answers_each_say_their_own() -> None:
-    """One core_version answer, the bound's rule in its help; core_git_ref only the pin."""
-    questions = yaml.safe_load((ROOT / "copier.yml").read_text())
-    version, ref = questions["core_version"]["help"], questions["core_git_ref"]["help"]
-    assert "xippios-core~=X.Y.Z" in version
-    assert "(ADR-0018 amendment (c))" in version
-    assert "pin" not in version, "the pin is core_git_ref's"
-    assert "core_version" not in ref, "the bound is core_version's"
-    assert "main, or the full 40-character SHA of a commit on main" in ref
+class QuietHandler(http.server.SimpleHTTPRequestHandler):
+    """Serves a directory on the loopback interface, without a log line per request."""
+
+    def log_message(self, format: str, *args: object) -> None:
+        pass
 
 
-def test_core_git_ref_takes_main(template_src: Path, tmp_path: Path) -> None:
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex", core_git_ref="main")
-    assert 'rev = "main" }' in (dst / "pyproject.toml").read_text()
+@pytest.fixture
+def site(tmp_path: Path) -> Iterator[tuple[Path, str]]:
+    """A local directory served over HTTP on 127.0.0.1: the pages, and their base URL."""
+    root = tmp_path / "site"
+    root.mkdir()
+    handler = functools.partial(QuietHandler, directory=str(root))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield root, f"http://127.0.0.1:{server.server_port}"
+    server.shutdown()
+    thread.join()
 
 
-def git(cwd: Path, *args: str) -> str:
-    """git with a fixed identity and no signing, independent of the user's configuration."""
-    identity = ["-c", "user.name=t", "-c", "user.email=t@example.invalid"]
-    unsigned = ["-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"]
-    return subprocess.run(
-        ["git", *identity, *unsigned, *args], cwd=cwd, capture_output=True, text=True, check=True
-    ).stdout
+def refresh_upstream(rendered: Path, repo: Path) -> ModuleType:
+    """A copy of a render's scripts/refresh_upstream.py and docs/upstream/ in ``repo``, the
+    script imported, no pause between requests."""
+    shutil.copytree(rendered / "docs/upstream", repo / "docs/upstream")
+    (repo / "scripts").mkdir()
+    path = Path(shutil.copy(rendered / "scripts/refresh_upstream.py", repo / "scripts"))
+    spec = importlib.util.spec_from_file_location("refresh_upstream", path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.PAUSE = 0.0
+    return module
 
 
-@pytest.mark.parametrize("variant", ["bearer-git-core", "header-key", "open", "nested"])
-def test_answers_file_is_copiers_canonical_form(
-    template_src: Path, tmp_path: Path, variant: str
+def test_refresh_upstream_command_follows_the_skeleton(keyless_flat: Path) -> None:
+    """The command names what the skeleton defines: the hooks a source fills, --check, the
+    shell and excerpt rows, the spec URL convention (row 67 b) and the one converter a
+    capture script may declare (row 70); the skeleton itself declares no dependency."""
+    command = " ".join((keyless_flat / ".claude/commands/refresh-upstream.md").read_text().split())
+    script = (keyless_flat / "scripts/refresh_upstream.py").read_text()
+    tree = ast.parse(script)
+    defined = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+    defined |= {
+        target.id
+        for node in tree.body
+        if isinstance(node, ast.AnnAssign | ast.Assign)
+        for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+        if isinstance(target, ast.Name)
+    }
+    for name in ["PAGES", "SPEC_URL", "SPEC_FILE", "ATTRIBUTION", "CAPTURE"]:
+        assert f"`{name}`" in command, name
+        assert name in defined, name
+    for name in ["reduce", "load_json", "dump_json"]:
+        assert f"`{name}`" in command, name
+        assert name in defined, name
+    for field in ["status=403", "stable=False", "excerpt=True"]:
+        assert field in command, field
+    assert "uv run scripts/refresh_upstream.py --check" in command
+    assert '`dependencies = ["markdownify==X.Y.Z"]`' in command
+    assert "the same pin in the dev group of `pyproject.toml`" in command, "row 37 c"
+    assert "`git add docs/upstream scripts`" in command, "row 35 a"
+    assert script.startswith('# /// script\n# requires-python = ">=3.12"\n# dependencies = []\n')
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported |= {alias.name.split(".")[0] for alias in node.names}
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+    assert imported <= set(sys.stdlib_module_names), imported - set(sys.stdlib_module_names)
+
+
+def test_refresh_upstream_skeleton_checks_offline(
+    keyless_flat: Path, tmp_path: Path, site: tuple[Path, str]
 ) -> None:
-    """The merge-class check trusts an answers file only as copier writes it back.
+    """Rows 35 c and 67 c: the skeleton fetches through its one fetch function, writes a
+    file row and a shell row, and ``--check`` compares without writing (here against pages
+    served on the loopback interface)."""
+    root, base = site
+    (root / "openapi.json").write_text('{"openapi": "3.1.0"}\n')
+    module = refresh_upstream(keyless_flat, tmp_path / "repo")
+    out = tmp_path / "repo/docs/upstream"
+    with pytest.raises(SystemExit, match="Nothing to fetch: fill PAGES"):
+        module.main(["--out", str(out)])
+    module.SPEC_URL = f"{base}/openapi.json"
+    module.PAGES = (module.Page(f"{base}/legal", status=404, note="404 Not Found"),)
+    assert module.main(["--out", str(out), "--check"]) == 1, "the stub records nothing"
+    assert module.main(["--out", str(out)]) == 0
+    assert (out / "openapi/openapi.json").read_text() == '{"openapi": "3.1.0"}\n'
+    fetched = (out / "FETCHED.md").read_text()
+    file_row = r"\| \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ \| 200 \| 21 \| [0-9a-f]{64} \| "
+    assert re.search(file_row, fetched), "the UTC time with Z, the status, size and sha256"
+    assert f"| (no file) | {base}/legal | " in fetched
+    assert "| 404 |" in fetched
+    assert f"{TABLE_HEADER}\n" in fetched
+    assert "None stated: no page this script reads states" in " ".join(fetched.split())
+    assert module.main(["--out", str(out), "--check"]) == 0, "Fetched aside, all the same"
+    (root / "openapi.json").write_text('{"openapi": "3.1.1"}\n')
+    assert module.main(["--out", str(out), "--check"]) == 1
+    assert (out / "openapi/openapi.json").read_text() == '{"openapi": "3.1.0"}\n', "unwritten"
 
-    It re-renders the template at ``_commit`` (by SHA) with the answers less ``_commit``
-    and ``_src_path`` as ``--data-file`` and compares the answers file byte for byte
-    (merge classes, rule 4); a render from a tagged template must survive that.
-    """
-    repo = tmp_path / "template"
-    shutil.copytree(template_src, repo)
-    git(repo, "init", "-q", "-b", "main")
-    git(repo, "add", "-A")
-    git(repo, "commit", "-q", "--no-verify", "-m", "template")
-    git(repo, "tag", "v0.0.1")
-    sha = git(repo, "rev-parse", "HEAD").strip()
-    first = tmp_path / "first"
-    run_copy(
-        str(repo),
-        str(first),
-        data={**BASE_ANSWERS, **VARIANTS[variant]},
-        defaults=True,
-        vcs_ref="v0.0.1",
-        quiet=True,
-    )
-    written = (first / ".copier-answers.yml").read_bytes()
-    assert b"_commit: v0.0.1\n" in written
-    kept = [
-        line
-        for line in written.decode().splitlines()
-        if not line.startswith(("_commit:", "_src_path:"))
+
+def test_refresh_upstream_skeleton_stops_on_an_unrecorded_statement(
+    keyless_flat: Path, tmp_path: Path, site: tuple[Path, str]
+) -> None:
+    """Row 35 b: every run checks the attribution, and stops before writing on a copyright,
+    licence or terms that ATTRIBUTION does not record; a recorded one passes."""
+    root, base = site
+    (root / "guide.html").write_text("<p>Guide</p><footer>&copy; 2026 Example Ltd.</footer>\n")
+    module = refresh_upstream(keyless_flat, tmp_path / "repo")
+    out = tmp_path / "repo/docs/upstream"
+    stub = (out / "FETCHED.md").read_bytes()
+    module.PAGES = (module.Page(f"{base}/guide.html", "pages/guide.html"),)
+    with pytest.raises(SystemExit, match="ATTRIBUTION does not record"):
+        module.main(["--out", str(out)])
+    assert (out / "FETCHED.md").read_bytes() == stub, "nothing written"
+    module.ATTRIBUTION = ("\N{COPYRIGHT SIGN} 2026 Example Ltd.",)
+    assert module.main(["--out", str(out)]) == 0
+    assert "The documentation states `\N{COPYRIGHT SIGN} 2026" in (out / "FETCHED.md").read_text()
+
+
+# The template's own files.
+
+
+def test_the_templates_own_gates_caller_is_the_one_it_ships() -> None:
+    """sdk-template carries core's gates.yml as every repository does, off until GATES_CALLER."""
+    own = (ROOT / ".github/workflows/gates.yml").read_bytes()
+    assert own == (ROOT / "template/.github/workflows/gates.yml").read_bytes()
+    assert hashlib.sha256(own).hexdigest() == CORE_VERBATIM[".github/workflows/gates.yml"]
+
+
+def test_the_templates_own_workflows_are_hardened() -> None:
+    """Conventions §13 for this repository's own workflows too: SHA pins with the version
+    in a comment (the gates at ``@main`` by design), ``contents: read`` at the top, and no
+    checkout keeps its credentials but the one in a job that pushes, which says so."""
+    for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        for action, comment in workflow_uses(path):
+            if action.startswith("xippios/sdk-gates/") and action.endswith("@main"):
+                continue
+            assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{path.name}: {action}"
+            assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{path.name}: {action}{comment}"
+        text = path.read_text()
+        workflow = yaml.safe_load(text)
+        assert workflow["permissions"] == {"contents": "read"}, path.name
+        for name, job in workflow["jobs"].items():
+            steps = job.get("steps", [])
+            pushes = any("git push" in step.get("run", "") for step in steps)
+            for step in steps:
+                if str(step.get("uses", "")).startswith("actions/checkout@"):
+                    kept = step.get("with", {}).get("persist-credentials", True)
+                    assert kept is pushes, f"{path.name}: {name}"
+            if pushes:
+                assert "The one checkout that keeps its credentials" in text, path.name
+
+
+def test_ci_proves_the_familys_variants() -> None:
+    """T11: the required ``ci`` job runs scripts/prove.sh on the keyed nested, the keyless
+    flat and the keyless nested shape, so a proof that fails blocks the merge."""
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    (job,) = workflow["jobs"].values()
+    assert job["name"] == "ci", "the check the org ruleset requires"
+    runs = [str(step.get("run", "")) for step in job["steps"]]
+    proofs = [run for run in runs if run.startswith("scripts/prove.sh")]
+    assert proofs == [
+        "scripts/prove.sh",
+        "scripts/prove.sh --keyless",
+        "scripts/prove.sh --keyless-nested",
     ]
-    data_file = tmp_path / "answers.yml"
-    data_file.write_text("\n".join(kept) + "\n")
-    again = tmp_path / "again"
-    copy = [sys.executable, "-m", "copier", "copy", "--defaults", "--trust", "--skip-tasks"]
-    subprocess.run(
-        [*copy, "--quiet", "--vcs-ref", sha, "--data-file", str(data_file), str(repo), str(again)],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    assert (again / ".copier-answers.yml").read_bytes() == written
-
-
-def test_readme_mcp_snippet_is_json(generated: tuple[str, Path]) -> None:
-    """The MCP client snippet parses, the key's env only for a keyed source, and no line
-    carries a closing brace after the args (the keyless render's trailing brace)."""
-    name, dst = generated
-    readme = (dst / "README.md").read_text()
-    block = readme.split("```json\n", 1)[1].split("```", 1)[0]
-    (server,) = json.loads(block)["mcpServers"].values()
-    env = str(VARIANTS[name]["api_key_env"])
-    assert server.get("env") == ({env: "..."} if env else None)
-    (args,) = [line for line in block.splitlines() if '"args"' in line]
-    assert args.rstrip().endswith(("]", "],")), args
-
-
-def test_readme_status_table_names_the_format_the_family_check_reads(
-    template_src: Path, tmp_path: Path
-) -> None:
-    """The family check reads the tables under ``## Status`` with a Task function column."""
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
-    readme = (dst / "README.md").read_text()
-    status = readme[readme.index("\n## Status\n") :]
-    status = status[: status.index("\n## ", 1)]
-    comment = " ".join(status[status.index("<!--") : status.index("-->")].split())
-    assert "Core's family check (tests/test_family.py) reads this table" in comment
-    assert "starts with the task's name in backticks" in comment
-    assert "backticked names separated by commas" in comment
-    assert "| Upstream operation | Task function | MCP tool | Status |" in status
 
 
 # Instruction files: what a session or a human reads to act. CHANGELOG history is not one.
