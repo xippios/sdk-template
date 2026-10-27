@@ -72,8 +72,7 @@ are not listed.
   and `MCP_CAPS` comments point at conventions §6 and §8, and `MCP_CAPS` imports
   `ResultCap` from `xippios.core`, which exports it from core 0.3.0. The source's name
   leaves the summary lines (`__init__.py` names it on a line of its own below), where a
-  long name broke ruff's line length in four files (sdk-usda-esmis's render); a
-  long-name case in the template tests comes with a later change.
+  long name broke ruff's line length in four files (sdk-usda-esmis's render).
 - The six commands name the definition of done and the review checklist on sdk-core
   `main` by URL instead of repeating the PR-body rules, and their last step says the
   body is as the definition of done says; their examples name no source
@@ -84,19 +83,22 @@ are not listed.
 - `/add-endpoint`: a wrapper module per upstream operation, or per service where
   operation ids repeat across services, as the Layout says (sdk-eurostat); an
   enumeration written by hand for a documented value set lives in `models.py`,
-  unexported, since `enums.py` is generated whole (sdk-usda-esr, sdk-eurostat); a
-  wrapper calls `get_json`, `get_answer` where the answer may come from the cache, or
-  `get` then `decode_json`, maps error shapes in `classify` and keeps its own error
-  classes in `errors.py`; core's `UnknownCode` refuses a code the packaged list lacks; a
-  test reads a packaged list's fetch date and counts from the packaged file instead of
-  pinning them (sdk-usda-nass). The write-task clause on `meta.request` goes, here and
-  in `.claude/family.md`: the template renders read-only packages.
+  unexported, since `enums.py` is generated whole (sdk-usda-esr, sdk-eurostat); a test
+  that checks what was sent compares `sent_query(route)` or `sent_urls(route)`, here and
+  in `.claude/family.md`; a wrapper calls `get_json`, `get_answer` where the answer may
+  come from the cache, or `get` then `decode_json`, maps error shapes in `classify` and
+  keeps its own error classes in `errors.py`; core's `UnknownCode` refuses a code the
+  packaged list lacks; a test reads a packaged list's fetch date and counts from the
+  packaged file instead of pinning them (sdk-usda-nass). The write-task clause on
+  `meta.request` goes, here and in `.claude/family.md`: the template renders read-only
+  packages.
 - `/record-fixture`: a source with a quota records through a client on
   `RetryPolicy(max_attempts=1)`, since core's `record` takes no `retry=`, so a 5xx
   spends no quota (sdk-usda-esr); a match of the key grep in upstream's own text is read
   by eye (sdk-usda-gats); values the scrub cannot name are rewritten in the source's own
   recorder step (ADR-0024); the fixture file stays under 256 KiB, a JSON array or a
-  text body recorded with `max_bytes=` (ADR-0019).
+  text body recorded with `max_bytes=`, a small real answer or sample for what the
+  recorder will not cut (a JSON object, XML, ZIP, gzip, XLS, XLSX) (ADR-0019).
 - `/refresh-upstream`: the snapshot is staged before `pre-commit run --all-files`,
   which scans only the files in git's index, and a capture script checks the
   attribution on every run (sdk-usda-gats).
@@ -141,7 +143,9 @@ are not listed.
   that the README's MCP snippet parses as JSON with the key's `env` only for a keyed
   source, that every command names the definition of done and the review checklist by
   URL and no `../` path, that the key, the shared-key reason and the conftest's ini
-  pointer appear only for a keyed source, and that no fixtures directory is generated.
+  pointer appear only for a keyed source, and that no fixtures directory is generated;
+  the `long-name` variant carries sdk-usda-esmis's 64-character name, and its four
+  formerly failing files pass `ruff check`.
 
 ### Removed
 
@@ -249,9 +253,9 @@ are not listed.
   to conventions §2 and `/add-endpoint` — guidance only; port it if the file still
   carries the scaffold docstring.
 - `tests/test_tasks.py` — the docstring is its purpose and a pointer to conventions §10,
-  `/add-endpoint` and `/record-fixture`, whose step 6 now holds the `sent_query` and
-  `sent_urls` advice — guidance only; port it if the file still carries the scaffold
-  docstring.
+  `/add-endpoint` and `/record-fixture`; the `sent_query` and `sent_urls` advice it
+  carried is `/add-endpoint`'s step 6 — guidance only; port it if the file still carries
+  the scaffold docstring.
 - `tests/test_live.py` — the module docstring is its purpose and a pointer; a keyed
   source's reachability probe says it "spends no keyed call" instead of naming the
   key's quota — a keyed source need not have a quota (sdk-usda-nass); port it if the
@@ -266,10 +270,10 @@ are not listed.
 - `tests/fixtures/README.md` — the update deletes it: copier 9.19.1 deletes a
   skip-listed file the template stops rendering, a line of the source's own included,
   with no conflict marker, and leaves the recorded fixtures beside it as they are
-  (checked); every source's copy is the template's text byte for byte, so nothing of its
-  own is lost, and sdk-cashctrl, whose copy carries lines of its own, moves them first
-  should it ever update — the fixture rule lives in `/record-fixture` and conventions
-  §10.
+  (checked); every source's copy but sdk-cashctrl's is the template's text byte for
+  byte, so nothing of its own is lost, and sdk-cashctrl, whose copy carries lines of its
+  own, moves them first should it ever update — the fixture rule lives in
+  `/record-fixture` and conventions §10.
 
 The scaffolds of `_client.py`, `README.md` and `CHANGELOG.md` lose their write and
 `basic` branches and the README's status comment no longer names `tasks_write.__all__`,

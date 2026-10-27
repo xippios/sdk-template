@@ -59,8 +59,8 @@ Run `/add-endpoint <upstream operation>`. In short:
    every parameter. The MCP tool description and the OpenAPI summary come from it.
 6. `/record-fixture` for at least one case, a replay test in `test_tasks.py` that also
    calls the tool end to end with `xippios.core.testing.mcp_call` (and compares what was
-   sent through `sent_urls(route)`, never a request from `route.calls`), a live smoke test
-   in `test_live.py`.
+   sent through `sent_query(route)` or `sent_urls(route)`, never a request from
+   `route.calls`), a live smoke test in `test_live.py`.
 7. `CHANGELOG.md` under Unreleased, README status table (the task's name first in its
    cell, in backticks, as the comment above the table says), then the full check suite.
 
