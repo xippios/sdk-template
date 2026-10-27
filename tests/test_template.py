@@ -807,6 +807,11 @@ def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> No
     assert (stagger in flat) is keyed_source, "the start time's reason, keyed sources only"
     assert "PACKAGED_LISTS" not in claude, "the Layout names the lists generically"
     assert "xippios_placeholder_key_envs" not in family, "the same file for every source"
+    rules = " ".join(family.split())
+    assert "or one per service where operation ids repeat across services" in rules
+    assert "lives there too, unexported, since `enums.py` is generated whole" in rules
+    assert "may gain a lead paragraph" in rules, "the released section is the tag's message"
+    assert "a write task" not in rules, "the template renders read-only packages"
     assert "(ADR-0017)" in family
     assert "| Write tools | no, this package is read-only |" in claude, "conventions §8"
 

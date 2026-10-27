@@ -27,7 +27,9 @@ mcp.py  http.py      adapters: register tasks.__all__, nothing else. Never edite
 ```
 
 Adapters call only task functions. Tasks call only endpoint wrappers and reference
-data. If logic appears in `mcp.py` or `http.py`, it belongs in `tasks.py`.
+data. If logic appears in `mcp.py` or `http.py`, it belongs in `tasks.py`. `api/` holds
+one module per upstream operation, or one per service where operation ids repeat across
+services; the Layout in `CLAUDE.md` says which.
 
 ## Namespace packages (ADR-0006)
 
@@ -43,14 +45,16 @@ Run `/add-endpoint <upstream operation>`. In short:
 1. Read the operation in `docs/upstream/`. Names, parameters and semantics come from
    there, snake_cased, nothing renamed, nothing normalised across sources.
 2. `models.py`: an `UpstreamModel` per payload object; dates, numbers and enums typed.
-3. `api/<operation>.py`: one async wrapper that calls `_client.client` and returns
-   models through `xippios.core.parse`.
+   An enumeration written by hand, for a value set upstream documents, lives there too,
+   unexported, since `enums.py` is generated whole.
+3. `api/<operation>.py`, or the service's module: one async wrapper that calls
+   `_client.client` and returns models through `xippios.core.parse`.
 4. `tasks.py`: an async task that composes wrappers and returns `Result[T]` with full
    `ResultMeta` (source, endpoint, request parameters, `published_at`/`vintage` when the
    upstream gives them). Derive the sync one with `sync()`, add its name to `__all__`,
    re-export it from `__init__.py`. What it returns leaves out documented personal
    identifiers (`ssn`, `iban` and their like) unless it fetches them deliberately and
-   says so, and a write task does not echo one in `meta.request` (ADR-0017).
+   says so (ADR-0017).
 5. Docstring for agents: one sentence, then `Args:` with examples of valid values for
    every parameter. The MCP tool description and the OpenAPI summary come from it.
 6. `/record-fixture` for at least one case, a replay test in `test_tasks.py` that also
@@ -120,11 +124,14 @@ never run live tests.
 - Every PR but a release, an adoption or Dependabot's adds an entry under Unreleased in
   `CHANGELOG.md`; `ci.yml` fails without one (conventions §12).
 - Releases follow the release train (conventions §12): `/release-prep` opens a release
-  PR that changes only `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`,
+  PR that changes no file but `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`,
   `CLAUDE.md` and `docs/handover.md` (and `scripts/check-siblings.sh` where the source
-  has one); its merge runs `publish.yml`, which tags the version on the merge commit,
-  and Johannes approves the `pypi` run. A reference-data refresh or a core pin's removal
-  is a PR of its own before it.
+  has one). In `CHANGELOG.md` it turns `## [Unreleased]` into `## [X.Y.Z] - <date>`;
+  the section may gain a lead paragraph and says internal labels (decisions, queue
+  rows, plan items) in plain words, since it becomes the tag's message. Its merge runs
+  `publish.yml`, which tags the version on the merge commit, and Johannes approves the
+  `pypi` run. A reference-data refresh or a core pin's removal is a PR of its own
+  before it.
 - `ruff` leaves `docs/` alone; never reformat the upstream snapshot.
 - Template and core updates: a new sdk-template release, and the core minor it carries,
   arrive in one adoption PR, `chore/template-update-<tag>`, before the next release
