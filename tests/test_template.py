@@ -1,14 +1,20 @@
 """Generation tests: variants render, pass ruff, and respect skip-if-exists."""
 
 import ast
+import functools
 import hashlib
+import http.server
+import importlib.util
 import json
 import re
 import shutil
 import subprocess
 import sys
+import threading
 import tomllib
+from collections.abc import Iterator
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 import yaml
@@ -89,6 +95,7 @@ EXPECTED_FILES = [
     "src/xippios/{pkg}/params.py",
     "src/xippios/{pkg}/enums.py",
     "scripts/refresh_reference.py",
+    "scripts/refresh_upstream.py",
     "tests/conftest.py",
     "tests/test_family.py",
     "tests/test_tasks.py",
@@ -425,11 +432,104 @@ def test_upstream_snapshot_is_kept_byte_for_byte(generated: tuple[str, Path]) ->
     _, dst = generated
     assert (dst / ".gitattributes").read_text() == "docs/upstream/** -text\n"
     fetched = (dst / "docs/upstream/FETCHED.md").read_text()
-    assert "| File | URL | Fetched | Note |" in fetched
+    assert f"{TABLE_HEADER}\n" in fetched, "the columns scripts/refresh_upstream.py writes"
     assert "## Attribution" in fetched
     flat = " ".join(fetched.split())
     assert "the publisher's objection" in flat, "a vendor or a public-sector publisher"
     assert "UTC time of the run in ISO 8601 with an explicit `Z`" in fetched
+    example = fetched.split("```text\n", 1)[1].split("```", 1)[0].splitlines()
+    assert [row.split(" | ")[0] for row in example] == [
+        "| openapi/openapi.json",
+        "| (no file)",
+        "| openapi/part.json",
+    ], "a file row, a shell row and an excerpt row"
+    assert "Bytes and sha256 are the whole document's" in example[2], "conventions §3"
+
+
+TABLE_HEADER = "| File | URL | Fetched | HTTP | Bytes | sha256 | ETag | Last-Modified | Note |"
+
+
+class QuietHandler(http.server.SimpleHTTPRequestHandler):
+    """Serves a directory on the loopback interface, without a log line per request."""
+
+    def log_message(self, format: str, *args: object) -> None:
+        pass
+
+
+@pytest.fixture
+def site(tmp_path: Path) -> Iterator[tuple[Path, str]]:
+    """A local directory served over HTTP on 127.0.0.1: the pages, and their base URL."""
+    root = tmp_path / "site"
+    root.mkdir()
+    handler = functools.partial(QuietHandler, directory=str(root))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield root, f"http://127.0.0.1:{server.server_port}"
+    server.shutdown()
+    thread.join()
+
+
+def refresh_upstream(template_src: Path, dst: Path) -> ModuleType:
+    """The rendered scripts/refresh_upstream.py of a fresh repository, imported, no pause."""
+    generate(template_src, dst, source_slug="ex", **keyed(""))
+    path = dst / "scripts/refresh_upstream.py"
+    spec = importlib.util.spec_from_file_location("refresh_upstream", path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.PAUSE = 0.0
+    return module
+
+
+def test_refresh_upstream_skeleton_checks_offline(
+    template_src: Path, tmp_path: Path, site: tuple[Path, str]
+) -> None:
+    """Rows 35 c and 67 c: the skeleton fetches through its one fetch function, writes a
+    file row and a shell row, and ``--check`` compares without writing (here against pages
+    served on the loopback interface)."""
+    root, base = site
+    (root / "openapi.json").write_text('{"openapi": "3.1.0"}\n')
+    module = refresh_upstream(template_src, tmp_path / "repo")
+    out = tmp_path / "repo/docs/upstream"
+    with pytest.raises(SystemExit, match="Nothing to fetch: fill PAGES"):
+        module.main(["--out", str(out)])
+    module.SPEC_URL = f"{base}/openapi.json"
+    module.PAGES = (module.Page(f"{base}/legal", status=404, note="404 Not Found"),)
+    assert module.main(["--out", str(out), "--check"]) == 1, "the stub records nothing"
+    assert module.main(["--out", str(out)]) == 0
+    assert (out / "openapi/openapi.json").read_text() == '{"openapi": "3.1.0"}\n'
+    fetched = (out / "FETCHED.md").read_text()
+    file_row = r"\| \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ \| 200 \| 21 \| [0-9a-f]{64} \| "
+    assert re.search(file_row, fetched), "the UTC time with Z, the status, size and sha256"
+    assert f"| (no file) | {base}/legal | " in fetched
+    assert "| 404 |" in fetched
+    assert f"{TABLE_HEADER}\n" in fetched
+    assert "None stated: no page this script reads states" in " ".join(fetched.split())
+    assert module.main(["--out", str(out), "--check"]) == 0, "Fetched aside, all the same"
+    (root / "openapi.json").write_text('{"openapi": "3.1.1"}\n')
+    assert module.main(["--out", str(out), "--check"]) == 1
+    assert (out / "openapi/openapi.json").read_text() == '{"openapi": "3.1.0"}\n', "unwritten"
+
+
+def test_refresh_upstream_skeleton_stops_on_an_unrecorded_statement(
+    template_src: Path, tmp_path: Path, site: tuple[Path, str]
+) -> None:
+    """Row 35 b: every run checks the attribution, and stops before writing on a copyright,
+    licence or terms that ATTRIBUTION does not record; a recorded one passes."""
+    root, base = site
+    (root / "guide.html").write_text("<p>Guide</p><footer>&copy; 2026 Example Ltd.</footer>\n")
+    module = refresh_upstream(template_src, tmp_path / "repo")
+    out = tmp_path / "repo/docs/upstream"
+    stub = (out / "FETCHED.md").read_bytes()
+    module.PAGES = (module.Page(f"{base}/guide.html", "pages/guide.html"),)
+    with pytest.raises(SystemExit, match="ATTRIBUTION does not record"):
+        module.main(["--out", str(out)])
+    assert (out / "FETCHED.md").read_bytes() == stub, "nothing written"
+    module.ATTRIBUTION = ("\N{COPYRIGHT SIGN} 2026 Example Ltd.",)
+    assert module.main(["--out", str(out)]) == 0
+    assert "The documentation states `\N{COPYRIGHT SIGN} 2026" in (out / "FETCHED.md").read_text()
 
 
 def test_models_use_validation_alias(generated: tuple[str, Path]) -> None:
