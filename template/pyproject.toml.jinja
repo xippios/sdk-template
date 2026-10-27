@@ -36,8 +36,10 @@ Changelog = "https://github.com/xippios/sdk-{{ source_slug }}/blob/main/CHANGELO
 Issues = "https://github.com/xippios/sdk-{{ source_slug }}/issues"
 
 [dependency-groups]
+# ruff is pinned to the rev of the ruff-pre-commit hook in .pre-commit-config.yaml, so a new
+# lock does not drift from the hook; the two move together.
 dev = [
-  "ruff>=0.14",
+  "ruff==0.17.1",
   "mypy>=1.18",
   "pre-commit>=4",
   "pytest>=8",

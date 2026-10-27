@@ -185,6 +185,15 @@ def test_layout(generated: tuple[str, Path]) -> None:
     assert "tests" not in json.dumps(sdist), "the sdist ships no tests; they live in the repo"
 
 
+def test_dev_ruff_is_the_pre_commit_hooks(generated: tuple[str, Path]) -> None:
+    """A new lock resolves the ruff the pre-commit hook runs, not the newest one."""
+    _, dst = generated
+    hooks = yaml.safe_load((dst / ".pre-commit-config.yaml").read_text())["repos"]
+    (rev,) = [repo["rev"] for repo in hooks if repo["repo"].endswith("/ruff-pre-commit")]
+    dev = tomllib.loads((dst / "pyproject.toml").read_text())["dependency-groups"]["dev"]
+    assert [spec for spec in dev if spec.startswith("ruff")] == [f"ruff=={rev.removeprefix('v')}"]
+
+
 def test_generated_code_is_lint_and_format_clean(generated: tuple[str, Path]) -> None:
     _, dst = generated
     check = ruff(dst, "check", ".")
