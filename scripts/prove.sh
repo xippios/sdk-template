@@ -1,31 +1,35 @@
 #!/usr/bin/env bash
-# Prove the template: generate a throwaway sdk-example-api from the WORKING TREE and run
-# the full check suite on it (uv sync, ruff, mypy, pytest with core's family check,
+# Prove the template: generate a throwaway source repository from the WORKING TREE and
+# run the full check suite on it (uv sync, ruff, mypy, pytest with core's family check,
 # pre-commit), then re-render enums.py from the (empty) packaged lists and require it
 # unchanged, require the unfilled refresh_upstream.py skeleton to refuse to run, and run
-# the sibling check on the nested render with the wheel alone (none renders where flat).
-# No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
-# suite tests it.
+# the sibling check where the import path nests, with the wheel alone (none renders where
+# it is flat). No GitHub involved. The placeholder key is core's plugin's to guarantee,
+# and its own suite tests it. The template's CI runs the three shapes.
 #
-# usage: scripts/prove.sh [--dest DIR] [--core-ref REF] [--keyless] [--keep] [-d key=value ...]
-#   --core-ref REF   sdk-core commit to depend on, main or a full SHA; default "" = the
-#                    PyPI release, e.g. --core-ref main to prove against unreleased core
-#   --keyless        a keyless flat source, sdk-example (xippios.example), instead of the
-#                    keyed nested sdk-example-api (xippios.example.api)
-#   --keep           leave the generated repository in place
+# usage: scripts/prove.sh [--dest DIR] [--core-ref REF] [--keyless | --keyless-nested]
+#                         [--keep] [-d key=value ...]
+#   --core-ref REF     sdk-core commit to depend on, main or a full SHA; default "" = the
+#                      PyPI release, e.g. --core-ref main to prove against unreleased core
+#   (no shape flag)    a keyed nested source, sdk-example-api (xippios.example.api)
+#   --keyless          a keyless flat source, sdk-example (xippios.example), as eurostat
+#   --keyless-nested   a keyless nested source, sdk-example-files (xippios.example.files),
+#                      as esmis or wasde
+#   --keep             leave the generated repository in place
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dest=""
 core_ref=""
-keyless=0
+shape=keyed
 keep=0
 extra=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --dest) dest="$2"; shift ;;
     --core-ref) core_ref="$2"; shift ;;
-    --keyless) keyless=1 ;;
+    --keyless) shape=keyless ;;
+    --keyless-nested) shape=keyless-nested ;;
     --keep) keep=1 ;;
     -d) extra+=(-d "$2"); shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -33,14 +37,13 @@ while [ $# -gt 0 ]; do
   shift
 done
 # The keyed slug nests (example-api → xippios.example.api) so the proof covers ADR-0006;
-# the keyless one stays flat, as a new keyless source such as eurostat starts.
-if [ "$keyless" = 1 ]; then
-  slug="example"
-  key=()
-else
-  slug="example-api"
-  key=(-d "api_key_env=EXAMPLE_API_KEY" -d "api_key_location=query")
-fi
+# the keyless ones start as the family's keyless sources did, flat as eurostat and nested
+# as esmis or wasde.
+case "$shape" in
+  keyless) slug="example"; key=() ;;
+  keyless-nested) slug="example-files"; key=() ;;
+  *) slug="example-api"; key=(-d "api_key_env=EXAMPLE_API_KEY" -d "api_key_location=query") ;;
+esac
 work="$(mktemp -d "${TMPDIR:-/tmp}/sdk-template-prove.XXXXXX")"
 dest="${dest:-$work/sdk-$slug}"
 
@@ -101,8 +104,10 @@ refusal="$(grep "Nothing to fetch: fill PAGES" "$work/refresh.err")" \
 echo "refused: $refusal"
 
 echo
-if [ "$keyless" = 1 ]; then
-  echo "==> no sibling check where the import path is flat"
+# Nested or flat as copier recorded it, so a -d import_path=... answer is proven as rendered.
+import_path="$(sed -n 's/^import_path: //p' "$dest/.copier-answers.yml")"
+if [[ "$import_path" != *.* ]]; then
+  echo "==> no sibling check where the import path is flat (xippios.$import_path)"
   if [ -e "$dest/.github/workflows/siblings.yml" ] || [ -e "$dest/.github/scripts" ]; then
     echo "error: a flat source renders the sibling check" >&2
     exit 1
@@ -111,7 +116,7 @@ if [ "$keyless" = 1 ]; then
 else
   # XIPPIOS_SIBLINGS set and empty: the wheel alone, so the proof lists no repositories
   # on GitHub; the namespace levels, the import and the shipped files are checked as in CI.
-  echo "==> .github/scripts/check-siblings.sh on the nested render, the wheel alone"
+  echo "==> .github/scripts/check-siblings.sh on the nested render (xippios.$import_path), the wheel alone"
   (cd "$dest" && XIPPIOS_SIBLINGS= .github/scripts/check-siblings.sh)
 fi
 
