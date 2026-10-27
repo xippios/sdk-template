@@ -180,6 +180,7 @@ def test_layout(generated: tuple[str, Path]) -> None:
     assert ("[tool.uv.sources]" in pyproject) is bool(answers.get("core_git_ref"))
     tool = tomllib.loads(pyproject)["tool"]
     assert tool["mypy"]["files"] == ["src", "tests", "scripts"], "scripts/ is type-checked"
+    assert tool["pytest"]["ini_options"]["junit_family"] == "xunit1", "record_property"
     sdist = tool["hatch"]["build"]["targets"]["sdist"]
     assert sdist == {"include": ["/src", "/docs", "/README.md", "/CHANGELOG.md", "/LICENSE"]}
     assert "tests" not in json.dumps(sdist), "the sdist ships no tests; they live in the repo"
