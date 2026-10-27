@@ -59,14 +59,13 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   dependent (`source_dependencies`) has no proof of its own, since a dependency that is
   not on PyPI cannot be installed; the template tests cover its render.
 - `tests/test_template.py` renders each of the family's variants once per session, keyed
-  nested, keyless flat, keyless nested, a dependent (keyless nested with
-  `source_dependencies`, one open and one keyed), one behind the api.data.gov gateway
-  (`gateway`, which derives the key answers) and one that parses files (keyless nested
-  with `has_files`); a check no answer changes reads one render, and an answer outside
-  the variants (a key location, a core pin, a name at its bound, an `import_path`
-  override, a flat source with a dependency) is tested by its own rule. The tests assert
-  mechanics, never rendered prose: a file rendered or not, a name present, no Jinja left,
-  a digest equal, a script's behaviour.
+  nested, keyless flat, keyless nested, a dependent that parses files (keyless nested
+  with `source_dependencies`, one open and one keyed, and `has_files`) and one behind the
+  api.data.gov gateway (`gateway`, which derives the key answers); a check no answer
+  changes reads one render, and an answer outside the variants (a key location, a core
+  pin, a name at its bound, an `import_path` override, a flat source with a dependency)
+  is tested by its own rule. The tests assert mechanics, never rendered prose: a file
+  rendered or not, a name present, no Jinja left, a digest equal, a script's behaviour.
 - Files a session fills with source content (`__init__.py`, `_client.py`, `errors.py`,
   `models.py`, `api/`, `parse/`, `tasks.py`, `params.py`, `enums.py`, `reference/`,
   `scripts/`, `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`,

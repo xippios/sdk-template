@@ -423,8 +423,8 @@ are not listed.
   step that the client takes the gateway's auth, its policy's hooks and its `classify`;
   it runs locally beside the proofs CI runs, and stops at mypy on the generated
   `scripts/refresh_reference.py` until that script takes core 0.3.0's `render_enums`.
-- Template-internal: a sixth variant renders once per session, a keyless nested source
-  that parses files (`has_files: true`), and the tests check that it alone renders
+- Template-internal: the dependency variant, sdk-usda-wasde's shape, answers
+  `has_files: true`, as wasde will, and the tests check that it alone renders
   `parse/__init__.py`, a docstring and no code, and `tests/fixtures/files/README.md` with
   its table's columns, both skip-listed and kept on a re-render, and the generated
   `CLAUDE.md`'s Files row and Layout lines; that every other variant renders no
