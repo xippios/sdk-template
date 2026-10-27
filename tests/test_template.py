@@ -1009,13 +1009,16 @@ def test_core_version_is_a_release_version(
 
 
 SOURCE_NAME = "{{ source_name }}"
-ESMIS_LONG_NAME = "USDA ESMIS (Economics, Statistics and Market Information System)"
 
 
 def test_source_name_is_bounded_by_the_longest_python_line(
     template_src: Path, tmp_path: Path
 ) -> None:
-    """A name at the bound renders ruff-clean (E501 at 100 columns); one more is refused."""
+    """A name at the bound renders ruff-clean (E501 at 100 columns); one more is refused.
+
+    The long-name variant, sdk-usda-esmis's 64-character name, is within it and renders
+    ruff-clean with every variant.
+    """
     lines = [
         line
         for path in (ROOT / "template").rglob("*.py.jinja")
@@ -1027,12 +1030,12 @@ def test_source_name_is_bounded_by_the_longest_python_line(
         f"at most {bound} characters"
         in yaml.safe_load((ROOT / "copier.yml").read_text())["source_name"]["help"]
     )
-    assert len(ESMIS_LONG_NAME) == 64
-    for name in [("Data Service " * 7)[: bound - 1] + "s", ESMIS_LONG_NAME]:
-        dst = generate(template_src, tmp_path / str(len(name)), source_slug="ex", source_name=name)
-        for args in [("check", "."), ("format", "--check", ".")]:
-            run = ruff(dst, *args)
-            assert run.returncode == 0, run.stdout + run.stderr
+    assert len(str(VARIANTS["long-name"]["source_name"])) <= bound
+    name = ("Data Service " * 7)[: bound - 1] + "s"
+    dst = generate(template_src, tmp_path / "bound", source_slug="ex", source_name=name)
+    for args in [("check", "."), ("format", "--check", ".")]:
+        run = ruff(dst, *args)
+        assert run.returncode == 0, run.stdout + run.stderr
     with pytest.raises(ValueError, match="source_name"):
         generate(template_src, tmp_path / "over", source_slug="ex", source_name="x" * (bound + 1))
 
