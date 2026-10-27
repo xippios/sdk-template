@@ -95,7 +95,6 @@ VARIANTS: dict[str, dict[str, object]] = {
         "source_name": "USDA ESMIS (Economics, Statistics and Market Information System)",
         "rate_limit_burst": 3,
         "rate_limit_provenance": "self-imposed",
-        "core_version": "0.3.0",
         **keyed(""),
     },
     # sdk-usda-wasde's, as it will start (ADR-0021): no key, a nested import path, and the
@@ -116,7 +115,6 @@ VARIANTS: dict[str, dict[str, object]] = {
         "gateway": DATA_GOV,
         "rate_limit_per_minute": 60,
         "rate_limit_provenance": "self-imposed",
-        "core_version": "0.3.0",
     },
     # A source that parses the files it downloads (T-ADR-0020), keyless and nested as
     # sdk-usda-wasde starts: has_files renders parse/ and the samples' provenance table.
@@ -490,6 +488,7 @@ def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
     """Conventions §12: one core minor, the extras likewise; a source package depended on
     bound to its minor the same way, ``~=X.Y.0`` (ADR-0021), in no extra."""
     name, dst = variant
+    assert CORE_DEFAULT == "0.3.0", "the core release the template adopts, its verbatim files'"
     version = str(VARIANTS[name].get("core_version", CORE_DEFAULT))
     project = tomllib.loads((dst / "pyproject.toml").read_text())["project"]
     depended = [f"xippios-{d['name']}~={d['minor']}.0" for d in dependencies(VARIANTS[name])]
