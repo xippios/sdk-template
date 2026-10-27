@@ -108,7 +108,7 @@ reviewer's `ready`, and a `human` adoption waits for Johannes. The generated
 the generated repository:
 
 ```bash
-uvx copier update --defaults --vcs-ref=v0.2.1 -d core_version=0.2.1 -d core_git_ref=
+uvx copier update --defaults --vcs-ref=v0.2.2 -d core_version=0.2.1 -d core_git_ref=
 git diff                             # review; resolve conflicts
 ```
 
