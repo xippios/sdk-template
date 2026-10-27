@@ -626,6 +626,17 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(variant: tuple[str, Path
     assert pytest_step["env"] == expected_env
 
 
+def test_release_prep_waits_for_the_dependencies(variant: tuple[str, Path]) -> None:
+    """ADR-0021 decision 5: a dependent releases after the packages it depends on, which
+    /release-prep names in step 1 only where a dependency is declared."""
+    name, dst = variant
+    text = (dst / ".claude/commands/release-prep.md").read_text()
+    depended = dependencies(VARIANTS[name])
+    assert ("ADR-0021 decision 5" in text) is bool(depended)
+    for dependency in depended:
+        assert f"`xippios-{dependency['name']}`" in text, dependency
+
+
 def live_start(dst: Path) -> tuple[int, int]:
     """(hour, minute) of the nightly live run, checked against its cron and the CLAUDE.md."""
     workflow = yaml.safe_load((dst / ".github/workflows/live.yml").read_text())

@@ -6,15 +6,15 @@
 # sdk-template renders this file, and .github/workflows/siblings.yml that runs it, where
 # the import path nests or the source declares a source package it depends on; copier
 # update keeps both as the template's. The siblings are the repositories of the xippios
-# organisation named sdk-<provider>-* whose distribution, xippios-<provider>-*, is on PyPI; uv installs the newest release of each that shares one
-# xippios-core minor with this wheel. A sibling every release of which sits on another
-# core minor is left out with a warning, never a failure; every other conflict fails. The
-# script builds the wheel, installs it with the siblings into a fresh virtual environment,
-# fails if a namespace level is a regular package (an __init__.py at xippios/ or
-# xippios/<provider>/), imports every package under the provider namespace, checks that
-# every tracked file of the package ships in the wheel and runs `uv pip check`. It calls
-# nothing upstream. Needs the network, no key. Run from anywhere:
-# .github/scripts/check-siblings.sh
+# organisation named sdk-<provider>-* whose distribution, xippios-<provider>-*, is on
+# PyPI; uv installs the newest release of each that shares one xippios-core minor with
+# this wheel. A sibling every release of which sits on another core minor is left out with
+# a warning, never a failure; every other conflict fails. The script builds the wheel,
+# installs it with the siblings into a fresh virtual environment, fails if a namespace
+# level is a regular package (an __init__.py at xippios/ or xippios/<provider>/), imports
+# every package under the provider namespace, checks that every tracked file of the
+# package ships in the wheel and runs `uv pip check`. It calls nothing upstream. Needs the
+# network, no key. Run from anywhere: .github/scripts/check-siblings.sh
 #
 # The source packages this one depends on (ADR-0021), as pyproject.toml declares them
 # (xippios-<slug>~=X.Y.0), install with the wheel from PyPI at their bound and import

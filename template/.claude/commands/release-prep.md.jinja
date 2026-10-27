@@ -27,6 +27,12 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
    `uv lock`, the checks, a line under Unreleased in `CHANGELOG.md` (the new core
    bound), and its PR, merged before the release PR: it changes `.copier-answers.yml`,
    which a release PR does not. `publish.yml` refuses to tag a pinned release as well.
+{% if depends_on %}
+   The source packages this one depends on, {% for dep in depends_on %}`xippios-{{ dep.name }}`{{ ', ' if not loop.last else '' }}{% endfor %}, are
+   released on PyPI before this release: each tags first, its bound in `pyproject.toml`
+   names that published version, and no `[tool.uv.sources]` entry pins it, which
+   `publish.yml` refuses too (ADR-0021 decision 5, conventions §15 item 1).
+{% endif %}
 2. **Reference data.** Packaged lists that should be current in this release are
    refreshed in their own PR, `/refresh-reference-data`, merged before this one; the
    release PR fetches nothing.

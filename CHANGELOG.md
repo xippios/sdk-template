@@ -82,28 +82,29 @@ are not listed.
   sdk-usda-esmis is the first case. The generated `pyproject.toml` depends on each as
   `xippios-<slug>~=X.Y.0`, one minor as for core (conventions §12), which a source raises
   to `~=X.Y.Z` by hand and to a new minor in an adoption's update (conventions §15 item
-  1), and names each dependency's key variable under `xippios_placeholder_key_envs`
-  beside its own, so the offline tests send the placeholder there too. `live.yml` hands
-  each dependency's key to its pytest step from the org secret of that name, as it does
-  the source's own, so a dependent's nightly run needs no workflow of its own. The
-  sibling check renders also for a flat source that declares a dependency; it reads the
+  1), and names each dependency's key variable under `xippios_placeholder_key_envs` beside
+  its own, so the offline tests send the placeholder there too. `live.yml` hands each
+  dependency's key to its pytest step from the org secret of that name, as it does the
+  source's own, so a dependent's nightly run needs no workflow of its own. The sibling
+  check renders also for a flat source that declares a dependency; it reads the
   dependencies from `pyproject.toml`, installs them with the wheel at their bound from
   PyPI and imports them beside the package, their namespace levels checked as portions,
-  and a declared dependency on another core minor fails it, where an undeclared sibling
-  is left out with a warning (both packages share one core minor, ADR-0021). The
-  generated `CLAUDE.md` gains a "Depends on" row and the `README.md` scaffold a line
-  naming the packages, each with a comment where the source says what it uses them for
-  (ADR-0021); the README's key sentence and MCP snippet, the live command,
-  `/record-fixture`'s key check and `/adopt-release` name the dependencies' keys, and
-  `/adopt-release` raises a dependency's minor in the same update. The validator refuses
-  anything but a list of entries with exactly `name`, `minor` and `key_env`, a name that
-  is no slug, this source's, core's or one already listed, a minor that is not `"X.Y"`
-  in quotes (YAML reads 0.10 unquoted as the number 0.1) and a key variable that does not
-  end in `_API_KEY`. The answer is a string, not a YAML list, so `.copier-answers.yml`
-  records it on one line, `'[]'` at the default: one quoted scalar, which the merge
-  classes read as the question's literal default and leave free, where a list would be
-  recorded as `[]`, no scalar, or as lines at column 0 outside the YAML the merge-class
-  check reads.
+  and a declared dependency on another core minor fails it, where an undeclared sibling is
+  left out with a warning (both packages share one core minor, ADR-0021). The generated
+  `CLAUDE.md` gains a "Depends on" row and the `README.md` scaffold a line naming the
+  packages, each with a comment where the source says what it uses them for (ADR-0021);
+  the README's key sentence and MCP snippet, the live command, `/record-fixture`'s key
+  check and `/adopt-release` name the dependencies' keys, and `/adopt-release` raises a
+  dependency's minor in the same update; `/release-prep` says that the dependencies are
+  released on PyPI first, each bound naming that published version, none pinned in
+  `[tool.uv.sources]`. The validator refuses anything but a list of entries with exactly
+  `name`, `minor` and `key_env`, a name that is no slug, this source's, core's or one
+  already listed, a minor that is not `"X.Y"` in quotes (YAML reads 0.10 unquoted as the
+  number 0.1) and a key variable that does not end in `_API_KEY`. The answer is a string,
+  not a YAML list, so `.copier-answers.yml` records it on one line, `'[]'` at the default:
+  one quoted scalar, which the merge classes read as the question's literal default and
+  leave free, where a list would be recorded as `[]`, no scalar, or as lines at column 0
+  outside the YAML the merge-class check reads.
 - Template-internal: a fourth variant renders once per session, sdk-usda-wasde's shape
   (keyless, nested, one open and one keyed dependency), and every variant check reads it;
   the tests check that every answers file stays inside the merge classes' subset with

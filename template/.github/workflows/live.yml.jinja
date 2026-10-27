@@ -4,8 +4,8 @@
 # Rendered by the template (the one workflow that is): the secret it names is the source's
 # key variable, and its start time derives from the slug.
 {% elif key_envs %}
-# Rendered by the template (the one workflow that is): the secrets it names are the key
-# variables of the answers api_key_env and source_dependencies, the latter those of the
+# Rendered by the template (the one workflow that is): each secret it names is a key
+# variable from the answers api_key_env and source_dependencies, the latter those of the
 # source packages it depends on (ADR-0021), and its start time derives from the slug.
 {% else %}
 # Rendered by the template (the one workflow that is): its start time derives from the slug.
