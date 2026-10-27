@@ -79,7 +79,7 @@ sdk-<slug>/
   docs/upstream/       FETCHED.md
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
                        adopt-release
-  .claude/family.md   the family rules, imported by CLAUDE.md (the package's facts)
+  .claude/family.md    the family rules, imported by CLAUDE.md (the package's facts)
   .claude/settings.json  .github/workflows/{ci,publish,gates,live}.yml  .github/PULL_REQUEST_TEMPLATE.md
   CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
   .gitattributes       docs/upstream/** -text, so upstream files keep their bytes and line endings
