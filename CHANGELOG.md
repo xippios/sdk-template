@@ -267,7 +267,7 @@ are not listed.
   locations, a git-pinned core, a name at its bound) are tested by their own rules. The
   assertions on rendered prose go too: the tests check mechanics, a file rendered or
   not, a name present, no Jinja left, a digest equal, a script's behaviour.
-  `tests/test_template.py` goes from 1,459 lines, 57 tests and 293 cases to 1,335 lines,
+  `tests/test_template.py` goes from 1,459 lines, 57 tests and 293 cases to 1,339 lines,
   54 tests and 110 cases. The digest test is named for what it checks, no longer for a
   core version. The template's CI runs three proofs in its `ci` job: `scripts/prove.sh`,
   `--keyless` (`sdk-example`, as sdk-eurostat starts) and the new `--keyless-nested`

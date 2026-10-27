@@ -328,7 +328,8 @@ def test_rate_limit_renders_pace_burst_and_provenance(variant: tuple[str, Path])
     assert f"RATE_LIMIT = RateLimit(per_minute={per_minute}, burst={burst})" in client
     assert "# config = policy.install(config)" in client
     assert ("self-imposed" in client) is self_imposed
-    (row,) = [line for line in (dst / "CLAUDE.md").read_text().splitlines() if "Rate limit" in line]
+    claude = (dst / "CLAUDE.md").read_text().splitlines()
+    (row,) = [line for line in claude if line.startswith("| Rate limit | ")]
     assert row.startswith(f"| Rate limit | {per_minute} requests per minute, burst {burst}; ")
     assert ("self-imposed" in row) is self_imposed
 
@@ -847,8 +848,8 @@ def test_the_files_a_source_fills_are_one_list(keyless_flat: Path) -> None:
 def test_key_auth_matches_location(
     template_src: Path, tmp_path: Path, keyed_nested: Path, keyless_flat: Path
 ) -> None:
-    """Each key location renders its auth, exported; a keyless client has none; ``basic``
-    is refused (D35)."""
+    """Each key location renders its auth, exported, in a ruff-clean ``_client.py``, the one
+    Python file the location changes; a keyless client has none; ``basic`` is refused (D35)."""
     clients = {
         "header": keyed_nested / "src/xippios/usda/psd/_client.py",
         "": keyless_flat / "src/xippios/eurostat/_client.py",
@@ -857,6 +858,9 @@ def test_key_auth_matches_location(
         answers = keyed("EX_API_KEY", location)
         dst = generate(template_src, tmp_path / location, source_slug="ex", **answers)
         clients[location] = dst / "src/xippios/ex/_client.py"
+        for args in [("check",), ("format", "--check")]:
+            run = ruff(dst, *args, "src/xippios/ex/_client.py")
+            assert run.returncode == 0, run.stdout + run.stderr
     for location, auth in [
         ("query", 'QueryKeyAuth("key", API_KEY_ENV, source=SOURCE)'),
         ("header", 'HeaderKeyAuth("X-Api-Key", API_KEY_ENV, source=SOURCE)'),
