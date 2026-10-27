@@ -160,6 +160,62 @@ core_git_ref:
     Use main or a full 40-character lowercase commit SHA of sdk-core, or leave it empty
     {% endif %}
 
+# A string holding a YAML flow list, not a yaml-typed answer: copier records a string on
+# one line, '[]' at the default, which the merge classes read as the question's literal
+# default (rule 2), where a list would be recorded as [] or as block lines at column 0,
+# outside the subset of YAML the classifier reads. depends_on below is the parsed list.
+source_dependencies:
+  type: str
+  help: >-
+    The source packages this one depends on, using their task layer only (ADR-0021): a
+    YAML flow list of {name: <slug>, minor: "X.Y", key_env: <VAR or "">} entries, e.g.
+    [{name: usda-esmis, minor: "0.1", key_env: ""}]. name is the dependency's slug, its
+    package xippios-<slug>, imported under xippios as that package's import path; minor,
+    in quotes, is the minor depended on, rendered as the bound xippios-<slug>~=X.Y.0
+    (conventions §12); key_env is the dependency's key variable, empty for an open API,
+    which the offline tests set to the placeholder and live.yml passes from its org secret.
+    One level, no cycles: a dependency depends on no other source. The default [] for none.
+  default: "[]"
+  validator: >-
+    {% set deps = source_dependencies | from_yaml %}
+    {% set ns = namespace(error='', seen=[]) %}
+    {% if deps is string or deps is mapping or deps is not sequence %}
+    {% set ns.error = 'A YAML flow list, e.g. [{name: usda-esmis, minor: "0.1", key_env: ""}], or [] for none' %}
+    {% else %}
+    {% for dep in deps %}
+    {% if ns.error %}
+    {% elif dep is not mapping or dep | list | sort != ['key_env', 'minor', 'name'] %}
+    {% set ns.error = 'Each entry has exactly name, minor and key_env' %}
+    {% elif dep['name'] is not string or not (dep['name'] | regex_search('^[a-z0-9]+(-[a-z0-9]+)*\\Z')) %}
+    {% set ns.error = 'name: the dependency slug, lowercase letters, digits and single hyphens' %}
+    {% elif dep['name'] in [source_slug, 'core'] or dep['name'] in ns.seen %}
+    {% set ns.error = 'name: another source, each once; neither this source nor core' %}
+    {% elif dep['minor'] is not string or not (dep['minor'] | regex_search('^\\d+\\.\\d+\\Z')) %}
+    {% set ns.error = 'minor: X.Y in quotes, e.g. "0.1"; YAML reads 0.10 unquoted as the number 0.1' %}
+    {% elif dep['key_env'] is not string or (dep['key_env'] and not (dep['key_env'] | regex_search('^[A-Z][A-Z0-9_]*_API_KEY\\Z'))) %}
+    {% set ns.error = 'key_env: UPPER_SNAKE_CASE ending in _API_KEY, or "" for an open API' %}
+    {% else %}
+    {% set ns.seen = ns.seen + [dep['name']] %}
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+    {{ ns.error }}
+
+# The dependencies as a list, parsed from the answer; the rendered files read this.
+depends_on:
+  type: yaml
+  default: "{{ source_dependencies }}"
+  when: false
+
+# Every key variable the package's tests and live run need, the source's own first, then
+# its dependencies', each once: the placeholder in offline tests, the secrets in live.yml.
+key_envs:
+  type: yaml
+  default: >-
+    {{ ((([api_key_env] if api_key_env else []) + depends_on | map(attribute='key_env')
+    | select | list) | unique | list) | tojson }}
+  when: false
+
 _min_copier_version: "9.0.0"
 _subdirectory: template
 _templates_suffix: .jinja

@@ -77,6 +77,17 @@ VARIANTS: dict[str, dict[str, object]] = {
         "core_version": "0.3.0",
         **keyed(""),
     },
+    # sdk-usda-wasde's, as it will start (ADR-0021): no key, a nested import path, and the
+    # source packages it depends on, one open and one keyed, whose variable then reaches
+    # the offline placeholder and live.yml (D47).
+    "dependency": {
+        "source_slug": "usda-wasde",
+        "source_dependencies": (
+            '[{name: example-base, minor: "0.3", key_env: ""},'
+            ' {name: example-keyed, minor: "0.1", key_env: EXAMPLE_KEYED_API_KEY}]'
+        ),
+        **keyed(""),
+    },
     # The gateway variant (T9) joins here with template v0.3.0's PR 7.
 }
 # A source on unreleased core: the keyed nested answers with a full-SHA core pin.
@@ -86,6 +97,19 @@ PINNED = {**VARIANTS["keyed-nested"], "core_git_ref": FAKE_CORE_SHA}
 def package_dir(answers: dict[str, object]) -> str:
     import_path = str(answers.get("import_path") or str(answers["source_slug"]).replace("-", "."))
     return import_path.replace(".", "/")
+
+
+def dependencies(answers: dict[str, object]) -> list[dict[str, str]]:
+    """The source packages a variant depends on, parsed from its answer (ADR-0021)."""
+    parsed = yaml.safe_load(str(answers.get("source_dependencies", "[]")))
+    assert isinstance(parsed, list)
+    return parsed
+
+
+def key_envs(answers: dict[str, object]) -> list[str]:
+    """Every key variable a render reads: the source's own, then its dependencies', once."""
+    keys = [str(answers.get("api_key_env", ""))] + [d["key_env"] for d in dependencies(answers)]
+    return list(dict.fromkeys(key for key in keys if key))
 
 
 # Every file a render has: the package's at the import path's directories, the rest at the
@@ -263,7 +287,9 @@ def test_answers_file_round_trips(variant: tuple[str, Path]) -> None:
     else:
         assert "api_key_location" not in answers, "not asked without a key"
         assert "api_key_name" not in answers
-    for computed in ["package_dir", "tool_prefix", "live_schedule"]:
+    assert answers["source_dependencies"] == expected.get("source_dependencies", "[]")
+    assert yaml.safe_load(answers["source_dependencies"]) == dependencies(expected)
+    for computed in ["package_dir", "tool_prefix", "live_schedule", "depends_on", "key_envs"]:
         assert computed not in answers, f"{computed}: derived, never recorded"
     for gone in ["source_pkg", "domain_topic", "needs_write_tools"]:
         assert gone not in answers, f"{gone}: no question asks it"
@@ -309,16 +335,17 @@ def test_tool_prefix_is_the_underscored_slug_everywhere(variant: tuple[str, Path
 
 def test_the_plugin_sends_the_placeholder_unless_live(variant: tuple[str, Path]) -> None:
     """ADR-0013: core's plugin pins the key; a keyed source only names its variable, and
-    only a keyed source's conftest names the option (row 61 d). No placeholder fixture,
+    the keys of the source packages it depends on beside it (ADR-0021), and only a source
+    with a key to name has the option in its conftest (row 61 d). No placeholder fixture,
     constant or test of the source's own."""
     name, dst = variant
-    env = str(VARIANTS[name]["api_key_env"])
+    keys = key_envs(VARIANTS[name])
     conftest = (dst / "tests/conftest.py").read_text()
     code = [line for line in conftest.splitlines() if not line.startswith("#")]
     assert code == ['pytest_plugins = ["xippios.core.testing.plugin"]']
-    assert ("xippios_placeholder_key_envs" in conftest) is bool(env)
+    assert ("xippios_placeholder_key_envs" in conftest) is bool(keys)
     ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
-    assert ini.get("xippios_placeholder_key_envs") == ([env] if env else None)
+    assert ini.get("xippios_placeholder_key_envs") == (keys or None)
     assert "placeholder" not in (dst / "tests/test_tasks.py").read_text()
 
 
@@ -359,11 +386,13 @@ def test_client_exports_one_sorted_name_per_line(variant: tuple[str, Path]) -> N
 
 
 def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
-    """Conventions §12: one core minor, the extras likewise."""
+    """Conventions §12: one core minor, the extras likewise; a source package depended on
+    bound to its minor the same way, ``~=X.Y.0`` (ADR-0021), in no extra."""
     name, dst = variant
     version = str(VARIANTS[name].get("core_version", CORE_DEFAULT))
     project = tomllib.loads((dst / "pyproject.toml").read_text())["project"]
-    assert project["dependencies"] == [f"xippios-core~={version}"]
+    depended = [f"xippios-{d['name']}~={d['minor']}.0" for d in dependencies(VARIANTS[name])]
+    assert project["dependencies"] == [f"xippios-core~={version}", *depended]
     assert project["optional-dependencies"] == {
         extra: [f"xippios-core[{extra}]~={version}"] for extra in ["mcp", "http", "testing"]
     }
@@ -406,25 +435,47 @@ def skip_matcher(pkg: str) -> Callable[[str], bool]:
     return PathSpec.from_lines("gitignore", rendered).match_file
 
 
-SIBLINGS_SCRIPT = ROOT / "template/.github/{% if '.' in import_path %}scripts{% endif %}"
+SIBLINGS_SCRIPT = (
+    ROOT / "template/.github/{% if '.' in import_path or depends_on %}scripts{% endif %}"
+)
 
 
 def test_siblings_check_renders_where_the_import_path_nests(variant: tuple[str, Path]) -> None:
     """ADR-0006's sibling proof is the template's (T10): siblings.yml and the script it runs
-    render, byte for byte and executable, only where the import path nests, outside the
-    skip-listed scripts/ so that a source's copy is trusted when identical to the render;
-    a visible job, `ci` never aggregates it (ci.yml stays core's)."""
+    render, byte for byte and executable, only where the import path nests or the source
+    declares a source package it depends on (ADR-0021), outside the skip-listed scripts/ so
+    that a source's copy is trusted when identical to the render; a visible job, `ci` never
+    aggregates it (ci.yml stays core's)."""
     name, dst = variant
-    nested = "/" in package_dir(VARIANTS[name])
+    answers = VARIANTS[name]
+    rendered = "/" in package_dir(answers) or bool(dependencies(answers))
+    assert (dst / ".github/workflows/siblings.yml").is_file() is rendered
+    assert (dst / ".github/scripts").exists() is rendered, "no empty directory where flat"
+    assert ("siblings.yml" in (dst / "CLAUDE.md").read_text()) is rendered
+    if rendered:
+        assert_the_sibling_check(dst, package_dir(answers))
+
+
+def test_a_flat_source_with_a_dependency_has_the_sibling_check(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """ADR-0021: the check installs a declared dependency beside the wheel, so a flat source
+    that declares one renders it too (sdk-eurostat's shape with a dependency)."""
+    answers = {**VARIANTS["keyless-flat"], "source_dependencies": DEPENDS_ON_BASE}
+    dst = generate(template_src, tmp_path / "repo", **answers)
+    assert_the_sibling_check(dst, package_dir(answers))
+    assert "siblings.yml" in (dst / "CLAUDE.md").read_text()
+
+
+DEPENDS_ON_BASE = '[{name: example-base, minor: "0.3", key_env: ""}]'
+
+
+def assert_the_sibling_check(dst: Path, pkg: str) -> None:
+    """The rendered sibling check: the template's files byte for byte, hardened, the token
+    for the listing only, outside the skip-listed paths."""
     workflow = dst / ".github/workflows/siblings.yml"
     script = dst / ".github/scripts/check-siblings.sh"
-    assert workflow.is_file() is nested
-    assert (dst / ".github/scripts").exists() is nested, "no empty directory where flat"
     assert not (dst / "scripts/check-siblings.sh").exists()
-    claude = (dst / "CLAUDE.md").read_text()
-    assert ("siblings.yml" in claude) is nested
-    if not nested:
-        return
     assert script.read_bytes() == (SIBLINGS_SCRIPT / "check-siblings.sh").read_bytes()
     assert script.stat().st_mode & 0o111, "executable, as the render the merge classes compare"
     syntax = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
@@ -438,7 +489,7 @@ def test_siblings_check_renders_where_the_import_path_nests(variant: tuple[str, 
     # of uv's error; prove.sh runs both outcomes, since each needs PyPI.
     assert not [line for line in lines if "$trial" in line and "grep" in line]
     assert "uv pip compile --quiet --no-header --no-annotate" in script.read_text()
-    skipped = skip_matcher(package_dir(VARIANTS[name]))
+    skipped = skip_matcher(pkg)
     assert skipped("scripts/check-siblings.sh"), "why the script is not under scripts/"
     for rel in [".github/workflows/siblings.yml", ".github/scripts/check-siblings.sh"]:
         assert not skipped(rel), f"{rel}: the template's, trusted when identical to the render"
@@ -460,10 +511,11 @@ def test_siblings_check_renders_where_the_import_path_nests(variant: tuple[str, 
 
 
 def test_live_workflow_hands_the_key_to_its_pytest_step(variant: tuple[str, Path]) -> None:
-    """Conventions §10: nightly and on demand; the secret in the pytest step's env only, and
-    a keyless render's workflow names no key at all (row 61 b)."""
+    """Conventions §10: nightly and on demand; the secrets in the pytest step's env only, the
+    source's and those of the source packages it depends on (D47), and a render with no key
+    names no key at all (row 61 b)."""
     name, dst = variant
-    env_var = str(VARIANTS[name]["api_key_env"])
+    keys = key_envs(VARIANTS[name])
     text = (dst / ".github/workflows/live.yml").read_text()
     workflow = yaml.safe_load(text)
     triggers = workflow[True]  # YAML 1.1 reads the key `on` as a boolean
@@ -479,11 +531,11 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(variant: tuple[str, Path
     assert checkout["uses"].startswith("actions/checkout@")
     assert checkout["with"] == {"persist-credentials": False}, "conventions §13"
     expected_env: dict[str, str] = {"XIPPIOS_LIVE_TESTS": "1"}
-    if env_var:
-        expected_env[env_var] = f"${{{{ secrets.{env_var} }}}}"
-        assert text.count(f"${{{{ secrets.{env_var} }}}}") == 1
-        assert text.count("secrets.") == 1
-    else:
+    for key in keys:
+        expected_env[key] = f"${{{{ secrets.{key} }}}}"
+        assert text.count(f"${{{{ secrets.{key} }}}}") == 1
+    assert text.count("secrets.") == len(keys)
+    if not keys:
         assert "key" not in text.lower()
     assert pytest_step["env"] == expected_env
 
@@ -529,8 +581,9 @@ def test_claude_md_holds_the_facts_and_imports_the_family_rules(
     variant: tuple[str, Path],
 ) -> None:
     """The source's CLAUDE.md imports the family rules on the line after its intro and names
-    its own import path, the provider level where it nests, and the key's ini option only
-    for a keyed source (row 61)."""
+    its own import path, the provider level where it nests, the key's ini option only where
+    there is a key (row 61), and a "Depends on" row naming each bound only where it
+    declares a dependency (ADR-0021)."""
     name, dst = variant
     answers = VARIANTS[name]
     slug, pkg = answers["source_slug"], package_dir(answers)
@@ -543,7 +596,12 @@ def test_claude_md_holds_the_facts_and_imports_the_family_rules(
     assert f"`xippios.{pkg.replace('/', '.')}`" in claude
     if "/" in pkg:
         assert f"`src/xippios/{pkg.rsplit('/', 1)[0]}/`" in claude, "the provider level"
-    assert ("xippios_placeholder_key_envs" in claude) is bool(answers["api_key_env"])
+    assert ("xippios_placeholder_key_envs" in claude) is bool(key_envs(answers))
+    rows = [line for line in claude.splitlines() if line.startswith("| Depends on | ")]
+    depended = [f"`xippios-{d['name']}~={d['minor']}.0`" for d in dependencies(answers)]
+    assert len(rows) == bool(depended)
+    for bound in depended:
+        assert bound in rows[0], bound
     assert "../" not in claude, "a relative path leaves the repository (worktree, GitHub)"
     assert len(claude) < 40_000, "Claude Code cuts a file that loads on demand"
 
@@ -561,14 +619,17 @@ def test_generated_tree_names_no_source_and_no_workspace_file(variant: tuple[str
 
 
 def test_readme_mcp_snippet_is_json(variant: tuple[str, Path]) -> None:
-    """The MCP client snippet parses, the key's env only for a keyed source, and no line
-    carries a closing brace after the args (the keyless render's trailing brace)."""
+    """The MCP client snippet parses, an env only with a key to name, a dependency's too
+    (its tasks run in this server), and no line carries a closing brace after the args (the
+    keyless render's trailing brace). The packages depended on are named (ADR-0021)."""
     name, dst = variant
     readme = (dst / "README.md").read_text()
     block = readme.split("```json\n", 1)[1].split("```", 1)[0]
     (server,) = json.loads(block)["mcpServers"].values()
-    env = str(VARIANTS[name]["api_key_env"])
-    assert server.get("env") == ({env: "..."} if env else None)
+    keys = key_envs(VARIANTS[name])
+    assert server.get("env") == (dict.fromkeys(keys, "...") or None)
+    for dependency in dependencies(VARIANTS[name]):
+        assert f"`xippios-{dependency['name']}`" in readme
     (args,) = [line for line in block.splitlines() if '"args"' in line]
     assert args.rstrip().endswith(("]", "],")), args
 
@@ -793,14 +854,14 @@ def test_publish_is_the_release_train(keyed_nested: Path) -> None:
     assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in release_prep
 
 
-def test_adopt_release_runs_the_update_for_this_source(
-    keyed_nested: Path, keyless_flat: Path
-) -> None:
+def test_adopt_release_runs_the_update_for_this_source(render: Callable[[str], Path]) -> None:
     """Conventions §15, ADR-0018: one chore/template-update PR that names the nine items
-    and whose commands name this source, the key's ini option only where there is a key."""
+    and whose commands name this source, the key's ini option only where there is a key,
+    and a dependency's minor raised with the core's only where there is one (ADR-0021)."""
     update = "uvx copier update --defaults --vcs-ref=<tag> -d core_version=X.Y.Z -d core_git_ref="
     items = ["Items 1 and 2", "Items 3 and 4", *(f"Item {n}:" for n in range(5, 10))]
-    for name, dst in [("keyed-nested", keyed_nested), ("keyless-flat", keyless_flat)]:
+    for name in ["keyed-nested", "keyless-flat", "dependency"]:
+        dst = render(name)
         text = (dst / ".claude/commands/adopt-release.md").read_text()
         for item in items:
             assert item in text, f"{item}: every item of conventions §15"
@@ -811,8 +872,12 @@ def test_adopt_release_runs_the_update_for_this_source(
         assert "uv run python scripts/refresh_reference.py --render-only" in text, "§15 item 6"
         slug = VARIANTS[name]["source_slug"]
         assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in text
-        keyed_source = bool(VARIANTS[name]["api_key_env"])
-        assert ("xippios_placeholder_key_envs" in text) is keyed_source, name
+        keys = key_envs(VARIANTS[name])
+        assert ("xippios_placeholder_key_envs" in text) is bool(keys), name
+        for key in keys:
+            assert f"`{key}`" in text, key
+        depended = dependencies(VARIANTS[name])
+        assert ("-d source_dependencies=" in text) is bool(depended), name
 
 
 def test_reference_data_has_both_enum_paths(keyless_flat: Path) -> None:
@@ -965,6 +1030,81 @@ def test_core_version_is_a_release_version(
         generate(
             template_src, tmp_path / "repo", source_slug="ex", core_version=version, **keyed("")
         )
+
+
+# A line at column 0 of an answers file that the merge classes read (sdk-gates README,
+# rule 2): a plain key, a colon, then a blank or the end of the line.
+ANSWER_LINE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*:(?:[ \t].*)?")
+
+
+def test_answers_file_stays_in_the_merge_classes_subset(variant: tuple[str, Path]) -> None:
+    """The merge classes read an answers file whose lines at column 0 are comments or plain
+    ``key: value`` lines only, and free a new answer at its question's literal default, one
+    scalar (rule 2). ``source_dependencies`` is a string holding a YAML flow list, so a
+    list of dependencies never writes block lines there, and its default, the string
+    ``[]``, is recorded as that one quoted scalar."""
+    name, dst = variant
+    text = (dst / ".copier-answers.yml").read_text()
+    for line in text.splitlines():
+        if line and not line.startswith(("#", " ", "\t")):
+            assert ANSWER_LINE.fullmatch(line), line
+    question = QUESTIONS["source_dependencies"]
+    assert (question["type"], question["default"]) == ("str", "[]")
+    raw = (ROOT / "copier.yml").read_text().split("\nsource_dependencies:\n", 1)[1]
+    block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
+    assert '\n  default: "[]"\n' in block, "one quoted scalar, a literal for rule 2"
+    if not dependencies(VARIANTS[name]):
+        assert "\nsource_dependencies: '[]'\n" in text
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "{name: example-base, minor: '0.3', key_env: ''}",
+        "[{name: example-base, minor: '0.3'}]",
+        "[{name: example-base, minor: '0.3', key_env: '', extra: 1}]",
+        "[{name: Example_Base, minor: '0.3', key_env: ''}]",
+        "[{name: ex, minor: '0.3', key_env: ''}]",
+        "[{name: core, minor: '0.3', key_env: ''}]",
+        "[{name: a, minor: '0.3', key_env: ''}, {name: a, minor: '0.2', key_env: ''}]",
+        "[{name: example-base, minor: 0.10, key_env: ''}]",
+        "[{name: example-base, minor: '0.3.0', key_env: ''}]",
+        "[{name: example-base, minor: '0.3', key_env: EXAMPLE_KEY}]",
+        "[{name: example-base",
+    ],
+)
+def test_source_dependencies_are_slugs_minors_and_key_variables(
+    template_src: Path, tmp_path: Path, value: str
+) -> None:
+    """ADR-0021: each entry names another source by its slug, neither this one nor core and
+    each once, its minor as ``X.Y`` in quotes (YAML reads 0.10 as a number), and its key's
+    variable or ``""``; nothing else, and nothing that is not a YAML flow list."""
+    with pytest.raises(ValueError, match="source_dependencies"):
+        generate(
+            template_src,
+            tmp_path / "repo",
+            source_slug="ex",
+            source_dependencies=value,
+            **keyed(""),
+        )
+
+
+def test_the_sibling_check_names_the_declared_dependencies(render: Callable[[str], Path]) -> None:
+    """The script reads the source packages a render depends on from ``pyproject.toml``,
+    every ``xippios-*`` but core in ``[project] dependencies`` (ADR-0021), to install and
+    import them beside the wheel; run here offline on the dependency render."""
+    dst = render("dependency")
+    script = (dst / ".github/scripts/check-siblings.sh").read_text()
+    opening = """names="$("$python" - <<'PY'\n"""
+    start = script.index(opening) + len(opening)
+    reader = script[start : script.index("\nPY\n", start)]
+    run = subprocess.run(
+        [sys.executable, "-c", reader], cwd=dst, capture_output=True, text=True, check=False
+    )
+    assert run.returncode == 0, run.stderr
+    names = [f"xippios-{d['name']}" for d in dependencies(VARIANTS["dependency"])]
+    assert run.stdout.split() == names
 
 
 SOURCE_NAME = "{{ source_name }}"
