@@ -11,7 +11,7 @@ guard refuses work in a directory no session owns. If it does not, stop and ask 
 1. Read `copier.yml` for the questions. From the arguments and the conversation, collect
    an answer for each: `source_slug`, `source_name`, `upstream_url`, `upstream_docs_url`,
    `api_base_url`, `api_key_env` (empty if none) with `api_key_location` and
-   `api_key_name`, `rate_limit_per_minute`, `rate_limit_burst`, `rate_limit_provenance`;
+   `api_key_name`, `rate_limit_per_minute`, `rate_limit_burst`, `rate_limit_provenance`,
    and the GitHub topic for the domain (`agriculture`, `trade-data`, `accounting`), which
    is no answer but the script's `--topic` (conventions §13). Ask the user for anything
    you do not have. Never guess a URL or a rate limit: the pace, the burst and whether
