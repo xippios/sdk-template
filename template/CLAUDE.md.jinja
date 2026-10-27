@@ -12,7 +12,7 @@ that works here; the family rules it points to apply as well.
 | API base URL | `{{ api_base_url }}` |
 | Documentation | {{ upstream_docs_url }}, snapshotted in `docs/upstream/` |
 {% if api_key_env %}
-| Credentials | `{{ api_key_env }}` from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% else %}as the HTTP basic user name{% endif %} |
+| Credentials | `{{ api_key_env }}` from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% endif %} |
 {% else %}
 | Credentials | none; the API is open |
 {% endif %}

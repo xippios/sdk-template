@@ -59,7 +59,7 @@ afterwards by rename or push.
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
 | `api_base_url` | base URL request paths join onto; required, usually not the provider page | `https://quickstats.nass.usda.gov/api` |
 | `api_key_env` | environment variable with the key; empty for open APIs | `NASS_API_KEY` |
-| `api_key_location` | `query`, `header`, `bearer` or `basic` | `query` |
+| `api_key_location` | `query`, `header` or `bearer` | `query` |
 | `api_key_name` | query parameter or header name | `key` |
 | `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, or a self-imposed pace where upstream documents none (ADR-0010) | `30` |
 | `rate_limit_burst` | requests let through at once before the pace applies; `1` unless upstream documents a burst | `1` |

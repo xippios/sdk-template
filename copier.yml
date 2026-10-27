@@ -94,7 +94,6 @@ api_key_location:
     query parameter: query
     request header: header
     bearer token in the Authorization header: bearer
-    HTTP basic auth with the key as user name: basic
   default: query
   when: "{{ api_key_env != '' }}"
 

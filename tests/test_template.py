@@ -52,10 +52,10 @@ VARIANTS: dict[str, dict[str, object]] = {
         "core_version": "0.3.0",
         **keyed("ABC_API_KEY", "bearer"),
     },
-    "basic-git-core": {
-        "source_slug": "cashctrl",
+    "bearer-git-core": {
+        "source_slug": "pinned-data",
         "core_git_ref": FAKE_CORE_SHA,
-        **keyed("CASHCTRL_API_KEY", "basic"),
+        **keyed("PINNED_API_KEY", "bearer"),
     },
     "open": {"source_slug": "eurostat", **keyed("")},
     "nested": {"source_slug": "usda-nass", **keyed("NASS_API_KEY", "query", "key")},
@@ -244,7 +244,6 @@ def test_key_auth_matches_location(template_src: Path, tmp_path: Path) -> None:
         ("query", 'auth = QueryKeyAuth("key", API_KEY_ENV, source=SOURCE)'),
         ("header", 'auth = HeaderKeyAuth("X-Api-Key", API_KEY_ENV, source=SOURCE)'),
         ("bearer", "auth = BearerAuth(API_KEY_ENV, source=SOURCE)"),
-        ("basic", "auth = BasicKeyAuth(API_KEY_ENV, source=SOURCE)"),
     ]:
         dst = generate(
             template_src, tmp_path / location, source_slug="ex", **keyed("EX_API_KEY", location)
@@ -868,7 +867,7 @@ def git(cwd: Path, *args: str) -> str:
     ).stdout
 
 
-@pytest.mark.parametrize("variant", ["basic-git-core", "header-key", "open", "nested"])
+@pytest.mark.parametrize("variant", ["bearer-git-core", "header-key", "open", "nested"])
 def test_answers_file_is_copiers_canonical_form(
     template_src: Path, tmp_path: Path, variant: str
 ) -> None:

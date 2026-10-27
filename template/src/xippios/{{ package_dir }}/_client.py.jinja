@@ -11,8 +11,6 @@ from xippios.core import AsyncClient, ClientConfig, QueryKeyAuth, RateLimit
 from xippios.core import AsyncClient, ClientConfig, HeaderKeyAuth, RateLimit
 {% elif api_key_location == 'bearer' %}
 from xippios.core import AsyncClient, BearerAuth, ClientConfig, RateLimit
-{% else %}
-from xippios.core import AsyncClient, BasicKeyAuth, ClientConfig, RateLimit
 {% endif %}
 {% else %}
 from xippios.core import AsyncClient, ClientConfig, RateLimit
@@ -65,8 +63,6 @@ auth = QueryKeyAuth("{{ api_key_name }}", API_KEY_ENV, source=SOURCE)
 auth = HeaderKeyAuth("{{ api_key_name }}", API_KEY_ENV, source=SOURCE)
 {% elif api_key_location == 'bearer' %}
 auth = BearerAuth(API_KEY_ENV, source=SOURCE)
-{% else %}
-auth = BasicKeyAuth(API_KEY_ENV, source=SOURCE)
 {% endif %}
 client = AsyncClient(config, auth=auth)
 {% else %}
