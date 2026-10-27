@@ -112,6 +112,27 @@ are not listed.
   entry, that a flat source with a dependency renders the sibling check, and the
   script's dependency reader, run offline on the render. `scripts/prove.sh` gains no
   proof: a dependency that is not on PyPI cannot be installed.
+- `gateway`, a new answer: the shared gateway the API sits behind, `none` by default or
+  `api.data.gov` (ADR-0009; found by sdk-usda-psd, sdk-usda-esr, sdk-usda-gats and the
+  family review). Behind api.data.gov the three key answers follow from it,
+  `api_key_env: DATA_GOV_API_KEY`, `api_key_location: header` and
+  `api_key_name: X-Api-Key`: copier asks none of them (their `ask` is false) and records
+  all three as if answered, so every rendered file reads them as for any keyed source;
+  their validators refuse another value, and `core_version`'s refuses a core before
+  0.3.0, the first release with `xippios.core.data_gov`. The generated `_client.py`
+  takes the key, the gateway's documented error answers and its hourly quota from core:
+  `gateway = Gateway(SOURCE)`; `classify` returns `gateway.classify(response)` first
+  where it is not `None`, the source's own answers after it; `config =
+  gateway.install(ClientConfig(...))`, which puts `Gateway.policy`, one `QuotaPolicy`
+  per process for the key, on it; `auth = gateway.auth`; `gateway` exported. `live.yml`
+  hands `DATA_GOV_API_KEY` to its pytest step as for any keyed source, at the start time
+  the slug staggers, with a comment that every source behind the gateway shares the key;
+  the generated `CLAUDE.md`'s Credentials row names the gateway's key, shared by every
+  package that reads it, and its Rate limit row the gateway's hourly quota, one
+  `QuotaPolicy` per process that waits within its cap or refuses before sending
+  (ADR-0009, ADR-0015); the `README.md` scaffold says the key is api.data.gov's and its
+  quota shared. `/new-source`, this README's question table and its by-hand example
+  name the answer.
 
 ### Changed
 
@@ -322,6 +343,29 @@ are not listed.
   (`sdk-example-files`, `xippios.example.files`, no key, as sdk-usda-esmis and
   sdk-usda-wasde start), which runs the rendered sibling check as the keyed nested proof
   does. Nothing a source renders changes, so no Hand-apply bullet.
+- The `_client.py` scaffold's commented `QuotaPolicy` block becomes one sentence where no
+  gateway is answered: a source with a documented hourly or daily quota installs a
+  `QuotaPolicy` of its own on `config`, as core's README shows (conventions §6,
+  ADR-0015); behind api.data.gov the gateway installs core's. `.claude/family.md` no
+  longer says that a repository carries the commented block, a pointer that was false
+  for a source that installed a policy (sdk-usda-psd's adoption review), and names
+  `xippios.core.data_gov` for a source behind api.data.gov.
+- `_min_copier_version` is 9.19.0, the copier release that brought the `ask` setting
+  the key answers take behind a gateway; this README says so.
+- Template-internal: a fifth variant renders once per session, sdk-usda-psd's shape
+  behind the gateway (nested, `gateway: api.data.gov`, no key answer passed), and the
+  keyed nested variant moves to sdk-usda-nass's shape, a query key of its own without
+  the gateway, so no two variants differ in nothing a check reads. The tests check the
+  gateway's lines in `_client.py` (the import, `Gateway(SOURCE)`, `install`, `auth`, the
+  export and `classify` asking the gateway first) and their absence elsewhere, the
+  derived answers recorded and read back in copier's canonical form, `gateway: none`
+  recorded as the question's literal default, the names in the generated `CLAUDE.md`,
+  `README.md` and `live.yml`, the refusal of a key answer that differs from the
+  gateway's and of a core before 0.3.0, and the staggered start of sdk-usda-psd,
+  sdk-usda-esr and sdk-usda-gats on the gateway answer. `scripts/prove.sh --gateway`
+  proves `sdk-example-gov` (`xippios.example.gov`) against core 0.3.0, with an offline
+  step that the client takes the gateway's auth, its policy's hooks and its `classify`;
+  the template's CI runs it as its fourth proof.
 
 ### Removed
 
@@ -408,7 +452,8 @@ are not listed.
   `xippios.core`), pass `classify=classify` to `ClientConfig` and export `"classify"`,
   unless the source has a `classify` of its own; where the file still carries the
   scaffold's text, its docstring becomes one sentence that mentions no cache, the
-  `QuotaPolicy` comment points at conventions §6 and ADR-0015, and a self-imposed pace's
+  commented `QuotaPolicy` block becomes the one sentence pointing at conventions §6,
+  ADR-0015 and core's README, and a self-imposed pace's
   comment says upstream documents no per-second or per-minute limit — the hook is where
   a source maps its documented error shapes (conventions §6), and the docstring named a
   cache no config sets (sdk-eurostat, sdk-usda-esmis).
@@ -474,6 +519,23 @@ are not listed.
   `.github/scripts/check-siblings.sh`, the template's, instead of
   `scripts/check-siblings.sh`, "this package's own" — the old path is gone after the
   update; a nested source without those lines may add them as the scaffold has them.
+- `src/xippios/<package>/_client.py` (sdk-usda-psd, sdk-usda-esr, sdk-usda-gats, which
+  answer `gateway: api.data.gov` in their 0.3.0 adoption) — delete the gateway block
+  (`policy = QuotaPolicy(...)`, `_URL`, `_gateway_error`, `_over_rate_limit`, the
+  `API_KEY_*`, 429 and `NOT_FOUND` branches of `classify`, `auth = HeaderKeyAuth(...)`)
+  and take the render's shape: `from xippios.core.data_gov import Gateway`,
+  `gateway = Gateway(SOURCE)`, `classify` returning `gateway.classify(response)` when
+  that is not `None` and keeping its own branches after it, `config =
+  gateway.install(ClientConfig(...))`, `auth = gateway.auth`,
+  `client = AsyncClient(config, auth=auth)`, `"gateway"` exported, where `policy` was —
+  core 0.3.0's Hand-apply asks the same of these three in these names, and lists their
+  tests; one edit makes the file core's shape and the template's.
+- `CLAUDE.md` (sdk-usda-psd, sdk-usda-esr, sdk-usda-gats) — the Credentials row names
+  `xippios.core.data_gov`'s `Gateway` and the key as api.data.gov's, shared by every
+  package that reads it, and the Rate limit row the hourly quota as the gateway's, one
+  `QuotaPolicy` per process, `Gateway.policy`, as the scaffold renders them; the
+  source's own facts in the rows (the recorded 429, the quota's size) stay — core
+  0.3.0's Hand-apply asks the same of the Rate limit row; one edit.
 
 The scaffolds of `_client.py`, `README.md` and `CHANGELOG.md` lose their write and
 `basic` branches and the README's status comment no longer names `tasks_write.__all__`,
@@ -493,27 +555,36 @@ sentence (a keyless source's README may close the server's brace on a line of it
 the generated `CLAUDE.md`'s rate-limit row, Layout lines and start-time sentence, which
 the 0.3.0 split leaves as the source wrote them (the capture script's line and the
 Documentation row's `SPEC_URL` pointer among them), and `docs/upstream/FETCHED.md`'s
-attribution placeholder and example rows, which the next `/refresh-upstream` rewrites, and
-the `README.md` and `CLAUDE.md` lines a declared dependency renders, since no source
-declares one before this release. The update carries the rest: `.claude/family.md`, the
-six commands, the sibling check where the import path nests, `tests/conftest.py`,
-`live.yml` and `ci.yml`, the read server's instructions in `mcp.py`, and `junit_family`,
-the ruff pin and the keywords in `pyproject.toml`, merged three ways where a source
-changed them.
+attribution placeholder and example rows, which the next `/refresh-upstream` rewrites,
+and the `README.md` and `CLAUDE.md` lines a declared dependency renders, since no source
+declares one before this release, and the `README.md` scaffold's sentence on the
+gateway's key, which the three sources behind it say in words of their own. The update
+carries the rest: `.claude/family.md`, the six commands, the sibling check where the
+import path nests, `tests/conftest.py`, `live.yml` and `ci.yml`, the read server's
+instructions in `mcp.py`, and `junit_family`, the ruff pin and the keywords in
+`pyproject.toml`, merged three ways where a source changed them.
 
-**Updating from 0.2.2.** `copier update --defaults` answers the one new question,
-`source_dependencies`, with its default, recorded as `source_dependencies: '[]'`, the
-literal default the merge classes leave free, so every existing source passes no `-d`
-for it (checked with copier 9.19.1 on a v0.2.2 render); it drops `needs_write_tools`
-and `domain_topic` from `.copier-answers.yml` (checked with copier 9.19.1 on v0.2.2
-renders, keyed and keyless; `source_pkg` was never recorded); no `-d` answer is needed
-for them. The domain's topic stays on the GitHub repository; the `pyproject.toml`
-keywords lose it. Every source's `source_name` is within the new 77-character bound. The
-update creates `errors.py` where the package has none and deletes
-`tests/fixtures/README.md`; `uv lock` after it resolves ruff to the pinned 0.17.1. It
-creates `scripts/refresh_upstream.py` where the repository has none, and in a nested
-source `.github/scripts/check-siblings.sh` and `.github/workflows/siblings.yml`, the
-latter in conflict where the source kept its own (Hand-apply above).
+**Updating from 0.2.2.** The update needs copier 9.19.0 or later. `copier update
+--defaults` answers the two new questions, `source_dependencies` and `gateway`, with
+their defaults, recorded as `source_dependencies: '[]'` and `gateway: none`, the literal
+defaults the merge classes leave free, so every existing source passes no `-d` for them
+(checked with copier 9.19.1 on v0.2.2 renders). sdk-usda-psd, sdk-usda-esr and
+sdk-usda-gats pass `-d gateway=api.data.gov`, their one changed answer: the update keeps
+their recorded `api_key_env`, `api_key_location` and `api_key_name`, which equal the
+derived ones, and adds `gateway: api.data.gov`, a value other than the default, so their
+adoption is a `human` merge; `live.yml` gains the comment on the shared key, and
+`_client.py` and `CLAUDE.md` are theirs to port (Hand-apply above; checked with copier
+9.19.1 on v0.2.2 renders with sdk-usda-psd's, sdk-usda-nass's and sdk-eurostat's key
+answers). The update drops `needs_write_tools` and `domain_topic` from
+`.copier-answers.yml` (checked with copier 9.19.1 on v0.2.2 renders, keyed and keyless;
+`source_pkg` was never recorded); no `-d` answer is needed for them. The domain's topic
+stays on the GitHub repository; the `pyproject.toml` keywords lose it. Every source's
+`source_name` is within the new 77-character bound. The update creates `errors.py` where
+the package has none and deletes `tests/fixtures/README.md`; `uv lock` after it resolves
+ruff to the pinned 0.17.1. It creates `scripts/refresh_upstream.py` where the repository
+has none, and in a nested source `.github/scripts/check-siblings.sh` and
+`.github/workflows/siblings.yml`, the latter in conflict where the source kept its own
+(Hand-apply above).
 
 ## [0.2.2] - 2026-10-27
 
