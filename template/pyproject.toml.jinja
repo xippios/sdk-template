@@ -57,7 +57,8 @@ dev = [
 # the pinned change: X.Y.Z with Z the patch that shipped it, or X.Y.0 when the minor
 # itself did; still one minor. Then uv lock:
 #   uvx copier update --defaults --vcs-ref=:current: -d core_git_ref= -d core_version=X.Y.Z
-# /release-prep and publish.yml refuse a pinned release.
+# The removal is a PR of its own, merged before the release PR; /release-prep and
+# publish.yml refuse a pinned release.
 xippios-core = { git = "https://github.com/xippios/sdk-core.git", rev = "{{ core_git_ref }}" }  # pragma: allowlist secret (a git ref, not a key)
 {% endif %}
 

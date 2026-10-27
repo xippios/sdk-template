@@ -10,7 +10,8 @@
 #                    snapshot works too and is what prove.sh passes)
 #
 # Everything that touches GitHub is at the end and runs only without --local-only.
-# Human steps that remain are printed last. This script never tags or merges.
+# Human steps that remain are printed last. This script never tags or merges: a release
+# PR's merge tags the release through the generated publish.yml (conventions §12).
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,6 +40,15 @@ if [ -e "$dest" ]; then
 fi
 
 answer() { grep -E "^$1:" "$dest/.copier-answers.yml" | sed -E "s/^$1: *//; s/^'(.*)'$/\1/; s/^\"(.*)\"$/\1/"; }
+
+# The workspace's guard refuses work in a directory no session owns: a new source's
+# directory is in a session's list under [sessions] in coordination/owners.toml before it
+# is generated there. Johannes adds it; this only reminds.
+owners="$root/coordination/owners.toml"
+if [ "$(dirname "$dest")" = "$root" ] && [ -f "$owners" ] && ! grep -q "\"sdk-$slug\"" "$owners"; then
+  echo "notice: no session owns sdk-$slug in $owners ([sessions]); the guard refuses work in" >&2
+  echo "        $dest until Johannes adds it there" >&2
+fi
 
 if [ -d "$template" ]; then
   ref="$(git -C "$template" describe --tags --abbrev=0 2>/dev/null || echo HEAD)"
@@ -85,8 +95,30 @@ to 'main', then re-run this command. Nothing was created; $dest is generated and
 MSG
   exit 1
 fi
+# The sessions' team gets write access (plan D14), read here, before anything is created.
+# Until the team exists (D59 deferred the identity work), its 404 is a notice and the
+# script goes on; any other error stops it with nothing created.
+team="sdk-sessions"
+team_found=0
+if team_reply="$(gh api "orgs/xippios/teams/$team" 2>&1)"; then
+  team_found=1
+elif grep -q 'HTTP 404' <<<"$team_reply"; then
+  echo "notice: the team $team does not exist yet (D59); $repo will be added to no team"
+else
+  cat >&2 <<MSG
+error: cannot read the team $team: $team_reply
+Nothing was created; $dest is generated and verified.
+MSG
+  exit 1
+fi
 gh repo create "$repo" --public --license Apache-2.0 --description "xippios SDK for $source_name"
 gh repo edit "$repo" --add-topic xippios-sdk --add-topic python --add-topic mcp --add-topic "$domain_topic"
+# Adoption and release PRs of merge class `auto` auto-merge after the reviewer's `ready`
+# (ADR-0018, amendment (e)); merged branches are deleted, as in every sdk-* repository.
+gh repo edit "$repo" --enable-auto-merge --delete-branch-on-merge
+if [ "$team_found" = 1 ]; then
+  gh api -X PUT "orgs/xippios/teams/$team/repos/$repo" -f permission=push --silent
+fi
 reviewer="${XIPPIOS_PYPI_REVIEWER:-jdidaskalu}"
 reviewer_id="$(gh api "users/$reviewer" --jq .id)"
 printf '{"reviewers":[{"type":"User","id":%s}]}' "$reviewer_id" \
@@ -107,7 +139,8 @@ cat <<MSG
 
 Done. Human steps that remain:
   1. PyPI: add a pending trusted publisher for xippios-$slug
-     (owner xippios, repository sdk-$slug, workflow publish.yml, environment pypi).
+     (owner xippios, repository sdk-$slug, workflow publish.yml, environment pypi);
+     the first release's publish job needs it.
 MSG
 if [ -n "$api_key_env" ]; then
   cat <<MSG
@@ -121,4 +154,10 @@ MSG
 else
   echo "  2. No API key is needed for this source."
 fi
-echo "  3. Review the PR (read CLAUDE.md as a new engineer would), merge, tag v0.1.0."
+cat <<MSG
+  3. Review the scaffold PR (read CLAUDE.md as a new engineer would) and merge it.
+     Releases tag themselves: the merge of a release PR (/release-prep) runs publish.yml,
+     which tags the version and waits for the approval of its pypi run.
+Owners: sdk-$slug belongs to a session under [sessions] in coordination/owners.toml (Johannes
+adds it), since the workspace's guard refuses work in a directory no session owns.
+MSG

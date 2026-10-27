@@ -1,0 +1,63 @@
+# The template's release train (conventions §12, ADR-0018 amendment b): sdk-template
+# publishes nothing to PyPI, so its release is the tag. The release PR, `chore/release-X.Y.Z`,
+# turns Unreleased into `## [X.Y.Z] - <date>`; its merge on main runs this workflow, which
+# reads the top `## [X.Y.Z] - ` heading of CHANGELOG.md and, when `vX.Y.Z` has no tag yet,
+# tags the merge commit with that section as the tag's message. Every other push to main
+# finds the top heading tagged and ends quietly. No session and no human pushes the tag;
+# generated repositories record it in `.copier-answers.yml`, and `copier update` reaches it.
+#
+# Recovery. A run that fails before its tag push is finished with "Re-run failed jobs"; a
+# re-run once the tag exists ends quietly.
+#
+# Race. Runs are not serialised: GitHub's run groups keep one pending run and cancel it for
+# the next, and the next would tag its own commit. Two pushes to main close together can
+# therefore both find the version untagged: the second run's tag push then fails red, or,
+# if it runs first, it tags the later commit; then Johannes deletes that tag before a
+# source adopts it and re-runs the release run ("Re-run all jobs"). A release is not merged
+# while another push to main is in flight.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tag:
+    name: tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Tag the merge commit from the CHANGELOG's top release heading
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          heading="$(grep -m 1 -E '^## \[[0-9]+\.[0-9]+\.[0-9]+\] - ' CHANGELOG.md || true)"
+          if [ -z "$heading" ]; then
+            echo "::notice title=release::CHANGELOG.md has no '## [X.Y.Z] - ' heading; no tag"
+            exit 0
+          fi
+          version="$(sed -E 's/^## \[([0-9]+\.[0-9]+\.[0-9]+)\] - .*/\1/' <<<"$heading")"
+          tag="v${version}"
+          if answer="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" 2>&1)"; then
+            exit 0
+          elif ! grep -q 'HTTP 404' <<<"$answer"; then
+            echo "::error title=release::cannot read tag ${tag}: ${answer}"
+            exit 1
+          fi
+          message="${RUNNER_TEMP}/tag-message.md"
+          awk -v h="## [${version}] - " '
+            index($0, h) == 1 { on = 1; print; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > "$message"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag --annotate --cleanup=whitespace --file="$message" "$tag" "$SHA"
+          git push origin "refs/tags/${tag}"
+          echo "::notice title=release::tagged ${tag} on ${SHA}"
