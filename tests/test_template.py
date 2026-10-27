@@ -779,7 +779,7 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Pa
     (job,) = workflow["jobs"].values()
     assert "env" not in job, "the secret reaches the pytest step only"
     *setup, pytest_step = job["steps"]
-    assert pytest_step["run"] == "uv run pytest -m live", "every live test"
+    assert pytest_step["run"] == "uv run pytest -m live --tb=short", "every live test"
     assert all("env" not in step for step in setup), "checkout and uv sync never see it"
     checkout = setup[0]
     assert checkout["uses"].startswith("actions/checkout@")
@@ -796,10 +796,26 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Pa
         assert (reason in " ".join(text.split())) is bool(env_var), f"keyed only: {reason}"
     claude = (dst / "CLAUDE.md").read_text()
     if env_var:
-        step = "Only its `uv run pytest -m live` step sees the key"
+        step = "Only its `uv run pytest -m live --tb=short` step sees the key"
         assert f"{step}, from the org secret `{env_var}`." in claude
     else:
         assert "The API needs no key, so the workflow uses no secret." in claude
+
+
+def test_every_live_run_keeps_payloads_out_of_tracebacks(generated: tuple[str, Path]) -> None:
+    """Row 42: every live command, run or documented, takes ``--tb=short``; a live test
+    asserts on shapes and counts, since assertion introspection prints what it compares."""
+    _, dst = generated
+    runs = 0
+    for path in sorted(dst.rglob("*")):
+        if path.is_file() and path.suffix in {".md", ".yml", ".toml", ".py"}:
+            text = path.read_text()
+            assert not re.search(r"pytest -m live(?! --tb=short)", text), path
+            runs += text.count("pytest -m live --tb=short")
+    assert runs >= 4, "live.yml, CLAUDE.md, .claude/family.md and /release-prep"
+    rules = " ".join((dst / ".claude/family.md").read_text().split())
+    assert "pytest's assertion introspection still prints the values an `assert`" in rules
+    assert "a live test asserts on shapes and counts, never on a raw payload" in rules
 
 
 def live_start(dst: Path) -> tuple[int, int]:

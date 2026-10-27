@@ -36,7 +36,9 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --all-extras --frozen
-      - run: uv run pytest -m live
+      # --tb=short: a failing test's frame arguments, a raw upstream payload among them,
+      # stay out of a log that is public (conventions §10).
+      - run: uv run pytest -m live --tb=short
 {% if api_key_env %}
         # The key, from the org secret, for this step only: checkout, setup-uv and uv sync
         # never see it.
