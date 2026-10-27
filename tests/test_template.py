@@ -1051,17 +1051,44 @@ def test_adopt_release_runs_the_update_for_this_source(render: Callable[[str], P
         assert ("-d source_dependencies=" in text) is bool(depended), name
 
 
-def test_reference_data_has_both_enum_paths(keyless_flat: Path) -> None:
-    """ADR-0008 amendment: StrEnum for value lists, IntEnum for integer ids, as rendered;
-    ``--render-only`` re-renders them from the packaged files, as an adoption does."""
-    script = (keyless_flat / "scripts/refresh_reference.py").read_text()
-    for call in ["render_str_enums(values,", "id_name_pairs(records,", "render_int_enums(pairs,"]:
-        assert call in script, call
-    assert "records = [upstream_record(record) for record in" in script, "upstream's names"
-    assert '"--render-only",' in script
+def assigned(tree: ast.Module) -> set[str]:
+    """The names a module assigns at its top level, annotated or not."""
+    return {
+        target.id
+        for node in tree.body
+        if isinstance(node, ast.AnnAssign | ast.Assign)
+        for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+        if isinstance(target, ast.Name)
+    }
+
+
+def test_reference_data_is_packaged_lists_and_one_renderer(keyless_flat: Path) -> None:
+    """Conventions §3, ADR-0022 and ADR-0008 as amended: value lists, id lists and tables
+    are fetched into core's ``PackagedList`` and written by it, records under upstream's
+    names (``dump_upstream``); ``enums.py`` is one ``render_enums`` call, then ``ruff
+    format`` and ``ruff check --fix``; ``--render-only`` re-renders from the packaged
+    files, as an adoption does. ``params.py`` names the lists core's loader reads."""
+    pkg = keyless_flat / "src/xippios" / package_dir(VARIANTS["keyless-flat"])
+    script = ast.parse((keyless_flat / "scripts/refresh_reference.py").read_text())
+    assert {"LISTS", "ID_LISTS", "TABLES"} <= assigned(script)
+    calls = [ast.unparse(node.func) for node in ast.walk(script) if isinstance(node, ast.Call)]
+    assert calls.count("render_enums") == 1, "one module, both kinds"
+    for call in ["PackagedList", "record.dump_upstream", "fetched.write", "id_name_pairs"]:
+        assert call in calls, call
+    loops = [ast.unparse(node.iter) for node in ast.walk(script) if isinstance(node, ast.For)]
+    assert "(['format'], ['check', '--fix'])" in loops, "ruff format, then ruff check --fix"
+    imported = {
+        alias.name
+        for node in script.body
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+    }
+    assert {"PackagedList", "render_enums", "PACKAGED_LISTS"} <= imported
+    assert not {"render_str_enums", "render_int_enums"} & imported, "gone in core 0.3.0"
+    params = ast.parse((pkg / "params.py").read_text())
+    assert assigned(params) == {"__all__", "PACKAGE", "PACKAGED_LISTS"}, "core's loader reads"
     command = (keyless_flat / ".claude/commands/refresh-reference-data.md").read_text()
     assert "uv run python scripts/refresh_reference.py --render-only" in command
-    assert "ruff format" not in command, "core 0.2.0 renders enums.py ruff-clean"
 
 
 def test_every_command_points_at_the_process(keyless_flat: Path) -> None:
