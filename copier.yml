@@ -178,8 +178,8 @@ _envops:
   trim_blocks: true
   lstrip_blocks: true
 # Files a session fills with source-specific content: never overwritten by `copier update`.
-# Every other rendered file is the template's and updates with it, tests/conftest.py and
-# tests/test_family.py among them. Copier renders these
+# Every other rendered file is the template's and updates with it, .claude/family.md,
+# tests/conftest.py and tests/test_family.py among them. Copier renders these
 # patterns, so those inside the package name its directory: src/xippios/**/api/** would
 # also match the whole package of a slug ending in -api (example-api's xippios/example/api/).
 _skip_if_exists:
@@ -198,6 +198,7 @@ _skip_if_exists:
   - docs/upstream/**
   - README.md
   - CHANGELOG.md
+  - CLAUDE.md
 _message_after_copy: |
 
   sdk-{{ source_slug }} generated.
