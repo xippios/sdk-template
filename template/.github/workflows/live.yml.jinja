@@ -1,9 +1,5 @@
 # Nightly live smoke tests (conventions §10): every test marked `live` against the real
 # upstream, on a schedule and on demand, never on a pull request.
-{% if needs_write_tools %}
-# The write tests run too: they act only on data kept for testing and clean up after
-# themselves.
-{% endif %}
 # Rendered by the template (the one workflow that is): the secret it names is the source's
 # key variable, and its start time derives from the slug.
 name: Live

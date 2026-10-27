@@ -129,11 +129,6 @@ rate_limit_provenance:
     self-imposed, upstream documents no limit: self-imposed
   default: documented
 
-needs_write_tools:
-  type: bool
-  help: Does this source need tools that write to the upstream? (separate, confirm-gated MCP server)
-  default: false
-
 domain_topic:
   type: str
   help: GitHub topic for the domain, e.g. agriculture, trade-data, accounting
@@ -194,13 +189,11 @@ _skip_if_exists:
   - src/xippios/{{ package_dir }}/models.py
   - src/xippios/{{ package_dir }}/api/**
   - src/xippios/{{ package_dir }}/tasks.py
-  - src/xippios/{{ package_dir }}/tasks_write.py
   - src/xippios/{{ package_dir }}/params.py
   - src/xippios/{{ package_dir }}/enums.py
   - src/xippios/{{ package_dir }}/reference/**
   - scripts/**
   - tests/test_tasks.py
-  - tests/test_tasks_write.py
   - tests/test_live.py
   - tests/fixtures/**
   - docs/upstream/**

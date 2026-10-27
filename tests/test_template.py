@@ -41,9 +41,8 @@ def keyed(env: str, location: str = "query", name: str | None = None) -> dict[st
 
 VARIANTS: dict[str, dict[str, object]] = {
     "query-key": {"source_slug": "usda-nass", **keyed("NASS_API_KEY", "query", "key")},
-    "header-key-write": {
+    "header-key": {
         "source_slug": "comtrade",
-        "needs_write_tools": True,
         **keyed("COMTRADE_API_KEY", "header", "Ocp-Apim-Subscription-Key"),
     },
     "bearer": {
@@ -61,10 +60,9 @@ VARIANTS: dict[str, dict[str, object]] = {
     "open": {"source_slug": "eurostat", **keyed("")},
     "nested": {"source_slug": "usda-nass", **keyed("NASS_API_KEY", "query", "key")},
     "hyphenated-flat": {"source_slug": "world-bank", "import_path": "world_bank", **keyed("")},
-    "long-name-write": {
+    "long-name": {
         "source_slug": "fao-faostat-bulk",
         "source_name": "Food and Agriculture Organization Statistics",
-        "needs_write_tools": True,
         **keyed("FAOSTAT_API_KEY", "header", "X-Api-Key"),
     },
 }
@@ -175,12 +173,7 @@ def test_layout(generated: tuple[str, Path]) -> None:
     while level != dst / "src":
         assert not (level / "__init__.py").exists(), level
         level = level.parent
-    write = bool(answers.get("needs_write_tools"))
     pyproject = (dst / "pyproject.toml").read_text()
-    assert (dst / f"src/xippios/{pkg}/tasks_write.py").exists() is write
-    assert (dst / f"src/xippios/{pkg}/mcp_write.py").exists() is write
-    assert (dst / "tests/test_tasks_write.py").exists() is write
-    assert ("-mcp-write" in pyproject) is write
     assert ("[tool.uv.sources]" in pyproject) is bool(answers.get("core_git_ref"))
     tool = tomllib.loads(pyproject)["tool"]
     assert tool["mypy"]["files"] == ["src", "tests", "scripts"], "scripts/ is type-checked"
@@ -393,11 +386,10 @@ def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
 
 
 def test_servers_take_the_caps_kept_with_the_tasks(template_src: Path, tmp_path: Path) -> None:
-    """ADR-0016: per-tool caps live next to the tasks as MCP_CAPS; each server reads its own."""
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex", needs_write_tools=True)
+    """ADR-0016: per-tool caps live next to the tasks as MCP_CAPS; the server reads them."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex")
     pkg = dst / "src/xippios/ex"
     assert 'caps=getattr(tasks, "MCP_CAPS", None),' in (pkg / "mcp.py").read_text()
-    assert 'caps=getattr(tasks_write, "MCP_CAPS", None),' in (pkg / "mcp_write.py").read_text()
     tasks = (pkg / "tasks.py").read_text()
     assert "#     MCP_CAPS = {" in tasks, "a commented scaffold"
     assert '#     MCP_CAPS: "Mapping[str, ResultCap]" = {}' in tasks, "a base install's caps"
@@ -701,7 +693,7 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Pa
     (job,) = workflow["jobs"].values()
     assert "env" not in job, "the secret reaches the pytest step only"
     *setup, pytest_step = job["steps"]
-    assert pytest_step["run"] == "uv run pytest -m live", "every live test, write tests too"
+    assert pytest_step["run"] == "uv run pytest -m live", "every live test"
     assert all("env" not in step for step in setup), "checkout and uv sync never see it"
     expected_env: dict[str, str] = {"XIPPIOS_LIVE_TESTS": "1"}
     if env_var:
@@ -715,8 +707,6 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Pa
     if env_var:
         step = "Only its `uv run pytest -m live` step sees the key"
         assert f"{step}, from the org secret `{env_var}`." in claude
-    write_note = "Every `live` test runs, write tests included"
-    assert (write_note in claude) is bool(answers.get("needs_write_tools"))
 
 
 def live_start(dst: Path) -> tuple[int, int]:
@@ -750,28 +740,6 @@ def test_sources_sharing_a_key_start_at_stable_different_times(
     assert len(set(starts.values())) == 3, starts
     again = generate(template_src, tmp_path / "again", source_slug="usda-psd", **shared)
     assert live_start(again) == starts["usda-psd"], "stable across renders"
-
-
-def test_write_path_has_its_own_tests(generated: tuple[str, Path]) -> None:
-    """What the family check leaves out of conventions §8: confirm last and documented.
-
-    The family check serves the write tasks on the write server alone (core's
-    ``assert_write_tools``), so the scaffold does not repeat it, and it asks for no
-    ``async_fn``, which conventions §6 makes optional.
-    """
-    name, dst = generated
-    write = bool(VARIANTS[name].get("needs_write_tools"))
-    changelog = (dst / "CHANGELOG.md").read_text()
-    slug = VARIANTS[name]["source_slug"]
-    assert (f"`xippios-{slug}-mcp-write`" in changelog) is write
-    if not write:
-        return
-    test = (dst / "tests/test_tasks_write.py").read_text()
-    assert "assert_write_tools" not in test, "test_family_write_server_serves_the_write_tasks"
-    assert 'hasattr(task, "async_fn")' not in test, "conventions §6: async is optional"
-    assert "test_family_write_server_serves_the_write_tasks" in test
-    assert '== ["confirm"], "confirm comes last"' in test
-    assert "test_tasks_write.py" in (dst / "CLAUDE.md").read_text()
 
 
 def test_generated_tests_need_no_key(generated: tuple[str, Path]) -> None:
@@ -900,7 +868,7 @@ def git(cwd: Path, *args: str) -> str:
     ).stdout
 
 
-@pytest.mark.parametrize("variant", ["basic-git-core", "header-key-write", "open", "nested"])
+@pytest.mark.parametrize("variant", ["basic-git-core", "header-key", "open", "nested"])
 def test_answers_file_is_copiers_canonical_form(
     template_src: Path, tmp_path: Path, variant: str
 ) -> None:

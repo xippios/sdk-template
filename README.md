@@ -64,7 +64,6 @@ afterwards by rename or push.
 | `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, or a self-imposed pace where upstream documents none (ADR-0010) | `30` |
 | `rate_limit_burst` | requests let through at once before the pace applies; `1` unless upstream documents a burst | `1` |
 | `rate_limit_provenance` | `documented` or `self-imposed`: where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
-| `needs_write_tools` | adds `tasks_write.py` and the confirm-gated write server | `false` |
 | `domain_topic` | GitHub topic for the domain | `agriculture` |
 | `core_version` | the xippios-core release depended on, rendered `xippios-core~=<version>`, the extras likewise (one core minor, from its `.0` or from the patch that shipped what the source adopts: conventions §12, ADR-0018); default `0.2.1`, the release whose family check `tests/test_family.py` collects | `0.2.1` |
 | `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); removing it before a release, in a PR of its own, raises `core_version` to the release that carries the pinned change: `X.Y.Z` with `Z` the patch that shipped it, or `X.Y.0` when the minor itself did; still one minor | `main` |
@@ -74,9 +73,8 @@ afterwards by rename or push.
 ```
 sdk-<slug>/
   src/xippios/<import path as dirs>/   __init__, py.typed, _version, _client, models, tasks,
-                       api/, mcp, http, reference/ (+ tasks_write, mcp_write when needs_write_tools)
+                       api/, mcp, http, reference/
   tests/               conftest, test_family, test_tasks, test_live, fixtures/
-                       (+ test_tasks_write when needs_write_tools)
   docs/upstream/       FETCHED.md
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
                        adopt-release
@@ -88,14 +86,14 @@ sdk-<slug>/
 The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit` before
 any endpoint is added. `tests/test_family.py`, one line, collects core's family check,
 which then keeps the layout, the adapters, the task shapes, the README status table, the
-template tag, the core bound and the write server honest as tasks are added, while
-`tests/test_tasks_write.py` checks each write task's `confirm` parameter and docstring. `ci.yml` also requires a CHANGELOG entry on every PR but a release, an
-adoption or Dependabot's, and warns on a fixture file over 256 KiB; `publish.yml` is the
-release train; `gates.yml` calls the merge gates as jobs once Johannes sets the
-repository variable `GATES_CALLER`. `live.yml` runs every `live`
-test, write tests included, every night and on demand. Its start time derives from the
-slug, between 01:00 and 05:59 UTC, so sources that share a key do not start together;
-only its pytest step sees the key, from the org secret named by `api_key_env`.
+template tag and the core bound honest as tasks are added. A generated package is
+read-only: the template renders no write tools. `ci.yml` also requires a CHANGELOG entry
+on every PR but a release, an adoption or Dependabot's, and warns on a fixture file over
+256 KiB; `publish.yml` is the release train; `gates.yml` calls the merge gates as jobs
+once Johannes sets the repository variable `GATES_CALLER`. `live.yml` runs every `live`
+test every night and on demand. Its start time derives from the slug, between 01:00 and
+05:59 UTC, so sources that share a key do not start together; only its pytest step sees
+the key, from the org secret named by `api_key_env`.
 
 ## Updating generated repositories
 
@@ -115,9 +113,9 @@ git diff                             # review; resolve conflicts
 Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, as above
 to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the answers
 without moving the template). Files listed under `_skip_if_exists` in `copier.yml` (the
-package `__init__.py`, the client, models, endpoint wrappers, the read and write task
-layers, the packaged lists and enums, reference data, scripts, the task, write and live
-tests and the fixtures, upstream snapshot, README and CHANGELOG) are never overwritten
+package `__init__.py`, the client, models, endpoint wrappers, the task layer, the
+packaged lists and enums, reference data, scripts, the task and live tests and the
+fixtures, upstream snapshot, README and CHANGELOG) are never overwritten
 once they exist, so a template fix to one of them does not reach existing repositories by
 itself. [CHANGELOG.md](CHANGELOG.md) lists those fixes per release under **Hand-apply**:
 path, change, reason; port each one by hand in the same PR. A new file under those

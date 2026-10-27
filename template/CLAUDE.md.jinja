@@ -17,7 +17,7 @@ that works here; the family rules it points to apply as well.
 | Credentials | none; the API is open |
 {% endif %}
 | Rate limit | {{ rate_limit_per_minute }} requests per minute, burst {{ rate_limit_burst }}; {% if rate_limit_provenance == 'self-imposed' %}a self-imposed pace, upstream documents none{% else %}within the limit documented by upstream{% endif %} (ADR-0010); enforced client-side in `_client.py` |
-| Write tools | {% if needs_write_tools %}yes, in `tasks_write.py`, served by `xippios-{{ source_slug }}-mcp-write`{% else %}no, this package is read-only{% endif %} |
+| Write tools | no, this package is read-only |
 
 The snapshot in `docs/upstream/` is the reference for names, parameters and semantics.
 If it is empty or stale, run `/refresh-upstream` first and review the diff. Never write a
@@ -57,10 +57,6 @@ src/xippios/{{ package_dir }}/
   api/             endpoint wrappers, one module per upstream operation
   tasks.py         task functions; __all__ is what the adapters register, MCP_CAPS any
                    per-tool result caps
-{% if needs_write_tools %}
-  tasks_write.py   confirm-gated write tasks for the separate write server
-  mcp_write.py     xippios-{{ source_slug }}-mcp-write entry point
-{% endif %}
   mcp.py           xippios-{{ source_slug }}-mcp entry point
   http.py          FastAPI router
   params.py        packaged value lists: PACKAGED_LISTS, packaged_values()
@@ -76,9 +72,6 @@ tests/
                    the adapters serving exactly the tasks, task shapes and docstrings, the
                    README status table, the template tag, the core bound
   test_tasks.py    per-task replay tests
-{% if needs_write_tools %}
-  test_tasks_write.py  each write task takes confirm last and documents it; the write server is the family check's
-{% endif %}
   test_live.py     @pytest.mark.live smoke tests, one per task
 docs/upstream/     documentation snapshot and FETCHED.md
 .github/workflows/ ci.yml (the required ci check, with the CHANGELOG and fixture-size steps),
@@ -164,10 +157,6 @@ must reach the network `network`.
 `.github/workflows/live.yml` runs `uv run pytest -m live` with `XIPPIOS_LIVE_TESTS=1`
 nightly at {{ live_schedule.time }} UTC, a time derived from the slug so that sources sharing a key never
 start together, and on demand from the Actions tab; pull requests never run live tests.
-{% if needs_write_tools %}
-Every `live` test runs, write tests included, so a live write test acts only on data kept
-for testing (a multi-tenant source's test tenant, ADR-0014) and cleans up after itself.
-{% endif %}
 {% if api_key_env %}
 Only its `uv run pytest -m live` step sees the key, from the org secret `{{ api_key_env }}`.
 {% else %}
@@ -202,11 +191,10 @@ The API needs no key, so the workflow uses no secret.
   `uvx copier update` re-renders the files the template owns (`tests/conftest.py` and
   `tests/test_family.py` among them; answers are in `.copier-answers.yml`) and never
   overwrites the files this package fills:
-  `__init__.py`, `_client.py`, `models.py`, `api/`, `tasks.py`, `tasks_write.py`,
-  `params.py`, `enums.py`, `reference/`, `scripts/`, `tests/test_tasks.py`,
-  `tests/test_tasks_write.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
-  `README.md` and `CHANGELOG.md`. Template changes to those are listed per release under
-  "Hand-apply" in sdk-template's
+  `__init__.py`, `_client.py`, `models.py`, `api/`, `tasks.py`, `params.py`, `enums.py`,
+  `reference/`, `scripts/`, `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`,
+  `docs/upstream/`, `README.md` and `CHANGELOG.md`. Template changes to those are listed
+  per release under "Hand-apply" in sdk-template's
   [CHANGELOG](https://github.com/xippios/sdk-template/blob/main/CHANGELOG.md); port them
   by hand in the same PR.
 - If a convention seems wrong, say so in the PR and follow it anyway; changing it is a
