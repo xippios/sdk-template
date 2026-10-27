@@ -38,8 +38,11 @@ Task functions are listed in the status table below as they are added.
   "mcpServers": {
     "{{ source_slug }}": {
       "command": "uvx",
-      "args": ["--from", "xippios-{{ source_slug }}[mcp]", "xippios-{{ source_slug }}-mcp"]{% if api_key_env %},
+{% if api_key_env %}
+      "args": ["--from", "xippios-{{ source_slug }}[mcp]", "xippios-{{ source_slug }}-mcp"],
       "env": { "{{ api_key_env }}": "..." }
+{% else %}
+      "args": ["--from", "xippios-{{ source_slug }}[mcp]", "xippios-{{ source_slug }}-mcp"]
 {% endif %}
     }
   }
@@ -64,8 +67,9 @@ exactly tasks.__all__. -->
 
 ## Upstream terms and attribution
 
-Data comes from {{ source_name }} ({{ upstream_url }}) under its own terms of use;
-this package adds no rights to it. Documentation snapshot: `docs/upstream/`.
+Data comes from {{ source_name }} ({{ upstream_url }}), on whatever terms upstream
+states for it, if any; this package adds no rights to it. Documentation snapshot and its
+attribution: `docs/upstream/FETCHED.md`.
 
 ## Licence
 

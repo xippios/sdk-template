@@ -996,6 +996,19 @@ def test_answers_file_is_copiers_canonical_form(
     assert (again / ".copier-answers.yml").read_bytes() == written
 
 
+def test_readme_mcp_snippet_is_json(generated: tuple[str, Path]) -> None:
+    """The MCP client snippet parses, the key's env only for a keyed source, and no line
+    carries a closing brace after the args (the keyless render's trailing brace)."""
+    name, dst = generated
+    readme = (dst / "README.md").read_text()
+    block = readme.split("```json\n", 1)[1].split("```", 1)[0]
+    (server,) = json.loads(block)["mcpServers"].values()
+    env = str(VARIANTS[name]["api_key_env"])
+    assert server.get("env") == ({env: "..."} if env else None)
+    (args,) = [line for line in block.splitlines() if '"args"' in line]
+    assert args.rstrip().endswith(("]", "],")), args
+
+
 def test_readme_status_table_names_the_format_the_family_check_reads(
     template_src: Path, tmp_path: Path
 ) -> None:
