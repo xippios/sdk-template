@@ -17,10 +17,12 @@ From Claude Code in this repository: `/new-source <slug>`. It collects the answe
 then runs `scripts/new-source.sh`, which generates the repo, runs every check on it,
 creates `github.com/xippios/sdk-<slug>` with topics, auto-merge, branch deletion on merge,
 the `sdk-sessions` team's write access where the team exists and the `pypi` environment,
-and opens the scaffold PR. The repository creation and the environment call raise
-permission prompts the human approves. Before it, a session owns `sdk-<slug>` in the
-workspace's `coordination/owners.toml`, since the workspace's guard refuses work in a
-directory no session owns. Three steps stay with a human and are printed at the end: the
+and opens the scaffold PR, its body the generated PR template filled from the run (the
+summary and the human steps, the answers and the evidence for them as assumptions). The
+repository creation and the environment call raise permission prompts the human
+approves. Before it, a session owns `sdk-<slug>` in the workspace's
+`coordination/owners.toml`, since the workspace's guard refuses work in a directory no
+session owns. Three steps stay with a human, in the PR's body and printed at the end: the
 PyPI pending publisher, which the first release's publish job needs; the API key, which
 the nightly `live.yml` reads from an org secret (for a key several sources share,
 ADR-0009, the new repository is added to the existing secret's repository access, never
