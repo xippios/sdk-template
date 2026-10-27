@@ -37,6 +37,42 @@ are not listed.
   `classify=classify` and exported, where a source maps its documented error shapes.
   `.claude/family.md`, `/adopt-release`, the generated `CLAUDE.md`'s Layout and this
   repository's documents name `errors.py` with the files a source fills.
+- The sibling check, the template's where the import path nests (`usda.nass`, ADR-0006):
+  `.github/workflows/siblings.yml` runs `.github/scripts/check-siblings.sh` on every pull
+  request and push to `main`, a visible `siblings` job the ruleset does not require, since
+  `ci.yml` stays core's file. The script reads the package from `.copier-answers.yml`,
+  finds the siblings as the organisation's `sdk-<provider>-*` repositories whose
+  distribution is on PyPI (the listing authenticated by the job's read-only token),
+  builds the wheel and installs it beside every sibling that shares its core minor; a
+  sibling on another core minor only is left out with a warning, so the check is not red
+  through an adoption wave. It fails on a namespace level that is a regular package, a
+  sibling that does not import, a tracked file of the package the wheel lacks or a
+  `uv pip check` conflict, and takes core from its git pin where `pyproject.toml` has
+  one; `XIPPIOS_SIBLINGS` names the siblings by hand, a checkout in the workspace or a
+  git URL before a sibling is on PyPI.
+  Both files are copied verbatim, only their names rendered, outside the skip-listed
+  `scripts/`, so a source's copy identical to the render is the template's for the merge
+  classes. sdk-usda-psd, sdk-usda-esr and sdk-usda-gats each carried a copy of their own.
+- `scripts/refresh_upstream.py`, the skeleton of a capture script, under
+  `_skip_if_exists` as every script: the frame sdk-usda-psd, sdk-usda-esr, sdk-usda-gats
+  and sdk-usda-esmis each copied. It fetches everything before it writes anything, one
+  request at a time, each retried once; it writes the files and regenerates
+  `docs/upstream/FETCHED.md` with the UTC time and `Z`, the attribution and one row per
+  page (status, size and sha256 of the body as fetched, ETag and Last-Modified where
+  sent), a page recorded without a file (a 403, a 404, a shell) as a row of its own and
+  a shared document's excerpt with the whole document's size and sha256 (conventions
+  §3); it checks the attribution on every run and stops when a page states a copyright,
+  licence or terms it does not record; `load_json` stops unless a JSON document a source
+  cuts re-serialises to the fetched text; `--check` fetches and compares without
+  writing. A source fills `PAGES`, `SPEC_URL`, `ATTRIBUTION`, `CAPTURE` and `reduce`;
+  until then it refuses to run. Standard library only, under `mypy --strict` and the
+  family's ruff.
+- Two conventions in `/refresh-upstream` and the skeleton: the one converter a capture
+  script may declare is `markdownify`, in its `# /// script` block and at the same pin in
+  the dev group, so `mypy --strict` reads its types (sdk-eurostat, sdk-cashctrl); the
+  template ships no converter module. A machine-readable API document (OpenAPI, Swagger)
+  that a page names rather than links is recorded in the skeleton's `SPEC_URL` and kept
+  beside the pages, a convention and no copier answer (sdk-usda-esmis).
 
 ### Changed
 
@@ -204,6 +240,26 @@ are not listed.
   SHA, the version in a comment, and its checkout persists no credentials;
   `release.yml`'s tag job, which pushes the tag with the token, says why its checkout
   keeps them (conventions §13, every workflow of the family).
+- `/refresh-upstream` follows the skeleton: it compares first with `--check`, fills the
+  skeleton once (the pages, the shell rows, the spec URL, the conversion or the excerpt,
+  the attribution), captures through the script, and lets the converter's dev-group pin
+  change with it; `docs/upstream/FETCHED.md`'s stub shows the columns the script writes
+  and its three kinds of row, a file, a page without a file and an excerpt (sdk-usda-psd,
+  sdk-usda-esr, sdk-usda-gats).
+- The generated `CLAUDE.md`'s Layout names `scripts/refresh_upstream.py` as the capture
+  script, and `siblings.yml` and `.github/scripts/check-siblings.sh` where the import
+  path nests; its Documentation row points at the `SPEC_URL` convention.
+- A release no longer touches the sibling check: `/release-prep` and `.claude/family.md`
+  drop `scripts/check-siblings.sh` from the release subset, as conventions §12 foresees
+  once the check is the template's.
+- Template-internal: the tests check that only a nested render has the sibling check,
+  byte for byte and executable, with `ci.yml`'s pins and no credentials kept, and that
+  `ci.yml` does not aggregate it; that every name `/refresh-upstream` cites is the
+  skeleton's and the skeleton imports only the standard library; and they run the
+  skeleton offline against pages served on the loopback interface, `--check` before and
+  after a change, and its stop on an unrecorded copyright line. `scripts/prove.sh` runs
+  the rendered sibling check with the wheel alone on the nested proof, requires none on
+  the flat one, and requires the unfilled skeleton to refuse to run.
 
 ### Removed
 
@@ -338,6 +394,26 @@ are not listed.
 - `CLAUDE.md` — the live command in Commands and the sentence on `live.yml`'s step read
   `uv run pytest -m live --tb=short` — the flag keeps a failing test's frame arguments,
   a raw upstream payload among them, out of the log; port it with the split above.
+- `scripts/refresh_upstream.py` — new: the update creates the skeleton where the
+  repository has no file of that name (sdk-usda-nass today) and leaves a script of the
+  source's own byte for byte (checked with copier 9.19.1); a source with its own script
+  keeps it, and may port by name the parts it lacks (`--check`, the attribution check
+  on every run, the shell and excerpt rows, `load_json`) or leave it as it is, since its
+  shape is its own — one capture frame instead of a copy per source.
+- `scripts/check-siblings.sh` (sdk-usda-psd, sdk-usda-esr, sdk-usda-gats) — delete it
+  (`git rm scripts/check-siblings.sh`), and take the template's
+  `.github/workflows/siblings.yml` whole: the update renders the workflow over the
+  source's own one with conflict markers around the whole file (git shows it `UU`), and
+  `git checkout --theirs .github/workflows/siblings.yml` keeps the render; it adds
+  `.github/scripts/check-siblings.sh`, executable (checked with copier 9.19.1 on a
+  render carrying sdk-usda-psd's two files) — the template's pair replaces the copies
+  and finds the siblings itself, so no sibling list is kept by hand and a release no
+  longer edits the script; a copy identical to the render is the template's for the
+  merge classes, and the deleted script is no protected path.
+- `CLAUDE.md` (sdk-usda-psd, sdk-usda-esr) — the Layout's lines on the sibling check name
+  `.github/scripts/check-siblings.sh`, the template's, instead of
+  `scripts/check-siblings.sh`, "this package's own" — the old path is gone after the
+  update; a nested source without those lines may add them as the scaffold has them.
 
 The scaffolds of `_client.py`, `README.md` and `CHANGELOG.md` lose their write and
 `basic` branches and the README's status comment no longer names `tasks_write.__all__`,
@@ -355,9 +431,11 @@ No other repository has them.
 New repositories only, nothing to port: the `README.md` scaffold's MCP snippet and terms
 sentence (a keyless source's README may close the server's brace on a line of its own),
 the generated `CLAUDE.md`'s rate-limit row, Layout lines and start-time sentence, which
-the 0.3.0 split leaves as the source wrote them, and `docs/upstream/FETCHED.md`'s
-attribution placeholder, which the next `/refresh-upstream` rewrites. The update carries
-the rest: `.claude/family.md`, the six commands, `tests/conftest.py`, `live.yml` and
+the 0.3.0 split leaves as the source wrote them (the capture script's line and the
+Documentation row's `SPEC_URL` pointer among them), and `docs/upstream/FETCHED.md`'s
+attribution placeholder and example rows, which the next `/refresh-upstream` rewrites. The update carries
+the rest: `.claude/family.md`, the six commands, the sibling check where the import path
+nests, `tests/conftest.py`, `live.yml` and
 `ci.yml`, the read server's instructions in `mcp.py`, and `junit_family`, the ruff pin
 and the keywords in `pyproject.toml`, merged three ways where a source changed them.
 
@@ -367,7 +445,10 @@ renders, keyed and keyless; `source_pkg` was never recorded); no `-d` answer is 
 for them. The domain's topic stays on the GitHub repository; the `pyproject.toml`
 keywords lose it. Every source's `source_name` is within the new 77-character bound. The
 update creates `errors.py` where the package has none and deletes
-`tests/fixtures/README.md`; `uv lock` after it resolves ruff to the pinned 0.17.1.
+`tests/fixtures/README.md`; `uv lock` after it resolves ruff to the pinned 0.17.1. It
+creates `scripts/refresh_upstream.py` where the repository has none, and in a nested
+source `.github/scripts/check-siblings.sh` and `.github/workflows/siblings.yml`, the
+latter in conflict where the source kept its own (Hand-apply above).
 
 ## [0.2.2] - 2026-10-27
 
