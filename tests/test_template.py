@@ -904,10 +904,9 @@ def test_generated_tests_need_no_key(keyed_nested: Path) -> None:
     assert "client.request" not in live
 
 
-# SHA-256 of sdk-core's files the template copies verbatim, at v0.2.1, the core release the
-# template adopts: git -C <workspace root>/sdk-core show v0.2.1:<path> | sha256sum (digests,
-# not secrets). gates.yml's is core's from sdk-core#26 on (merged at 9d7ff47: the gates
-# repository renamed `xippios/sdk-gates`), core main's since.
+# SHA-256 of sdk-core's files the template copies verbatim, at v0.3.0, the core release the
+# template adopts: git -C <workspace root>/sdk-core show v0.3.0:<path> | sha256sum (digests,
+# not secrets).
 CORE_VERBATIM = {
     ".github/workflows/gates.yml": (
         # pragma: allowlist nextline secret
@@ -915,7 +914,7 @@ CORE_VERBATIM = {
     ),
     ".github/PULL_REQUEST_TEMPLATE.md": (
         # pragma: allowlist nextline secret
-        "657a5d0e61d1c1e7a3e47f3a0ee53acef7ade9f6e452b193a4d0fa92d7eb3d22"
+        "13900fdecd972d68bc9bab45c21dcfef0b40b73e64ace0f9328e21b7f345d409"
     ),
 }
 # The same for the two workflows the template extends: core's bytes once the template's
@@ -925,7 +924,7 @@ CORE_EXTENDED = {
     ".github/workflows/ci.yml": "ebee09e20d7004a6761c1986f3bc0e16ee4a2dfa749921ac25040ebad5abacab",
     ".github/workflows/publish.yml": (
         # pragma: allowlist nextline secret
-        "bf846b59d1c832d8873ad56b3edb339c4d2fbe5fbafd428075ef1df922feb6ba"
+        "dc98ee245673db75f639fa94318668078ea0242f07072b6c333716ee9ffdcf9f"
     ),
 }
 # The template's own lines: in ci.yml the full history for the two steps that read the
