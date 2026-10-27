@@ -8,10 +8,10 @@ was made from in `.copier-answers.yml`.
 Every release ends with a **Hand-apply** list. `copier update` carries a template change
 into the files it renders, but never touches a file under `_skip_if_exists` in
 `copier.yml` once that file exists (the package `__init__.py`, the client, models,
-endpoint wrappers, the task layer, the packaged lists and enums, reference data,
-scripts, the task and live tests and the fixtures, upstream snapshot, README, CHANGELOG
-and, from 0.3.0, the package's errors and CLAUDE.md). Each change to such a file is one
-bullet, `` - `<path>` — <what> — <why> ``; port it by hand in the same
+endpoint wrappers, the task layer, the packaged lists and enums, reference data, scripts,
+the task and live tests and the fixtures, upstream snapshot, README, CHANGELOG and, from
+0.3.0, the package's errors, its file parsers and CLAUDE.md). Each change to such a file
+is one bullet, `` - `<path>` — <what> — <why> ``; port it by hand in the same
 `chore/template-update` PR. A new file under those patterns is created by the update
 where the repository has no file of that name. The list starts with 0.1.5; earlier tags
 are not listed.
@@ -133,6 +133,58 @@ are not listed.
   (ADR-0009, ADR-0015); the `README.md` scaffold says the key is api.data.gov's and its
   quota shared. `/new-source`, this README's question table and its by-hand example
   name the answer.
+- `BULK_TASKS` in the `tasks.py` scaffold, beside `MCP_CAPS`:
+  `BULK_TASKS: frozenset[str] = frozenset()` under a comment line, the tasks that are
+  Python-only (ADR-0019 decision 4), a bulk task that returns a file or a list read from
+  one and gets no tool and no route; the annotation is mypy's, which infers no type for
+  an empty frozenset under `--strict`. Core 0.3.0's `register_tasks` and
+  `router_from_tasks` read it from the tasks module and skip its names themselves, so the
+  rendered `mcp.py` and `http.py` keep passing `tasks.__all__` whole and no source
+  filters them by hand, as sdk-eurostat's bulk work did before its core 0.3.0 pin;
+  sdk-usda-esmis and sdk-eurostat wrote theirs by hand, and sdk-usda-nass asked for bulk
+  datasets in the first place. `/add-endpoint` names it beside `MCP_CAPS`, and its check
+  step says that the family check proves a bulk task neither a tool nor a route; the
+  generated `CLAUDE.md`'s Layout names it with `__all__` and `MCP_CAPS`, and
+  `.claude/family.md` states the rule.
+- `has_files`, a new answer (ADR-0020): whether the source parses the files it downloads,
+  `false` by default. `true` renders `src/xippios/<package>/parse/__init__.py`, the
+  package of the parsers, one module per file kind with one
+  `parse_<file_kind>(path) -> list[Model]`, its docstring saying that a parser's library
+  is the source's dependency, never core's; and `tests/fixtures/files/README.md`, the
+  provenance table of the sample files the parser tests read, one row per sample with its
+  release id, its URL, the bytes and sha256 of the full file and the time it was fetched,
+  in UTC with `Z`. Both are the source's once rendered, `parse/**` joining
+  `_skip_if_exists` beside `api/**` and the table under `tests/fixtures/**`, and both
+  render through a conditional directory name, so a source that answers `false` gets
+  neither and no empty directory. Where `true`, the generated `CLAUDE.md` gains a Files
+  row, its comment asking for the file kinds, their formats and the libraries that read
+  them, and Layout lines for `parse/` and `tests/fixtures/files/`. A retrieval-only
+  source, which lists releases and downloads files without parsing them, answers `false`,
+  as the help says, and keeps its download fixture as the recorded exchange of the file's
+  URL (sdk-usda-esmis); sdk-usda-wasde, the first parser package, answers `true`.
+  `.claude/family.md`, `/adopt-release`, this README and this repository's `CLAUDE.md`
+  list `parse/` with the files a source fills, and the README's question table names the
+  answer.
+- The file rules, for every source. `/record-fixture` spells out the cap its step 5
+  named: narrow the query first; record a text body or a JSON array with `max_bytes=`,
+  whose envelope marks the cut with `truncated`, `original_bytes` and `sha256` of the
+  whole body and, for an array, `original_count`, and whose replay serves the cut body;
+  record a small real answer for a JSON object, which the recorder refuses to cut (the
+  family's finding on a JSON-stat cube), and a small real sample for XML, ZIP, gzip, XLS
+  and XLSX, never a cut file (ADR-0019 decision 5; sdk-usda-gats's lists of several MB).
+  A downloaded file's fixture is the GET exchange of the file's URL, whole when it is
+  small or cut with `max_bytes=`, recorded with `auth=None` where the file lives on
+  another host, its provenance in the envelope; the sample a parser test reads lives
+  under `tests/fixtures/files/` instead (sdk-usda-esmis). A new step 6 stages the fixture
+  before `pre-commit run --all-files`, which scans only git's index, and says what to do
+  when detect-secrets flags a recorded HTML error page: narrow the request, or drop the
+  fixture and keep the status alone in the PR description, an HTML error body being kept
+  only when a test needs it (sdk-usda-esmis). `.claude/family.md` states the rules true
+  of every source: layer 1 of a source that publishes files, `parse/` beside `api/` with
+  the parser libraries the source declares (ADR-0020); a PDF read for its narrative text
+  only, never for numbers (ADR-0020 decision 4); `BULK_TASKS`; the cap, the recorded
+  exchange of a download, the samples with their provenance table and the live parser
+  test; and staging a fixture before `pre-commit`.
 
 ### Changed
 
@@ -367,6 +419,18 @@ are not listed.
   proves `sdk-example-gov` (`xippios.example.gov`) against core 0.3.0, with an offline
   step that the client takes the gateway's auth, its policy's hooks and its `classify`;
   the template's CI runs it as its fourth proof.
+- Template-internal: a sixth variant renders once per session, a keyless nested source
+  that parses files (`has_files: true`), and the tests check that it alone renders
+  `parse/__init__.py`, a docstring and no code, and `tests/fixtures/files/README.md` with
+  its table's columns, both skip-listed and kept on a re-render, and the generated
+  `CLAUDE.md`'s Files row and Layout lines; that every other variant renders no
+  `tests/fixtures/` at all; that every answers file records `has_files`, `false` as the
+  question's literal default, and reads back in copier's canonical form; and, on one
+  render, the `BULK_TASKS` line beside `MCP_CAPS` and adapters that pass `tasks.__all__`
+  whole. `scripts/prove.sh` takes `-d has_files=true` on the keyless nested shape and
+  requires `parse/` and `tests/fixtures/files/README.md` exactly where the answers file
+  records `has_files: true`; the template's CI runs that proof after the keyless nested
+  one, with an empty `parse/`.
 
 ### Removed
 
@@ -537,6 +601,12 @@ are not listed.
   `QuotaPolicy` per process, `Gateway.policy`, as the scaffold renders them; the
   source's own facts in the rows (the recorded 429, the quota's size) stay — core
   0.3.0's Hand-apply asks the same of the Rate limit row; one edit.
+- `src/xippios/<package>/tasks.py` (every source) — add
+  `BULK_TASKS: frozenset[str] = frozenset()` after `__all__`, beside `MCP_CAPS`, with the
+  scaffold's comment line, and name a bulk task of the source's there — core 0.3.0's
+  adapters read it from the tasks module and the family check serves `tasks.__all__`
+  minus it (ADR-0019 decision 4); sdk-usda-esmis and sdk-eurostat wrote theirs by hand
+  and keep them as they are.
 
 The scaffolds of `_client.py`, `README.md` and `CHANGELOG.md` lose their write and
 `basic` branches and the README's status comment no longer names `tasks_write.__all__`,
@@ -558,34 +628,38 @@ the 0.3.0 split leaves as the source wrote them (the capture script's line and t
 Documentation row's `SPEC_URL` pointer among them), and `docs/upstream/FETCHED.md`'s
 attribution placeholder and example rows, which the next `/refresh-upstream` rewrites,
 and the `README.md` and `CLAUDE.md` lines a declared dependency renders, since no source
-declares one before this release, and the `README.md` scaffold's sentence on the
-gateway's key, which the three sources behind it say in words of their own. The update
-carries the rest: `.claude/family.md`, the six commands, the sibling check where the
-import path nests, `tests/conftest.py`, `live.yml` and `ci.yml`, the read server's
-instructions in `mcp.py`, and `junit_family`, the ruff pin and the keywords in
-`pyproject.toml`, merged three ways where a source changed them.
+declares one before this release, the `README.md` scaffold's sentence on the gateway's
+key, which the three sources behind it say in words of their own, and the generated
+`CLAUDE.md`'s `tasks.py` Layout line naming `BULK_TASKS`, and its Files row and Layout
+lines where `has_files` is true. The update carries the rest: `.claude/family.md`, the
+six commands, the sibling check where the import path nests, `tests/conftest.py`,
+`live.yml` and `ci.yml`, the read server's instructions in `mcp.py`, and `junit_family`,
+the ruff pin and the keywords in `pyproject.toml`, merged three ways where a source
+changed them.
 
-**Updating from 0.2.2.** The update needs copier 9.19.0 or later. `copier update
---defaults` answers the two new questions, `source_dependencies` and `gateway`, with
-their defaults, recorded as `source_dependencies: '[]'` and `gateway: none`, the literal
-defaults the merge classes leave free, so every existing source passes no `-d` for them
-(checked with copier 9.19.1 on v0.2.2 renders). sdk-usda-psd, sdk-usda-esr and
-sdk-usda-gats pass `-d gateway=api.data.gov`, their one changed answer: the update keeps
-their recorded `api_key_env`, `api_key_location` and `api_key_name`, which equal the
-derived ones, and adds `gateway: api.data.gov`, a value other than the default, so their
-adoption is a `human` merge; `live.yml` gains the comment on the shared key, and
-`_client.py` and `CLAUDE.md` are theirs to port (Hand-apply above; checked with copier
-9.19.1 on v0.2.2 renders with sdk-usda-psd's, sdk-usda-nass's and sdk-eurostat's key
-answers). The update drops `needs_write_tools` and `domain_topic` from
-`.copier-answers.yml` (checked with copier 9.19.1 on v0.2.2 renders, keyed and keyless;
-`source_pkg` was never recorded); no `-d` answer is needed for them. The domain's topic
-stays on the GitHub repository; the `pyproject.toml` keywords lose it. Every source's
-`source_name` is within the new 77-character bound. The update creates `errors.py` where
-the package has none and deletes `tests/fixtures/README.md`; `uv lock` after it resolves
-ruff to the pinned 0.17.1. It creates `scripts/refresh_upstream.py` where the repository
-has none, and in a nested source `.github/scripts/check-siblings.sh` and
-`.github/workflows/siblings.yml`, the latter in conflict where the source kept its own
-(Hand-apply above).
+**Updating from 0.2.2.** The update needs copier 9.19.0 or later.
+`copier update --defaults` answers the three new questions, `source_dependencies`,
+`gateway` and `has_files`, with their defaults, recorded as `source_dependencies: '[]'`,
+`gateway: none` and `has_files: false`, the literal defaults the merge classes leave
+free, so every existing source passes no `-d` for them (checked with copier 9.19.1 on
+v0.2.2 renders), and none renders `parse/` or `tests/fixtures/files/`; sdk-usda-esmis,
+which downloads files without parsing them, keeps `has_files: false`, and sdk-usda-wasde
+answers `true` at its start. sdk-usda-psd, sdk-usda-esr and sdk-usda-gats pass
+`-d gateway=api.data.gov`, their one changed answer: the update keeps their recorded
+`api_key_env`, `api_key_location` and `api_key_name`, which equal the derived ones, and
+adds `gateway: api.data.gov`, a value other than the default, so their adoption is a
+`human` merge; `live.yml` gains the comment on the shared key, and `_client.py` and
+`CLAUDE.md` are theirs to port (Hand-apply above; checked with copier 9.19.1 on v0.2.2
+renders with sdk-usda-psd's, sdk-usda-nass's and sdk-eurostat's key answers). The update
+drops `needs_write_tools` and `domain_topic` from `.copier-answers.yml` (checked with
+copier 9.19.1 on v0.2.2 renders, keyed and keyless; `source_pkg` was never recorded); no
+`-d` answer is needed for them. The domain's topic stays on the GitHub repository; the
+`pyproject.toml` keywords lose it. Every source's `source_name` is within the new
+77-character bound. The update creates `errors.py` where the package has none and deletes
+`tests/fixtures/README.md`; `uv lock` after it resolves ruff to the pinned 0.17.1. It
+creates `scripts/refresh_upstream.py` where the repository has none, and in a nested
+source `.github/scripts/check-siblings.sh` and `.github/workflows/siblings.yml`, the
+latter in conflict where the source kept its own (Hand-apply above).
 
 ## [0.2.2] - 2026-10-27
 

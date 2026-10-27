@@ -77,14 +77,16 @@ afterwards by rename or push.
 | `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, ADR-0018 amendment (c)); default `0.2.1`, the release whose family check `tests/test_family.py` collects | `0.2.1` |
 | `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); empty, the default, for no pin; a release carries none, since `/release-prep` removes it first, in a PR of its own | `main` |
 | `source_dependencies` | the source packages this one uses the task layer of (ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default, the question's literal default for the merge classes | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |
+| `has_files` | whether the source parses the files it downloads (ADR-0020): `true` renders `parse/`, one module per file kind, and `tests/fixtures/files/README.md`, one provenance row per sample file its parser tests read, both the source's once rendered; a retrieval-only source, which lists releases and downloads files without parsing them, answers `false`, its download fixture the recorded exchange of the file's URL (ADR-0019 decision 5); default `false`, the question's literal default for the merge classes | `true` |
 
 ## What gets generated
 
 ```
 sdk-<slug>/
   src/xippios/<import path as dirs>/   __init__, py.typed, _version, _client, errors, models,
-                       tasks, api/, mcp, http, reference/
-  tests/               conftest, test_family, test_tasks, test_live
+                       tasks, api/, mcp, http, reference/; parse/ where has_files
+  tests/               conftest, test_family, test_tasks, test_live; fixtures/files/README.md,
+                       the samples' provenance table, where has_files
   scripts/             refresh_reference.py, refresh_upstream.py (the capture skeleton)
   docs/upstream/       FETCHED.md
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
@@ -139,14 +141,14 @@ Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, 
 to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the answers
 without moving the template). Files listed under `_skip_if_exists` in `copier.yml` (the
 package `__init__.py`, the client, the package's errors, models, endpoint wrappers, the
-task layer, the packaged lists and enums, reference data, scripts, the task and live
-tests and the fixtures, upstream snapshot, README, CHANGELOG and CLAUDE.md) are never
-overwritten once they exist, so a template fix to one of them does not reach existing
-repositories by itself; one the template stops rendering, though, is deleted by the
-update where the repository's earlier render had it, the source's content included.
-[CHANGELOG.md](CHANGELOG.md) lists those fixes per release under **Hand-apply**:
-path, change, reason; port each one by hand in the same PR. A new file under those
-patterns is created by the update where the repository has none of that name. Every other
+file parsers, the task layer, the packaged lists and enums, reference data, scripts, the
+task and live tests and the fixtures, upstream snapshot, README, CHANGELOG and CLAUDE.md)
+are never overwritten once they exist, so a template fix to one of them does not reach
+existing repositories by itself; one the template stops rendering, though, is deleted by
+the update where the repository's earlier render had it, the source's content included.
+[CHANGELOG.md](CHANGELOG.md) lists those fixes per release under **Hand-apply**: path,
+change, reason; port each one by hand in the same PR. A new file under those patterns is
+created by the update where the repository has none of that name. Every other
 file is the template's: `.claude/family.md`, `tests/conftest.py` and `tests/test_family.py`
 among them are re-rendered, and a source's own lines in them are merged three ways,
 conflicts marked. A template-owned file a release removes is deleted by the update, a
@@ -156,12 +158,13 @@ source's own lines in it included, so the release's CHANGELOG says where they mo
 
 ```bash
 uv sync
-uv run pytest           # renders the family's five variants once each and checks them, ruff included
+uv run pytest           # renders the family's six variants once each and checks them, ruff included
 scripts/prove.sh        # full proof against the released core: generate, uv sync, ruff, mypy, pytest, pre-commit
 scripts/prove.sh --core-ref main   # against unreleased core
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one
 scripts/prove.sh --keyless-nested  # a keyless nested source
-scripts/prove.sh --gateway         # a nested source behind api.data.gov, on core 0.3.0; CI runs all four
+scripts/prove.sh --gateway         # a nested source behind api.data.gov, on core 0.3.0
+scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files; CI runs all five
 ```
 
 ## Releasing the template

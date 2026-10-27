@@ -27,16 +27,21 @@ template/                what gets generated; *.jinja files are rendered, others
   .github/{% if '.' in import_path or depends_on %}scripts{% endif %}/check-siblings.sh
                          the sibling proof of ADR-0006 and ADR-0021, verbatim, only their names
                          rendered (Rules)
+  src/xippios/{{ package_dir }}/{% if has_files %}parse{% endif %}/__init__.py,
+  tests/{% if has_files %}fixtures{% endif %}/files/README.md
+                         the parsers' package and the samples' provenance table of a source
+                         that parses files (ADR-0020), skip-listed, only their names conditional
   scripts/refresh_upstream.py.jinja  the capture skeleton a source fills (/refresh-upstream)
   tests/test_family.py   one line collecting xippios.core.testing.family
   .gitattributes         docs/upstream/** -text: the snapshot stays byte for byte (CRLF, mixed endings)
 scripts/new-source.sh    generate + checks + GitHub repo + PR (the /new-source command)
 scripts/prove.sh         generate sdk-example-api (--keyless: sdk-example; --keyless-nested: sdk-example-files;
-                         --gateway: sdk-example-gov) from the working tree and run every check on it
+                         --gateway: sdk-example-gov) from the working tree and run every check on it;
+                         -d key=value passes one more answer (-d has_files=true)
 tests/test_template.py   the family's variants, each rendered once; ruff on the output, the answers' rules,
                          skip-if-exists behaviour
 CHANGELOG.md             template releases, each with its Hand-apply list (Rules)
-.github/workflows/ci.yml       the template's own CI: tests and the four proofs
+.github/workflows/ci.yml       the template's own CI: tests and the proofs
 .github/workflows/release.yml  tags vX.Y.Z from the top CHANGELOG heading on push to main (Workflow rules)
 .github/workflows/gates.yml    core's gates.yml, byte for byte the template's copy, off until GATES_CALLER (Rules)
 .claude/commands/new-source.md
@@ -45,28 +50,31 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 ## Rules
 
 - Generated code must pass `ruff check`, `ruff format --check`, `mypy --strict`, `pytest`
-  and `pre-commit` out of the box. `scripts/prove.sh` is the proof, in the family's four
+  and `pre-commit` out of the box. `scripts/prove.sh` is the proof, in the family's
   shapes: keyed and nested (no flag), keyless and flat (`--keyless`), keyless and nested
-  (`--keyless-nested`) and nested behind the api.data.gov gateway (`--gateway`, on core
-  0.3.0, the first release with `xippios.core.data_gov`); CI runs all four. Run them
-  before every PR and paste their tails into the PR description. A dependent
-  (`source_dependencies`) has no proof of its own, since a dependency that is not on PyPI
-  cannot be installed; the template tests cover its render.
+  (`--keyless-nested`), keyless and nested parsing files, with an empty `parse/`
+  (`--keyless-nested -d has_files=true`), and nested behind the api.data.gov gateway
+  (`--gateway`, on core 0.3.0, the first release with `xippios.core.data_gov`); CI runs
+  them all. Run them before every PR and paste their tails into the PR description. A
+  dependent (`source_dependencies`) has no proof of its own, since a dependency that is
+  not on PyPI cannot be installed; the template tests cover its render.
 - `tests/test_template.py` renders each of the family's variants once per session, keyed
   nested, keyless flat, keyless nested, a dependent (keyless nested with
-  `source_dependencies`, one open and one keyed) and one behind the api.data.gov gateway
-  (`gateway`, which derives the key answers); a check no answer changes reads one
-  render, and an answer outside the variants (a key location, a core pin, a name at its
-  bound, an `import_path` override, a flat source with a dependency) is tested by its own
-  rule. The tests assert mechanics, never rendered prose: a file rendered or not, a name
-  present, no Jinja left, a digest equal, a script's behaviour.
+  `source_dependencies`, one open and one keyed), one behind the api.data.gov gateway
+  (`gateway`, which derives the key answers) and one that parses files (keyless nested
+  with `has_files`); a check no answer changes reads one render, and an answer outside
+  the variants (a key location, a core pin, a name at its bound, an `import_path`
+  override, a flat source with a dependency) is tested by its own rule. The tests assert
+  mechanics, never rendered prose: a file rendered or not, a name present, no Jinja left,
+  a digest equal, a script's behaviour.
 - Files a session fills with source content (`__init__.py`, `_client.py`, `errors.py`,
-  `models.py`, `api/`, `tasks.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
-  `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
-  `README.md`, `CHANGELOG.md`, `CLAUDE.md`) are listed in `_skip_if_exists` so
-  `copier update` never overwrites them; copier renders the patterns, so those inside the
-  package name `{{ package_dir }}`, never `**`, which would match a whole package named
-  like a protected directory (`example-api`'s `xippios/example/api/`).
+  `models.py`, `api/`, `parse/`, `tasks.py`, `params.py`, `enums.py`, `reference/`,
+  `scripts/`, `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`,
+  `docs/upstream/`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`) are listed in
+  `_skip_if_exists` so `copier update` never overwrites them; copier renders the
+  patterns, so those inside the package name `{{ package_dir }}`, never `**`, which would
+  match a whole package named like a protected directory (`example-api`'s
+  `xippios/example/api/`).
   Every other rendered file is the template's and updates with it, `.claude/family.md`,
   `tests/conftest.py` and `tests/test_family.py` among them: keep in those only what every
   source shares. `.claude/family.md.jinja` holds no Jinja, so every source renders the same
@@ -142,6 +150,7 @@ scripts/prove.sh                  # full proof against the xippios-core release 
 scripts/prove.sh --keyless        # the same for a keyless flat source
 scripts/prove.sh --keyless-nested # the same for a keyless nested source
 scripts/prove.sh --gateway        # the same for a nested source behind api.data.gov (core 0.3.0)
+scripts/prove.sh --keyless-nested -d has_files=true   # a keyless nested source that parses files
 scripts/prove.sh --core-ref main  # against unreleased core, before a core change lands
 uv run ruff check . && uv run ruff format --check .
 ```
