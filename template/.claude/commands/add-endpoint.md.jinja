@@ -28,7 +28,7 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
    service's module where operation ids repeat across services and the Layout in
    `CLAUDE.md` keeps one module per service: one async function named after the
    operation, parameters as upstream names them, calling
-   `xippios.{{ source_pkg }}._client.client` and returning models via
+   `xippios.{{ import_path }}._client.client` and returning models via
    `xippios.core.parse(...)`. It calls `get_json`, or `get_answer` where the answer may
    come from the cache, whose `retrieved_at` the task puts into its `ResultMeta`, or
    `get` and then `decode_json` where it needs more of the response, a header say

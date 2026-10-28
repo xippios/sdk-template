@@ -47,7 +47,8 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
 7. README: the status table reflects what this version covers; install snippets are
    current.
 8. Run the full suite: `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest && uv run pre-commit run --all-files`.
-   If live tests can run (`XIPPIOS_LIVE_TESTS=1`), run them too and report the result.
+   If live tests can run (`XIPPIOS_LIVE_TESTS=1`), run them too,
+   `uv run pytest -m live --tb=short`, and report the result.
 9. Open the PR, its body as the definition of done says. After the reviewer's `ready`,
    if the `merge-class` check says `auto`, the session enables auto-merge from the family
    workspace root, the directory that holds the workspace's own `CLAUDE.md`, because

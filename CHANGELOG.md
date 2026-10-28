@@ -146,6 +146,64 @@ are not listed.
   pointer appear only for a keyed source, and that no fixtures directory is generated;
   the `long-name` variant carries sdk-usda-esmis's 64-character name, and its four
   formerly failing files pass `ruff check`.
+- The answers in `copier.yml`. Every rendered file reads `import_path`, and its hidden
+  alias `source_pkg` goes. The domain's GitHub topic is no answer any more but
+  `new-source.sh`'s `--topic DOMAIN`, checked before anything is generated (required
+  unless `--local-only`) and added with `gh repo edit --add-topic`; the generated
+  `pyproject.toml`'s keywords no longer name it. `core_version`'s help names the bound,
+  `xippios-core~=X.Y.Z` with `Z` 0 unless patch `Z` shipped what the source adopts
+  (ADR-0018 amendment (c)), and `core_git_ref`'s says what the pin is and that a release
+  carries none, neither telling what to answer for the other. `source_name` takes at
+  most 77 characters, the bound that keeps the generated `http.py`'s first line, the
+  longest that names it, within ruff's 100 columns (sdk-usda-esmis's render), and no
+  double quote or backslash, which would break the strings that quote it. The
+  `rate_limit_provenance` choice and the pace's help say "no per-second or per-minute
+  limit", as the generated `CLAUDE.md`'s row does (sdk-usda-esr). The README's question
+  table follows.
+- `new-source.sh` opens the scaffold PR with its body filled from the generated PR
+  template instead of the bare template: the summary with the human steps; under
+  Assumptions the answers as `.copier-answers.yml` records them, the topic and the
+  evidence for the answers (`--evidence FILE`: the pages and the status-only probes they
+  rest on); the "Enforced by CI" block ticked, since its checks passed; the Adoption PR
+  block deleted. It writes the body before anything is created on GitHub, and stops
+  there, naming the part, where the PR template lacks one of the four it fills;
+  `--local-only` prints it; `/new-source` passes the evidence and completes the body
+  with `gh pr edit` (sdk-usda-esr's scaffold review). The human steps it prints are the
+  one copy, the sessions' team in plain words: where the team does not exist yet, a
+  step says to give it write access once it does.
+- The generated `pyproject.toml`'s dev group pins `ruff==0.17.1`, the rev of the
+  `ruff-pre-commit` hook, so a new lock no longer resolves a newer ruff than the hook
+  runs (sdk-usda-esr's scaffold review).
+- `live.yml`, the one job the org secret reaches in a keyed source, pins
+  `actions/checkout` and `astral-sh/setup-uv` to the commits `ci.yml` pins, the version
+  in a comment, and its checkout persists no credentials (conventions §13; sdk-eurostat's
+  scaffold review).
+- `ci.yml`'s CHANGELOG step exempts a release and Dependabot only: an adoption PR adds
+  its line naming the core, template and conventions versions adopted (conventions §15
+  item 9), as `.claude/family.md` and this README now say (sdk-eurostat's scaffold
+  review).
+- Every live run takes `--tb=short`: `live.yml`'s pytest step, the live command of the
+  generated `CLAUDE.md` and `.claude/family.md`, and `/release-prep`'s step 8; and
+  `.claude/family.md` says that pytest's assertion introspection still prints what an
+  `assert` compares, so a live test asserts on shapes and counts, never on a raw
+  payload. A failing parse printed its raw upstream payload in a traceback, which the
+  nightly run writes into a public log (sdk-cashctrl; core 0.3.0 raises its validation
+  errors without the payload).
+- Template-internal: the tests render the variants without `domain_topic` and check that
+  no answers file records `source_pkg`, `domain_topic` or `needs_write_tools`, that
+  `new-source.sh` refuses a missing or malformed `--topic` and a missing evidence file
+  before it generates, that it fills core's PR template and names what a template of
+  another shape lacks, that the two core answers' help texts keep apart, that
+  `source_name`'s bound follows from the template's longest Python line and that a quote
+  or a backslash is refused, that this repository's own workflows are hardened, that the
+  dev group's ruff is the hook's, that `live.yml` takes `ci.yml`'s pins with
+  `persist-credentials: false`, that no live command lacks `--tb=short`, and that the
+  CHANGELOG step no longer exempts an adoption; `scripts/prove.sh` passes a topic and an
+  evidence file and checks the PR body it prints, the one a real run opens.
+- This repository's own `ci.yml` pins `actions/checkout` and `astral-sh/setup-uv` by
+  SHA, the version in a comment, and its checkout persists no credentials;
+  `release.yml`'s tag job, which pushes the tag with the token, says why its checkout
+  keeps them (conventions §13, every workflow of the family).
 
 ### Removed
 
@@ -171,6 +229,9 @@ are not listed.
   read-only.
 - `tests/fixtures/README.md`: the fixture rule lives in `/record-fixture` and
   conventions §10, and its grep differed from `/record-fixture`'s (sdk-usda-gats).
+- The `domain_topic` question, now `new-source.sh`'s `--topic`, since the topic is set
+  once on GitHub; `source_pkg`, the hidden alias of `import_path`; and
+  `_message_after_copy`, which repeated the human steps `new-source.sh` prints.
 
 ### Hand-apply
 
@@ -274,6 +335,9 @@ are not listed.
   byte, so nothing of its own is lost, and sdk-cashctrl, whose copy carries lines of its
   own, moves them first should it ever update — the fixture rule lives in
   `/record-fixture` and conventions §10.
+- `CLAUDE.md` — the live command in Commands and the sentence on `live.yml`'s step read
+  `uv run pytest -m live --tb=short` — the flag keeps a failing test's frame arguments,
+  a raw upstream payload among them, out of the log; port it with the split above.
 
 The scaffolds of `_client.py`, `README.md` and `CHANGELOG.md` lose their write and
 `basic` branches and the README's status comment no longer names `tasks_write.__all__`,
@@ -293,13 +357,17 @@ sentence (a keyless source's README may close the server's brace on a line of it
 the generated `CLAUDE.md`'s rate-limit row, Layout lines and start-time sentence, which
 the 0.3.0 split leaves as the source wrote them, and `docs/upstream/FETCHED.md`'s
 attribution placeholder, which the next `/refresh-upstream` rewrites. The update carries
-the rest: `.claude/family.md`, the six commands, `tests/conftest.py`, `live.yml`, the
-read server's instructions in `mcp.py` and `junit_family` in `pyproject.toml`, merged
-three ways where a source changed them.
+the rest: `.claude/family.md`, the six commands, `tests/conftest.py`, `live.yml` and
+`ci.yml`, the read server's instructions in `mcp.py`, and `junit_family`, the ruff pin
+and the keywords in `pyproject.toml`, merged three ways where a source changed them.
 
-**Updating from 0.2.2.** `copier update` drops `needs_write_tools` from
-`.copier-answers.yml` (checked with copier 9.19.1); no `-d` answer is needed for it. It
-creates `errors.py` where the package has none and deletes `tests/fixtures/README.md`.
+**Updating from 0.2.2.** `copier update` asks nothing new and drops `needs_write_tools`
+and `domain_topic` from `.copier-answers.yml` (checked with copier 9.19.1 on v0.2.2
+renders, keyed and keyless; `source_pkg` was never recorded); no `-d` answer is needed
+for them. The domain's topic stays on the GitHub repository; the `pyproject.toml`
+keywords lose it. Every source's `source_name` is within the new 77-character bound. The
+update creates `errors.py` where the package has none and deletes
+`tests/fixtures/README.md`; `uv lock` after it resolves ruff to the pinned 0.17.1.
 
 ## [0.2.2] - 2026-10-27
 

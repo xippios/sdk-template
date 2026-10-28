@@ -25,13 +25,12 @@ jobs:
         with:
           fetch-depth: 0 # both steps below diff against origin/<base>
           persist-credentials: false
-      # Conventions §12: every PR but a release, an adoption or Dependabot's (which writes
-      # no entry) adds a CHANGELOG entry.
+      # Conventions §12: every PR but a release or Dependabot's (which writes no entry) adds
+      # a CHANGELOG entry; an adoption PR's names the versions it adopts (§15 item 9).
       - name: CHANGELOG.md has an entry
         if: >-
           github.event_name == 'pull_request'
           && !startsWith(github.head_ref, 'chore/release-')
-          && !startsWith(github.head_ref, 'chore/template-update')
           && !startsWith(github.head_ref, 'dependabot/')
         env:
           BASE: ${{ github.base_ref }}

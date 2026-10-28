@@ -22,7 +22,6 @@ BASE_ANSWERS: dict[str, object] = {
     "upstream_docs_url": "https://api.example.org/docs",
     "api_base_url": "https://api.example.org/v1",
     "rate_limit_per_minute": 120,
-    "domain_topic": "example-domain",
 }
 
 
@@ -188,6 +187,15 @@ def test_layout(generated: tuple[str, Path]) -> None:
     assert "tests" not in json.dumps(sdist), "the sdist ships no tests; they live in the repo"
 
 
+def test_dev_ruff_is_the_pre_commit_hooks(generated: tuple[str, Path]) -> None:
+    """A new lock resolves the ruff the pre-commit hook runs, not the newest one."""
+    _, dst = generated
+    hooks = yaml.safe_load((dst / ".pre-commit-config.yaml").read_text())["repos"]
+    (rev,) = [repo["rev"] for repo in hooks if repo["repo"].endswith("/ruff-pre-commit")]
+    dev = tomllib.loads((dst / "pyproject.toml").read_text())["dependency-groups"]["dev"]
+    assert [spec for spec in dev if spec.startswith("ruff")] == [f"ruff=={rev.removeprefix('v')}"]
+
+
 def test_generated_code_is_lint_and_format_clean(generated: tuple[str, Path]) -> None:
     _, dst = generated
     check = ruff(dst, "check", ".")
@@ -208,9 +216,32 @@ def test_answers_file_round_trips(generated: tuple[str, Path]) -> None:
     assert answers["source_slug"] == VARIANTS[name]["source_slug"]
     assert answers["api_key_env"] == VARIANTS[name]["api_key_env"]
     assert answers["import_path"] == package_dir(VARIANTS[name]).replace("/", ".")
-    assert "source_pkg" not in answers, "computed answers are derived, never recorded"
-    assert "package_dir" not in answers
+    assert "package_dir" not in answers, "computed answers are derived, never recorded"
     assert "live_schedule" not in answers
+    for gone in ["source_pkg", "domain_topic", "needs_write_tools"]:
+        assert gone not in answers, f"{gone}: no question asks it"
+
+
+@pytest.mark.parametrize(
+    ("args", "error"),
+    [
+        ([], "--topic DOMAIN is required to create the repository"),
+        (["--local-only", "--topic", "Trade_Data"], "--topic Trade_Data: use lowercase letters"),
+        (["--topic", "trade--data"], "--topic trade--data: use lowercase letters"),
+        (["--topic", "trade-data", "--evidence", "absent.md"], "--evidence absent.md: no such"),
+    ],
+)
+def test_new_source_checks_its_flags_before_it_generates(
+    tmp_path: Path, args: list[str], error: str
+) -> None:
+    """The domain topic is new-source.sh's flag, no copier answer, and the evidence a file;
+    a bad one of either costs nothing."""
+    dest = tmp_path / "sdk-ex"
+    script = [str(ROOT / "scripts/new-source.sh"), "ex", "--dest", str(dest), *args]
+    run = subprocess.run(script, cwd=tmp_path, capture_output=True, text=True, check=False)
+    assert run.returncode == 2, run.stdout + run.stderr
+    assert error in run.stderr
+    assert not dest.exists(), "refused before anything is generated"
 
 
 def test_no_jinja_left_behind(generated: tuple[str, Path]) -> None:
@@ -621,25 +652,60 @@ def test_ci_reads_the_pull_request_and_runs_once_on_main(generated: tuple[str, P
     assert steps[0]["with"] == {"fetch-depth": 0, "persist-credentials": False}
     changelog, cap = steps[1], steps[2]
     assert changelog["name"] == "CHANGELOG.md has an entry"
-    for prefix in ["chore/release-", "chore/template-update", "dependabot/"]:
+    for prefix in ["chore/release-", "dependabot/"]:
         assert f"!startsWith(github.head_ref, '{prefix}')" in changelog["if"], prefix
+    assert "chore/template-update" not in changelog["if"], "conventions §15 item 9"
+    rules = " ".join((dst / ".claude/family.md").read_text().split())
+    assert "Every PR but a release or Dependabot's adds an entry" in rules, "as ci.yml checks"
     assert cap["name"] == "Fixture files under 256 KiB"
     assert cap["env"]["LEVEL"] == "warning", "an error from template v0.3.0 (ADR-0019)"
     assert "--no-renames --diff-filter=AM" in cap["run"]
     assert "262144" in cap["run"]
 
 
+def workflow_uses(path: Path) -> list[tuple[str, str]]:
+    """Each ``uses:`` of a workflow: the action and what follows it on the line."""
+    return re.findall(r"^\s+(?:- )?uses: (\S+)(.*)$", path.read_text(), re.MULTILINE)
+
+
 def test_workflow_actions_are_pinned_by_sha(generated: tuple[str, Path]) -> None:
-    """ci.yml and publish.yml pin every action to a commit, its version in a comment."""
+    """ci.yml, publish.yml and live.yml pin every action to a commit, its version in a
+    comment (conventions §13); live.yml takes ci.yml's pins."""
     _, dst = generated
-    for rel in [".github/workflows/ci.yml", ".github/workflows/publish.yml"]:
-        uses = re.findall(r"^\s+(?:- )?uses: (\S+)(.*)$", (dst / rel).read_text(), re.MULTILINE)
+    workflows = dst / ".github/workflows"
+    for rel in ["ci.yml", "publish.yml", "live.yml"]:
+        uses = workflow_uses(workflows / rel)
         assert uses, rel
         for action, comment in uses:
             if action.startswith("./"):
                 continue
             assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{rel}: {action}"
             assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{rel}: {action}{comment}"
+    assert set(workflow_uses(workflows / "live.yml")) <= set(workflow_uses(workflows / "ci.yml"))
+
+
+def test_the_templates_own_workflows_are_hardened() -> None:
+    """Conventions §13 for this repository's own workflows too: SHA pins with the version
+    in a comment (the gates at ``@main`` by design), ``contents: read`` at the top, and no
+    checkout keeps its credentials but the one in a job that pushes, which says so."""
+    for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        for action, comment in workflow_uses(path):
+            if action.startswith("xippios/sdk-gates/") and action.endswith("@main"):
+                continue
+            assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{path.name}: {action}"
+            assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{path.name}: {action}{comment}"
+        text = path.read_text()
+        workflow = yaml.safe_load(text)
+        assert workflow["permissions"] == {"contents": "read"}, path.name
+        for name, job in workflow["jobs"].items():
+            steps = job.get("steps", [])
+            pushes = any("git push" in step.get("run", "") for step in steps)
+            for step in steps:
+                if str(step.get("uses", "")).startswith("actions/checkout@"):
+                    kept = step.get("with", {}).get("persist-credentials", True)
+                    assert kept is pushes, f"{path.name}: {name}"
+            if pushes:
+                assert "The one checkout that keeps its credentials" in text, path.name
 
 
 def test_publish_is_the_release_train(generated: tuple[str, Path]) -> None:
@@ -739,8 +805,11 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Pa
     (job,) = workflow["jobs"].values()
     assert "env" not in job, "the secret reaches the pytest step only"
     *setup, pytest_step = job["steps"]
-    assert pytest_step["run"] == "uv run pytest -m live", "every live test"
+    assert pytest_step["run"] == "uv run pytest -m live --tb=short", "every live test"
     assert all("env" not in step for step in setup), "checkout and uv sync never see it"
+    checkout = setup[0]
+    assert checkout["uses"].startswith("actions/checkout@")
+    assert checkout["with"] == {"persist-credentials": False}, "conventions §13"
     expected_env: dict[str, str] = {"XIPPIOS_LIVE_TESTS": "1"}
     if env_var:
         expected_env[env_var] = f"${{{{ secrets.{env_var} }}}}"
@@ -753,10 +822,26 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Pa
         assert (reason in " ".join(text.split())) is bool(env_var), f"keyed only: {reason}"
     claude = (dst / "CLAUDE.md").read_text()
     if env_var:
-        step = "Only its `uv run pytest -m live` step sees the key"
+        step = "Only its `uv run pytest -m live --tb=short` step sees the key"
         assert f"{step}, from the org secret `{env_var}`." in claude
     else:
         assert "The API needs no key, so the workflow uses no secret." in claude
+
+
+def test_every_live_run_keeps_payloads_out_of_tracebacks(generated: tuple[str, Path]) -> None:
+    """Row 42: every live command, run or documented, takes ``--tb=short``; a live test
+    asserts on shapes and counts, since assertion introspection prints what it compares."""
+    _, dst = generated
+    runs = 0
+    for path in sorted(dst.rglob("*")):
+        if path.is_file() and path.suffix in {".md", ".yml", ".toml", ".py"}:
+            text = path.read_text()
+            assert not re.search(r"pytest -m live(?! --tb=short)", text), path
+            runs += text.count("pytest -m live --tb=short")
+    assert runs >= 4, "live.yml, CLAUDE.md, .claude/family.md and /release-prep"
+    rules = " ".join((dst / ".claude/family.md").read_text().split())
+    assert "pytest's assertion introspection still prints the values an `assert`" in rules
+    assert "a live test asserts on shapes and counts, never on a raw payload" in rules
 
 
 def live_start(dst: Path) -> tuple[int, int]:
@@ -966,6 +1051,104 @@ def test_core_version_is_a_release_version(
         generate(
             template_src, tmp_path / "repo", source_slug="ex", core_version=version, **keyed("")
         )
+
+
+SOURCE_NAME = "{{ source_name }}"
+
+
+def test_source_name_is_bounded_by_the_longest_python_line(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """A name at the bound renders ruff-clean (E501 at 100 columns); one more is refused.
+
+    The long-name variant, sdk-usda-esmis's 64-character name, is within it and renders
+    ruff-clean with every variant.
+    """
+    lines = [
+        line
+        for path in (ROOT / "template").rglob("*.py.jinja")
+        for line in path.read_text().splitlines()
+        if SOURCE_NAME in line
+    ]
+    bound = 100 - max(len(line) - len(SOURCE_NAME) for line in lines)
+    assert (
+        f"at most {bound} characters"
+        in yaml.safe_load((ROOT / "copier.yml").read_text())["source_name"]["help"]
+    )
+    assert len(str(VARIANTS["long-name"]["source_name"])) <= bound
+    name = ("Data Service " * 7)[: bound - 1] + "s"
+    dst = generate(template_src, tmp_path / "bound", source_slug="ex", source_name=name)
+    for args in [("check", "."), ("format", "--check", ".")]:
+        run = ruff(dst, *args)
+        assert run.returncode == 0, run.stdout + run.stderr
+    for refused in ["x" * (bound + 1), 'The "Data" Service', "Data\\Service"]:
+        with pytest.raises(ValueError, match="source_name"):
+            generate(template_src, tmp_path / "refused", source_slug="ex", source_name=refused)
+
+
+PR_TEMPLATE = ROOT / "template/.github/PULL_REQUEST_TEMPLATE.md"
+
+
+def write_body(tmp_path: Path, pr_template: str) -> subprocess.CompletedProcess[str]:
+    """new-source.sh's human_steps and write_body, run on a PR template and an answers file."""
+    script = (ROOT / "scripts/new-source.sh").read_text()
+    start = script.index("human_steps() {")
+    functions = script[start : script.index("\n}\n", script.index("write_body() {")) + 3]
+    (tmp_path / ".github").mkdir()
+    (tmp_path / ".github/PULL_REQUEST_TEMPLATE.md").write_text(pr_template)
+    (tmp_path / ".copier-answers.yml").write_text("_commit: v0.0.1\nsource_slug: ex\n")
+    (tmp_path / "scratch").mkdir()
+    harness = (
+        "set -euo pipefail\n"
+        "slug=ex source_name=Ex ref=v0.0.1 topic=data evidence= api_key_env= dest=/x/sdk-ex\n"
+        f"scratch={tmp_path / 'scratch'}\n{functions}\nwrite_body\n"
+    )
+    return subprocess.run(
+        ["bash", "-c", harness], cwd=tmp_path, capture_output=True, text=True, check=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "missing"),
+    [
+        ("", "", ""),
+        ("### Enforced by CI", "### Checked by CI", 'unticked items under "### Enforced by CI"'),
+        ("### Adoption PR", "### Adoption", 'the "### Adoption PR" block'),
+        ("## Assumptions\n\n<!--", "## Assumptions\n\n-", 'a comment line under "## Assumptions"'),
+    ],
+)
+def test_new_source_fills_the_pr_template_or_names_what_it_lacks(
+    tmp_path: Path, old: str, new: str, missing: str
+) -> None:
+    """The scaffold PR's body: the CI block ticked, no Adoption PR block; a PR template of
+    another shape stops the script loudly, before anything is created on GitHub."""
+    run = write_body(
+        tmp_path, PR_TEMPLATE.read_text().replace(old, new) if old else PR_TEMPLATE.read_text()
+    )
+    if not missing:
+        assert run.returncode == 0, run.stderr
+        body = (tmp_path / "scratch/body.md").read_text()
+        ci = body.split("### Enforced by CI\n", 1)[1].split("\n### ", 1)[0]
+        assert ci.count("- [x] ") == 4
+        assert "- [ ] " not in ci
+        assert "### Adoption PR" not in body
+        assert "  - `source_slug: ex`" in body
+        assert "_commit" not in body
+        return
+    assert run.returncode == 1
+    assert missing in run.stderr
+    assert "Nothing was\ncreated on GitHub; /x/sdk-ex is generated and verified." in run.stderr
+
+
+def test_core_answers_each_say_their_own() -> None:
+    """One core_version answer, the bound's rule in its help; core_git_ref only the pin."""
+    questions = yaml.safe_load((ROOT / "copier.yml").read_text())
+    version, ref = questions["core_version"]["help"], questions["core_git_ref"]["help"]
+    assert "xippios-core~=X.Y.Z" in version
+    assert "(ADR-0018 amendment (c))" in version
+    assert "pin" not in version, "the pin is core_git_ref's"
+    assert "core_version" not in ref, "the bound is core_version's"
+    assert "main, or the full 40-character SHA of a commit on main" in ref
 
 
 def test_core_git_ref_takes_main(template_src: Path, tmp_path: Path) -> None:

@@ -24,11 +24,6 @@ import_path:
     Dotted lowercase identifiers only, e.g. usda.nass or comtrade
     {% endif %}
 
-source_pkg:
-  type: str
-  default: "{{ import_path }}"
-  when: false
-
 package_dir:
   type: str
   default: "{{ import_path | replace('.', '/') }}"
@@ -56,9 +51,17 @@ live_schedule:
 
 source_name:
   type: str
-  help: Human-readable name of the source
+  help: >-
+    Human-readable name of the source, at most 77 characters: the generated Python puts
+    it on a line, the longest of them http.py's first, which ruff keeps within 100
+    columns; no double quote or backslash, since the generated Python quotes it
   placeholder: USDA NASS Quick Stats
-  validator: "{% if not source_name %}Required{% endif %}"
+  validator: >-
+    {% if not source_name %}Required{% elif source_name | length > 77 %}
+    At most 77 characters, so every generated Python line stays within 100 columns
+    {% elif '"' in source_name or '\\' in source_name %}
+    No double quote and no backslash: the generated Python quotes the name
+    {% endif %}
 
 upstream_url:
   type: str
@@ -107,8 +110,9 @@ rate_limit_per_minute:
   type: int
   help: >-
     The pace in requests per minute, enforced client-side: the upstream's documented
-    per-minute limit (or its per-second limit times 60), or, where upstream documents
-    none, a self-imposed pace (ADR-0010 decision 1)
+    per-minute limit (or its per-second limit times 60), or, where upstream documents no
+    per-second or per-minute limit, a self-imposed pace, an hourly or daily quota
+    notwithstanding (ADR-0010 decision 1)
   default: 60
   validator: "{% if rate_limit_per_minute < 1 %}Must be at least 1{% endif %}"
 
@@ -125,30 +129,18 @@ rate_limit_provenance:
   help: Where the pace comes from; the generated CLAUDE.md names it (ADR-0010 decision 1)
   choices:
     documented by upstream: documented
-    self-imposed, upstream documents no limit: self-imposed
+    self-imposed, upstream documents no per-second or per-minute limit: self-imposed
   default: documented
-
-domain_topic:
-  type: str
-  help: GitHub topic for the domain, e.g. agriculture, trade-data, accounting
-  placeholder: agriculture
-  validator: >-
-    {% if not (domain_topic | regex_search('^[a-z0-9]+(-[a-z0-9]+)*$')) %}
-    Use lowercase letters, digits and single hyphens, e.g. trade-data
-    {% endif %}
 
 core_version:
   type: str
   help: >-
-    The xippios-core release the package depends on, rendered as xippios-core~=<version>,
-    the extras likewise: that minor, from that release on. The family's floor is normally
-    the minor's .0 (xippios-core~=0.2.0, ADR-0018), raised when the source adopts a new
-    core minor in its adoption PR (conventions §12, §15). It is a patch, X.Y.Z, when that
-    patch shipped what the source adopts, still one minor (ADR-0018 amendment (c)): the
-    default 0.2.1 is that case, since core 0.2.1 shipped the family check that
-    tests/test_family.py imports and 0.2.0 lacks. After a core git pin it is the same:
-    the release that carries the pinned change, X.Y.Z with Z the patch that shipped it,
-    or X.Y.0 when the minor itself did.
+    The xippios-core release the package depends on, X.Y.Z, rendered as the bound
+    xippios-core~=X.Y.Z, the extras likewise: one core minor, from that release on
+    (conventions §12, ADR-0018). Z is 0 unless patch Z shipped what the source adopts
+    (ADR-0018 amendment (c)): the default 0.2.1 is that case, since core 0.2.1 shipped
+    the family check that tests/test_family.py imports. A source raises it in the
+    adoption PR of a new core minor (conventions §15).
   default: "0.2.1"
   validator: >-
     {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+\\Z')) %}
@@ -160,10 +152,8 @@ core_git_ref:
   help: >-
     Development only. The sdk-core commit to depend on for a core change that is not
     released yet: main, or the full 40-character SHA of a commit on main, which uv and
-    the merge-class check read as that commit. Leave empty to depend on the release named
-    by core_version. Removing the pin before a release raises core_version to the release
-    that carries the pinned change: X.Y.Z with Z the patch that shipped it, or X.Y.0 when
-    the minor itself did; still one minor.
+    the merge-class check read as that commit. Leave it empty, the default, for no pin;
+    a release carries none (/release-prep removes it first, in a PR of its own).
   default: ""
   validator: >-
     {% if core_git_ref and not (core_git_ref | regex_search('^(main|[0-9a-f]{40})\\Z')) %}
@@ -200,24 +190,3 @@ _skip_if_exists:
   - README.md
   - CHANGELOG.md
   - CLAUDE.md
-_message_after_copy: |
-
-  sdk-{{ source_slug }} generated.
-
-  Human steps that remain after the scaffold PR is open:
-    1. PyPI: add a pending trusted publisher for xippios-{{ source_slug }}
-       (owner xippios, repo sdk-{{ source_slug }}, workflow publish.yml, environment pypi);
-       the first release's publish job needs it.
-  {% if api_key_env %}
-    2. The key, {{ api_key_env }}. If the org secret {{ api_key_env }} exists already (one key
-       shared by several sources, ADR-0009), add sdk-{{ source_slug }} to that secret's
-       repository access in the org settings; never `gh secret set --repos`, which replaces
-       the list. Otherwise put the key into ~/github/sdk/.envrc and create the org secret
-       {{ api_key_env }} with access for sdk-{{ source_slug }}. Either way the nightly
-       .github/workflows/live.yml needs it.
-  {% else %}
-    2. No API key is needed for this source.
-  {% endif %}
-    3. Review the scaffold PR (read CLAUDE.md as a new engineer would) and merge it.
-       Releases tag themselves: the merge of a release PR (/release-prep) runs publish.yml,
-       which tags the version and waits for the approval of its pypi run.

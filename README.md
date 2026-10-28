@@ -17,10 +17,12 @@ From Claude Code in this repository: `/new-source <slug>`. It collects the answe
 then runs `scripts/new-source.sh`, which generates the repo, runs every check on it,
 creates `github.com/xippios/sdk-<slug>` with topics, auto-merge, branch deletion on merge,
 the `sdk-sessions` team's write access where the team exists and the `pypi` environment,
-and opens the scaffold PR. The repository creation and the environment call raise
-permission prompts the human approves. Before it, a session owns `sdk-<slug>` in the
-workspace's `coordination/owners.toml`, since the workspace's guard refuses work in a
-directory no session owns. Three steps stay with a human and are printed at the end: the
+and opens the scaffold PR, its body the generated PR template filled from the run (the
+summary and the human steps, the answers and the evidence for them as assumptions). The
+repository creation and the environment call raise permission prompts the human
+approves. Before it, a session owns `sdk-<slug>` in the workspace's
+`coordination/owners.toml`, since the workspace's guard refuses work in a directory no
+session owns. Three steps stay with a human, in the PR's body and printed at the end: the
 PyPI pending publisher, which the first release's publish job needs; the API key, which
 the nightly `live.yml` reads from an org secret (for a key several sources share,
 ADR-0009, the new repository is added to the existing secret's repository access, never
@@ -39,10 +41,14 @@ scripts/new-source.sh usda-nass \
   -d "api_base_url=https://quickstats.nass.usda.gov/api" \
   -d "api_key_env=NASS_API_KEY" -d "api_key_location=query" -d "api_key_name=key" \
   -d "rate_limit_per_minute=30" -d "rate_limit_provenance=self-imposed" \
-  -d "domain_topic=agriculture"
+  --topic agriculture
 ```
 
-Add `--local-only` to generate and check without touching GitHub. The script generates
+`--topic` names the GitHub topic for the domain, added beside `xippios-sdk`, `python`
+and `mcp` (conventions §13); it is no copier answer. `--evidence FILE`, markdown list
+items, puts the evidence for the answers under the PR body's Assumptions. Add
+`--local-only` to generate and check without touching GitHub, where `--topic` may be
+left out; it prints the PR body instead. The script generates
 from this template's GitHub URL at its latest tag, so `.copier-answers.yml` records a
 source that `copier update` can reach from any machine. It refuses to create a repository
 while the organisation's default branch is not `main`: the `sdk-main-protection` ruleset
@@ -54,7 +60,7 @@ afterwards by rename or push.
 | Question | Meaning | Example |
 | --- | --- | --- |
 | `source_slug` | provider, plus API when one provider has several; names the repo, the distribution and the import | `usda-nass` |
-| `source_name` | human name | `USDA NASS Quick Stats` |
+| `source_name` | human name; at most 77 characters, so every generated Python line stays within 100 columns, and no `"` or `\`, which the generated Python quotes | `USDA NASS Quick Stats` |
 | `import_path` | import path under `xippios`; defaults to the slug with dots, so multi-API providers nest (ADR-0006); override for a hyphenated single-API provider | `usda.nass` |
 | `upstream_url` | provider page, linked from the README | `https://quickstats.nass.usda.gov` |
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
@@ -64,10 +70,9 @@ afterwards by rename or push.
 | `api_key_name` | query parameter or header name | `key` |
 | `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, or a self-imposed pace where upstream documents neither, an hourly or daily quota notwithstanding (ADR-0010) | `30` |
 | `rate_limit_burst` | requests let through at once before the pace applies; `1` unless upstream documents a burst | `1` |
-| `rate_limit_provenance` | `documented` or `self-imposed`: where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
-| `domain_topic` | GitHub topic for the domain | `agriculture` |
-| `core_version` | the xippios-core release depended on, rendered `xippios-core~=<version>`, the extras likewise (one core minor, from its `.0` or from the patch that shipped what the source adopts: conventions §12, ADR-0018); default `0.2.1`, the release whose family check `tests/test_family.py` collects | `0.2.1` |
-| `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); removing it before a release, in a PR of its own, raises `core_version` to the release that carries the pinned change: `X.Y.Z` with `Z` the patch that shipped it, or `X.Y.0` when the minor itself did; still one minor | `main` |
+| `rate_limit_provenance` | `documented` or `self-imposed` (upstream documents no per-second or per-minute limit): where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
+| `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, ADR-0018 amendment (c)); default `0.2.1`, the release whose family check `tests/test_family.py` collects | `0.2.1` |
+| `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); empty, the default, for no pin; a release carries none, since `/release-prep` removes it first, in a PR of its own | `main` |
 
 ## What gets generated
 
@@ -85,17 +90,18 @@ sdk-<slug>/
   .gitattributes       docs/upstream/** -text, so upstream files keep their bytes and line endings
 ```
 
-The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit` before
-any endpoint is added. `tests/test_family.py`, one line, collects core's family check,
-which then keeps the layout, the adapters, the task shapes, the README status table, the
-template tag and the core bound honest as tasks are added. A generated package is
-read-only: the template renders no write tools. `ci.yml` also requires a CHANGELOG entry
-on every PR but a release, an adoption or Dependabot's, and warns on a fixture file over
-256 KiB; `publish.yml` is the release train; `gates.yml` calls the merge gates as jobs
-once Johannes sets the repository variable `GATES_CALLER`. `live.yml` runs every `live`
-test every night and on demand. Its start time derives from the slug, between 01:00 and
-05:59 UTC, so sources that share a key do not start together; only its pytest step sees
-the key, from the org secret named by `api_key_env`.
+The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit`
+before any endpoint is added. `tests/test_family.py`, one line, collects core's family
+check, which then keeps the layout, the adapters, the task shapes, the README status
+table, the template tag and the core bound honest as tasks are added. A generated
+package is read-only: the template renders no write tools. `ci.yml` also requires a
+CHANGELOG entry on every PR but a release or Dependabot's, an adoption PR's included
+(conventions §15 item 9), and warns on a fixture file over 256 KiB; `publish.yml` is the
+release train; `gates.yml` calls the merge gates as jobs once Johannes sets the
+repository variable `GATES_CALLER`. `live.yml` runs every `live` test every night and on
+demand. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources
+that share a key do not start together; only its pytest step sees the key, from the org
+secret named by `api_key_env`.
 
 ## Updating generated repositories
 

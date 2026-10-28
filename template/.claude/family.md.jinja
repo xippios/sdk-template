@@ -93,7 +93,7 @@ key patterns, and for the personal identifiers the package keeps out of its proj
 ```bash
 uv sync --all-extras
 uv run pytest                      # offline, replays fixtures
-uv run pytest -m live              # needs XIPPIOS_LIVE_TESTS=1, and the key where there is one
+uv run pytest -m live --tb=short   # needs XIPPIOS_LIVE_TESTS=1, and the key where there is one
 
 uv run ruff check . && uv run ruff format --check .
 uv run mypy
@@ -105,9 +105,12 @@ the network and skips the rate limiter's waits, and a keyed package sends its pl
 key (`CLAUDE.md`, Commands). A test that asserts a limiter wait or a quota pause is marked
 `rate_limited`, one that must reach the network `network`.
 
-`.github/workflows/live.yml` runs `uv run pytest -m live` with `XIPPIOS_LIVE_TESTS=1`
-nightly, at the time `CLAUDE.md` names, and on demand from the Actions tab; pull requests
-never run live tests.
+`.github/workflows/live.yml` runs `uv run pytest -m live --tb=short` with
+`XIPPIOS_LIVE_TESTS=1` nightly, at the time `CLAUDE.md` names, and on demand from the
+Actions tab; pull requests never run live tests. Every live run takes `--tb=short`, which
+keeps a failing test's frame arguments, a raw upstream payload among them, out of a log
+that is public; pytest's assertion introspection still prints the values an `assert`
+compares, so a live test asserts on shapes and counts, never on a raw payload.
 
 ## Workflow rules
 
@@ -121,8 +124,9 @@ never run live tests.
   decision the session made, each backed by a convention, an ADR, a coordination rule, a
   dated decision of Johannes's or `gap, row N`. The reviewer judges the PR against
   sdk-core's `docs/review-checklist.md`.
-- Every PR but a release, an adoption or Dependabot's adds an entry under Unreleased in
-  `CHANGELOG.md`; `ci.yml` fails without one (conventions §12).
+- Every PR but a release or Dependabot's adds an entry under Unreleased in
+  `CHANGELOG.md`, an adoption PR's naming the core, template and conventions versions it
+  adopts (conventions §15 item 9); `ci.yml` fails without one (conventions §12).
 - Releases follow the release train (conventions §12): `/release-prep` opens a release
   PR that changes no file but `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`,
   `CLAUDE.md` and `docs/handover.md` (and `scripts/check-siblings.sh` where the source

@@ -9,7 +9,7 @@ from xippios.core import UpstreamModel, load_json
 
 __all__ = ["PACKAGED_LISTS", "PackagedValues", "packaged_values"]
 
-PACKAGE = "xippios.{{ source_pkg }}"
+PACKAGE = "xippios.{{ import_path }}"
 
 PACKAGED_LISTS: tuple[str, ...] = ()
 """Names of the lists that ship inside the package; keep in step with the refresh script."""

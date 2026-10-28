@@ -56,16 +56,33 @@ git -C "$snapshot" -c user.name=prove -c user.email=prove@example.invalid \
   -c commit.gpgsign=false commit -q --no-verify -m "the working tree of sdk-template"
 git -C "$snapshot" -c tag.gpgsign=false tag "v$version"
 
-"$here/scripts/new-source.sh" "$slug" --local-only --dest "$dest" --template "$snapshot" \
+# The evidence file and the topic go through the same path as in a real run: the PR body
+# new-source.sh prints under --local-only lists them under Assumptions.
+evidence="$work/evidence.md"
+echo "- Every answer is the proof's own: api.example.org is no upstream." > "$evidence"
+"$here/scripts/new-source.sh" "$slug" --local-only --topic example-domain \
+  --evidence "$evidence" --dest "$dest" --template "$snapshot" \
   -d "source_name=Example Data Service" \
   -d "upstream_url=https://api.example.org" \
   -d "upstream_docs_url=https://api.example.org/docs" \
   -d "api_base_url=https://api.example.org/v1" \
   "${key[@]}" \
   -d "rate_limit_per_minute=120" \
-  -d "domain_topic=example-domain" \
   -d "core_git_ref=$core_ref" \
-  "${extra[@]}"
+  "${extra[@]}" | tee "$work/new-source.log"
+
+echo
+echo "==> the printed PR body: Enforced by CI ticked, no Adoption PR block, the assumptions"
+body="$(sed -n "/^==> the scaffold PR's body/,/^generated and verified/p" "$work/new-source.log")"
+ci_block="$(awk '/^### Enforced by CI/ { on = 1; next } /^##/ { on = 0 } on' <<<"$body")"
+fail() { echo "error: the printed PR body: $1" >&2; exit 1; }
+grep -q '^- \[x\] ' <<<"$ci_block" || fail "no ticked item under Enforced by CI"
+! grep -q '^- \[ \] ' <<<"$ci_block" || fail "an unticked item under Enforced by CI"
+! grep -q '^### Adoption PR' <<<"$body" || fail "the Adoption PR block is kept"
+grep -qxF -- "- The GitHub topic for the domain: \`example-domain\`." <<<"$body" \
+  || fail "no topic under Assumptions"
+grep -qxF -- "$(cat "$evidence")" <<<"$body" || fail "no evidence under Assumptions"
+echo "$(grep -c '^- \[x\] ' <<<"$ci_block") items ticked, no Adoption PR block, topic and evidence listed"
 
 echo
 echo "==> refresh_reference.py --render-only renders the shipped enums.py unchanged"
