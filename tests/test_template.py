@@ -94,6 +94,7 @@ EXPECTED_FILES = [
     "tests/fixtures/README.md",
     "docs/upstream/FETCHED.md",
     "CLAUDE.md",
+    ".claude/family.md",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
@@ -270,8 +271,8 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
     dst = generate(template_src, tmp_path / "repo", source_slug="ex-api", **keyed(""))
     pkg = "src/xippios/ex/api"
     mine = [f"{pkg}/{n}" for n in ["tasks.py", "_client.py", "__init__.py", "api/__init__.py"]]
-    mine.append("tests/test_tasks.py")
-    templates = ["CLAUDE.md", "tests/conftest.py", f"{pkg}/mcp.py"]
+    mine += ["tests/test_tasks.py", "CLAUDE.md"]
+    templates = [".claude/family.md", "tests/conftest.py", f"{pkg}/mcp.py"]
     for rel in [*mine, *templates]:
         (dst / rel).write_text("# edited\n")
     generate(template_src, dst, source_slug="ex-api", **keyed(""))
@@ -282,7 +283,7 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
 
 
 def test_the_files_a_source_fills_are_one_list(template_src: Path, tmp_path: Path) -> None:
-    """The generated contract and /adopt-release name every protected path, in skip order."""
+    """The family rules and /adopt-release name every protected path, in skip order."""
     patterns = yaml.safe_load((template_src / "copier.yml").read_text())["_skip_if_exists"]
     names = [
         f"`{p.removeprefix('src/xippios/{{ package_dir }}/').replace('/**', '/')}`"
@@ -290,7 +291,8 @@ def test_the_files_a_source_fills_are_one_list(template_src: Path, tmp_path: Pat
     ]
     listing = ", ".join(names[:-1]) + f" and {names[-1]}"
     dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
-    for rel in ["CLAUDE.md", ".claude/commands/adopt-release.md"]:
+    assert names[-1] == "`CLAUDE.md`", "the facts are the source's"
+    for rel in [".claude/family.md", ".claude/commands/adopt-release.md"]:
         assert listing in " ".join((dst / rel).read_text().split()), rel
 
 
@@ -413,10 +415,11 @@ def test_rate_limit_renders_pace_burst_and_provenance(generated: tuple[str, Path
     pace = f"RATE_LIMIT = RateLimit(per_minute={answers['rate_limit_per_minute']}, burst={burst})"
     assert pace in client
     claude = (dst / "CLAUDE.md").read_text()
+    family = (dst / ".claude/family.md").read_text()
     row = f"| Rate limit | {answers['rate_limit_per_minute']} requests per minute, burst {burst}; "
     assert row in claude
     assert "# config = policy.install(config)" in client, "ADR-0015, a commented scaffold"
-    assert "one `QuotaPolicy` installed on `config`" in " ".join(claude.split())
+    assert "one `QuotaPolicy` installed on `config`" in " ".join(family.split())
     if answers.get("rate_limit_provenance") == "self-imposed":
         assert "# A self-imposed pace: upstream documents no limit" in client
         assert "a self-imposed pace, upstream documents none (ADR-0010)" in claude
@@ -708,6 +711,8 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Pa
     if env_var:
         step = "Only its `uv run pytest -m live` step sees the key"
         assert f"{step}, from the org secret `{env_var}`." in claude
+    else:
+        assert "The API needs no key, so the workflow uses no secret." in claude
 
 
 def live_start(dst: Path) -> tuple[int, int]:
@@ -755,25 +760,60 @@ def test_generated_tests_need_no_key(generated: tuple[str, Path]) -> None:
 
 
 def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> None:
-    """The http docstring states ADR-0007; the CLAUDE.md names every namespace level."""
+    """The http docstring states ADR-0007; the CLAUDE.md names every namespace level, the
+    family rules forbid an ``__init__.py`` at any of them."""
     name, dst = generated
     pkg = package_dir(VARIANTS[name])
     http = (dst / f"src/xippios/{pkg}/http.py").read_text()
     assert "is a ``GET`` with query parameters" in http
     assert "is a ``POST`` whose JSON body is keyed by parameter name (ADR-0007)" in http
     claude = (dst / "CLAUDE.md").read_text()
+    family = (dst / ".claude/family.md").read_text()
+    flat = " ".join(claude.split())
     if "/" in pkg:
         provider = pkg.rsplit("/", 1)[0]
-        assert f"or `src/xippios/{provider}/__init__.py`, the provider level" in claude
+        assert f"and so is `src/xippios/{provider}/`, the provider level" in flat
     else:
         assert "the provider level" not in claude
+    assert f"The import path is `xippios.{pkg.replace('/', '.')}` (ADR-0006)" in flat
+    never = "nor an `__init__.py` at a level between it and the package (the provider level"
+    assert never in " ".join(family.split()), "every namespace level, in every source"
     assert ".github/workflows/live.yml" in claude
-    assert "Hand-apply" in claude
-    assert "`/adopt-release <tag>` walks it" in claude, "conventions §15, ADR-0018"
-    assert "`tests/conftest.py` and `tests/test_family.py` among them" in " ".join(claude.split())
+    assert "Hand-apply" in family
+    assert "`/adopt-release <tag>` walks it" in family, "conventions §15, ADR-0018"
+    assert "`tests/conftest.py` and `tests/test_family.py` among them" in " ".join(family.split())
     assert ("xippios_placeholder_key_envs" in claude) is bool(VARIANTS[name]["api_key_env"])
-    assert "(ADR-0017)" in claude
+    assert "xippios_placeholder_key_envs" not in family, "the same file for every source"
+    assert "(ADR-0017)" in family
     assert "| Write tools | no, this package is read-only |" in claude, "conventions §8"
+
+
+# Claude Code imports a line `@<path>` relative to the importing file, never one inside
+# backticks or a code block, and cuts a file that loads on demand at 40,000 characters.
+FAMILY_RULES = ROOT / "template/.claude/family.md.jinja"
+IMPORT_LINE = "@.claude/family.md"
+SDK_CORE_DOCS = "https://github.com/xippios/sdk-core/blob/main/docs/"
+
+
+def test_claude_md_imports_the_family_rules(generated: tuple[str, Path]) -> None:
+    """The source's CLAUDE.md holds its facts and imports the family rules on the line after
+    its intro; the family rules hold no Jinja, so they render the same in every source."""
+    _, dst = generated
+    claude = (dst / "CLAUDE.md").read_text()
+    family = (dst / ".claude/family.md").read_text()
+    title, intro, first = claude.split("\n\n")[:3]
+    assert title.startswith("# sdk-"), title
+    assert intro.startswith("`xippios-"), intro
+    assert first == IMPORT_LINE, "the import on a line of its own, first after the intro"
+    assert [line for line in claude.splitlines() if line.startswith("@")] == [IMPORT_LINE]
+    assert family == FAMILY_RULES.read_text(), "no Jinja: identical in every source"
+    assert not [line for line in family.splitlines() if line.startswith("@")], "no import"
+    for doc in ["conventions.md", "definition-of-done.md", "review-checklist.md"]:
+        assert SDK_CORE_DOCS + doc in family, doc
+    assert "https://github.com/xippios/sdk-core/tree/main/docs/adr" in family
+    for text in [claude, family]:
+        assert "../" not in text, "a relative path leaves the repository (worktree, GitHub)"
+        assert len(text) < 40_000, "Claude Code cuts a file that loads on demand"
 
 
 def test_generated_tree_names_no_source_and_no_workspace_file(generated: tuple[str, Path]) -> None:
@@ -938,10 +978,14 @@ HUMAN_TAGS = re.compile(r"\btag v[0-9<]|push the tag|human tags|\bgit tag\b")
 
 def test_no_instruction_tells_a_human_to_tag() -> None:
     """The release train (conventions §12): a release PR's merge tags, through a workflow."""
+    scanned = set()
     for name in INSTRUCTION_FILES:
         root = ROOT / name
         for path in [root] if root.is_file() else sorted(root.rglob("*")):
             if not path.is_file() or ".github/workflows" in path.as_posix():
                 continue
+            scanned.add(path.relative_to(ROOT).as_posix())
             for number, line in enumerate(path.read_text().splitlines(), 1):
                 assert not HUMAN_TAGS.search(line), f"{path.relative_to(ROOT)}:{number}: {line}"
+    generated_contract = {"template/CLAUDE.md.jinja", "template/.claude/family.md.jinja"}
+    assert generated_contract <= scanned, "the facts and the family rules alike"

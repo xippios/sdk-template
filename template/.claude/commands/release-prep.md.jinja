@@ -47,7 +47,7 @@ removal of a core pin (step 1) and the refresh of packaged reference data (step 
 9. Open the PR with the definition-of-done checklist, the live calls it spent counted
    and its `## Decisions taken` block. After the reviewer's `ready`, if the `merge-class`
    check says `auto`, the session enables auto-merge from the family workspace root, the
-   directory that holds the family `CLAUDE.md`, because this repository's
+   directory that holds the workspace's own `CLAUDE.md`, because this repository's
    `.claude/settings.json` denies `gh pr merge`; `-R` names the repository, which `gh`
    cannot infer there:
    `gh pr merge --auto --squash -R xippios/sdk-{{ source_slug }} <number>`. GitHub

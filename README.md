@@ -7,8 +7,9 @@ generated repository conforms to the family's
 [ADRs](https://github.com/xippios/sdk-core/tree/main/docs/adr) out of the box: the
 three-layer layout, `xippios-core` client and models, MCP server and FastAPI router wired
 to the task layer, test harness with the live-test gate and core's family check, CI with
-the required `ci` check, the release train with trusted publishing, pre-commit, and a
-`CLAUDE.md` plus slash commands for the sessions that will maintain it.
+the required `ci` check, the release train with trusted publishing, pre-commit, and, for
+the sessions that will maintain it, slash commands and a `CLAUDE.md` of the package's
+facts that imports the family rules from `.claude/family.md`.
 
 ## Creating a source repository
 
@@ -78,6 +79,7 @@ sdk-<slug>/
   docs/upstream/       FETCHED.md
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
                        adopt-release
+  .claude/family.md    the family rules, imported by CLAUDE.md (the package's facts)
   .claude/settings.json  .github/workflows/{ci,publish,gates,live}.yml  .github/PULL_REQUEST_TEMPLATE.md
   CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
   .gitattributes       docs/upstream/** -text, so upstream files keep their bytes and line endings
@@ -115,17 +117,17 @@ to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the a
 without moving the template). Files listed under `_skip_if_exists` in `copier.yml` (the
 package `__init__.py`, the client, models, endpoint wrappers, the task layer, the
 packaged lists and enums, reference data, scripts, the task and live tests and the
-fixtures, upstream snapshot, README and CHANGELOG) are never overwritten
+fixtures, upstream snapshot, README, CHANGELOG and CLAUDE.md) are never overwritten
 once they exist, so a template fix to one of them does not reach existing repositories by
 itself; one the template stops rendering, though, is deleted by the update where the
 repository's earlier render had it, the source's content included.
 [CHANGELOG.md](CHANGELOG.md) lists those fixes per release under **Hand-apply**:
 path, change, reason; port each one by hand in the same PR. A new file under those
 patterns is created by the update where the repository has none of that name. Every other
-file is the template's: `tests/conftest.py` and `tests/test_family.py` among them are
-re-rendered, and a source's own lines in them are merged three ways, conflicts marked. A
-template-owned file a release removes is deleted by the update, a source's own lines in
-it included, so the release's CHANGELOG says where they move first.
+file is the template's: `.claude/family.md`, `tests/conftest.py` and `tests/test_family.py`
+among them are re-rendered, and a source's own lines in them are merged three ways,
+conflicts marked. A template-owned file a release removes is deleted by the update, a
+source's own lines in it included, so the release's CHANGELOG says where they move first.
 
 ## Developing the template
 
