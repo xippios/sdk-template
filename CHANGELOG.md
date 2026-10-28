@@ -668,12 +668,15 @@ ports the Hand-apply list below by hand.
   replaces the copies and finds the siblings itself, so no sibling list is kept by hand
   and a release no longer edits the script; a copy identical to the render is the
   template's for the merge classes, and the deleted script is no protected path.
-- `tests/fixtures/README.md` — the update deletes it: copier 9.19.1 deletes a
-  skip-listed file the template stops rendering, a line of the source's own included,
-  with no conflict marker, and leaves the recorded fixtures beside it as they are
-  (checked); every source's copy but sdk-cashctrl's is the template's text byte for
-  byte, so nothing of its own is lost, and sdk-cashctrl, whose copy carries lines of its
-  own, moves them first should it ever update — the fixture rule lives in
+- `tests/fixtures/README.md` — the update deletes it: copier 9.19.1 deletes a skip-listed
+  file the template stops rendering, a line of the source's own included, with no
+  conflict marker, and leaves the recorded fixtures beside it as they are (checked); a
+  copy that is the template's text byte for byte loses nothing, but sdk-eurostat's and
+  sdk-cashctrl's carry lines of their own, which each moves before its update:
+  sdk-eurostat its paragraphs on the parser samples under `files/`, to the
+  "`<source name>` specifics" section of its `CLAUDE.md`, as a note on its own fixtures,
+  or to `tests/fixtures/files/README.md`, the samples' table it keeps; sdk-cashctrl,
+  which stays on v0.2.2, only should it ever update — the fixture rule lives in
   `/record-fixture` and conventions §10.
 - `tests/test_tasks.py` — the docstring is its purpose and a pointer to conventions §10,
   `/add-endpoint` and `/record-fixture`; the `sent_query` and `sent_urls` advice it
