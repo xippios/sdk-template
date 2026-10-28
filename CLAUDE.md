@@ -36,17 +36,19 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   and `pre-commit` out of the box. `scripts/prove.sh` is the proof; run it before every PR
   and paste its tail into the PR description.
 - Files a session fills with source content (`__init__.py`, `_client.py`, `models.py`,
-  `api/`, `tasks.py`, `tasks_write.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
-  `tests/test_tasks.py`, `tests/test_tasks_write.py`, `tests/test_live.py`,
-  `tests/fixtures/`, `docs/upstream/`, `README.md`, `CHANGELOG.md`) are listed in
-  `_skip_if_exists` so `copier update` never overwrites them; copier renders the patterns,
-  so those inside the package name `{{ package_dir }}`, never `**`, which would match a
-  whole package named like a protected directory (`example-api`'s `xippios/example/api/`).
+  `api/`, `tasks.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
+  `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
+  `README.md`, `CHANGELOG.md`) are listed in `_skip_if_exists` so `copier update` never
+  overwrites them; copier renders the patterns, so those inside the package name
+  `{{ package_dir }}`, never `**`, which would match a whole package named like a
+  protected directory (`example-api`'s `xippios/example/api/`).
   Every other rendered file is the template's and updates with it, `tests/conftest.py`
   and `tests/test_family.py` among them: keep in those only what every source shares.
   What every source shares and can be tested belongs in core's family check, not in a
   rendered test. A template-owned file the template removes is deleted by `copier update`,
-  a source's own lines in it included: the CHANGELOG says where they move first.
+  a source's own lines in it included: the CHANGELOG says where they move first. So is a
+  file under `_skip_if_exists` the template stops rendering, where the repository's
+  earlier render had it, `_skip_if_exists` notwithstanding (copier 9.19.1).
 - Workflow files are copied verbatim (no `.jinja`) so GitHub's `${{ }}` never meets Jinja,
   with one exception: `live.yml.jinja` is rendered, because the secret its pytest step
   reads is named by the `api_key_env` answer and its start time comes from

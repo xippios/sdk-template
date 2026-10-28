@@ -31,10 +31,10 @@ of an adoption.
    `git -C ../sdk-core show vX.Y.Z:<path>` in the same workspace).
 
 3. **Items 1 and 2: the core floor and the template.** First move the tests of the
-   source's own out of every file the template release removes, into `tests/test_tasks.py`
-   (or `tests/test_tasks_write.py`), as the release's CHANGELOG says, and commit: the
-   update deletes such a file, a source's own lines in it included, with no conflict
-   marker. If the update ran first, the deleted file is still in the last commit, and
+   source's own out of every file the template release removes, into `tests/test_tasks.py`,
+   as the release's CHANGELOG says, and commit: the update deletes such a file, a source's
+   own lines in it included, with no conflict marker. If the update ran first, the deleted
+   file is still in the last commit, and
    `git show HEAD:tests/test_adapters.py` brings its tests back to move (v0.2.1 removes it
    and `tests/test_layout.py`). Then run
 
@@ -47,14 +47,13 @@ of an adoption.
    (`tests/conftest.py` and `tests/test_family.py` among them). Keep the template's side
    and carry over what the source added on purpose, such as a fixture of its own in
    `conftest.py`. The files the source fills, `__init__.py`, `_client.py`, `models.py`,
-   `api/`, `tasks.py`, `tasks_write.py`, `params.py`, `enums.py`, `reference/`,
-   `scripts/`, `tests/test_tasks.py`, `tests/test_tasks_write.py`, `tests/test_live.py`,
-   `tests/fixtures/`, `docs/upstream/`, `README.md` and `CHANGELOG.md`, are never touched
-   by the update. Then `uv lock` and `uv sync --all-extras`. `pyproject.toml` depends on
-   `xippios-core~=X.Y.Z`, its `mcp`, `http` and `testing` extras likewise, with no
-   `[tool.uv.sources]` left: `~=X.Y.0`, or `~=X.Y.Z` when patch `Z` shipped what the
-   source adopts (`~=0.2.1` for template v0.2.1), still one minor (conventions §12,
-   ADR-0018 amendment (c)).
+   `api/`, `tasks.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
+   `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
+   `README.md` and `CHANGELOG.md`, are never touched by the update. Then `uv lock` and
+   `uv sync --all-extras`. `pyproject.toml` depends on `xippios-core~=X.Y.Z`, its `mcp`,
+   `http` and `testing` extras likewise, with no `[tool.uv.sources]` left: `~=X.Y.0`, or
+   `~=X.Y.Z` when patch `Z` shipped what the source adopts (`~=0.2.1` for template
+   v0.2.1), still one minor (conventions §12, ADR-0018 amendment (c)).
 
 4. **Hand-apply.** Port every bullet of every Hand-apply list after `_commit` by hand:
    path, change, reason. A bullet whose file the source changed is ported in the

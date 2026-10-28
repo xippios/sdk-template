@@ -28,9 +28,6 @@ testing = ["xippios-core[testing]~={{ core_version }}"]
 
 [project.scripts]
 xippios-{{ source_slug }}-mcp = "xippios.{{ source_pkg }}.mcp:run"
-{% if needs_write_tools %}
-xippios-{{ source_slug }}-mcp-write = "xippios.{{ source_pkg }}.mcp_write:run"
-{% endif %}
 
 [project.urls]
 Homepage = "https://github.com/xippios/sdk-{{ source_slug }}"

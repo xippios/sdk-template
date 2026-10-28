@@ -12,7 +12,3 @@ All notable changes to this project are documented here. The format follows
   client for {{ source_name }}, empty task layer, MCP server and FastAPI router
   wired to it, test harness with core's family check, CI, the nightly live tests and
   the release train, in which a release PR's merge tags and publishes.
-{% if needs_write_tools %}
-  The write server, `xippios-{{ source_slug }}-mcp-write`, serves the empty
-  `tasks_write.py` as confirm-gated tools.
-{% endif %}

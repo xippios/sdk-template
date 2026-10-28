@@ -8,14 +8,55 @@ was made from in `.copier-answers.yml`.
 Every release ends with a **Hand-apply** list. `copier update` carries a template change
 into the files it renders, but never touches a file under `_skip_if_exists` in
 `copier.yml` once that file exists (the package `__init__.py`, the client, models,
-endpoint wrappers, the read and write task layers, the packaged lists and enums,
-reference data, scripts, the task, write and live tests and the fixtures, upstream
-snapshot, README and CHANGELOG). Each change to such a file is one bullet,
+endpoint wrappers, the task layer, the packaged lists and enums, reference data,
+scripts, the task and live tests and the fixtures, upstream snapshot, README and
+CHANGELOG). Each change to such a file is one bullet,
 `` - `<path>` — <what> — <why> ``; port it by hand in the same `chore/template-update`
 PR. A new file under those patterns is created by the update where the repository has no
 file of that name. The list starts with 0.1.5; earlier tags are not listed.
 
 ## [Unreleased]
+
+### Removed
+
+- The write side. sdk-cashctrl stands alone (Johannes's decision of 2026-10-25,
+  ADR-0024): the one source with write tools keeps its write server and tests it
+  itself, on its last template tag, and the template renders read-only packages only.
+  Gone are the `needs_write_tools` question and what it rendered: `mcp_write.py` with
+  the `xippios-<slug>-mcp-write` entry point in `pyproject.toml`, the `tasks_write.py`
+  scaffold, the generated `tests/test_tasks_write.py` (confirm last and documented), the
+  write lines of the generated `README.md`, `CLAUDE.md`, `CHANGELOG.md` and `live.yml`,
+  and the two `_skip_if_exists` entries; `/adopt-release` and the generated `CLAUDE.md`
+  no longer list `tasks_write.py` and `tests/test_tasks_write.py` among the files a
+  source fills. Conventions §8 still governs a write server: the `confirm` check and the
+  loopback rule are core's.
+- The `basic` key location (`BasicKeyAuth`, the key as the HTTP basic user name), which
+  only sdk-cashctrl answered: `api_key_location` offers `query`, `header` and `bearer`,
+  and `api_key_name` is asked for `query` and `header` as before.
+- Template-internal: the template tests drop the `basic` case and every write
+  assertion; the variants that carried the write side or `basic` stay under new names
+  with their other answers (`header-key`, `long-name`, and `bearer-git-core`, a
+  git-pinned core now with a bearer key). They check that copier refuses
+  `api_key_location=basic` and that the generated `CLAUDE.md` calls the package
+  read-only.
+
+### Hand-apply
+
+None. The scaffolds of `_client.py`, `README.md` and `CHANGELOG.md` lose their write and
+`basic` branches and the README's status comment no longer names `tasks_write.__all__`,
+which matters to new repositories only. The two files under `_skip_if_exists` the
+template stops rendering, `src/xippios/<package>/tasks_write.py` and
+`tests/test_tasks_write.py`, exist only in a repository generated with write tools,
+sdk-cashctrl alone, which stays on its last template tag. `copier update` to this
+release would delete both, a write task of its own included, with no conflict marker,
+and `mcp_write.py` with them; drop the `-mcp-write` entry point from `pyproject.toml`;
+turn its `basic` answer into the default `query` and add `api_key_name: key`; and
+re-render the generated `CLAUDE.md`'s credentials row as the `key` query parameter
+while the skip-listed `_client.py` keeps `BasicKeyAuth` (checked with copier 9.19.1).
+No other repository has them.
+
+**Updating from 0.2.2.** `copier update` drops `needs_write_tools` from
+`.copier-answers.yml` (checked with copier 9.19.1); no `-d` answer is needed for it.
 
 ## [0.2.2] - 2026-10-27
 
