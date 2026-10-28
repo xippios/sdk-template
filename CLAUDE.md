@@ -31,12 +31,12 @@ template/                what gets generated; *.jinja files are rendered, others
   tests/test_family.py   one line collecting xippios.core.testing.family
   .gitattributes         docs/upstream/** -text: the snapshot stays byte for byte (CRLF, mixed endings)
 scripts/new-source.sh    generate + checks + GitHub repo + PR (the /new-source command)
-scripts/prove.sh         generate sdk-example-api (--keyless: sdk-example; --keyless-nested: sdk-example-files)
-                         from the working tree and run every check on it
+scripts/prove.sh         generate sdk-example-api (--keyless: sdk-example; --keyless-nested: sdk-example-files;
+                         --gateway: sdk-example-gov) from the working tree and run every check on it
 tests/test_template.py   the family's variants, each rendered once; ruff on the output, the answers' rules,
                          skip-if-exists behaviour
 CHANGELOG.md             template releases, each with its Hand-apply list (Rules)
-.github/workflows/ci.yml       the template's own CI: tests and the three proofs
+.github/workflows/ci.yml       the template's own CI: tests and three proofs
 .github/workflows/release.yml  tags vX.Y.Z from the top CHANGELOG heading on push to main (Workflow rules)
 .github/workflows/gates.yml    core's gates.yml, byte for byte the template's copy, off until GATES_CALLER (Rules)
 .claude/commands/new-source.md
@@ -45,15 +45,19 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 ## Rules
 
 - Generated code must pass `ruff check`, `ruff format --check`, `mypy --strict`, `pytest`
-  and `pre-commit` out of the box. `scripts/prove.sh` is the proof, in the family's three
+  and `pre-commit` out of the box. `scripts/prove.sh` is the proof, in the family's four
   shapes: keyed and nested (no flag), keyless and flat (`--keyless`), keyless and nested
-  (`--keyless-nested`); CI runs all three. Run them before every PR and paste their tails
-  into the PR description. A dependent (`source_dependencies`) has no proof of its own,
-  since a dependency that is not on PyPI cannot be installed; the template tests cover
-  its render.
+  (`--keyless-nested`) and nested behind the api.data.gov gateway (`--gateway`, on core
+  0.3.0, the first release with `xippios.core.data_gov`). CI runs the first three; the
+  gateway proof runs locally and stops at mypy on the generated
+  `scripts/refresh_reference.py` until that script takes core 0.3.0's `render_enums`.
+  Run them before every PR and paste their tails into the PR description. A dependent
+  (`source_dependencies`) has no proof of its own, since a dependency that is not on PyPI
+  cannot be installed; the template tests cover its render.
 - `tests/test_template.py` renders each of the family's variants once per session, keyed
-  nested, keyless flat, keyless nested and a dependent (keyless nested with
-  `source_dependencies`, one open and one keyed); a check no answer changes reads one
+  nested, keyless flat, keyless nested, a dependent (keyless nested with
+  `source_dependencies`, one open and one keyed) and one behind the api.data.gov gateway
+  (`gateway`, which derives the key answers); a check no answer changes reads one
   render, and an answer outside the variants (a key location, a core pin, a name at its
   bound, an `import_path` override, a flat source with a dependency) is tested by its own
   rule. The tests assert mechanics, never rendered prose: a file rendered or not, a name
@@ -139,6 +143,7 @@ uv run pytest                   # template tests (fast: generation + ruff on the
 scripts/prove.sh                  # full proof against the xippios-core release on PyPI
 scripts/prove.sh --keyless        # the same for a keyless flat source
 scripts/prove.sh --keyless-nested # the same for a keyless nested source
+scripts/prove.sh --gateway        # the same for a nested source behind api.data.gov (core 0.3.0)
 scripts/prove.sh --core-ref main  # against unreleased core, before a core change lands
 uv run ruff check . && uv run ruff format --check .
 ```

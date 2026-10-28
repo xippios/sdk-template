@@ -22,7 +22,7 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
    yet): `X.Y.Z` with `Z` the patch that shipped it, or `X.Y.0` when the minor itself
    did; still one minor. On a `chore/` branch of its own, remove the pin and raise the
    bound to that release in one step, `xippios-core~=X.Y.Z`:
-   `uvx copier update --defaults --vcs-ref=:current: -d core_git_ref= -d core_version=X.Y.Z`
+   `uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=:current: -d core_git_ref= -d core_version=X.Y.Z`
    (`:current:` keeps the template version, so only these two answers change). Then
    `uv lock`, the checks, a line under Unreleased in `CHANGELOG.md` (the new core
    bound), and its PR, merged before the release PR: it changes `.copier-answers.yml`,

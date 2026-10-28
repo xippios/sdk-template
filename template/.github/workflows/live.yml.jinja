@@ -17,6 +17,9 @@ on:
 {% if key_envs %}
     # {{ live_schedule.time }} UTC, staggered from the slug (live_schedule in sdk-template's copier.yml)
     # so that sources sharing a key do not start together.
+{% if gateway == 'api.data.gov' %}
+    # The key is api.data.gov's, shared by every source behind the gateway (ADR-0009).
+{% endif %}
 {% else %}
     # {{ live_schedule.time }} UTC, derived from the slug (live_schedule in sdk-template's copier.yml).
 {% endif %}

@@ -81,13 +81,33 @@ api_base_url:
   placeholder: https://quickstats.nass.usda.gov/api
   validator: "{% if not api_base_url.startswith('https://') %}Required; must start with https://{% endif %}"
 
+# The gateway decides the three key answers below: behind api.data.gov they are derived,
+# never asked (ask is false), and still recorded, so the rendered files read them as for
+# any keyed source; their validators refuse another value. A `when` would derive them too,
+# but copier records no answer of a question whose `when` is false.
+gateway:
+  type: str
+  help: >-
+    The shared gateway the API sits behind: api.data.gov for an agency API it fronts
+    (USDA FAS's PSD, ESR and GATS), whose key, documented error answers and hourly quota
+    come from xippios.core.data_gov, core 0.3.0 on (ADR-0009); the key answers then follow
+    from it, DATA_GOV_API_KEY in the X-Api-Key header, and are not asked. none, the
+    default, for every other API.
+  choices:
+    - none
+    - api.data.gov
+  default: none
+
 api_key_env:
   type: str
   help: Environment variable holding the API key, e.g. NASS_API_KEY. Leave empty if the API needs no key.
-  default: ""
+  default: "{{ 'DATA_GOV_API_KEY' if gateway == 'api.data.gov' else '' }}"  # pragma: allowlist secret
+  ask: "{{ gateway == 'none' }}"
   validator: >-
     {% if api_key_env and not (api_key_env | regex_search('^[A-Z][A-Z0-9_]*_API_KEY$')) %}
     Use UPPER_SNAKE_CASE ending in _API_KEY, e.g. NASS_API_KEY
+    {% elif gateway == 'api.data.gov' and api_key_env != 'DATA_GOV_API_KEY' %}
+    Behind api.data.gov the key is DATA_GOV_API_KEY (ADR-0009): leave it to the gateway answer
     {% endif %}
 
 api_key_location:
@@ -97,14 +117,24 @@ api_key_location:
     query parameter: query
     request header: header
     bearer token in the Authorization header: bearer
-  default: query
+  default: "{{ 'header' if gateway == 'api.data.gov' else 'query' }}"
   when: "{{ api_key_env != '' }}"
+  ask: "{{ gateway == 'none' }}"
+  validator: >-
+    {% if gateway == 'api.data.gov' and api_key_location != 'header' %}
+    Behind api.data.gov the key goes in a header (ADR-0009): leave it to the gateway answer
+    {% endif %}
 
 api_key_name:
   type: str
   help: Name of the query parameter or header that carries the key
   default: "{{ 'key' if api_key_location == 'query' else 'X-Api-Key' }}"  # pragma: allowlist secret
   when: "{{ api_key_env != '' and api_key_location in ['query', 'header'] }}"
+  ask: "{{ gateway == 'none' }}"
+  validator: >-
+    {% if gateway == 'api.data.gov' and api_key_name != 'X-Api-Key' %}
+    Behind api.data.gov the header is X-Api-Key (ADR-0009): leave it to the gateway answer
+    {% endif %}
 
 rate_limit_per_minute:
   type: int
@@ -145,6 +175,8 @@ core_version:
   validator: >-
     {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+\\Z')) %}
     Use a release version, e.g. 0.2.0
+    {% elif gateway == 'api.data.gov' and (core_version.split('.')[:2] | map('int') | list) < [0, 3] %}
+    Behind api.data.gov use 0.3.0 or later: core 0.3.0 brought xippios.core.data_gov
     {% endif %}
 
 core_git_ref:
@@ -216,7 +248,8 @@ key_envs:
     | select | list) | unique | list) | tojson }}
   when: false
 
-_min_copier_version: "9.0.0"
+# 9.19.0 brought `ask`, which the key answers take behind a gateway.
+_min_copier_version: "9.19.0"
 _subdirectory: template
 _templates_suffix: .jinja
 _answers_file: .copier-answers.yml

@@ -44,6 +44,8 @@ scripts/new-source.sh usda-nass \
   --topic agriculture
 ```
 
+A source behind the api.data.gov gateway passes `-d "gateway=api.data.gov"` instead of
+the three key answers, which the gateway answer derives.
 `--topic` names the GitHub topic for the domain, added beside `xippios-sdk`, `python`
 and `mcp` (conventions §13); it is no copier answer. `--evidence FILE`, markdown list
 items, puts the evidence for the answers under the PR body's Assumptions. Add
@@ -65,9 +67,10 @@ afterwards by rename or push.
 | `upstream_url` | provider page, linked from the README | `https://quickstats.nass.usda.gov` |
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
 | `api_base_url` | base URL request paths join onto; required, usually not the provider page | `https://quickstats.nass.usda.gov/api` |
-| `api_key_env` | environment variable with the key; empty for open APIs | `NASS_API_KEY` |
-| `api_key_location` | `query`, `header` or `bearer` | `query` |
-| `api_key_name` | query parameter or header name | `key` |
+| `gateway` | the shared gateway the API sits behind: `api.data.gov` for an API it fronts, whose key, documented error answers and hourly quota the generated client takes from `xippios.core.data_gov`'s `Gateway` (ADR-0009), so `core_version` is 0.3.0 or later; then the three key answers below are derived, `DATA_GOV_API_KEY` in the `X-Api-Key` header, never asked, and recorded as if answered; default `none`, the question's literal default for the merge classes | `none` |
+| `api_key_env` | environment variable with the key; empty for open APIs; behind a gateway, the gateway's | `NASS_API_KEY` |
+| `api_key_location` | `query`, `header` or `bearer`; behind a gateway, the gateway's | `query` |
+| `api_key_name` | query parameter or header name; behind a gateway, the gateway's | `key` |
 | `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, or a self-imposed pace where upstream documents neither, an hourly or daily quota notwithstanding (ADR-0010) | `30` |
 | `rate_limit_burst` | requests let through at once before the pace applies; `1` unless upstream documents a burst | `1` |
 | `rate_limit_provenance` | `documented` or `self-imposed` (upstream documents no per-second or per-minute limit): where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
@@ -126,10 +129,13 @@ reviewer's `ready`, and a `human` adoption waits for Johannes. The generated
 the generated repository:
 
 ```bash
-uvx copier update --defaults --vcs-ref=v0.2.2 -d core_version=0.2.1 -d core_git_ref=
+uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.2.2 -d core_version=0.2.1 -d core_git_ref=
 git diff                             # review; resolve conflicts
 ```
 
+The template needs copier 9.19.0 or later (`_min_copier_version`), whose `ask` setting
+lets the gateway answer derive the key answers and still record them; `--from
+'copier>=9.19'` keeps a stale tool cache from refusing it.
 Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, as above
 to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the answers
 without moving the template). Files listed under `_skip_if_exists` in `copier.yml` (the
@@ -151,11 +157,12 @@ source's own lines in it included, so the release's CHANGELOG says where they mo
 
 ```bash
 uv sync
-uv run pytest           # renders the family's four variants once each and checks them, ruff included
+uv run pytest           # renders the family's five variants once each and checks them, ruff included
 scripts/prove.sh        # full proof against the released core: generate, uv sync, ruff, mypy, pytest, pre-commit
 scripts/prove.sh --core-ref main   # against unreleased core
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one
-scripts/prove.sh --keyless-nested  # a keyless nested source; CI runs all three proofs
+scripts/prove.sh --keyless-nested  # a keyless nested source; CI runs these three proofs
+scripts/prove.sh --gateway         # a nested source behind api.data.gov, on core 0.3.0, run locally
 ```
 
 ## Releasing the template

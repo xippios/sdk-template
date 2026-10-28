@@ -6,16 +6,22 @@
 # the sibling check where the import path nests (none renders where it is flat): with the
 # wheel alone, failing on a conflicting requirement, and warning on a sibling on another
 # core minor. No GitHub involved. The placeholder key is core's plugin's to guarantee, and
-# its own suite tests it. The template's CI runs the three shapes.
+# its own suite tests it. The template's CI runs the first three shapes; --gateway runs
+# locally, and stops at mypy on the generated scripts/refresh_reference.py until that
+# script takes core 0.3.0's render_enums.
 #
-# usage: scripts/prove.sh [--dest DIR] [--core-ref REF] [--keyless | --keyless-nested]
-#                         [--keep] [-d key=value ...]
+# usage: scripts/prove.sh [--dest DIR] [--core-ref REF]
+#                         [--keyless | --keyless-nested | --gateway] [--keep] [-d key=value ...]
 #   --core-ref REF     sdk-core commit to depend on, main or a full SHA; default "" = the
 #                      PyPI release, e.g. --core-ref main to prove against unreleased core
 #   (no shape flag)    a keyed nested source, sdk-example-api (xippios.example.api)
 #   --keyless          a keyless flat source, sdk-example (xippios.example), as eurostat
 #   --keyless-nested   a keyless nested source, sdk-example-files (xippios.example.files),
 #                      as esmis or wasde
+#   --gateway          a nested source behind api.data.gov, sdk-example-gov
+#                      (xippios.example.gov), as psd, esr and gats: the gateway answer
+#                      derives the key answers, and core is 0.3.0, the first release with
+#                      xippios.core.data_gov
 #   --keep             leave the generated repository in place
 set -euo pipefail
 
@@ -31,6 +37,7 @@ while [ $# -gt 0 ]; do
     --core-ref) core_ref="$2"; shift ;;
     --keyless) shape=keyless ;;
     --keyless-nested) shape=keyless-nested ;;
+    --gateway) shape=gateway ;;
     --keep) keep=1 ;;
     -d) extra+=(-d "$2"); shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -39,10 +46,11 @@ while [ $# -gt 0 ]; do
 done
 # The keyed slug nests (example-api → xippios.example.api) so the proof covers ADR-0006;
 # the keyless ones start as the family's keyless sources did, flat as eurostat and nested
-# as esmis or wasde.
+# as esmis or wasde; the gateway one as psd, esr and gats, with no key answer of its own.
 case "$shape" in
   keyless) slug="example"; key=() ;;
   keyless-nested) slug="example-files"; key=() ;;
+  gateway) slug="example-gov"; key=(-d "gateway=api.data.gov" -d "core_version=0.3.0") ;;
   *) slug="example-api"; key=(-d "api_key_env=EXAMPLE_API_KEY" -d "api_key_location=query") ;;
 esac
 work="$(mktemp -d "${TMPDIR:-/tmp}/sdk-template-prove.XXXXXX")"
@@ -104,9 +112,39 @@ refusal="$(grep "Nothing to fetch: fill PAGES" "$work/refresh.err")" \
   || { cat "$work/refresh.err" >&2; exit 1; }
 echo "refused: $refusal"
 
-echo
 # Nested or flat as copier recorded it, so a -d import_path=... answer is proven as rendered.
 import_path="$(sed -n 's/^import_path: //p' "$dest/.copier-answers.yml")"
+if [ "$shape" = gateway ]; then
+  # Offline: core's Gateway gives the client its key, its quota hooks and the first say
+  # in classify, here on an answer in the shape the gateway sends to a refused key.
+  echo
+  echo "==> the gateway answer: the client takes xippios.core.data_gov's Gateway"
+  (cd "$dest" && uv run python - "xippios.$import_path._client" <<'PY'
+import importlib
+import sys
+
+import httpx
+from xippios.core import AuthError
+from xippios.core.data_gov import API_KEY_ENV, KEY_HEADER, Gateway
+
+client = importlib.import_module(sys.argv[1])
+assert client.API_KEY_ENV == API_KEY_ENV, client.API_KEY_ENV
+assert client.auth is client.gateway.auth
+assert (client.auth.header, client.auth.env_var) == (KEY_HEADER, API_KEY_ENV)
+assert client.config.before_request == Gateway.policy.before_request
+assert client.config.observe == Gateway.policy.observe
+refused = httpx.Response(
+    403,
+    json={"error": {"code": "API_KEY_INVALID", "message": "An invalid api_key was supplied."}},
+    request=httpx.Request("GET", client.BASE_URL + "/x"),
+)
+assert isinstance(client.classify(refused), AuthError)
+print(f"{sys.argv[1]}: Gateway({client.SOURCE!r}): auth, policy hooks and classify wired")
+PY
+  )
+fi
+
+echo
 if [[ "$import_path" != *.* ]]; then
   echo "==> no sibling check where the import path is flat (xippios.$import_path)"
   if [ -e "$dest/.github/workflows/siblings.yml" ] || [ -e "$dest/.github/scripts" ]; then

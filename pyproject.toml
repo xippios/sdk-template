@@ -11,7 +11,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-  "copier>=9.4",
+  "copier>=9.19",
   "pytest>=8",
   "ruff>=0.14",
   "pyyaml>=6",

@@ -53,13 +53,34 @@ def keyed(env: str, location: str = "query", name: str | None = None) -> dict[st
     return answers
 
 
+# What the api.data.gov gateway answer derives (ADR-0009): the key's variable, its
+# location and its header, recorded as if answered.
+DATA_GOV = "api.data.gov"
+GATEWAY_KEY = keyed("DATA_GOV_API_KEY", "header", "X-Api-Key")
+
+
+def gateway_of(answers: dict[str, object]) -> str:
+    return str(answers.get("gateway", "none"))
+
+
+def key_answers(answers: dict[str, object]) -> dict[str, object]:
+    """The three key answers a render reads: the gateway's where it is set, else as given."""
+    if gateway_of(answers) == DATA_GOV:
+        return GATEWAY_KEY
+    return {k: v for k, v in answers.items() if k.startswith("api_key_")}
+
+
 # The family's variants (T11 as narrowed): the shapes its sources take. Their pace answers
 # differ so that both provenances and a burst render; the key locations, a core pin and a
 # name at its bound are answers of their own, each tested by its rule below.
 VARIANTS: dict[str, dict[str, object]] = {
-    # sdk-usda-psd's shape: a key, shared with usda-esr and usda-gats, and a nested import
-    # path (ADR-0006).
-    "keyed-nested": {"source_slug": "usda-psd", **keyed("DATA_GOV_API_KEY", "header", "X-Api-Key")},
+    # sdk-usda-nass's shape: a key of its own, sent as a query parameter, and a nested
+    # import path (ADR-0006); no gateway, answered as such.
+    "keyed-nested": {
+        "source_slug": "usda-nass",
+        "gateway": "none",
+        **keyed("NASS_API_KEY", "query", "key"),
+    },
     # sdk-eurostat's: no key, a flat import path.
     "keyless-flat": {
         "source_slug": "eurostat",
@@ -88,7 +109,15 @@ VARIANTS: dict[str, dict[str, object]] = {
         ),
         **keyed(""),
     },
-    # The gateway variant (T9) joins here with template v0.3.0's PR 7.
+    # sdk-usda-psd's (and sdk-usda-esr's and sdk-usda-gats's): behind the api.data.gov
+    # gateway (T9, ADR-0009), which derives the key answers, so none is passed; nested.
+    "gateway": {
+        "source_slug": "usda-psd",
+        "gateway": DATA_GOV,
+        "rate_limit_per_minute": 60,
+        "rate_limit_provenance": "self-imposed",
+        "core_version": "0.3.0",
+    },
 }
 # A source on unreleased core: the keyed nested answers with a full-SHA core pin.
 PINNED = {**VARIANTS["keyed-nested"], "core_git_ref": FAKE_CORE_SHA}
@@ -108,7 +137,8 @@ def dependencies(answers: dict[str, object]) -> list[dict[str, str]]:
 
 def key_envs(answers: dict[str, object]) -> list[str]:
     """Every key variable a render reads: the source's own, then its dependencies', once."""
-    keys = [str(answers.get("api_key_env", ""))] + [d["key_env"] for d in dependencies(answers)]
+    own = str(key_answers(answers).get("api_key_env", ""))
+    keys = [own] + [d["key_env"] for d in dependencies(answers)]
     return list(dict.fromkeys(key for key in keys if key))
 
 
@@ -281,9 +311,12 @@ def test_answers_file_round_trips(variant: tuple[str, Path]) -> None:
     answers = yaml.safe_load((dst / ".copier-answers.yml").read_text())
     assert answers["source_slug"] == expected["source_slug"]
     assert answers["import_path"] == package_dir(expected).replace("/", ".")
-    assert answers["api_key_env"] == expected["api_key_env"]
-    if expected["api_key_env"]:
-        assert answers["api_key_location"] == expected["api_key_location"]
+    assert answers["gateway"] == gateway_of(expected), "recorded, the default included"
+    key = key_answers(expected)
+    assert answers["api_key_env"] == key["api_key_env"]
+    if key["api_key_env"]:
+        assert answers["api_key_location"] == key["api_key_location"]
+        assert answers["api_key_name"] == key.get("api_key_name", "key")
     else:
         assert "api_key_location" not in answers, "not asked without a key"
         assert "api_key_name" not in answers
@@ -351,14 +384,15 @@ def test_the_plugin_sends_the_placeholder_unless_live(variant: tuple[str, Path])
 
 def test_rate_limit_renders_pace_burst_and_provenance(variant: tuple[str, Path]) -> None:
     """ADR-0010 decision 1: the pace and the burst in the client and in the facts, and where
-    the pace comes from; a quota's policy commented (ADR-0015)."""
+    the pace comes from; a quota's policy pointed at (ADR-0015), but behind the gateway,
+    whose policy is core's (ADR-0009)."""
     name, dst = variant
     answers = {**BASE_ANSWERS, **VARIANTS[name]}
     per_minute, burst = answers["rate_limit_per_minute"], answers.get("rate_limit_burst", 1)
     self_imposed = answers.get("rate_limit_provenance") == "self-imposed"
     client = (dst / f"src/xippios/{package_dir(answers)}/_client.py").read_text()
     assert f"RATE_LIMIT = RateLimit(per_minute={per_minute}, burst={burst})" in client
-    assert "# config = policy.install(config)" in client
+    assert ("QuotaPolicy" in client) is (gateway_of(answers) == "none"), "the gateway's own"
     assert ("self-imposed" in client) is self_imposed
     claude = (dst / "CLAUDE.md").read_text().splitlines()
     (row,) = [line for line in claude if line.startswith("| Rate limit | ")]
@@ -383,6 +417,58 @@ def test_client_exports_one_sorted_name_per_line(variant: tuple[str, Path]) -> N
     start = lines.index("__all__ = [")
     assert lines[start + 1 : start + 1 + len(names)] == [f'    "{n}",' for n in names]
     assert lines[start + 1 + len(names)] == "]"
+
+
+def test_the_gateway_answer_renders_cores_gateway(variant: tuple[str, Path]) -> None:
+    """T9, ADR-0009: behind api.data.gov the client takes ``xippios.core.data_gov``'s
+    ``Gateway``, its auth, its policy's hooks through ``install`` and its ``classify``
+    asked first; the facts name ``Gateway`` and its shared policy, and ``live.yml`` the
+    shared key. Any other answer renders none of it."""
+    name, dst = variant
+    answers = VARIANTS[name]
+    behind = gateway_of(answers) == DATA_GOV
+    client = (dst / f"src/xippios/{package_dir(answers)}/_client.py").read_text()
+    lines = client.splitlines()
+    assert ("from xippios.core.data_gov import Gateway" in lines) is behind
+    assert ("Gateway" in client) is behind
+    claude = (dst / "CLAUDE.md").read_text().splitlines()
+    (credentials,) = [line for line in claude if line.startswith("| Credentials | ")]
+    (rate,) = [line for line in claude if line.startswith("| Rate limit | ")]
+    assert ("`Gateway`" in credentials) is behind
+    assert ("`Gateway.policy`" in rate) is behind
+    assert ("<!-- " in rate) is not behind, "a quota to name where no gateway keeps it"
+    live = (dst / ".github/workflows/live.yml").read_text()
+    assert (DATA_GOV in live) is behind
+    readme = (dst / "README.md").read_text()
+    assert (DATA_GOV in readme) is behind
+    if not behind:
+        return
+    for line in [
+        "gateway = Gateway(SOURCE)",
+        "config = gateway.install(",
+        "auth = gateway.auth",
+        "client = AsyncClient(config, auth=auth)",
+        '    "gateway",',
+    ]:
+        assert line in lines, line
+    (classify,) = [
+        node
+        for node in ast.parse(client).body
+        if isinstance(node, ast.FunctionDef) and node.name == "classify"
+    ]
+    _, first, second, last = classify.body  # the docstring, then the gateway's say
+    assert ast.unparse(first) == "error = gateway.classify(response)"
+    assert ast.unparse(second) == "if error is not None:\n    return error"
+    assert ast.unparse(last) == "return None"
+    (install,) = [
+        node.value
+        for node in ast.parse(client).body
+        if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "config"
+    ]
+    assert isinstance(install, ast.Call)
+    assert ast.unparse(install.func) == "gateway.install"
+    (config,) = install.args
+    assert "classify=classify" in ast.unparse(config)
 
 
 def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
@@ -869,7 +955,10 @@ def test_adopt_release_runs_the_update_for_this_source(render: Callable[[str], P
     """Conventions §15, ADR-0018: one chore/template-update PR that names the nine items
     and whose commands name this source, the key's ini option only where there is a key,
     and a dependency's minor raised with the core's only where there is one (ADR-0021)."""
-    update = "uvx copier update --defaults --vcs-ref=<tag> -d core_version=X.Y.Z -d core_git_ref="
+    update = (
+        "uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=<tag>"
+        " -d core_version=X.Y.Z -d core_git_ref="
+    )
     items = ["Items 1 and 2", "Items 3 and 4", *(f"Item {n}:" for n in range(5, 10))]
     for name in ["keyed-nested", "keyless-flat", "dependency"]:
         dst = render(name)
@@ -944,10 +1033,10 @@ def test_key_auth_matches_location(
     """Each key location renders its auth, exported, in a ruff-clean ``_client.py``, the one
     Python file the location changes; a keyless client has none; ``basic`` is refused (D35)."""
     clients = {
-        "header": keyed_nested / "src/xippios/usda/psd/_client.py",
+        "query": keyed_nested / "src/xippios/usda/nass/_client.py",
         "": keyless_flat / "src/xippios/eurostat/_client.py",
     }
-    for location in ["query", "bearer"]:
+    for location in ["header", "bearer"]:
         answers = keyed("EX_API_KEY", location)
         dst = generate(template_src, tmp_path / location, source_slug="ex", **answers)
         clients[location] = dst / "src/xippios/ex/_client.py"
@@ -996,7 +1085,8 @@ def test_core_git_ref_pins_core_and_keeps_the_bound(
     git_source = {"git": "https://github.com/xippios/sdk-core.git", "rev": ref}
     assert parsed["tool"]["uv"]["sources"] == {"xippios-core": git_source}
     assert parsed["project"]["dependencies"] == [f"xippios-core~={CORE_DEFAULT}"]
-    assert "uvx copier update --defaults --vcs-ref=:current: -d core_git_ref=" in pyproject
+    update = "uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=:current:"
+    assert f"{update} -d core_git_ref=" in pyproject, "copier 9.19.0 on, _min_copier_version"
     (rev,) = [line for line in pyproject.splitlines() if line.startswith("xippios-core = {")]
     assert "# pragma: allowlist secret" in rev
     if ref == "main":
@@ -1053,7 +1143,8 @@ def test_answers_file_stays_in_the_merge_classes_subset(variant: tuple[str, Path
     ``key: value`` lines only, and free a new answer at its question's literal default, one
     scalar (rule 2). ``source_dependencies`` is a string holding a YAML flow list, so a
     list of dependencies never writes block lines there, and its default, the string
-    ``[]``, is recorded as that one quoted scalar."""
+    ``[]``, is recorded as that one quoted scalar; ``gateway``'s default, ``none``, as
+    one plain scalar."""
     name, dst = variant
     text = (dst / ".copier-answers.yml").read_text()
     for line in text.splitlines():
@@ -1066,6 +1157,12 @@ def test_answers_file_stays_in_the_merge_classes_subset(variant: tuple[str, Path
     assert '\n  default: "[]"\n' in block, "one quoted scalar, a literal for rule 2"
     if not dependencies(VARIANTS[name]):
         assert "\nsource_dependencies: '[]'\n" in text
+    # The gateway answer, which every source before it lacks, is free at its default.
+    assert (QUESTIONS["gateway"]["type"], QUESTIONS["gateway"]["default"]) == ("str", "none")
+    raw = (ROOT / "copier.yml").read_text().split("\ngateway:\n", 1)[1]
+    block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
+    assert "\n  default: none\n" in block, "one plain scalar, a literal for rule 2"
+    assert f"\ngateway: {gateway_of(VARIANTS[name])}\n" in text
 
 
 @pytest.mark.parametrize(
@@ -1099,6 +1196,27 @@ def test_source_dependencies_are_slugs_minors_and_key_variables(
             source_dependencies=value,
             **keyed(""),
         )
+
+
+@pytest.mark.parametrize(
+    ("answers", "refused"),
+    [
+        ({"gateway": "data.gov"}, "gateway"),
+        ({"gateway": DATA_GOV, **keyed("EX_API_KEY", "header")}, "api_key_env"),
+        ({"gateway": DATA_GOV, **keyed("")}, "api_key_env"),
+        ({"gateway": DATA_GOV, **keyed("DATA_GOV_API_KEY")}, "api_key_location"),
+        ({"gateway": DATA_GOV, **keyed("DATA_GOV_API_KEY", "header", "Key")}, "api_key_name"),
+        ({"gateway": DATA_GOV, "core_version": "0.2.1"}, "core_version"),
+    ],
+)
+def test_the_gateway_derives_the_key_answers(
+    template_src: Path, tmp_path: Path, answers: dict[str, object], refused: str
+) -> None:
+    """D84 (1): behind api.data.gov the three key answers are derived, never asked, so an
+    answer that differs from the gateway's is refused rather than rendered beside it, and
+    so is a core before 0.3.0, which has no ``xippios.core.data_gov``."""
+    with pytest.raises(ValueError, match=refused):
+        generate(template_src, tmp_path / "repo", source_slug="ex", **answers)
 
 
 def test_the_sibling_check_names_the_declared_dependencies(render: Callable[[str], Path]) -> None:
@@ -1183,6 +1301,13 @@ def test_answers_file_is_copiers_canonical_form(
     )
     written = (first / ".copier-answers.yml").read_bytes()
     assert b"_commit: v0.0.1\n" in written
+    recorded = yaml.safe_load(written)
+    expected = {**VARIANTS, "pinned": PINNED}[case]
+    assert recorded["gateway"] == gateway_of(expected)
+    key = key_answers(expected)
+    assert recorded["api_key_env"] == key["api_key_env"]
+    for answer, value in key.items() if key["api_key_env"] else []:
+        assert recorded[answer] == value, f"{answer}: recorded, so the re-render reads it back"
     kept = [
         line
         for line in written.decode().splitlines()
@@ -1248,12 +1373,12 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
 
 
 def test_sources_sharing_a_key_start_at_stable_different_times(
-    template_src: Path, tmp_path: Path, keyed_nested: Path
+    template_src: Path, tmp_path: Path, render: Callable[[str], Path]
 ) -> None:
     """ADR-0009: usda-psd, usda-esr and usda-gats share one key and one gateway quota; their
     nightly runs never start together, and a render keeps a repository's time."""
-    shared = VARIANTS["keyed-nested"]
-    starts = {"usda-psd": live_start(keyed_nested)}
+    shared = VARIANTS["gateway"]
+    starts = {"usda-psd": live_start(render("gateway"))}
     for slug in ["usda-esr", "usda-gats"]:
         dst = generate(template_src, tmp_path / slug, **{**shared, "source_slug": slug})
         starts[slug] = live_start(dst)
