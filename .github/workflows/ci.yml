@@ -35,3 +35,5 @@ jobs:
         run: scripts/prove.sh --keyless-nested
       - name: Prove the template, keyless and nested, parsing files (has_files, as wasde)
         run: scripts/prove.sh --keyless-nested -d has_files=true
+      - name: Prove the template, behind api.data.gov (sdk-example-gov, as psd, esr and gats)
+        run: scripts/prove.sh --gateway

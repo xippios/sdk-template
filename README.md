@@ -74,7 +74,7 @@ afterwards by rename or push.
 | `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, or a self-imposed pace where upstream documents neither, an hourly or daily quota notwithstanding (ADR-0010) | `30` |
 | `rate_limit_burst` | requests let through at once before the pace applies; `1` unless upstream documents a burst | `1` |
 | `rate_limit_provenance` | `documented` or `self-imposed` (upstream documents no per-second or per-minute limit): where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
-| `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, ADR-0018 amendment (c)); default `0.2.1`, the release whose family check `tests/test_family.py` collects | `0.2.1` |
+| `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, ADR-0018 amendment (c)); default `0.3.0`, the release the template adopts, rendered `~=0.3.0` | `0.3.0` |
 | `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); empty, the default, for no pin; a release carries none, since `/release-prep` removes it first, in a PR of its own | `main` |
 | `source_dependencies` | the source packages this one uses the task layer of (ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default, the question's literal default for the merge classes | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |
 | `has_files` | whether the source parses the files it downloads (ADR-0020): `true` renders `parse/`, one module per file kind, and `tests/fixtures/files/README.md`, one provenance row per sample file its parser tests read, both the source's once rendered; a retrieval-only source, which lists releases and downloads files without parsing them, answers `false`, its download fixture the recorded exchange of the file's URL (ADR-0019 decision 5); default `false`, the question's literal default for the merge classes | `true` |
@@ -105,7 +105,7 @@ check, which then keeps the layout, the adapters, the task shapes, the README st
 table, the template tag and the core bound honest as tasks are added. A generated
 package is read-only: the template renders no write tools. `ci.yml` also requires a
 CHANGELOG entry on every PR but a release or Dependabot's, an adoption PR's included
-(conventions §15 item 9), and warns on a fixture file over 256 KiB; `publish.yml` is the
+(conventions §15 item 9), and fails on a fixture file over 256 KiB; `publish.yml` is the
 release train; `gates.yml` calls the merge gates as jobs once Johannes sets the
 repository variable `GATES_CALLER`. `live.yml` runs every `live` test every night and on
 demand. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources that
@@ -131,7 +131,7 @@ reviewer's `ready`, and a `human` adoption waits for Johannes. The generated
 the generated repository:
 
 ```bash
-uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.2.2 -d core_version=0.2.1 -d core_git_ref=
+uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.3.0 -d core_version=0.3.0 -d core_git_ref=
 git diff                             # review; resolve conflicts
 ```
 
@@ -164,8 +164,8 @@ scripts/prove.sh        # full proof against the released core: generate, uv syn
 scripts/prove.sh --core-ref main   # against unreleased core
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one
 scripts/prove.sh --keyless-nested  # a keyless nested source
-scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files; CI runs these four proofs
-scripts/prove.sh --gateway         # a nested source behind api.data.gov, on core 0.3.0, run locally
+scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files
+scripts/prove.sh --gateway         # a nested source behind api.data.gov; CI runs these five proofs
 ```
 
 ## Releasing the template

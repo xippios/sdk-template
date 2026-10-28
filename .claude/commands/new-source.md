@@ -19,9 +19,9 @@ guard refuses work in a directory no session owns. If it does not, stop and ask 
    you do not have. Never guess a URL or a rate limit: the pace, the burst and whether
    the pace is documented or self-imposed come from the upstream documentation the user
    points you at, or from the user (ADR-0010).
-2. Leave `core_version` at its default, `0.2.1`, the `xippios-core` release whose family
-   check `tests/test_family.py` collects, rendered `xippios-core~=0.2.1` (ADR-0018,
-   amendment c), unless the user names another. Leave `core_git_ref` out; pass
+2. Leave `core_version` at its default, `0.3.0`, the `xippios-core` release the template
+   adopts, rendered `xippios-core~=0.3.0` (ADR-0018, amendment c), unless the user names
+   another. Leave `core_git_ref` out; pass
    `-d core_git_ref=<sha>`, the full 40-character SHA of a commit on sdk-core's `main`, or
    `-d core_git_ref=main`, only to build against unreleased core.
    Later core minors and template releases reach the repository through its adoption

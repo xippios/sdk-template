@@ -56,11 +56,9 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
    If live tests can run (`XIPPIOS_LIVE_TESTS=1`), run them too,
    `uv run pytest -m live --tb=short`, and report the result.
 9. Open the PR, its body as the definition of done says. After the reviewer's `ready`,
-   if the `merge-class` check says `auto`, the session enables auto-merge from the family
-   workspace root, the directory that holds the workspace's own `CLAUDE.md`, because
-   this repository's `.claude/settings.json` denies `gh pr merge`; `-R` names the
-   repository, which `gh` cannot infer there:
-   `gh pr merge --auto --squash -R xippios/sdk-{{ source_slug }} <number>`. GitHub
+   if the `merge-class` check says `auto`, the session enables auto-merge here, as
+   `.claude/settings.json` allows; every other `gh pr merge` meets the permission
+   prompt: `gh pr merge --auto --squash -R xippios/sdk-{{ source_slug }} <number>`. GitHub
    merges once `ci` is green and review threads are resolved; a `human` release waits
    for Johannes (ADR-0018, amendment (e)). Then stop and report: the merge tags
    `v<version>` through `publish.yml`, and Johannes approves the `pypi` run in the

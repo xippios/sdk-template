@@ -168,10 +168,10 @@ core_version:
     The xippios-core release the package depends on, X.Y.Z, rendered as the bound
     xippios-core~=X.Y.Z, the extras likewise: one core minor, from that release on
     (conventions §12, ADR-0018). Z is 0 unless patch Z shipped what the source adopts
-    (ADR-0018 amendment (c)): the default 0.2.1 is that case, since core 0.2.1 shipped
-    the family check that tests/test_family.py imports. A source raises it in the
-    adoption PR of a new core minor (conventions §15).
-  default: "0.2.1"
+    (ADR-0018 amendment (c)): the default 0.3.0, the core release the template adopts,
+    renders xippios-core~=0.3.0. A source raises it in the adoption PR of a new core
+    minor (conventions §15).
+  default: "0.3.0"
   validator: >-
     {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+\\Z')) %}
     Use a release version, e.g. 0.2.0

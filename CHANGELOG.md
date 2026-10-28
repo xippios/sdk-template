@@ -18,6 +18,20 @@ are not listed.
 
 ## [Unreleased]
 
+Generated repositories depend on xippios-core 0.3.0 (conventions 1.21) and take what it
+brought: the api.data.gov gateway behind a new `gateway` answer, packaged lists written
+and read through core's `PackagedList` with `enums.py` from one `render_enums` call,
+`BULK_TASKS` beside `MCP_CAPS`, `ResultCap` from `xippios.core`, and a fixture cap that
+fails a pull request. The family rules move out of the generated `CLAUDE.md` into the
+template-owned `.claude/family.md`, and `CLAUDE.md` becomes the source's. The template
+renders read-only packages: the write side and the `basic` key location leave with
+sdk-cashctrl, which stays on v0.2.2. Two more answers, `source_dependencies` and
+`has_files`, render a source that uses another's task layer and one that parses the
+files it downloads; the sibling check and a capture skeleton become the template's. A
+source adopts this release together with core 0.3.0 from PyPI in one adoption PR
+(conventions §15) that `/adopt-release v0.3.0` walks, with `core_version=0.3.0` and the
+bound `~=0.3.0`, and ports the Hand-apply list below by hand.
+
 ### Added
 
 - `.claude/family.md`, template-owned: the family rules every source shares, moved out of
@@ -37,24 +51,24 @@ are not listed.
   `classify=classify` and exported, where a source maps its documented error shapes.
   `.claude/family.md`, `/adopt-release`, the generated `CLAUDE.md`'s Layout and this
   repository's documents name `errors.py` with the files a source fills.
-- The sibling check, the template's where the import path nests (`usda.nass`, ADR-0006):
-  `.github/workflows/siblings.yml` runs `.github/scripts/check-siblings.sh` on every pull
-  request and push to `main`, a visible `siblings` job the ruleset does not require, since
-  `ci.yml` stays core's file. The script reads the package from `.copier-answers.yml`,
-  finds the siblings as the organisation's `sdk-<provider>-*` repositories whose
-  distribution is on PyPI (the listing authenticated by the job's read-only token),
-  builds the wheel and installs it beside every sibling that shares its core minor. A
-  sibling every release of which needs another core minor, told by the versions uv
-  resolves for it alone and held to this wheel's minor, is left out with a warning, never
-  a failure, so the check is not red through an adoption wave; any other conflict fails
-  it. It fails, too, on a namespace level that is a regular package, a sibling that does
-  not import, a tracked file of the package the wheel lacks or a `uv pip check`
-  conflict, and takes core from its git pin where `pyproject.toml` has one;
-  `XIPPIOS_SIBLINGS` names the siblings by hand, a checkout in the workspace or a git
-  URL before a sibling is on PyPI.
-  Both files are copied verbatim, only their names rendered, outside the skip-listed
-  `scripts/`, so a source's copy identical to the render is the template's for the merge
-  classes. sdk-usda-psd, sdk-usda-esr and sdk-usda-gats each carried a copy of their own.
+- The sibling check, the template's where the import path nests (`usda.nass`, ADR-0006)
+  or the source declares a dependency: `.github/workflows/siblings.yml` runs
+  `.github/scripts/check-siblings.sh` on every pull request and push to `main`, a
+  visible `siblings` job the ruleset does not require, since `ci.yml` stays core's file.
+  The script reads the package from `.copier-answers.yml`, finds the siblings as the
+  organisation's `sdk-<provider>-*` repositories whose distribution is on PyPI (the
+  listing authenticated by the job's read-only token), builds the wheel and installs it
+  beside every sibling that shares its core minor. A sibling every release of which needs
+  another core minor, told by the versions uv resolves for it alone and held to this
+  wheel's minor, is left out with a warning, never a failure, so the check is not red
+  through an adoption wave; any other conflict fails it. It fails, too, on a namespace
+  level that is a regular package, a sibling that does not import, a tracked file of the
+  package the wheel lacks or a `uv pip check` conflict, and takes core from its git pin
+  where `pyproject.toml` has one; `XIPPIOS_SIBLINGS` names the siblings by hand, a
+  checkout in the workspace or a git URL before a sibling is on PyPI. Both files are
+  copied verbatim, only their names rendered, outside the skip-listed `scripts/`, so a
+  source's copy identical to the render is the template's for the merge classes.
+  sdk-usda-psd, sdk-usda-esr and sdk-usda-gats each carried a copy of their own.
 - `scripts/refresh_upstream.py`, the skeleton of a capture script, under
   `_skip_if_exists` as every script: the frame sdk-usda-psd, sdk-usda-esr, sdk-usda-gats
   and sdk-usda-esmis each copied. It fetches everything before it writes anything, one
@@ -68,14 +82,13 @@ are not listed.
   cuts re-serialises to the fetched text; `--check` fetches and compares without
   writing. A source fills `PAGES`, `SPEC_URL`, `ATTRIBUTION`, `CAPTURE` and `reduce`;
   until then it refuses to run. Standard library only, under `mypy --strict` and the
-  family's ruff.
-- Two conventions in `/refresh-upstream` and the skeleton: the one converter a capture
-  script may declare is `markdownify`, in its `# /// script` block and at the same pin in
-  the dev group, so `mypy --strict` reads its types (sdk-eurostat, sdk-cashctrl,
-  sdk-comtrade); the template ships no converter module. A machine-readable API document
-  (OpenAPI, Swagger) that a page names rather than links is recorded in the skeleton's
-  `SPEC_URL` and kept beside the pages, a convention and no copier answer
-  (sdk-usda-esmis).
+  family's ruff. With it, two conventions in `/refresh-upstream`: the one converter a
+  capture script may declare is `markdownify`, in its `# /// script` block and at the
+  same pin in the dev group, so `mypy --strict` reads its types (sdk-eurostat,
+  sdk-cashctrl, sdk-comtrade); the template ships no converter module. A
+  machine-readable API document (OpenAPI, Swagger) that a page names rather than links
+  is recorded in the skeleton's `SPEC_URL` and kept beside the pages, a convention and no
+  copier answer (sdk-usda-esmis).
 - `source_dependencies`, a new answer (ADR-0021): the source packages a source uses the
   task layer of, one level and no cycles, as a YAML flow list in a string, one
   `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package; sdk-usda-wasde on
@@ -105,13 +118,6 @@ are not listed.
   one quoted scalar, which the merge classes read as the question's literal default and
   leave free, where a list would be recorded as `[]`, no scalar, or as lines at column 0
   outside the YAML the merge-class check reads.
-- Template-internal: a fourth variant renders once per session, sdk-usda-wasde's shape
-  (keyless, nested, one open and one keyed dependency), and every variant check reads it;
-  the tests check that every answers file stays inside the merge classes' subset with
-  the default recorded as one quoted scalar, that the validator refuses each malformed
-  entry, that a flat source with a dependency renders the sibling check, and the
-  script's dependency reader, run offline on the render. `scripts/prove.sh` gains no
-  proof: a dependency that is not on PyPI cannot be installed.
 - `gateway`, a new answer: the shared gateway the API sits behind, `none` by default or
   `api.data.gov` (ADR-0009; found by sdk-usda-psd, sdk-usda-esr, sdk-usda-gats and the
   family review). Behind api.data.gov the three key answers follow from it,
@@ -139,13 +145,13 @@ are not listed.
   one and gets no tool and no route; the annotation is mypy's, which infers no type for
   an empty frozenset under `--strict`. Core 0.3.0's `register_tasks` and
   `router_from_tasks` read it from the tasks module and skip its names themselves, so the
-  rendered `mcp.py` and `http.py` keep passing `tasks.__all__` whole and no source
-  filters them by hand, as sdk-eurostat's bulk work did before its core 0.3.0 pin;
-  sdk-usda-esmis and sdk-eurostat wrote theirs by hand, and sdk-usda-nass asked for bulk
-  datasets in the first place. `/add-endpoint` names it beside `MCP_CAPS`, and its check
-  step says that the family check proves a bulk task neither a tool nor a route; the
-  generated `CLAUDE.md`'s Layout names it with `__all__` and `MCP_CAPS`, and
-  `.claude/family.md` states the rule.
+  rendered `mcp.py` and `http.py` keep passing `tasks.__all__` whole, as their
+  docstrings now say, and no source filters them by hand, as sdk-eurostat's bulk work did
+  before its core 0.3.0 pin (sdk-eurostat); sdk-usda-esmis and sdk-eurostat wrote theirs
+  by hand, and sdk-usda-nass asked for bulk datasets in the first place. `/add-endpoint`
+  names it beside `MCP_CAPS`, and its check step says that the family check proves a
+  bulk task neither a tool nor a route; the generated `CLAUDE.md`'s Layout names it with
+  `__all__` and `MCP_CAPS`, and `.claude/family.md` states the rule.
 - `has_files`, a new answer (ADR-0020): whether the source parses the files it downloads,
   `false` by default. `true` renders `src/xippios/<package>/parse/__init__.py`, the
   package of the parsers, one module per file kind with one
@@ -188,6 +194,66 @@ are not listed.
 
 ### Changed
 
+- The files copied from core are core 0.3.0's. `.claude/settings.json` allows
+  `gh pr merge --auto` and no longer denies `gh pr merge` (found by sdk-template, which
+  copies the file), so `/adopt-release` and `/release-prep` enable auto-merge in the
+  repository's own panel, every other `gh pr merge` meeting the permission prompt,
+  instead of sending the step to the workspace root (ADR-0018 decision 3).
+  `.github/PULL_REQUEST_TEMPLATE.md` asks an adoption to re-render the enums once
+  through the template's refresh script and commit them as formatted, after its
+  `ruff format && ruff check --fix` (sdk-usda-esmis, sdk-eurostat); it still names the
+  organisation's `.github` repository for the merge classes, as core's definition of
+  done does until it names `xippios/sdk-gates` (sdk-eurostat). `publish.yml`'s tag job
+  says why its checkout keeps its credentials. `ci.yml` is core's file plus the
+  template's two steps, as before: the CHANGELOG step exempts a release and Dependabot
+  only, so an adoption PR adds its line naming the core, template and conventions
+  versions adopted (conventions §15 item 9; sdk-eurostat's scaffold review), and the
+  fixture-cap step runs at `LEVEL: error`, failing a pull request that adds or grows a
+  fixture file over 256 KiB, since the cap binds a source from this adoption (ADR-0019,
+  conventions 1.21). `.claude/family.md` and this README state the CHANGELOG rule,
+  `/record-fixture` and this README the cap. `gates.yml` is unchanged.
+- The packaged lists are core 0.3.0's `PackagedList` (conventions §3, ADR-0022 amended;
+  found by sdk-usda-psd, sdk-usda-esr and sdk-usda-gats, which each rebuilt the
+  template's scaffold, and by the template's own 0.2.0 work).
+  `scripts/refresh_reference.py` gains `TABLES` beside `LISTS` and `ID_LISTS`, record
+  lists packaged without an enum, each entry naming its upstream operation; it fetches
+  every list before it writes any, then writes each `reference/<name>.json` with
+  `PackagedList(param=..., endpoint=..., fetched=datetime.now(UTC), records=...).write(path)`,
+  `fetched` to the second, the records under upstream's field names by
+  `record.dump_upstream()` and a value list as records of one field named by the list;
+  then it renders `enums.py` from the packaged files with one `render_enums` call, a
+  `StrEnum` per value list and an `IntEnum` per id list in one module, each class
+  docstring naming the day its list was fetched, an id list keyed and named by its id
+  field (`unitId` makes `UnitId`), and runs `ruff format` and `ruff check --fix` on it.
+  `upstream_record`, the two renderers core 0.3.0 removed, the refusal of a value list
+  and an id list together and `--render-only`'s refusal of lists fetched on different
+  days go (sdk-usda-psd; the template's own 0.2.0 work); `--render-only` stays, and the
+  script's docstring names `render_enums(member_names=...)` for a member name that
+  derives to nothing or collides. The script calling the removed renderers failed
+  `mypy` on every source pinned to core 0.3.0, as it would on every adoption
+  (sdk-usda-esmis, sdk-eurostat). `params.py` keeps `PACKAGE` and `PACKAGED_LISTS`,
+  which the script checks, and a source reads a list with
+  `PackagedList.load(PACKAGE, name)` instead of `PackagedValues` and `packaged_values`
+  (sdk-usda-esr); `reference/README.md` names the file's layout,
+  `{"param", "endpoint", "fetched", "records"}` and an optional `"note"`; the shipped
+  `enums.py` is the empty module `render_enums` writes.
+- The answers in `copier.yml`. `core_version` defaults to `0.3.0`, rendered
+  `xippios-core~=0.3.0` and its extras likewise, and its help names the bound,
+  `xippios-core~=X.Y.Z` with `Z` 0 unless patch `Z` shipped what the source adopts
+  (ADR-0018 amendment (c)); `core_git_ref`'s says what the pin is and that a release
+  carries none, neither telling what to answer for the other. Every rendered file reads
+  `import_path`, and its hidden alias `source_pkg` goes. The domain's GitHub topic is no
+  answer any more but `new-source.sh`'s `--topic DOMAIN`, checked before anything is
+  generated (required unless `--local-only`) and added with `gh repo edit --add-topic`;
+  the generated `pyproject.toml`'s keywords no longer name it. `source_name` takes at
+  most 77 characters, the bound that keeps the generated `http.py`'s first line, the
+  longest that names it, within ruff's 100 columns (sdk-usda-esmis's render), and no
+  double quote or backslash, which would break the strings that quote it. The
+  `rate_limit_provenance` choice and the pace's help say "no per-second or per-minute
+  limit", as the generated `CLAUDE.md`'s row does (sdk-usda-esr). `_min_copier_version`
+  is 9.19.0, the copier release that brought the `ask` setting the key answers take
+  behind a gateway, and this repository's dev group requires it. The README's question
+  table follows, and `/new-source` names core 0.3.0 as the default.
 - The generated `CLAUDE.md` holds the facts of the package only: the title and intro, the
   import line right after the intro, the "What this package wraps" table with one line
   pointing at `docs/upstream/FETCHED.md`, the Layout as the starting text a source
@@ -196,38 +262,43 @@ are not listed.
   of a keyed source, the nightly start time and the secret the live workflow reads, or
   that it needs none) and an empty "`<source name>` specifics" section whose comment says
   what goes there; a source fills it or deletes it. `CLAUDE.md` joins `_skip_if_exists`:
-  once rendered, it is the source's, and `copier update` leaves it as it is.
+  once rendered, it is the source's, and `copier update` leaves it as it is. A
+  self-imposed pace says upstream documents no per-second or per-minute limit, and the
+  rate-limit row carries a comment to name a documented hourly or daily quota with its
+  `QuotaPolicy` (sdk-usda-esr). The Layout names the key only for a keyed source
+  (sdk-eurostat, sdk-usda-esmis), the packaged lists without a constant's name
+  (sdk-usda-nass), `errors.py`, the capture script `scripts/refresh_upstream.py`
+  (sdk-usda-esmis, sdk-usda-gats), `siblings.yml` and `.github/scripts/check-siblings.sh`
+  where the import path nests, and the optional `tests/test_api.py` for the wrappers' own
+  tests (sdk-usda-esmis); its Documentation row points at the `SPEC_URL` convention; the
+  start time's reason, sources sharing a key, is a keyed source's only (sdk-eurostat).
 - The family documents are named by their GitHub URLs (sdk-core's conventions, ADRs,
   definition of done and review checklist) instead of `../sdk-core/docs/...` and
   `../CLAUDE.md`, which resolve neither from a worktree under `.worktrees/` nor on GitHub
   (sdk-usda-esr's scaffold review); the workspace's own `CLAUDE.md` is named without a
   path, since Claude Code loads it when a session works from the workspace.
-- `/adopt-release` lists `CLAUDE.md` among the files a source fills and
-  `.claude/family.md` among the template's, where a line of the source's own moves to
-  `CLAUDE.md`; `/adopt-release` and `/release-prep` call the workspace root the directory
-  that holds the workspace's own `CLAUDE.md`, no longer "the family `CLAUDE.md`".
-- Template-internal: the tests read each text in the file that now holds it and check
-  that `CLAUDE.md` renders the import line on its own line right after the intro, that
-  `.claude/family.md` is the template file byte for byte, so the same in every source,
-  with no `../` path in either file, and that `CLAUDE.md` is skip-listed while
-  `.claude/family.md` is rendered again.
-- The scaffolds a source fills keep one pointer each instead of guidance: the docstrings
-  of `__init__.py`, `_client.py`, `models.py`, `params.py`, `tasks.py`,
-  `api/__init__.py`, `tests/test_tasks.py` and `tests/test_live.py` give the file's
-  purpose in one sentence and the convention or command that explains it (conventions
-  §2, §3, §6, §10, `/add-endpoint`, `/record-fixture`, `/refresh-reference-data`), and
-  `reference/README.md` keeps one paragraph above its provenance table. The `QuotaPolicy`
-  and `MCP_CAPS` comments point at conventions §6 and §8, and `MCP_CAPS` imports
-  `ResultCap` from `xippios.core`, which exports it from core 0.3.0. The source's name
-  leaves the summary lines (`__init__.py` names it on a line of its own below), where a
-  long name broke ruff's line length in four files (sdk-usda-esmis's render).
+- `.claude/family.md`: `api/` by operation or by service, the Layout saying which
+  (sdk-eurostat); the home of a hand-written enumeration (sdk-usda-esr, sdk-eurostat);
+  a release PR changes no file outside the release subset, and its `CHANGELOG.md`
+  section may gain a lead paragraph and says internal labels in plain words, since it
+  becomes the tag's message (the template's v0.2.1 and v0.2.2 release reviews); a
+  release no longer touches the sibling check, which leaves the release subset as
+  conventions §12 foresees once the check is the template's, here and in `/release-prep`.
 - The six commands name the definition of done and the review checklist on sdk-core
   `main` by URL instead of repeating the PR-body rules, and their last step says the
   body is as the definition of done says; their examples name no source
-  (`get_example by_year year=2024`). `/adopt-release` names the gates repository by its
-  new name, `xippios/sdk-gates`, for the merge classes, and reads a local clone as
-  `<workspace root>/sdk-template` or `<workspace root>/sdk-core`, since `../` resolves
-  from no worktree (sdk-template's own review).
+  (`get_example by_year year=2024`).
+- `/adopt-release` lists `CLAUDE.md` among the files a source fills and
+  `.claude/family.md` among the template's, where a line of the source's own moves to
+  `CLAUDE.md`; it names the gates repository by its new name, `xippios/sdk-gates`, for
+  the merge classes, and reads a local clone as `<workspace root>/sdk-template` or
+  `<workspace root>/sdk-core`, the workspace root being the directory that holds the
+  workspace's own `CLAUDE.md`, since `../` resolves from no worktree (sdk-template's own
+  review). Its item 6 re-renders `enums.py` through the script, which runs ruff, and
+  commits it as formatted; a refresh script of the source's own shape gains
+  `--render-only` and the ruff step and passes `mypy --strict` without taking the
+  template's shape (sdk-usda-nass); its examples name core 0.3.0, template v0.3.0 and
+  conventions 1.21.
 - `/add-endpoint`: a wrapper module per upstream operation, or per service where
   operation ids repeat across services, as the Layout says (sdk-eurostat); an
   enumeration written by hand for a documented value set lives in `models.py`,
@@ -247,67 +318,72 @@ are not listed.
   recorder step (ADR-0024); the fixture file stays under 256 KiB, a JSON array or a
   text body recorded with `max_bytes=`, a small real answer or sample for what the
   recorder will not cut (a JSON object, XML, ZIP, gzip, XLS, XLSX) (ADR-0019).
-- `/refresh-upstream`: the snapshot is staged before `pre-commit run --all-files`,
-  which scans only the files in git's index, and a capture script checks the
-  attribution on every run (sdk-usda-gats).
-- `/refresh-reference-data`: the refresh script's docstring gives the list shapes; the
-  provenance table names the `docs/upstream/` file a table was rebuilt from
-  (sdk-usda-nass); a step updates the counts and dates pinned in list-task docstrings
-  and tests (sdk-usda-psd). `/adopt-release`: a refresh script of the source's own
-  shape gains `--render-only` and passes `mypy --strict` without taking the template's
-  shape (sdk-usda-nass); the re-rendered enums are committed as the script writes them.
-- The generated `CLAUDE.md`: a self-imposed pace says upstream documents no per-second
-  or per-minute limit, and the rate-limit row carries a comment to name a documented
-  hourly or daily quota with its `QuotaPolicy` (sdk-usda-esr); the scaffold's
-  `_client.py` comment and this README's question row say the same. The Layout names the
-  key only for a keyed source (sdk-eurostat, sdk-usda-esmis), the packaged lists
-  without a constant's name (sdk-usda-nass), `errors.py`, the optional
-  `scripts/refresh_upstream.py` (sdk-usda-esmis, sdk-usda-gats) and the optional
-  `tests/test_api.py` for the wrappers' own tests (sdk-usda-esmis); the start time's
-  reason, sources sharing a key, is a keyed source's only (sdk-eurostat).
-- `.claude/family.md`: `api/` by operation or by service, the Layout saying which
-  (sdk-eurostat); the home of a hand-written enumeration (sdk-usda-esr, sdk-eurostat);
-  a release PR changes no file outside the release subset, and its `CHANGELOG.md`
-  section may gain a lead paragraph and says internal labels in plain words, since it
-  becomes the tag's message (the template's v0.2.1 and v0.2.2 release reviews).
+- `/refresh-upstream` follows the skeleton: it compares first with `--check`, fills the
+  skeleton once (the pages, the shell rows, the spec URL, the conversion or the excerpt,
+  the attribution), captures through the script, and lets the converter's dev-group pin
+  change with it; the snapshot is staged before `pre-commit run --all-files`, which scans
+  only the files in git's index; `docs/upstream/FETCHED.md`'s stub shows the columns the
+  script writes and its three kinds of row, a file, a page without a file and an
+  excerpt, and its attribution placeholder speaks of the publisher's objection, a
+  vendor's or a public body's, and of the capture script's check on every run
+  (sdk-usda-psd, sdk-usda-esr, sdk-usda-gats).
+- `/refresh-reference-data` follows the script: a list goes into `LISTS`, `ID_LISTS` or
+  `TABLES` with its upstream operation and into `PACKAGED_LISTS`; the script writes the
+  files with `PackagedList.write`, regenerates `enums.py` with one `render_enums` call
+  and formats it with ruff, and both are committed as it leaves them. The provenance
+  table names the `docs/upstream/` file a table was rebuilt from (sdk-usda-nass), and a
+  step updates the counts and dates pinned in list-task docstrings and tests
+  (sdk-usda-psd).
+- `/release-prep` and `/adopt-release` run `uvx --from 'copier>=9.19' copier update`, as
+  do the core pin's comment in `pyproject.toml` and this README, so a stale tool cache
+  cannot refuse the update; in a source without a core pin the render changes only in
+  those two commands' lines.
+- The scaffolds a source fills keep one pointer each instead of guidance: the docstrings
+  of `__init__.py`, `_client.py`, `models.py`, `params.py`, `tasks.py`,
+  `api/__init__.py`, `tests/test_tasks.py` and `tests/test_live.py` give the file's
+  purpose in one sentence and the convention or command that explains it (conventions
+  §2, §3, §6, §10, `/add-endpoint`, `/record-fixture`, `/refresh-reference-data`), and
+  `reference/README.md` keeps one paragraph above its provenance table. The `QuotaPolicy`
+  and `MCP_CAPS` comments point at conventions §6 and §8, and `MCP_CAPS` imports
+  `ResultCap` from `xippios.core`, without the `ImportError` guard, since core 0.3.0
+  exports it there (sdk-usda-psd). The source's name leaves the summary lines
+  (`__init__.py` names it on a line of its own below), where a long name broke ruff's
+  line length in four files (sdk-usda-esmis's render).
+- The `_client.py` scaffold's commented `QuotaPolicy` block becomes one sentence where no
+  gateway is answered: a source with a documented hourly or daily quota installs a
+  `QuotaPolicy` of its own on `config`, as core's README shows (conventions §6,
+  ADR-0015); behind api.data.gov the gateway installs core's. `.claude/family.md` no
+  longer says that a repository carries the commented block, a pointer that was false
+  for a source that installed a policy (sdk-usda-psd's adoption review), and names
+  `xippios.core.data_gov` for a source behind api.data.gov.
+- `mcp.py`, template-owned: the read server's instructions ask list tools for valid
+  values rather than codes, since a list tool may list releases or agencies
+  (sdk-usda-esmis); `run()` shows core's `add_options` and `apply_options` hooks on
+  `main` in a comment, for a source with command-line options of its own, which then
+  needs no other edit of the adapter (sdk-usda-gats); `build_server` takes core 0.3.0's
+  arguments, with no tenant lock.
 - The `README.md` scaffold: the MCP snippet of a keyless source closes the server on a
   line of its own (sdk-eurostat), and the terms sentence holds where upstream states no
-  terms of use (sdk-usda-esmis). `docs/upstream/FETCHED.md`'s attribution placeholder
-  speaks of the publisher's objection, a vendor's or a public body's, and of the capture
-  script's check (sdk-usda-gats).
-- `live.yml` names the secret and the shared key as the start time's reason, and
-  `tests/conftest.py` points at `xippios_placeholder_key_envs`, only for a keyed source
-  (sdk-eurostat); the reachability probe of `tests/test_live.py` "spends no keyed call",
-  with or without a quota (sdk-usda-nass); the read server's instructions ask list tools
-  for valid values rather than codes, since a list tool may list releases or agencies
-  (sdk-usda-esmis); `pyproject.toml` sets `junit_family = "xunit1"`, so
+  terms of use (sdk-usda-esmis).
+- Every live run takes `--tb=short`: `live.yml`'s pytest step, the live command of the
+  generated `CLAUDE.md` and `.claude/family.md`, and `/release-prep`'s step 8; and
+  `.claude/family.md` says that pytest's assertion introspection still prints what an
+  `assert` compares, so a live test asserts on shapes and counts, never on a raw
+  payload. A failing parse printed its raw upstream payload in a traceback, which the
+  nightly run writes into a public log (sdk-cashctrl; core 0.3.0 raises its validation
+  errors without the payload). `live.yml`, the one job the org secret reaches in a keyed
+  source, pins `actions/checkout` and `astral-sh/setup-uv` to the commits `ci.yml` pins,
+  the version in a comment, and its checkout persists no credentials (conventions §13;
+  sdk-eurostat's scaffold review); it names the secret and the shared key as the start
+  time's reason only for a keyed source, as `tests/conftest.py` points at
+  `xippios_placeholder_key_envs` only for one (sdk-eurostat); the reachability probe of
+  `tests/test_live.py` "spends no keyed call", with or without a quota (sdk-usda-nass).
+- The generated `pyproject.toml`: the dev group pins `ruff==0.17.1`, the rev of the
+  `ruff-pre-commit` hook, so a new lock no longer resolves a newer ruff than the hook
+  runs (sdk-usda-esr's scaffold review); `junit_family = "xunit1"`, so
   `record_property` raises no warning under `--junitxml` (sdk-usda-gats).
 - Two blank lines a line-final Jinja tag took with it are back: in the generated
   `CLAUDE.md`'s Commands block and between `/record-fixture`'s steps 1 and 2.
-- This repository's `CLAUDE.md` names sdk-core's documents by GitHub URL, and it and the
-  README say a release PR changes no file outside conventions §12's release subset,
-  its section perhaps with a lead and in plain words (the v0.2.2 release review).
-- Template-internal: the tests check that both new scaffolds render in every variant,
-  that the README's MCP snippet parses as JSON with the key's `env` only for a keyed
-  source, that every command names the definition of done and the review checklist by
-  URL and no `../` path, that the key and the conftest's ini pointer appear only for a
-  keyed source, and that no fixtures directory is generated; a variant carries
-  sdk-usda-esmis's 64-character name, and its four formerly failing files pass
-  `ruff check`.
-- The answers in `copier.yml`. Every rendered file reads `import_path`, and its hidden
-  alias `source_pkg` goes. The domain's GitHub topic is no answer any more but
-  `new-source.sh`'s `--topic DOMAIN`, checked before anything is generated (required
-  unless `--local-only`) and added with `gh repo edit --add-topic`; the generated
-  `pyproject.toml`'s keywords no longer name it. `core_version`'s help names the bound,
-  `xippios-core~=X.Y.Z` with `Z` 0 unless patch `Z` shipped what the source adopts
-  (ADR-0018 amendment (c)), and `core_git_ref`'s says what the pin is and that a release
-  carries none, neither telling what to answer for the other. `source_name` takes at
-  most 77 characters, the bound that keeps the generated `http.py`'s first line, the
-  longest that names it, within ruff's 100 columns (sdk-usda-esmis's render), and no
-  double quote or backslash, which would break the strings that quote it. The
-  `rate_limit_provenance` choice and the pace's help say "no per-second or per-minute
-  limit", as the generated `CLAUDE.md`'s row does (sdk-usda-esr). The README's question
-  table follows.
 - `new-source.sh` opens the scaffold PR with its body filled from the generated PR
   template instead of the bare template: the summary with the human steps; under
   Assumptions the answers as `.copier-answers.yml` records them, the topic and the
@@ -319,122 +395,82 @@ are not listed.
   with `gh pr edit` (sdk-usda-esr's scaffold review). The human steps it prints are the
   one copy, the sessions' team in plain words: where the team does not exist yet, a
   step says to give it write access once it does.
-- The generated `pyproject.toml`'s dev group pins `ruff==0.17.1`, the rev of the
-  `ruff-pre-commit` hook, so a new lock no longer resolves a newer ruff than the hook
-  runs (sdk-usda-esr's scaffold review).
-- `live.yml`, the one job the org secret reaches in a keyed source, pins
-  `actions/checkout` and `astral-sh/setup-uv` to the commits `ci.yml` pins, the version
-  in a comment, and its checkout persists no credentials (conventions §13; sdk-eurostat's
-  scaffold review).
-- `ci.yml`'s CHANGELOG step exempts a release and Dependabot only: an adoption PR adds
-  its line naming the core, template and conventions versions adopted (conventions §15
-  item 9), as `.claude/family.md` and this README now say (sdk-eurostat's scaffold
-  review).
-- Every live run takes `--tb=short`: `live.yml`'s pytest step, the live command of the
-  generated `CLAUDE.md` and `.claude/family.md`, and `/release-prep`'s step 8; and
-  `.claude/family.md` says that pytest's assertion introspection still prints what an
-  `assert` compares, so a live test asserts on shapes and counts, never on a raw
-  payload. A failing parse printed its raw upstream payload in a traceback, which the
-  nightly run writes into a public log (sdk-cashctrl; core 0.3.0 raises its validation
-  errors without the payload).
-- Template-internal: the tests render the variants without `domain_topic` and check that
-  no answers file records `source_pkg`, `domain_topic` or `needs_write_tools`, that
+- This repository: its `CLAUDE.md` names sdk-core's documents by GitHub URL, and it and
+  the README say a release PR changes no file outside conventions §12's release subset,
+  its section perhaps with a lead and in plain words (the v0.2.2 release review); its own
+  `ci.yml` pins `actions/checkout` and `astral-sh/setup-uv` by SHA, the version in a
+  comment, and its checkout persists no credentials, and `release.yml`'s tag job, which
+  pushes the tag with the token, says why its checkout keeps them (conventions §13, every
+  workflow of the family).
+- Template-internal, the tests: the template tests render the family's five variants,
+  each once per session, and a check no answer changes reads one render: keyed and
+  nested (sdk-usda-nass's shape, a query key of its own), keyless and flat
+  (sdk-eurostat's), keyless and nested (sdk-usda-esmis's, with the 64-character name that
+  broke four docstrings), a dependent that parses files (sdk-usda-wasde's: one open and
+  one keyed dependency, and `has_files: true`) and one behind the gateway (sdk-usda-psd's,
+  no key answer passed). Eight variants become these: one of two identical ones goes,
+  and so do those that differed in a single answer, which their own rules now test (the
+  key locations, a git-pinned core, a name at its bound, an `import_path` override,
+  rendered as `world-bank` with `world_bank`, a flat source with a dependency). The
+  assertions on rendered prose go too: the tests check mechanics, a file rendered or
+  not, a name present, no Jinja left, a digest equal, a script's behaviour. They check
+  that `CLAUDE.md` renders the import line on its own line right after the intro and is
+  skip-listed, that `.claude/family.md` is the template file byte for byte, rendered
+  again, with no `../` path in either; that every command names the definition of done
+  and the review checklist by URL; that the README's MCP snippet parses as JSON with the
+  key's `env` only for a keyed source, and that the key and the conftest's ini pointer
+  appear only for one; that no `tests/fixtures/` renders but where `has_files` is true,
+  and there `parse/__init__.py`, a docstring and no code, and the samples' table with its
+  columns, both skip-listed and kept on a re-render, with the `CLAUDE.md` Files row and
+  Layout lines; that every answers file stays inside the merge classes' subset, records
+  `gateway`, `has_files` and `source_dependencies` at their literal defaults, records no
+  `source_pkg`, `domain_topic` or `needs_write_tools`, and reads back in copier's
+  canonical form; the validators of `source_dependencies`, of a key answer that differs
+  from the gateway's and of a core before 0.3.0 behind it; the gateway's lines in
+  `_client.py` and their absence elsewhere, and the staggered start of sdk-usda-psd,
+  sdk-usda-esr and sdk-usda-gats; that only a nested render or a dependent has the
+  sibling check, byte for byte and executable, with `ci.yml`'s pins and no credentials
+  kept, `ci.yml` not aggregating it, and its dependency reader, run offline; that
   `new-source.sh` refuses a missing or malformed `--topic` and a missing evidence file
-  before it generates, that it fills core's PR template and names what a template of
-  another shape lacks, that `source_name`'s bound follows from the template's longest
-  Python line and that a quote or a backslash is refused, that this repository's own
-  workflows are hardened, that the dev group's ruff is the hook's, that `live.yml` takes
-  `ci.yml`'s pins with `persist-credentials: false`, that no live command lacks
-  `--tb=short`, and that the CHANGELOG step no longer exempts an adoption;
-  `scripts/prove.sh` passes a topic and an evidence file and checks the PR body it
-  prints, the one a real run opens.
-- This repository's own `ci.yml` pins `actions/checkout` and `astral-sh/setup-uv` by
-  SHA, the version in a comment, and its checkout persists no credentials;
-  `release.yml`'s tag job, which pushes the tag with the token, says why its checkout
-  keeps them (conventions §13, every workflow of the family).
-- `/refresh-upstream` follows the skeleton: it compares first with `--check`, fills the
-  skeleton once (the pages, the shell rows, the spec URL, the conversion or the excerpt,
-  the attribution), captures through the script, and lets the converter's dev-group pin
-  change with it; `docs/upstream/FETCHED.md`'s stub shows the columns the script writes
-  and its three kinds of row, a file, a page without a file and an excerpt (sdk-usda-psd,
-  sdk-usda-esr, sdk-usda-gats).
-- The generated `CLAUDE.md`'s Layout names `scripts/refresh_upstream.py` as the capture
-  script, and `siblings.yml` and `.github/scripts/check-siblings.sh` where the import
-  path nests; its Documentation row points at the `SPEC_URL` convention.
-- A release no longer touches the sibling check: `/release-prep` and `.claude/family.md`
-  drop `scripts/check-siblings.sh` from the release subset, as conventions §12 foresees
-  once the check is the template's.
-- Template-internal: the tests check that only a nested render has the sibling check,
-  byte for byte and executable, with `ci.yml`'s pins and no credentials kept, and that
-  `ci.yml` does not aggregate it; that every name `/refresh-upstream` cites is the
-  skeleton's and the skeleton imports only the standard library; and they run the
-  skeleton offline against pages served on the loopback interface, `--check` before and
-  after a change, and its stop on an unrecorded copyright line. `scripts/prove.sh` runs
-  the rendered sibling check on each nested proof with the wheel alone, with
-  `httpx<0.20`, which must fail it, and with a sibling built on another core minor,
-  which must be left out with a warning; it requires none on the flat proof, and
-  requires the unfilled skeleton to refuse to run.
-- Template-internal: the template tests render the family's three variants, keyed and
-  nested (sdk-usda-psd's shape), keyless and flat (sdk-eurostat's) and keyless and
-  nested (sdk-usda-esmis's, with the 64-character name that broke four docstrings), each
-  once per session, and a check no answer changes reads one render. Eight variants
-  become three: one of two identical ones goes, and so do those that differed in a
-  single answer, which their own rules now test (the key locations, a git-pinned core, a
-  name at its bound, an `import_path` override, rendered as `world-bank` with
-  `world_bank`). The assertions on rendered prose go too: the tests check mechanics, a
-  file rendered or not, a name present, no Jinja left, a digest equal, a script's
-  behaviour. A new one keeps the `trim_blocks` mistakes out of every `.jinja` file: a
-  block tag stands alone on its line or opens and closes there, before the line's end,
-  since a line-final tag after content takes the line's newline with it (the blank lines
-  lost in the generated `CLAUDE.md`'s Commands and in `/record-fixture`) and a block
-  opened mid-line takes it inside (the keyless README's MCP snippet).
-  `tests/test_template.py` goes from 1,469 lines, 57 tests and 293 cases to 1,408 lines,
-  56 tests and 112 cases. The digest test is named for what it checks, no longer for a
-  core version. The template's CI runs three proofs in its `ci` job: `scripts/prove.sh`,
-  `--keyless` (`sdk-example`, as sdk-eurostat starts) and the new `--keyless-nested`
-  (`sdk-example-files`, `xippios.example.files`, no key, as sdk-usda-esmis and
-  sdk-usda-wasde start), which runs the rendered sibling check as the keyed nested proof
-  does. Nothing a source renders changes, so no Hand-apply bullet.
-- The `_client.py` scaffold's commented `QuotaPolicy` block becomes one sentence where no
-  gateway is answered: a source with a documented hourly or daily quota installs a
-  `QuotaPolicy` of its own on `config`, as core's README shows (conventions §6,
-  ADR-0015); behind api.data.gov the gateway installs core's. `.claude/family.md` no
-  longer says that a repository carries the commented block, a pointer that was false
-  for a source that installed a policy (sdk-usda-psd's adoption review), and names
-  `xippios.core.data_gov` for a source behind api.data.gov.
-- `_min_copier_version` is 9.19.0, the copier release that brought the `ask` setting
-  the key answers take behind a gateway; this README says so, and this repository's dev
-  group requires it. `/adopt-release`, `/release-prep`, the core pin's comment in
-  `pyproject.toml` and this README run `uvx --from 'copier>=9.19' copier update`, so a
-  stale tool cache cannot refuse the update; in a source without a core pin the render
-  changes only in those two commands' lines.
-- Template-internal: a fifth variant renders once per session, sdk-usda-psd's shape
-  behind the gateway (nested, `gateway: api.data.gov`, no key answer passed), and the
-  keyed nested variant moves to sdk-usda-nass's shape, a query key of its own without
-  the gateway, so no two variants differ in nothing a check reads. The tests check the
-  gateway's lines in `_client.py` (the import, `Gateway(SOURCE)`, `install`, `auth`, the
-  export and `classify` asking the gateway first) and their absence elsewhere, the
-  derived answers recorded and read back in copier's canonical form, `gateway: none`
-  recorded as the question's literal default, the names in the generated `CLAUDE.md`,
-  `README.md` and `live.yml`, the refusal of a key answer that differs from the
-  gateway's and of a core before 0.3.0, and the staggered start of sdk-usda-psd,
-  sdk-usda-esr and sdk-usda-gats on the gateway answer. `scripts/prove.sh --gateway`
-  proves `sdk-example-gov` (`xippios.example.gov`) against core 0.3.0, with an offline
-  step that the client takes the gateway's auth, its policy's hooks and its `classify`;
-  it runs locally beside the proofs CI runs, and stops at mypy on the generated
-  `scripts/refresh_reference.py` until that script takes core 0.3.0's `render_enums`.
-- Template-internal: the dependency variant, sdk-usda-wasde's shape, answers
-  `has_files: true`, as wasde will, and the tests check that it alone renders
-  `parse/__init__.py`, a docstring and no code, and `tests/fixtures/files/README.md` with
-  its table's columns, both skip-listed and kept on a re-render, and the generated
-  `CLAUDE.md`'s Files row and Layout lines; that every other variant renders no
-  `tests/fixtures/` at all; that every answers file records `has_files`, `false` as the
-  question's literal default, and reads back in copier's canonical form; and, on one
-  render, the `BULK_TASKS` line beside `MCP_CAPS` and adapters that pass `tasks.__all__`
-  whole. `scripts/prove.sh` takes `-d has_files=true` on the keyless nested shape and
-  requires `parse/` and `tests/fixtures/files/README.md` exactly where the answers file
-  records `has_files: true`; the template's CI runs that proof after the keyless nested
-  one, with an empty `parse/`.
+  before it generates, fills core's PR template and names what a template of another
+  shape lacks; that `source_name`'s bound follows from the template's longest Python
+  line; that this repository's own workflows are hardened, that the dev group's ruff is
+  the hook's, that `live.yml` takes `ci.yml`'s pins and every live command
+  `--tb=short`; that every name `/refresh-upstream` cites is the skeleton's, which
+  imports only the standard library, run offline against pages served on the loopback
+  interface, `--check` before and after a change, and its stop on an unrecorded
+  copyright line; that `BULK_TASKS` stands beside `MCP_CAPS` and the adapters pass
+  `tasks.__all__` whole, `mcp.py` naming core's option hooks; that the refresh script
+  calls `render_enums` once, writes through `PackagedList` and `dump_upstream` and runs
+  `ruff format` then `ruff check --fix`, and `params.py` names the lists only; that the
+  settings allow `gh pr merge --auto` and deny no `gh pr merge`; that the fixture-cap
+  step runs at `error`; that `copier` refuses `api_key_location=basic` and no write
+  server, write task or write test renders; and that `core_version` defaults to 0.3.0.
+  `gates.yml` and the PR template are pinned to core 0.3.0's bytes, and `ci.yml` and
+  `publish.yml` to core's with the template's documented steps taken out. A test keeps
+  the `trim_blocks` mistakes out of every `.jinja` file: a block tag stands alone on its
+  line or opens and closes there, before the line's end, since a line-final tag after
+  content takes the line's newline with it (the blank lines lost in the generated
+  `CLAUDE.md`'s Commands and in `/record-fixture`) and a block opened mid-line takes it
+  inside (the keyless README's MCP snippet).
+- Template-internal, the proofs: the template's CI runs five in its `ci` job against
+  xippios-core 0.3.0 from PyPI: `scripts/prove.sh` (`sdk-example-api`, keyed and
+  nested), `--keyless` (`sdk-example`, as sdk-eurostat starts), `--keyless-nested`
+  (`sdk-example-files`, no key, as sdk-usda-esmis and sdk-usda-wasde start), the same
+  with `-d has_files=true`, which requires `parse/` and `tests/fixtures/files/README.md`
+  exactly where the answers file records `has_files: true`, and `--gateway`
+  (`sdk-example-gov`, as sdk-usda-psd, sdk-usda-esr and sdk-usda-gats), with an offline
+  step that the client takes the gateway's auth, its policy's hooks and its `classify`.
+  Each passes a topic and an evidence file and checks the PR body it prints, the one a
+  real run opens; requires the unfilled capture skeleton to refuse to run; runs the
+  rendered sibling check on a nested render with the wheel alone, with `httpx<0.20`,
+  which must fail it, and with a sibling built on another core minor, which must be left
+  out with a warning, and requires none on the flat one; checks offline that a task named
+  in `BULK_TASKS` gets no tool and no route (sdk-eurostat); and renders a value list and
+  an id list fetched on different days into one `enums.py` through the refresh script,
+  each class with its date, as ruff leaves it. A dependent has no proof of its own, since
+  a dependency that is not on PyPI cannot be installed; the template tests cover its
+  render. Nothing a source renders changes, so no Hand-apply bullet.
 
 ### Removed
 
@@ -452,14 +488,14 @@ are not listed.
 - The `basic` key location (`BasicKeyAuth`, the key as the HTTP basic user name), which
   only sdk-cashctrl answered: `api_key_location` offers `query`, `header` and `bearer`,
   and `api_key_name` is asked for `query` and `header` as before.
-- Template-internal: the template tests drop the `basic` case and every write
-  assertion, and check that copier refuses `api_key_location=basic` and that no write
-  server, write task or write test renders.
 - `tests/fixtures/README.md`: the fixture rule lives in `/record-fixture` and
   conventions §10, and its grep differed from `/record-fixture`'s (sdk-usda-gats).
 - The `domain_topic` question, now `new-source.sh`'s `--topic`, since the topic is set
   once on GitHub; `source_pkg`, the hidden alias of `import_path`; and
   `_message_after_copy`, which repeated the human steps `new-source.sh` prints.
+- From the reference scaffolds: `PackagedValues` and `packaged_values` in `params.py`,
+  `upstream_record` and the two refusals in `scripts/refresh_reference.py`, which core
+  0.3.0's `PackagedList`, `dump_upstream` and `render_enums` replace (Changed, above).
 
 ### Hand-apply
 
@@ -512,61 +548,105 @@ are not listed.
   4. The result stays under 40,000 characters (`wc -m CLAUDE.md`), where Claude Code
      cuts a file that loads on demand; `.claude/family.md` counts on its own.
   5. Nothing else moves: the facts and the source's own sections keep their wording.
-- `src/xippios/<package>/errors.py` — new: the update creates it where the repository
-  has none, and leaves an `errors.py` of the source's own byte for byte (checked with
-  copier 9.19.1); nothing to port — the place for the package's own error classes
-  (conventions §5).
+  6. In the same edit, where they apply: the live command in Commands and the sentence
+     on `live.yml`'s step read `uv run pytest -m live --tb=short`, which keeps a failing
+     test's frame arguments, a raw upstream payload among them, out of the log; in
+     sdk-usda-psd and sdk-usda-esr the Layout's lines on the sibling check name
+     `.github/scripts/check-siblings.sh`, the template's, instead of
+     `scripts/check-siblings.sh`, "this package's own", which the update leaves behind
+     (a nested source without those lines may add them as the scaffold has them); in
+     sdk-usda-psd, sdk-usda-esr and sdk-usda-gats the Credentials row names
+     `xippios.core.data_gov`'s `Gateway` and the key as api.data.gov's, shared by every
+     package that reads it, and the Rate limit row the hourly quota as the gateway's,
+     one `QuotaPolicy` per process, `Gateway.policy`, as the scaffold renders them, the
+     source's own facts in the rows (the recorded 429, the quota's size) staying, which
+     core 0.3.0's Hand-apply asks of the Rate limit row too.
+- `src/xippios/<package>/__init__.py` — the docstring's summary line names no source,
+  the name on a line of its own below it — a long name broke ruff's line length
+  (sdk-usda-esmis); port it if the file still carries the scaffold docstring.
 - `src/xippios/<package>/_client.py` — add `classify(response: httpx.Response) ->
   XippiosError | None` returning `None` (`import httpx`, `XippiosError` from
   `xippios.core`), pass `classify=classify` to `ClientConfig` and export `"classify"`,
   unless the source has a `classify` of its own; where the file still carries the
   scaffold's text, its docstring becomes one sentence that mentions no cache, the
   commented `QuotaPolicy` block becomes the one sentence pointing at conventions §6,
-  ADR-0015 and core's README, and a self-imposed pace's
-  comment says upstream documents no per-second or per-minute limit — the hook is where
-  a source maps its documented error shapes (conventions §6), and the docstring named a
-  cache no config sets (sdk-eurostat, sdk-usda-esmis).
-- `src/xippios/<package>/__init__.py` — the docstring's summary line names no source,
-  the name on a line of its own below it — a long name broke ruff's line length
-  (sdk-usda-esmis); port it if the file still carries the scaffold docstring.
+  ADR-0015 and core's README, and a self-imposed pace's comment says upstream documents
+  no per-second or per-minute limit — the hook is where a source maps its documented
+  error shapes (conventions §6), and the docstring named a cache no config sets
+  (sdk-eurostat, sdk-usda-esmis). In sdk-usda-psd, sdk-usda-esr and sdk-usda-gats, which
+  answer `gateway: api.data.gov` in their 0.3.0 adoption, delete the gateway block
+  (`policy = QuotaPolicy(...)`, `_URL`, `_gateway_error`, `_over_rate_limit`, the
+  `API_KEY_*`, 429 and `NOT_FOUND` branches of `classify`, `auth = HeaderKeyAuth(...)`)
+  and take the render's shape: `from xippios.core.data_gov import Gateway`,
+  `gateway = Gateway(SOURCE)`, `classify` returning `gateway.classify(response)` when
+  that is not `None` and keeping its own branches after it, `config =
+  gateway.install(ClientConfig(...))`, `auth = gateway.auth`,
+  `client = AsyncClient(config, auth=auth)`, `"gateway"` exported, where `policy` was —
+  core 0.3.0's Hand-apply asks the same of these three in these names, and lists their
+  tests; one edit makes the file core's shape and the template's.
+- `src/xippios/<package>/errors.py` — new: the update creates it where the repository
+  has none, and leaves an `errors.py` of the source's own byte for byte (checked with
+  copier 9.19.1); nothing to port — the place for the package's own error classes
+  (conventions §5).
 - `src/xippios/<package>/models.py` — the docstring is its purpose and a pointer to
   conventions §3 and `/add-endpoint` — guidance only, and a long name broke the summary
   line; port it if the file still carries the scaffold docstring.
-- `src/xippios/<package>/params.py` — the docstring is its purpose and a pointer to
-  conventions §3 and `/refresh-reference-data` — as for `models.py`.
-- `src/xippios/<package>/tasks.py` — the docstring is its purpose and a pointer to
-  conventions §2 and `/add-endpoint`; the `MCP_CAPS` comment imports `ResultCap` from
-  `xippios.core` without a guard — core 0.3.0 exports it from `xippios.core`, so the
-  `mcp` extra is no longer needed for it; an `MCP_CAPS` of the source's own may keep its
-  guarded import.
 - `src/xippios/<package>/api/__init__.py` — the docstring is its purpose and a pointer
   to conventions §2 and `/add-endpoint` — guidance only; port it if the file still
   carries the scaffold docstring.
-- `tests/test_tasks.py` — the docstring is its purpose and a pointer to conventions §10,
-  `/add-endpoint` and `/record-fixture`; the `sent_query` and `sent_urls` advice it
-  carried is `/add-endpoint`'s step 6 — guidance only; port it if the file still carries
-  the scaffold docstring.
-- `tests/test_live.py` — the module docstring is its purpose and a pointer; a keyed
-  source's reachability probe says it "spends no keyed call" instead of naming the
-  key's quota — a keyed source need not have a quota (sdk-usda-nass); port it if the
-  file still carries the scaffold's text.
-- `src/xippios/<package>/reference/README.md` — the rules list goes (conventions §3 and
-  `/refresh-reference-data` hold the rules), and the paragraph above the table says
-  that Origin names the endpoint or URL a file was fetched from, or the `docs/upstream/`
-  file it was rebuilt from, and Fetched that fetch's UTC time, or the snapshot's
-  `Fetched` time — the table could not tell a file rebuilt from the snapshot from one
-  fetched (sdk-usda-nass); port the provenance sentence and correct a rebuilt file's
-  row.
-- `tests/fixtures/README.md` — the update deletes it: copier 9.19.1 deletes a
-  skip-listed file the template stops rendering, a line of the source's own included,
-  with no conflict marker, and leaves the recorded fixtures beside it as they are
-  (checked); every source's copy but sdk-cashctrl's is the template's text byte for
-  byte, so nothing of its own is lost, and sdk-cashctrl, whose copy carries lines of its
-  own, moves them first should it ever update — the fixture rule lives in
-  `/record-fixture` and conventions §10.
-- `CLAUDE.md` — the live command in Commands and the sentence on `live.yml`'s step read
-  `uv run pytest -m live --tb=short` — the flag keeps a failing test's frame arguments,
-  a raw upstream payload among them, out of the log; port it with the split above.
+- `src/xippios/<package>/tasks.py` (every source) — the docstring is its purpose and a
+  pointer to conventions §2 and `/add-endpoint`; an `ImportError`-guarded `ResultCap`
+  import (sdk-usda-nass, sdk-usda-psd, sdk-usda-esr, sdk-usda-gats) becomes
+  `from xippios.core import ResultCap`, unguarded, and the comment that names the `mcp`
+  extra goes; add `BULK_TASKS: frozenset[str] = frozenset()` after `__all__`, beside
+  `MCP_CAPS`, with the scaffold's comment line, and name a bulk task of the source's
+  there (sdk-usda-esmis and sdk-eurostat wrote theirs by hand and keep them) — core
+  0.3.0 exports `ResultCap` from `xippios.core`, so the `mcp` extra is no longer needed
+  for it (sdk-usda-psd), and its adapters read `BULK_TASKS` from the tasks module, the
+  family check serving `tasks.__all__` minus it (ADR-0019 decision 4).
+- `src/xippios/<package>/params.py` — the docstring is its purpose and a pointer to
+  conventions §3 and `/refresh-reference-data`, as for `models.py`; `PackagedValues` and
+  `packaged_values`, or the `PackagedList` class a source wrote (sdk-usda-psd,
+  sdk-usda-esr, sdk-usda-gats), become `PackagedList.load(PACKAGE, name)` from
+  `xippios.core`, whose `fetched` is an aware datetime; `PACKAGED_LISTS` stays, which the
+  refresh script checks — core 0.3.0's `PackagedList` replaces the copies, as its
+  Hand-apply lists per source (sdk-usda-psd, sdk-usda-esr).
+- `src/xippios/<package>/reference/` — `README.md`: the rules list goes (conventions §3
+  and `/refresh-reference-data` hold the rules), and the paragraph above the table names
+  the file's layout, `{"param", "endpoint", "fetched", "records"}` and an optional
+  `"note"`, and says that Origin names the endpoint or URL a file was fetched from, or the
+  `docs/upstream/` file it was rebuilt from, and Fetched that fetch's UTC time, or the
+  snapshot's `Fetched` time — the table could not tell a file rebuilt from the snapshot
+  from one fetched (sdk-usda-nass); port the paragraph and correct a rebuilt file's row.
+  The value files, `{"param", "fetched", "values"}` (sdk-usda-nass, sdk-comtrade, with
+  sdk-comtrade's CSV tables), become packaged-list files, converted without network, a
+  value list as records of one field named by the parameter, as core 0.3.0's Hand-apply
+  says per source; a file whose `fetched` is a bare date loads as 00:00 UTC of that day
+  until the next refresh writes the full time — `PackagedList.load` refuses any other
+  key (ADR-0022, amendment 2026-10-27).
+- `src/xippios/<package>/enums.py` (every source with one) — re-render it once with the
+  ported script, `uv run python scripts/refresh_reference.py --render-only`, and commit it
+  as formatted, each class docstring one line, "Values of ``<key>`` (fetched <date>)." —
+  core 0.3.0 renders with one `render_enums` call and leaves the layout to ruff
+  (conventions §15 item 6, ADR-0008 amendment 2026-10-27).
+- `scripts/refresh_reference.py` (every source with packaged lists or a generated
+  `enums.py`) — take core 0.3.0's API, in the template's shape or the source's own:
+  `upstream_record(record)` becomes `record.dump_upstream()`; the writer
+  `PackagedList(param=..., endpoint=..., fetched=datetime.now(UTC), records=...).write(path)`,
+  `fetched` written to the second, a value list as records of one field named by the
+  list; the two renderers one `render_enums(lists, fetched=..., class_names=...,
+  generator=...)` call, value lists and id lists in one mapping, `fetched` one day per
+  list (`f"{fetched:%Y-%m-%d}"`), then `ruff format` and `ruff check --fix` on
+  `enums.py`; the refusal of a value list and an id list together and `--render-only`'s
+  refusal of lists fetched on different days go. sdk-usda-psd, sdk-usda-esr and
+  sdk-usda-gats keep their `TABLES`, now the template's too, and drop `upstream_record`;
+  sdk-comtrade drops its per-class docstring rewrite for `fetched={name: date, ...}`, its
+  notes going to the packaged list's `note`, and the ruff step of its
+  `/refresh-reference-data`, which the script runs now — core 0.3.0 removed
+  `render_str_enums` and `render_int_enums`, and `mypy --strict` covers `scripts/`, so a
+  script that still calls them fails CI (sdk-usda-esmis, sdk-eurostat); its
+  `PackagedList` and `dump_upstream` replace the copies (sdk-usda-psd, sdk-usda-esr,
+  sdk-usda-gats).
 - `scripts/refresh_upstream.py` — new: the update creates the skeleton where the
   repository has no file of that name (sdk-usda-nass today) and leaves a script of the
   source's own byte for byte (checked with copier 9.19.1); a source with its own script
@@ -584,89 +664,92 @@ are not listed.
   replaces the copies and finds the siblings itself, so no sibling list is kept by hand
   and a release no longer edits the script; a copy identical to the render is the
   template's for the merge classes, and the deleted script is no protected path.
-- `CLAUDE.md` (sdk-usda-psd, sdk-usda-esr) — the Layout's lines on the sibling check name
-  `.github/scripts/check-siblings.sh`, the template's, instead of
-  `scripts/check-siblings.sh`, "this package's own" — the old path is gone after the
-  update; a nested source without those lines may add them as the scaffold has them.
-- `src/xippios/<package>/_client.py` (sdk-usda-psd, sdk-usda-esr, sdk-usda-gats, which
-  answer `gateway: api.data.gov` in their 0.3.0 adoption) — delete the gateway block
-  (`policy = QuotaPolicy(...)`, `_URL`, `_gateway_error`, `_over_rate_limit`, the
-  `API_KEY_*`, 429 and `NOT_FOUND` branches of `classify`, `auth = HeaderKeyAuth(...)`)
-  and take the render's shape: `from xippios.core.data_gov import Gateway`,
-  `gateway = Gateway(SOURCE)`, `classify` returning `gateway.classify(response)` when
-  that is not `None` and keeping its own branches after it, `config =
-  gateway.install(ClientConfig(...))`, `auth = gateway.auth`,
-  `client = AsyncClient(config, auth=auth)`, `"gateway"` exported, where `policy` was —
-  core 0.3.0's Hand-apply asks the same of these three in these names, and lists their
-  tests; one edit makes the file core's shape and the template's.
-- `CLAUDE.md` (sdk-usda-psd, sdk-usda-esr, sdk-usda-gats) — the Credentials row names
-  `xippios.core.data_gov`'s `Gateway` and the key as api.data.gov's, shared by every
-  package that reads it, and the Rate limit row the hourly quota as the gateway's, one
-  `QuotaPolicy` per process, `Gateway.policy`, as the scaffold renders them; the
-  source's own facts in the rows (the recorded 429, the quota's size) stay — core
-  0.3.0's Hand-apply asks the same of the Rate limit row; one edit.
-- `src/xippios/<package>/tasks.py` (every source) — add
-  `BULK_TASKS: frozenset[str] = frozenset()` after `__all__`, beside `MCP_CAPS`, with the
-  scaffold's comment line, and name a bulk task of the source's there — core 0.3.0's
-  adapters read it from the tasks module and the family check serves `tasks.__all__`
-  minus it (ADR-0019 decision 4); sdk-usda-esmis and sdk-eurostat wrote theirs by hand
-  and keep them as they are.
+- `tests/fixtures/README.md` — the update deletes it: copier 9.19.1 deletes a
+  skip-listed file the template stops rendering, a line of the source's own included,
+  with no conflict marker, and leaves the recorded fixtures beside it as they are
+  (checked); every source's copy but sdk-cashctrl's is the template's text byte for
+  byte, so nothing of its own is lost, and sdk-cashctrl, whose copy carries lines of its
+  own, moves them first should it ever update — the fixture rule lives in
+  `/record-fixture` and conventions §10.
+- `tests/test_tasks.py` — the docstring is its purpose and a pointer to conventions §10,
+  `/add-endpoint` and `/record-fixture`; the `sent_query` and `sent_urls` advice it
+  carried is `/add-endpoint`'s step 6 — guidance only; port it if the file still carries
+  the scaffold docstring.
+- `tests/test_live.py` — the module docstring is its purpose and a pointer; a keyed
+  source's reachability probe says it "spends no keyed call" instead of naming the
+  key's quota — a keyed source need not have a quota (sdk-usda-nass); port it if the
+  file still carries the scaffold's text.
+- `src/xippios/<package>/mcp.py` and `http.py`, template-owned, where a source's differs
+  from the render — the update merges them three ways: keep the template's side, which
+  passes `tasks.__all__` whole, and drop a filter of `BULK_TASKS` written by hand before
+  core 0.3.0; a source's own command-line options reach `main` through core's
+  `add_options` and `apply_options`, as `run()`'s comment shows — core 0.3.0 skips the
+  bulk names itself (sdk-eurostat), and its hooks spare the adapter an edit
+  (sdk-usda-gats).
 
-The scaffolds of `_client.py`, `README.md` and `CHANGELOG.md` lose their write and
-`basic` branches and the README's status comment no longer names `tasks_write.__all__`,
-which matters to new repositories only. The two files under `_skip_if_exists` the
-template stops rendering, `src/xippios/<package>/tasks_write.py` and
-`tests/test_tasks_write.py`, exist only in a repository generated with write tools,
-sdk-cashctrl alone, which stays on its last template tag. `copier update` to this
-release would delete both, a write task of its own included, with no conflict marker,
-and `mcp_write.py` with them; drop the `-mcp-write` entry point from `pyproject.toml`;
-turn its `basic` answer into the default `query` and add `api_key_name: key`, while the
-skip-listed `_client.py` keeps `BasicKeyAuth` and the skip-listed `CLAUDE.md` its
-credentials row (checked with copier 9.19.1).
-No other repository has them.
+New repositories only, nothing to port:
 
-New repositories only, nothing to port: the `README.md` scaffold's MCP snippet and terms
-sentence (a keyless source's README may close the server's brace on a line of its own),
-the generated `CLAUDE.md`'s rate-limit row, Layout lines and start-time sentence, which
-the 0.3.0 split leaves as the source wrote them (the capture script's line and the
-Documentation row's `SPEC_URL` pointer among them), and `docs/upstream/FETCHED.md`'s
-attribution placeholder and example rows, which the next `/refresh-upstream` rewrites,
-and the `README.md` and `CLAUDE.md` lines a declared dependency renders, since no source
-declares one before this release, the `README.md` scaffold's sentence on the gateway's
-key, which the three sources behind it say in words of their own, and the generated
-`CLAUDE.md`'s `tasks.py` Layout line naming `BULK_TASKS`, and its Files row and Layout
-lines where `has_files` is true. The update carries the rest: `.claude/family.md`, the
-six commands, the sibling check where the import path nests, `tests/conftest.py`,
-`live.yml` and `ci.yml`, the read server's instructions in `mcp.py`, and `junit_family`,
-the ruff pin and the keywords in `pyproject.toml`, merged three ways where a source
-changed them.
+- the `README.md` scaffold's MCP snippet and terms sentence (a keyless source's README
+  may close the server's brace on a line of its own), its sentence on the gateway's key,
+  which the three sources behind it say in words of their own, and the lines a declared
+  dependency renders, since no source declares one before this release;
+- the generated `CLAUDE.md`'s rate-limit row, Layout lines and start-time sentence, which
+  the split leaves as the source wrote them (the capture script's line, the `tasks.py`
+  line naming `BULK_TASKS`, the Documentation row's `SPEC_URL` pointer and the lines a
+  declared dependency renders among them), and its Files row and Layout lines where
+  `has_files` is true;
+- `docs/upstream/FETCHED.md`'s attribution placeholder and example rows, which the next
+  `/refresh-upstream` rewrites;
+- the scaffolds of `_client.py`, `README.md` and `CHANGELOG.md`, which lose their write
+  and `basic` branches, and the README's status comment, which no longer names
+  `tasks_write.__all__`;
+- the empty `enums.py` the scaffold ships, `render_enums`'s module for no lists.
 
-**Updating from 0.2.2.** The update needs copier 9.19.0 or later: run it as
-`uvx --from 'copier>=9.19' copier update ...`, since the `/adopt-release` a source has
-from 0.2.2 shows a bare `uvx copier update`, which a stale tool cache may run on an older
-copier that refuses the template. `copier update --defaults` answers the three new
-questions, `source_dependencies`, `gateway` and `has_files`, with their defaults,
-recorded as `source_dependencies: '[]'`, `gateway: none` and `has_files: false`, the
-literal defaults the merge classes leave free, so every existing source passes no `-d`
-for them (checked with copier 9.19.1 on v0.2.2 renders), and none renders `parse/` or
-`tests/fixtures/files/`; sdk-usda-esmis, which downloads files without parsing them,
-keeps `has_files: false`, and sdk-usda-wasde answers `true` at its start. sdk-usda-psd,
-sdk-usda-esr and sdk-usda-gats pass `-d gateway=api.data.gov`, their one changed answer:
-the update keeps their recorded `api_key_env`, `api_key_location` and `api_key_name`,
-which equal the derived ones, and adds `gateway: api.data.gov`, a value other than the
-default, so their adoption is a `human` merge; `live.yml` gains the comment on the shared
-key, and `_client.py` and `CLAUDE.md` are theirs to port (Hand-apply above; checked with
-copier 9.19.1 on v0.2.2 renders with sdk-usda-psd's, sdk-usda-nass's and sdk-eurostat's
-key answers). The update drops `needs_write_tools` and `domain_topic` from
-`.copier-answers.yml` (checked with copier 9.19.1 on v0.2.2 renders, keyed and keyless;
-`source_pkg` was never recorded); no `-d` answer is needed for them. The domain's topic
-stays on the GitHub repository; the `pyproject.toml` keywords lose it. Every source's
-`source_name` is within the new 77-character bound. The update creates `errors.py` where
-the package has none and deletes `tests/fixtures/README.md`; `uv lock` after it resolves
-ruff to the pinned 0.17.1. It creates `scripts/refresh_upstream.py` where the repository
-has none, and in a nested source `.github/scripts/check-siblings.sh` and
-`.github/workflows/siblings.yml`, the latter in conflict where the source kept its own
-(Hand-apply above).
+The update carries the rest: `.claude/family.md`, the six commands, the sibling check
+where the import path nests or a dependency is declared, `tests/conftest.py`, `live.yml`,
+`ci.yml`, `publish.yml`, `.claude/settings.json` and the PR template, the read server's
+instructions, the docstrings and the hooks' comment in `mcp.py` and `http.py`, and
+`junit_family`, the ruff pin, the keywords and the core bound in `pyproject.toml`,
+merged three ways where a source changed them.
+
+**Updating from 0.2.2.** `/adopt-release v0.3.0` walks it; its step 3 runs
+`uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.3.0 -d core_version=0.3.0 -d core_git_ref=`,
+which renders `xippios-core~=0.3.0` and its extras and drops a core pin where a source
+has one. The update needs copier 9.19.0 or later, hence `--from 'copier>=9.19'`: the
+`/adopt-release` a source has from 0.2.2 shows a bare `uvx copier update`, which a stale
+tool cache may run on an older copier that refuses the template. `--defaults` answers
+the three new questions, `source_dependencies`, `gateway` and `has_files`, with their
+defaults, recorded as `source_dependencies: '[]'`, `gateway: none` and
+`has_files: false`, the literal defaults the merge classes leave free, so every existing
+source passes no `-d` for them (checked with copier 9.19.1 on v0.2.2 renders), and none
+renders `parse/` or `tests/fixtures/files/`; sdk-usda-esmis, which downloads files
+without parsing them, keeps `has_files: false`, and sdk-usda-wasde answers `true` at its
+start. sdk-usda-psd, sdk-usda-esr and sdk-usda-gats pass `-d gateway=api.data.gov`, their
+one changed answer (Johannes's decision of 2026-10-27): the update keeps their recorded
+`api_key_env`, `api_key_location` and `api_key_name`, which equal the derived ones, and
+adds `gateway: api.data.gov`, a value other than the default, so their adoption is a
+`human` merge; `live.yml` gains the comment on the shared key, and `_client.py` and
+`CLAUDE.md` are theirs to port (Hand-apply above; checked with copier 9.19.1 on v0.2.2
+renders with sdk-usda-psd's, sdk-usda-nass's and sdk-eurostat's key answers). The update
+drops `needs_write_tools` and `domain_topic` from `.copier-answers.yml`, keys of
+questions the template no longer asks, which the merge classes count as no change
+(checked with copier 9.19.1 on v0.2.2 renders, keyed and keyless; `source_pkg` was never
+recorded); no `-d` answer is needed for them. The domain's topic stays on the GitHub
+repository; the `pyproject.toml` keywords lose it. Every source's `source_name` is
+within the new 77-character bound. The update renders `.claude/family.md` and leaves
+`CLAUDE.md` as it is; it creates `errors.py` and `scripts/refresh_upstream.py` where the
+repository has none and deletes `tests/fixtures/README.md`; in a nested source it
+creates `.github/scripts/check-siblings.sh` and `.github/workflows/siblings.yml`, the
+latter in conflict where the source kept its own (Hand-apply above). `uv lock` after it
+resolves core to 0.3.0 and ruff to the pinned 0.17.1. sdk-cashctrl stays on v0.2.2, its
+last template tag, and keeps adopting core minors (Johannes's decisions of 2026-10-25
+and 2026-10-27): an update to this release would delete its `tasks_write.py`,
+`mcp_write.py` and `tests/test_tasks_write.py`, a write task of its own included, with
+no conflict marker, drop the `-mcp-write` entry point from `pyproject.toml` and turn its
+`basic` answer into the default `query` with `api_key_name: key`, while the skip-listed
+`_client.py` kept `BasicKeyAuth` and `CLAUDE.md` its credentials row (checked with copier
+9.19.1); no other repository has write files. A repository still on an earlier tag reads
+the paragraphs of the releases in between as well.
 
 ## [0.2.2] - 2026-10-27
 

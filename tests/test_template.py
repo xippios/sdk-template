@@ -95,7 +95,6 @@ VARIANTS: dict[str, dict[str, object]] = {
         "source_name": "USDA ESMIS (Economics, Statistics and Market Information System)",
         "rate_limit_burst": 3,
         "rate_limit_provenance": "self-imposed",
-        "core_version": "0.3.0",
         **keyed(""),
     },
     # sdk-usda-wasde's, as it will start (ADR-0021): no key, a nested import path, and the
@@ -118,7 +117,6 @@ VARIANTS: dict[str, dict[str, object]] = {
         "gateway": DATA_GOV,
         "rate_limit_per_minute": 60,
         "rate_limit_provenance": "self-imposed",
-        "core_version": "0.3.0",
     },
 }
 # A source on unreleased core: the keyed nested answers with a full-SHA core pin.
@@ -485,6 +483,7 @@ def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
     """Conventions §12: one core minor, the extras likewise; a source package depended on
     bound to its minor the same way, ``~=X.Y.0`` (ADR-0021), in no extra."""
     name, dst = variant
+    assert CORE_DEFAULT == "0.3.0", "the core release the template adopts, its verbatim files'"
     version = str(VARIANTS[name].get("core_version", CORE_DEFAULT))
     project = tomllib.loads((dst / "pyproject.toml").read_text())["project"]
     depended = [f"xippios-{d['name']}~={d['minor']}.0" for d in dependencies(VARIANTS[name])]
@@ -888,6 +887,9 @@ def test_servers_take_the_caps_kept_with_the_tasks(keyed_nested: Path) -> None:
     whole = "[getattr(tasks, name) for name in tasks.__all__]"
     for adapter in ["mcp.py", "http.py"]:
         assert whole in (pkg / adapter).read_text(), adapter
+    mcp = (pkg / "mcp.py").read_text()
+    assert "add_options=" in mcp, "core's hooks for a source's options (ADR-0014)"
+    assert "tenant_lock" not in mcp, "core 0.3.0's build_server has none"
 
 
 def test_generated_tests_need_no_key(keyed_nested: Path) -> None:
@@ -899,10 +901,9 @@ def test_generated_tests_need_no_key(keyed_nested: Path) -> None:
     assert "client.request" not in live
 
 
-# SHA-256 of sdk-core's files the template copies verbatim, at v0.2.1, the core release the
-# template adopts: git -C <workspace root>/sdk-core show v0.2.1:<path> | sha256sum (digests,
-# not secrets). gates.yml's is core's from sdk-core#26 on (merged at 9d7ff47: the gates
-# repository renamed `xippios/sdk-gates`), core main's since.
+# SHA-256 of sdk-core's files the template copies verbatim, at v0.3.0, the core release the
+# template adopts: git -C <workspace root>/sdk-core show v0.3.0:<path> | sha256sum (digests,
+# not secrets).
 CORE_VERBATIM = {
     ".github/workflows/gates.yml": (
         # pragma: allowlist nextline secret
@@ -910,7 +911,7 @@ CORE_VERBATIM = {
     ),
     ".github/PULL_REQUEST_TEMPLATE.md": (
         # pragma: allowlist nextline secret
-        "657a5d0e61d1c1e7a3e47f3a0ee53acef7ade9f6e452b193a4d0fa92d7eb3d22"
+        "13900fdecd972d68bc9bab45c21dcfef0b40b73e64ace0f9328e21b7f345d409"
     ),
 }
 # The same for the two workflows the template extends: core's bytes once the template's
@@ -920,7 +921,7 @@ CORE_EXTENDED = {
     ".github/workflows/ci.yml": "ebee09e20d7004a6761c1986f3bc0e16ee4a2dfa749921ac25040ebad5abacab",
     ".github/workflows/publish.yml": (
         # pragma: allowlist nextline secret
-        "bf846b59d1c832d8873ad56b3edb339c4d2fbe5fbafd428075ef1df922feb6ba"
+        "dc98ee245673db75f639fa94318668078ea0242f07072b6c333716ee9ffdcf9f"
     ),
 }
 # The template's own lines: in ci.yml the full history for the two steps that read the
@@ -976,7 +977,7 @@ def test_ci_reads_the_pull_request_and_runs_once_on_main(keyed_nested: Path) -> 
         assert f"!startsWith(github.head_ref, '{prefix}')" in changelog["if"], prefix
     assert "chore/template-update" not in changelog["if"], "conventions §15 item 9"
     assert cap["name"] == "Fixture files under 256 KiB"
-    assert cap["env"]["LEVEL"] == "warning", "an error from template v0.3.0 (ADR-0019)"
+    assert cap["env"]["LEVEL"] == "error", "the cap binds a source from v0.3.0 (ADR-0019)"
     assert "--no-renames --diff-filter=AM" in cap["run"]
     assert "262144" in cap["run"]
 
@@ -1004,6 +1005,19 @@ def test_publish_is_the_release_train(keyed_nested: Path) -> None:
     assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep, "the pin goes first"
     slug = VARIANTS["keyed-nested"]["source_slug"]
     assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in release_prep
+
+
+def test_the_session_enables_auto_merge_in_the_repository(keyed_nested: Path) -> None:
+    """ADR-0018 decision 3 and amendment (e): core's settings allow the one merge action,
+    ``gh pr merge --auto``, and deny no ``gh pr merge``, so ``/adopt-release`` and
+    ``/release-prep`` run it in the repository's own panel."""
+    permissions = json.loads((keyed_nested / ".claude/settings.json").read_text())["permissions"]
+    assert "Bash(gh pr merge --auto *)" in permissions["allow"]
+    assert not [rule for rule in permissions["deny"] if rule.startswith("Bash(gh pr merge")]
+    slug = VARIANTS["keyed-nested"]["source_slug"]
+    for command in ["adopt-release.md", "release-prep.md"]:
+        text = (keyed_nested / ".claude/commands" / command).read_text()
+        assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in text, command
 
 
 def test_adopt_release_runs_the_update_for_this_source(render: Callable[[str], Path]) -> None:
@@ -1035,17 +1049,44 @@ def test_adopt_release_runs_the_update_for_this_source(render: Callable[[str], P
         assert ("-d source_dependencies=" in text) is bool(depended), name
 
 
-def test_reference_data_has_both_enum_paths(keyless_flat: Path) -> None:
-    """ADR-0008 amendment: StrEnum for value lists, IntEnum for integer ids, as rendered;
-    ``--render-only`` re-renders them from the packaged files, as an adoption does."""
-    script = (keyless_flat / "scripts/refresh_reference.py").read_text()
-    for call in ["render_str_enums(values,", "id_name_pairs(records,", "render_int_enums(pairs,"]:
-        assert call in script, call
-    assert "records = [upstream_record(record) for record in" in script, "upstream's names"
-    assert '"--render-only",' in script
+def assigned(tree: ast.Module) -> set[str]:
+    """The names a module assigns at its top level, annotated or not."""
+    return {
+        target.id
+        for node in tree.body
+        if isinstance(node, ast.AnnAssign | ast.Assign)
+        for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+        if isinstance(target, ast.Name)
+    }
+
+
+def test_reference_data_is_packaged_lists_and_one_renderer(keyless_flat: Path) -> None:
+    """Conventions §3, ADR-0022 and ADR-0008 as amended: value lists, id lists and tables
+    are fetched into core's ``PackagedList`` and written by it, records under upstream's
+    names (``dump_upstream``); ``enums.py`` is one ``render_enums`` call, then ``ruff
+    format`` and ``ruff check --fix``; ``--render-only`` re-renders from the packaged
+    files, as an adoption does. ``params.py`` names the lists core's loader reads."""
+    pkg = keyless_flat / "src/xippios" / package_dir(VARIANTS["keyless-flat"])
+    script = ast.parse((keyless_flat / "scripts/refresh_reference.py").read_text())
+    assert {"LISTS", "ID_LISTS", "TABLES"} <= assigned(script)
+    calls = [ast.unparse(node.func) for node in ast.walk(script) if isinstance(node, ast.Call)]
+    assert calls.count("render_enums") == 1, "one module, both kinds"
+    for call in ["PackagedList", "record.dump_upstream", "fetched.write", "id_name_pairs"]:
+        assert call in calls, call
+    loops = [ast.unparse(node.iter) for node in ast.walk(script) if isinstance(node, ast.For)]
+    assert "(['format'], ['check', '--fix'])" in loops, "ruff format, then ruff check --fix"
+    imported = {
+        alias.name
+        for node in script.body
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+    }
+    assert {"PackagedList", "render_enums", "PACKAGED_LISTS"} <= imported
+    assert not {"render_str_enums", "render_int_enums"} & imported, "gone in core 0.3.0"
+    params = ast.parse((pkg / "params.py").read_text())
+    assert assigned(params) == {"__all__", "PACKAGE", "PACKAGED_LISTS"}, "core's loader reads"
     command = (keyless_flat / ".claude/commands/refresh-reference-data.md").read_text()
     assert "uv run python scripts/refresh_reference.py --render-only" in command
-    assert "ruff format" not in command, "core 0.2.0 renders enums.py ruff-clean"
 
 
 def test_every_command_points_at_the_process(keyless_flat: Path) -> None:
@@ -1715,8 +1756,8 @@ def test_the_templates_own_workflows_are_hardened() -> None:
 
 def test_ci_proves_the_familys_variants() -> None:
     """T11: the required ``ci`` job runs scripts/prove.sh on the keyed nested, the keyless
-    flat, the keyless nested and the keyless nested shape that parses files
-    (``has_files``, ADR-0020), so a proof that fails blocks the merge."""
+    flat, the keyless nested, the keyless nested shape that parses files (``has_files``,
+    ADR-0020) and the gateway shape (T9), so a proof that fails blocks the merge."""
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     (job,) = workflow["jobs"].values()
     assert job["name"] == "ci", "the check the org ruleset requires"
@@ -1727,6 +1768,7 @@ def test_ci_proves_the_familys_variants() -> None:
         "scripts/prove.sh --keyless",
         "scripts/prove.sh --keyless-nested",
         "scripts/prove.sh --keyless-nested -d has_files=true",
+        "scripts/prove.sh --gateway",
     ]
 
 

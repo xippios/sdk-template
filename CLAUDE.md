@@ -41,7 +41,7 @@ scripts/prove.sh         generate sdk-example-api (--keyless: sdk-example; --key
 tests/test_template.py   the family's variants, each rendered once; ruff on the output, the answers' rules,
                          skip-if-exists behaviour
 CHANGELOG.md             template releases, each with its Hand-apply list (Rules)
-.github/workflows/ci.yml       the template's own CI: tests and four proofs
+.github/workflows/ci.yml       the template's own CI: tests and five proofs
 .github/workflows/release.yml  tags vX.Y.Z from the top CHANGELOG heading on push to main (Workflow rules)
 .github/workflows/gates.yml    core's gates.yml, byte for byte the template's copy, off until GATES_CALLER (Rules)
 .claude/commands/new-source.md
@@ -54,12 +54,10 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   shapes: keyed and nested (no flag), keyless and flat (`--keyless`), keyless and nested
   (`--keyless-nested`), keyless and nested parsing files, with an empty `parse/`
   (`--keyless-nested -d has_files=true`), and nested behind the api.data.gov gateway
-  (`--gateway`, on core 0.3.0, the first release with `xippios.core.data_gov`). CI runs
-  the first four; the gateway proof runs locally and stops at mypy on the generated
-  `scripts/refresh_reference.py` until that script takes core 0.3.0's `render_enums`.
-  Run them before every PR and paste their tails into the PR description. A dependent
-  (`source_dependencies`) has no proof of its own, since a dependency that is not on PyPI
-  cannot be installed; the template tests cover its render.
+  (`--gateway`, on core 0.3.0, the first release with `xippios.core.data_gov`); CI runs
+  all five. Run them before every PR and paste their tails into the PR description. A
+  dependent (`source_dependencies`) has no proof of its own, since a dependency that is
+  not on PyPI cannot be installed; the template tests cover its render.
 - `tests/test_template.py` renders each of the family's variants once per session, keyed
   nested, keyless flat, keyless nested, a dependent that parses files (keyless nested
   with `source_dependencies`, one open and one keyed, and `has_files`) and one behind the
@@ -102,11 +100,10 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   identical to the render, and the name of the script's directory is the conditional one,
   so a flat render gets no empty directory.
   `siblings` is a visible job the ruleset does not require: `ci.yml` stays core's file.
-- The verbatim files mirror sdk-core at the core release the template adopts (v0.2.1);
-  `gates.yml` is core's file from after v0.2.1 (it calls `xippios/sdk-gates`);
-  `tests/test_template.py` pins `gates.yml` and `PULL_REQUEST_TEMPLATE.md` to core's bytes,
-  and `ci.yml` and `publish.yml` to core's bytes once the template's own steps below are
-  taken out. sdk-template's own `.github/workflows/gates.yml` is the same file, byte for
+- The verbatim files mirror sdk-core at the core release the template adopts (v0.3.0),
+  `gates.yml` calling `xippios/sdk-gates`; `tests/test_template.py` pins `gates.yml` and
+  `PULL_REQUEST_TEMPLATE.md` to core's bytes, and `ci.yml` and `publish.yml` to core's
+  bytes once the template's own steps below are taken out. sdk-template's own `.github/workflows/gates.yml` is the same file, byte for
   byte `template/.github/workflows/gates.yml`, which the tests check: the template carries
   the gates caller as every repository does, off until Johannes sets the repository
   variable `GATES_CALLER` to `1` on it. When sdk-core changes one of them, change it here
