@@ -18,19 +18,23 @@ are not listed.
 
 ## [Unreleased]
 
-Generated repositories depend on xippios-core 0.3.0 (conventions 1.21) and take what it
-brought: the api.data.gov gateway behind a new `gateway` answer, packaged lists written
-and read through core's `PackagedList` with `enums.py` from one `render_enums` call,
-`BULK_TASKS` beside `MCP_CAPS`, `ResultCap` from `xippios.core`, and a fixture cap that
-fails a pull request. The family rules move out of the generated `CLAUDE.md` into the
+## [0.3.0] - 2026-10-28
+
+Generated repositories depend on xippios-core 0.3.0 (conventions 1.21), now
+`core_version`'s default, and take what it brought: the api.data.gov gateway behind a new
+`gateway` answer, packaged lists written and read through core's `PackagedList` with
+`enums.py` from one `render_enums` call, `BULK_TASKS` beside `MCP_CAPS`, `ResultCap` from
+`xippios.core`, the workflows and settings copied from core, and a fixture cap that fails
+a pull request. The family rules move out of the generated `CLAUDE.md` into the
 template-owned `.claude/family.md`, and `CLAUDE.md` becomes the source's. The template
 renders read-only packages: the write side and the `basic` key location leave with
 sdk-cashctrl, which stays on v0.2.2. Two more answers, `source_dependencies` and
-`has_files`, render a source that uses another's task layer and one that parses the
-files it downloads; the sibling check and a capture skeleton become the template's. A
-source adopts this release together with core 0.3.0 from PyPI in one adoption PR
-(conventions §15) that `/adopt-release v0.3.0` walks, with `core_version=0.3.0` and the
-bound `~=0.3.0`, and ports the Hand-apply list below by hand.
+`has_files`, render a source that uses another's task layer and one that parses the files
+it downloads; the sibling check and a capture skeleton become the template's, and the
+template's own tests render the family's five variants. A source adopts this release
+together with core 0.3.0 from PyPI in one adoption PR (conventions §15) that
+`/adopt-release v0.3.0` walks, with `core_version=0.3.0` and the bound `~=0.3.0`, and
+ports the Hand-apply list below by hand.
 
 ### Added
 
@@ -204,14 +208,14 @@ bound `~=0.3.0`, and ports the Hand-apply list below by hand.
   `ruff format && ruff check --fix` (sdk-usda-esmis, sdk-eurostat); it still names the
   organisation's `.github` repository for the merge classes, as core's definition of
   done does until it names `xippios/sdk-gates` (sdk-eurostat). `publish.yml`'s tag job
-  says why its checkout keeps its credentials. `ci.yml` is core's file plus the
-  template's two steps, as before: the CHANGELOG step exempts a release and Dependabot
-  only, so an adoption PR adds its line naming the core, template and conventions
-  versions adopted (conventions §15 item 9; sdk-eurostat's scaffold review), and the
-  fixture-cap step runs at `LEVEL: error`, failing a pull request that adds or grows a
-  fixture file over 256 KiB, since the cap binds a source from this adoption (ADR-0019,
-  conventions 1.21). `.claude/family.md` and this README state the CHANGELOG rule,
-  `/record-fixture` and this README the cap. `gates.yml` is unchanged.
+  says why its checkout keeps its credentials (sdk-cashctrl's adoption review). `ci.yml`
+  is core's file plus the template's two steps, as before: the CHANGELOG step exempts a
+  release and Dependabot only, so an adoption PR adds its line naming the core, template
+  and conventions versions adopted (conventions §15 item 9; sdk-eurostat's scaffold
+  review), and the fixture-cap step runs at `LEVEL: error`, failing a pull request that
+  adds or grows a fixture file over 256 KiB, since the cap binds a source from this
+  adoption (ADR-0019, conventions 1.21). `.claude/family.md` and this README state the
+  CHANGELOG rule, `/record-fixture` and this README the cap. `gates.yml` is unchanged.
 - The packaged lists are core 0.3.0's `PackagedList` (conventions §3, ADR-0022 amended;
   found by sdk-usda-psd, sdk-usda-esr and sdk-usda-gats, which each rebuilt the
   template's scaffold, and by the template's own 0.2.0 work).
@@ -363,8 +367,8 @@ bound `~=0.3.0`, and ports the Hand-apply list below by hand.
   needs no other edit of the adapter (sdk-usda-gats); `build_server` takes core 0.3.0's
   arguments, with no tenant lock.
 - The `README.md` scaffold: the MCP snippet of a keyless source closes the server on a
-  line of its own (sdk-eurostat), and the terms sentence holds where upstream states no
-  terms of use (sdk-usda-esmis).
+  line of its own (sdk-eurostat, sdk-usda-esmis), and the terms sentence holds where
+  upstream states no terms of use (sdk-usda-esmis).
 - Every live run takes `--tb=short`: `live.yml`'s pytest step, the live command of the
   generated `CLAUDE.md` and `.claude/family.md`, and `/release-prep`'s step 8; and
   `.claude/family.md` says that pytest's assertion introspection still prints what an
@@ -664,12 +668,15 @@ bound `~=0.3.0`, and ports the Hand-apply list below by hand.
   replaces the copies and finds the siblings itself, so no sibling list is kept by hand
   and a release no longer edits the script; a copy identical to the render is the
   template's for the merge classes, and the deleted script is no protected path.
-- `tests/fixtures/README.md` — the update deletes it: copier 9.19.1 deletes a
-  skip-listed file the template stops rendering, a line of the source's own included,
-  with no conflict marker, and leaves the recorded fixtures beside it as they are
-  (checked); every source's copy but sdk-cashctrl's is the template's text byte for
-  byte, so nothing of its own is lost, and sdk-cashctrl, whose copy carries lines of its
-  own, moves them first should it ever update — the fixture rule lives in
+- `tests/fixtures/README.md` — the update deletes it: copier 9.19.1 deletes a skip-listed
+  file the template stops rendering, a line of the source's own included, with no
+  conflict marker, and leaves the recorded fixtures beside it as they are (checked); a
+  copy that is the template's text byte for byte loses nothing, but sdk-eurostat's and
+  sdk-cashctrl's carry lines of their own, which each moves before its update:
+  sdk-eurostat its paragraphs on the parser samples under `files/`, to the
+  "`<source name>` specifics" section of its `CLAUDE.md`, as a note on its own fixtures,
+  or to `tests/fixtures/files/README.md`, the samples' table it keeps; sdk-cashctrl,
+  which stays on v0.2.2, only should it ever update — the fixture rule lives in
   `/record-fixture` and conventions §10.
 - `tests/test_tasks.py` — the docstring is its purpose and a pointer to conventions §10,
   `/add-endpoint` and `/record-fixture`; the `sent_query` and `sent_urls` advice it
