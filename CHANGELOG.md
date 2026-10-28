@@ -99,9 +99,9 @@ are not listed.
   that holds the workspace's own `CLAUDE.md`, no longer "the family `CLAUDE.md`".
 - Template-internal: the tests read each text in the file that now holds it and check
   that `CLAUDE.md` renders the import line on its own line right after the intro, that
-  `.claude/family.md` is the template file byte for byte in every variant, keyed and
-  keyless, flat and nested, with no `../` path in either file, and that `CLAUDE.md` is
-  skip-listed while `.claude/family.md` is rendered again.
+  `.claude/family.md` is the template file byte for byte, so the same in every source,
+  with no `../` path in either file, and that `CLAUDE.md` is skip-listed while
+  `.claude/family.md` is rendered again.
 - The scaffolds a source fills keep one pointer each instead of guidance: the docstrings
   of `__init__.py`, `_client.py`, `models.py`, `params.py`, `tasks.py`,
   `api/__init__.py`, `tests/test_tasks.py` and `tests/test_live.py` give the file's
@@ -181,10 +181,10 @@ are not listed.
 - Template-internal: the tests check that both new scaffolds render in every variant,
   that the README's MCP snippet parses as JSON with the key's `env` only for a keyed
   source, that every command names the definition of done and the review checklist by
-  URL and no `../` path, that the key, the shared-key reason and the conftest's ini
-  pointer appear only for a keyed source, and that no fixtures directory is generated;
-  the `long-name` variant carries sdk-usda-esmis's 64-character name, and its four
-  formerly failing files pass `ruff check`.
+  URL and no `../` path, that the key and the conftest's ini pointer appear only for a
+  keyed source, and that no fixtures directory is generated; a variant carries
+  sdk-usda-esmis's 64-character name, and its four formerly failing files pass
+  `ruff check`.
 - The answers in `copier.yml`. Every rendered file reads `import_path`, and its hidden
   alias `source_pkg` goes. The domain's GitHub topic is no answer any more but
   `new-source.sh`'s `--topic DOMAIN`, checked before anything is generated (required
@@ -232,13 +232,13 @@ are not listed.
   no answers file records `source_pkg`, `domain_topic` or `needs_write_tools`, that
   `new-source.sh` refuses a missing or malformed `--topic` and a missing evidence file
   before it generates, that it fills core's PR template and names what a template of
-  another shape lacks, that the two core answers' help texts keep apart, that
-  `source_name`'s bound follows from the template's longest Python line and that a quote
-  or a backslash is refused, that this repository's own workflows are hardened, that the
-  dev group's ruff is the hook's, that `live.yml` takes `ci.yml`'s pins with
-  `persist-credentials: false`, that no live command lacks `--tb=short`, and that the
-  CHANGELOG step no longer exempts an adoption; `scripts/prove.sh` passes a topic and an
-  evidence file and checks the PR body it prints, the one a real run opens.
+  another shape lacks, that `source_name`'s bound follows from the template's longest
+  Python line and that a quote or a backslash is refused, that this repository's own
+  workflows are hardened, that the dev group's ruff is the hook's, that `live.yml` takes
+  `ci.yml`'s pins with `persist-credentials: false`, that no live command lacks
+  `--tb=short`, and that the CHANGELOG step no longer exempts an adoption;
+  `scripts/prove.sh` passes a topic and an evidence file and checks the PR body it
+  prints, the one a real run opens.
 - This repository's own `ci.yml` pins `actions/checkout` and `astral-sh/setup-uv` by
   SHA, the version in a comment, and its checkout persists no credentials;
   `release.yml`'s tag job, which pushes the tag with the token, says why its checkout
@@ -261,10 +261,31 @@ are not listed.
   skeleton's and the skeleton imports only the standard library; and they run the
   skeleton offline against pages served on the loopback interface, `--check` before and
   after a change, and its stop on an unrecorded copyright line. `scripts/prove.sh` runs
-  the rendered sibling check on the nested proof with the wheel alone, with `httpx<0.20`,
-  which must fail it, and with a sibling built on another core minor, which must be left
-  out with a warning; it requires none on the flat proof, and requires the unfilled
-  skeleton to refuse to run.
+  the rendered sibling check on each nested proof with the wheel alone, with
+  `httpx<0.20`, which must fail it, and with a sibling built on another core minor,
+  which must be left out with a warning; it requires none on the flat proof, and
+  requires the unfilled skeleton to refuse to run.
+- Template-internal: the template tests render the family's three variants, keyed and
+  nested (sdk-usda-psd's shape), keyless and flat (sdk-eurostat's) and keyless and
+  nested (sdk-usda-esmis's, with the 64-character name that broke four docstrings), each
+  once per session, and a check no answer changes reads one render. Eight variants
+  become three: one of two identical ones goes, and so do those that differed in a
+  single answer, which their own rules now test (the key locations, a git-pinned core, a
+  name at its bound, an `import_path` override, rendered as `world-bank` with
+  `world_bank`). The assertions on rendered prose go too: the tests check mechanics, a
+  file rendered or not, a name present, no Jinja left, a digest equal, a script's
+  behaviour. A new one keeps the `trim_blocks` mistakes out of every `.jinja` file: a
+  block tag stands alone on its line or opens and closes there, before the line's end,
+  since a line-final tag after content takes the line's newline with it (the blank lines
+  lost in the generated `CLAUDE.md`'s Commands and in `/record-fixture`) and a block
+  opened mid-line takes it inside (the keyless README's MCP snippet).
+  `tests/test_template.py` goes from 1,469 lines, 57 tests and 293 cases to 1,408 lines,
+  56 tests and 112 cases. The digest test is named for what it checks, no longer for a
+  core version. The template's CI runs three proofs in its `ci` job: `scripts/prove.sh`,
+  `--keyless` (`sdk-example`, as sdk-eurostat starts) and the new `--keyless-nested`
+  (`sdk-example-files`, `xippios.example.files`, no key, as sdk-usda-esmis and
+  sdk-usda-wasde start), which runs the rendered sibling check as the keyed nested proof
+  does. Nothing a source renders changes, so no Hand-apply bullet.
 
 ### Removed
 
@@ -283,11 +304,8 @@ are not listed.
   only sdk-cashctrl answered: `api_key_location` offers `query`, `header` and `bearer`,
   and `api_key_name` is asked for `query` and `header` as before.
 - Template-internal: the template tests drop the `basic` case and every write
-  assertion; the variants that carried the write side or `basic` stay under new names
-  with their other answers (`header-key`, `long-name`, and `bearer-git-core`, a
-  git-pinned core now with a bearer key). They check that copier refuses
-  `api_key_location=basic` and that the generated `CLAUDE.md` calls the package
-  read-only.
+  assertion, and check that copier refuses `api_key_location=basic` and that no write
+  server, write task or write test renders.
 - `tests/fixtures/README.md`: the fixture rule lives in `/record-fixture` and
   conventions §10, and its grep differed from `/record-fixture`'s (sdk-usda-gats).
 - The `domain_topic` question, now `new-source.sh`'s `--topic`, since the topic is set

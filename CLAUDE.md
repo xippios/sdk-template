@@ -29,10 +29,12 @@ template/                what gets generated; *.jinja files are rendered, others
   tests/test_family.py   one line collecting xippios.core.testing.family
   .gitattributes         docs/upstream/** -text: the snapshot stays byte for byte (CRLF, mixed endings)
 scripts/new-source.sh    generate + checks + GitHub repo + PR (the /new-source command)
-scripts/prove.sh         generate sdk-example-api (or, --keyless, sdk-example) from the working tree and run every check on it
-tests/test_template.py   generation variants, ruff on the output, skip-if-exists behaviour
+scripts/prove.sh         generate sdk-example-api (--keyless: sdk-example; --keyless-nested: sdk-example-files)
+                         from the working tree and run every check on it
+tests/test_template.py   the family's variants, each rendered once; ruff on the output, the answers' rules,
+                         skip-if-exists behaviour
 CHANGELOG.md             template releases, each with its Hand-apply list (Rules)
-.github/workflows/ci.yml       the template's own CI: tests and scripts/prove.sh
+.github/workflows/ci.yml       the template's own CI: tests and the three proofs
 .github/workflows/release.yml  tags vX.Y.Z from the top CHANGELOG heading on push to main (Workflow rules)
 .github/workflows/gates.yml    core's gates.yml, byte for byte the template's copy, off until GATES_CALLER (Rules)
 .claude/commands/new-source.md
@@ -41,8 +43,16 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 ## Rules
 
 - Generated code must pass `ruff check`, `ruff format --check`, `mypy --strict`, `pytest`
-  and `pre-commit` out of the box. `scripts/prove.sh` is the proof; run it before every PR
-  and paste its tail into the PR description.
+  and `pre-commit` out of the box. `scripts/prove.sh` is the proof, in the family's three
+  shapes: keyed and nested (no flag), keyless and flat (`--keyless`), keyless and nested
+  (`--keyless-nested`); CI runs all three. Run them before every PR and paste their tails
+  into the PR description.
+- `tests/test_template.py` renders each of the family's variants once per session, keyed
+  nested, keyless flat and keyless nested; a check no answer changes reads one render,
+  and an answer outside the variants (a key location, a core pin, a name at its bound,
+  an `import_path` override) is tested by its own rule. The tests assert mechanics, never
+  rendered prose: a file rendered or not, a name present, no Jinja left, a digest equal,
+  a script's behaviour.
 - Files a session fills with source content (`__init__.py`, `_client.py`, `errors.py`,
   `models.py`, `api/`, `tasks.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
   `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
@@ -102,7 +112,10 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   file adds its bullet under Unreleased; a change that matters to new repositories only
   (a scaffold's starting text) says so instead of a bullet.
 - Jinja renders with `trim_blocks` and `lstrip_blocks`, so a line holding only a block tag
-  disappears. Mind blank lines in generated Python: the formatter check is strict.
+  disappears, and a block tag at the end of a line takes that line's newline with it. A
+  block tag therefore stands alone on its line or opens and closes there, before the
+  line's end; the tests check every `.jinja` file for it. Mind blank lines in generated
+  Python: the formatter check is strict.
 - Keep `copier.yml` questions mechanical: every answer must come from the upstream
   documentation or the human, never be guessed by a session.
 - `detect-secrets` flags Jinja lines that mention `api_key_location` as if they held a
@@ -116,6 +129,8 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 uv sync                         # copier, pytest, ruff, pyyaml, detect-secrets, pathspec
 uv run pytest                   # template tests (fast: generation + ruff on the output)
 scripts/prove.sh                  # full proof against the xippios-core release on PyPI
+scripts/prove.sh --keyless        # the same for a keyless flat source
+scripts/prove.sh --keyless-nested # the same for a keyless nested source
 scripts/prove.sh --core-ref main  # against unreleased core, before a core change lands
 uv run ruff check . && uv run ruff format --check .
 ```
