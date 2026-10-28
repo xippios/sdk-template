@@ -14,8 +14,12 @@ uv add "xippios-{{ source_slug }}[mcp]"     # + MCP server
 uv add "xippios-{{ source_slug }}[http]"    # + FastAPI router
 ```
 
-{% if api_key_env %}
-Set `{{ api_key_env }}` in the environment. Nothing is read from files.
+{% if depends_on %}
+It depends on {% for dep in depends_on %}`xippios-{{ dep.name }}`{{ ', ' if not loop.last else '' }}{% endfor %}, installed with it. <!-- what it uses each for, one line (ADR-0021 decision 6) -->
+
+{% endif %}
+{% if key_envs %}
+Set `{{ key_envs | join('` and `') }}` in the environment. Nothing is read from files.
 {% else %}
 No API key is needed.
 {% endif %}
@@ -38,9 +42,9 @@ Task functions are listed in the status table below as they are added.
   "mcpServers": {
     "{{ source_slug }}": {
       "command": "uvx",
-{% if api_key_env %}
+{% if key_envs %}
       "args": ["--from", "xippios-{{ source_slug }}[mcp]", "xippios-{{ source_slug }}-mcp"],
-      "env": { "{{ api_key_env }}": "..." }
+      "env": { {% for key_env in key_envs %}"{{ key_env }}": "..."{{ ', ' if not loop.last else '' }}{% endfor %} }
 {% else %}
       "args": ["--from", "xippios-{{ source_slug }}[mcp]", "xippios-{{ source_slug }}-mcp"]
 {% endif %}

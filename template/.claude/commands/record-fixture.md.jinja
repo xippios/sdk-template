@@ -11,8 +11,8 @@ https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md, lists 
 checks, and the reviewer judges them against
 https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
 
-{% if api_key_env %}
-1. Confirm `{{ api_key_env }}` is set in the environment (`[ -n "${{ '{' }}{{ api_key_env }}{{ '}' }}" ] && echo ok`); never print its value.
+{% if key_envs %}
+1. Confirm `{{ key_envs | join('` and `') }}` {{ 'is' if key_envs | length == 1 else 'are' }} set in the environment (`{% for key_env in key_envs %}[ -n "${{ '{' }}{{ key_env }}{{ '}' }}" ] && {% endfor %}echo ok`); never print {{ 'its value' if key_envs | length == 1 else 'their values' }}.
 {% else %}
 1. No key is needed for this source.
 {% endif %}

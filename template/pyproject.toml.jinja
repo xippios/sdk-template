@@ -19,6 +19,9 @@ classifiers = [
 ]
 dependencies = [
   "xippios-core~={{ core_version }}",
+{% for dep in depends_on %}
+  "xippios-{{ dep.name }}~={{ dep.minor }}.0",
+{% endfor %}
 ]
 
 [project.optional-dependencies]
@@ -115,7 +118,11 @@ addopts = "-ra --strict-markers --import-mode=importlib"
 testpaths = ["tests"]
 # record_property, in a live test say, warns under xunit2 when a run writes --junitxml.
 junit_family = "xunit1"
-{% if api_key_env %}
+{% if key_envs == [api_key_env] %}
 # Core's plugin sets it to the placeholder key in every test not marked live (ADR-0013).
 xippios_placeholder_key_envs = ["{{ api_key_env }}"]
+{% elif key_envs %}
+# Core's plugin sets them to the placeholder key in every test not marked live (ADR-0013),
+# the keys of the source packages this one depends on among them (ADR-0021).
+xippios_placeholder_key_envs = {{ key_envs | tojson }}
 {% endif %}
