@@ -1,19 +1,16 @@
-"""The configured ``xippios.core`` client for {{ source_name }}.
+"""The package's one configured ``AsyncClient`` and its error mapping (conventions §6)."""
 
-One ``AsyncClient`` for the whole package: task functions share its rate limiter and
-cache, and the same instance serves the sync facades and the MCP server.
-"""
-
+import httpx
 {% if api_key_env %}
 {% if api_key_location == 'query' %}
-from xippios.core import AsyncClient, ClientConfig, QueryKeyAuth, RateLimit
+from xippios.core import AsyncClient, ClientConfig, QueryKeyAuth, RateLimit, XippiosError
 {% elif api_key_location == 'header' %}
-from xippios.core import AsyncClient, ClientConfig, HeaderKeyAuth, RateLimit
+from xippios.core import AsyncClient, ClientConfig, HeaderKeyAuth, RateLimit, XippiosError
 {% elif api_key_location == 'bearer' %}
-from xippios.core import AsyncClient, BearerAuth, ClientConfig, RateLimit
+from xippios.core import AsyncClient, BearerAuth, ClientConfig, RateLimit, XippiosError
 {% endif %}
 {% else %}
-from xippios.core import AsyncClient, ClientConfig, RateLimit
+from xippios.core import AsyncClient, ClientConfig, RateLimit, XippiosError
 {% endif %}
 
 from xippios.{{ source_pkg }}._version import __version__
@@ -26,26 +23,31 @@ API_KEY_ENV = "{{ api_key_env }}"  # pragma: allowlist secret (a variable name, 
 API_KEY_ENV: str | None = None
 {% endif %}
 {% if rate_limit_provenance == 'self-imposed' %}
-# A self-imposed pace: upstream documents no limit (ADR-0010 decision 1).
+# A self-imposed pace: upstream documents no per-second or per-minute limit (ADR-0010 decision 1).
 {% else %}
 # Paced within the limit upstream documents (ADR-0010 decision 1).
 {% endif %}
 RATE_LIMIT = RateLimit(per_minute={{ rate_limit_per_minute }}, burst={{ rate_limit_burst }})
+
+
+def classify(response: httpx.Response) -> XippiosError | None:
+    """Upstream's documented error shapes as taxonomy errors, else ``None`` (conventions §6).
+
+    The ``ClientConfig.classify`` hook: it sees every response before core's status mapping.
+    """
+    return None
+
 
 config = ClientConfig(
     source=SOURCE,
     version=__version__,
     base_url=BASE_URL,
     rate_limit=RATE_LIMIT,
+    classify=classify,
 )
 
 # An upstream that reports an hourly or daily quota installs one QuotaPolicy, from
-# xippios.core, on config: it reads the quota headers of every answer and never sends
-# into a spent quota, waiting within the retry backoff or raising RateLimitError
-# (ADR-0015; ADR-0010 decisions 3 and 4). Name only headers that count that quota, never
-# a pace (None turns one off); window is the fallback wait, 86400.0 for a daily quota.
-# classify, the ClientConfig hook, maps upstream's answer to a spent quota to
-# RateLimitError with retry_after. A source without a quota adds nothing.
+# xippios.core, on config (conventions §6, ADR-0015); a source without one adds nothing:
 #
 # policy = QuotaPolicy(
 #     window=3600.0,
@@ -77,6 +79,7 @@ __all__ = [
 {% if api_key_env %}
     "auth",
 {% endif %}
+    "classify",
     "client",
     "config",
 ]

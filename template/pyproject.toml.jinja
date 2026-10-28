@@ -67,8 +67,8 @@ build-backend = "hatchling.build"
 packages = ["src/xippios"]
 
 [tool.hatch.build.targets.sdist]
-# Anchored: hatch reads gitignore-style patterns, so a bare README.md would match
-# tests/fixtures/README.md as well. The sdist ships no tests; they live in the repository.
+# Anchored: hatch reads gitignore-style patterns, so a bare README.md would match a
+# README.md in any directory. The sdist ships no tests; they live in the repository.
 include = ["/src", "/docs", "/README.md", "/CHANGELOG.md", "/LICENSE"]
 
 [tool.ruff]
@@ -111,6 +111,8 @@ warn_unreachable = true
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers --import-mode=importlib"
 testpaths = ["tests"]
+# record_property, in a live test say, warns under xunit2 when a run writes --junitxml.
+junit_family = "xunit1"
 {% if api_key_env %}
 # Core's plugin sets it to the placeholder key in every test not marked live (ADR-0013).
 xippios_placeholder_key_envs = ["{{ api_key_env }}"]

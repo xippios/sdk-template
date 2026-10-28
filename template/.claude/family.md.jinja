@@ -27,7 +27,9 @@ mcp.py  http.py      adapters: register tasks.__all__, nothing else. Never edite
 ```
 
 Adapters call only task functions. Tasks call only endpoint wrappers and reference
-data. If logic appears in `mcp.py` or `http.py`, it belongs in `tasks.py`.
+data. If logic appears in `mcp.py` or `http.py`, it belongs in `tasks.py`. `api/` holds
+one module per upstream operation, or one per service where operation ids repeat across
+services; the Layout in `CLAUDE.md` says which.
 
 ## Namespace packages (ADR-0006)
 
@@ -43,20 +45,22 @@ Run `/add-endpoint <upstream operation>`. In short:
 1. Read the operation in `docs/upstream/`. Names, parameters and semantics come from
    there, snake_cased, nothing renamed, nothing normalised across sources.
 2. `models.py`: an `UpstreamModel` per payload object; dates, numbers and enums typed.
-3. `api/<operation>.py`: one async wrapper that calls `_client.client` and returns
-   models through `xippios.core.parse`.
+   An enumeration written by hand, for a value set upstream documents, lives there too,
+   unexported, since `enums.py` is generated whole.
+3. `api/<operation>.py`, or the service's module: one async wrapper that calls
+   `_client.client` and returns models through `xippios.core.parse`.
 4. `tasks.py`: an async task that composes wrappers and returns `Result[T]` with full
    `ResultMeta` (source, endpoint, request parameters, `published_at`/`vintage` when the
    upstream gives them). Derive the sync one with `sync()`, add its name to `__all__`,
    re-export it from `__init__.py`. What it returns leaves out documented personal
    identifiers (`ssn`, `iban` and their like) unless it fetches them deliberately and
-   says so, and a write task does not echo one in `meta.request` (ADR-0017).
+   says so (ADR-0017).
 5. Docstring for agents: one sentence, then `Args:` with examples of valid values for
    every parameter. The MCP tool description and the OpenAPI summary come from it.
 6. `/record-fixture` for at least one case, a replay test in `test_tasks.py` that also
    calls the tool end to end with `xippios.core.testing.mcp_call` (and compares what was
-   sent through `sent_urls(route)`, never a request from `route.calls`), a live smoke test
-   in `test_live.py`.
+   sent through `sent_query(route)` or `sent_urls(route)`, never a request from
+   `route.calls`), a live smoke test in `test_live.py`.
 7. `CHANGELOG.md` under Unreleased, README status table (the task's name first in its
    cell, in backticks, as the comment above the table says), then the full check suite.
 
@@ -66,9 +70,10 @@ the default result cap (200 rows or 64 KB) would cut gets a cap of its own in `M
 in `tasks.py`, which `mcp.py` passes through (ADR-0016). A task-shaped function that returns a
 subset of an upstream record builds its model with `UpstreamModel.project`; nothing is
 renamed or computed, parsing a value (`parse_decimal`) is the only override. Upstream's
-documented error shapes go into `ClientConfig.classify` in `_client.py`, once; wrappers
-use `client.get_json` and never inspect status codes. An upstream that reports an hourly
-or daily quota gets one `QuotaPolicy` installed on `config` there
+documented error shapes go into `classify` in `_client.py`, the `ClientConfig.classify`
+hook, once, and an error class of the package's own into `errors.py` (conventions §5,
+§6); wrappers use `client.get_json` and never inspect status codes. An upstream that
+reports an hourly or daily quota gets one `QuotaPolicy` installed on `config` there
 (`config = QuotaPolicy(window=..., limit_header=..., remaining_header=...,
 source=SOURCE).install(config)`, with the headers and window the upstream documents; a
 repository generated from template v0.2.0 on carries it as a commented block), and
@@ -119,11 +124,14 @@ never run live tests.
 - Every PR but a release, an adoption or Dependabot's adds an entry under Unreleased in
   `CHANGELOG.md`; `ci.yml` fails without one (conventions §12).
 - Releases follow the release train (conventions §12): `/release-prep` opens a release
-  PR that changes only `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`,
+  PR that changes no file but `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `README.md`,
   `CLAUDE.md` and `docs/handover.md` (and `scripts/check-siblings.sh` where the source
-  has one); its merge runs `publish.yml`, which tags the version on the merge commit,
-  and Johannes approves the `pypi` run. A reference-data refresh or a core pin's removal
-  is a PR of its own before it.
+  has one). In `CHANGELOG.md` it turns `## [Unreleased]` into `## [X.Y.Z] - <date>`;
+  the section may gain a lead paragraph and says internal labels (decisions, queue
+  rows, plan items) in plain words, since it becomes the tag's message. Its merge runs
+  `publish.yml`, which tags the version on the merge commit, and Johannes approves the
+  `pypi` run. A reference-data refresh or a core pin's removal is a PR of its own
+  before it.
 - `ruff` leaves `docs/` alone; never reformat the upstream snapshot.
 - Template and core updates: a new sdk-template release, and the core minor it carries,
   arrive in one adoption PR, `chore/template-update-<tag>`, before the next release
@@ -132,10 +140,10 @@ never run live tests.
   `uvx copier update` re-renders the files the template owns (this file,
   `tests/conftest.py` and `tests/test_family.py` among them; answers are in
   `.copier-answers.yml`) and never overwrites the files this package fills:
-  `__init__.py`, `_client.py`, `models.py`, `api/`, `tasks.py`, `params.py`, `enums.py`,
-  `reference/`, `scripts/`, `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`,
-  `docs/upstream/`, `README.md`, `CHANGELOG.md` and `CLAUDE.md`. Template changes to
-  those are listed per release under "Hand-apply" in sdk-template's
+  `__init__.py`, `_client.py`, `errors.py`, `models.py`, `api/`, `tasks.py`, `params.py`,
+  `enums.py`, `reference/`, `scripts/`, `tests/test_tasks.py`, `tests/test_live.py`,
+  `tests/fixtures/`, `docs/upstream/`, `README.md`, `CHANGELOG.md` and `CLAUDE.md`.
+  Template changes to those are listed per release under "Hand-apply" in sdk-template's
   [CHANGELOG](https://github.com/xippios/sdk-template/blob/main/CHANGELOG.md); port them
   by hand in the same PR.
 - This file is the template's and the same in every source: what is this package's own

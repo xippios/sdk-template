@@ -1,9 +1,6 @@
-"""Packaged value lists for {{ source_name }} (conventions §3).
+"""The packaged reference lists, read from ``reference/`` without a call (conventions §3).
 
-Small, stable upstream lists ship inside the package under ``reference/`` so lookups
-need no network call; ``scripts/refresh_reference.py`` writes them and the matching
-``StrEnum`` classes in ``enums.py``, never by hand. ``reference/README.md`` carries the
-provenance of every file.
+``/refresh-reference-data`` writes them.
 """
 
 from datetime import date

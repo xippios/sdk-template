@@ -2,15 +2,19 @@
 
 This repository is the copier template that generates every `xippios-<source>` package
 repository. It is not a Python package. What it generates must satisfy the family's
-documents in `../sdk-core/docs/` (conventions, ADRs, definition of done); read those first,
-then `README.md` here.
+documents on sdk-core's `main`: the conventions,
+https://github.com/xippios/sdk-core/blob/main/docs/conventions.md, the ADRs,
+https://github.com/xippios/sdk-core/tree/main/docs/adr, the definition of done,
+https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md, and the review
+checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md. Read
+those first, then `README.md` here.
 
 ## Layout
 
 ```
 copier.yml               questions and copier settings (subdirectory, skip-if-exists, envops)
 template/                what gets generated; *.jinja files are rendered, others copied verbatim
-  src/xippios/{{ package_dir }}/  the package (import_path as directories, ADR-0006): _client, models, tasks, api/, mcp, http, reference/
+  src/xippios/{{ package_dir }}/  the package (import_path as directories, ADR-0006): _client, errors, models, tasks, api/, mcp, http, reference/
   tests/                 conftest (plugin), test_family (core's family check, one line), task replay
                          tests, live smoke
   .claude/commands/      add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
@@ -36,8 +40,8 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 - Generated code must pass `ruff check`, `ruff format --check`, `mypy --strict`, `pytest`
   and `pre-commit` out of the box. `scripts/prove.sh` is the proof; run it before every PR
   and paste its tail into the PR description.
-- Files a session fills with source content (`__init__.py`, `_client.py`, `models.py`,
-  `api/`, `tasks.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
+- Files a session fills with source content (`__init__.py`, `_client.py`, `errors.py`,
+  `models.py`, `api/`, `tasks.py`, `params.py`, `enums.py`, `reference/`, `scripts/`,
   `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
   `README.md`, `CHANGELOG.md`, `CLAUDE.md`) are listed in `_skip_if_exists` so
   `copier update` never overwrites them; copier renders the patterns, so those inside the
@@ -119,8 +123,11 @@ uv run ruff check . && uv run ruff format --check .
   check fails a repository whose `.copier-answers.yml` names no tag.
 - Releases follow the release train (conventions §12, ADR-0018 amendment (b)): a
   `chore/release-X.Y.Z` PR turns `## [Unreleased]` into `## [X.Y.Z] - <date>` and changes
-  nothing else; its merge runs `.github/workflows/release.yml`, which tags `vX.Y.Z` on the
-  merge commit with that section as the message. No session pushes a tag.
+  no file outside conventions §12's release subset (`CHANGELOG.md`, and `README.md` or
+  `CLAUDE.md` where a sentence names the release). The section may gain a lead paragraph
+  and says internal labels (decisions, queue rows, plan items) in plain words, since it
+  becomes the tag's message. Its merge runs `.github/workflows/release.yml`, which tags
+  `vX.Y.Z` on the merge commit with that section as the message. No session pushes a tag.
 - Never tag, merge, release or touch secrets from a session; the one exception is
   enabling auto-merge on a `chore/release-*` PR whose merge class is `auto`, after the
   reviewer's `ready` (ADR-0018, amendments (a) and (e)).

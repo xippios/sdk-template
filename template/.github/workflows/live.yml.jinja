@@ -1,13 +1,21 @@
 # Nightly live smoke tests (conventions §10): every test marked `live` against the real
 # upstream, on a schedule and on demand, never on a pull request.
+{% if api_key_env %}
 # Rendered by the template (the one workflow that is): the secret it names is the source's
 # key variable, and its start time derives from the slug.
+{% else %}
+# Rendered by the template (the one workflow that is): its start time derives from the slug.
+{% endif %}
 name: Live
 
 on:
   schedule:
+{% if api_key_env %}
     # {{ live_schedule.time }} UTC, staggered from the slug (live_schedule in sdk-template's copier.yml)
     # so that sources sharing a key do not start together.
+{% else %}
+    # {{ live_schedule.time }} UTC, derived from the slug (live_schedule in sdk-template's copier.yml).
+{% endif %}
     - cron: "{{ live_schedule.cron }}"
   workflow_dispatch:
 

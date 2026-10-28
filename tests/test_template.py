@@ -62,7 +62,9 @@ VARIANTS: dict[str, dict[str, object]] = {
     "hyphenated-flat": {"source_slug": "world-bank", "import_path": "world_bank", **keyed("")},
     "long-name": {
         "source_slug": "fao-faostat-bulk",
-        "source_name": "Food and Agriculture Organization Statistics",
+        # sdk-usda-esmis's name, 64 characters, which broke the line length of four
+        # docstrings (test_a_long_source_name_passes_ruff)
+        "source_name": "USDA ESMIS (Economics, Statistics and Market Information System)",
         **keyed("FAOSTAT_API_KEY", "header", "X-Api-Key"),
     },
 }
@@ -78,6 +80,7 @@ EXPECTED_FILES = [
     "src/xippios/{pkg}/py.typed",
     "src/xippios/{pkg}/_version.py",
     "src/xippios/{pkg}/_client.py",
+    "src/xippios/{pkg}/errors.py",
     "src/xippios/{pkg}/models.py",
     "src/xippios/{pkg}/tasks.py",
     "src/xippios/{pkg}/api/__init__.py",
@@ -91,7 +94,6 @@ EXPECTED_FILES = [
     "tests/test_family.py",
     "tests/test_tasks.py",
     "tests/test_live.py",
-    "tests/fixtures/README.md",
     "docs/upstream/FETCHED.md",
     "CLAUDE.md",
     ".claude/family.md",
@@ -169,6 +171,8 @@ def test_layout(generated: tuple[str, Path]) -> None:
         assert (dst / rel.format(pkg=pkg)).is_file(), rel
     for rel in REMOVED_FILES:
         assert not (dst / rel).exists(), f"{rel}: the family check makes its checks"
+    fixture_rule = "the fixture rule lives in /record-fixture and conventions §10"
+    assert not (dst / "tests/fixtures").exists(), fixture_rule
     assert (dst / "tests/test_family.py").read_text() == FAMILY_TEST
     level = (dst / "src/xippios" / pkg).parent
     while level != dst / "src":
@@ -178,6 +182,7 @@ def test_layout(generated: tuple[str, Path]) -> None:
     assert ("[tool.uv.sources]" in pyproject) is bool(answers.get("core_git_ref"))
     tool = tomllib.loads(pyproject)["tool"]
     assert tool["mypy"]["files"] == ["src", "tests", "scripts"], "scripts/ is type-checked"
+    assert tool["pytest"]["ini_options"]["junit_family"] == "xunit1", "record_property"
     sdist = tool["hatch"]["build"]["targets"]["sdist"]
     assert sdist == {"include": ["/src", "/docs", "/README.md", "/CHANGELOG.md", "/LICENSE"]}
     assert "tests" not in json.dumps(sdist), "the sdist ships no tests; they live in the repo"
@@ -270,7 +275,8 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
     """
     dst = generate(template_src, tmp_path / "repo", source_slug="ex-api", **keyed(""))
     pkg = "src/xippios/ex/api"
-    mine = [f"{pkg}/{n}" for n in ["tasks.py", "_client.py", "__init__.py", "api/__init__.py"]]
+    names = ["tasks.py", "_client.py", "errors.py", "__init__.py", "api/__init__.py"]
+    mine = [f"{pkg}/{n}" for n in names]
     mine += ["tests/test_tasks.py", "CLAUDE.md"]
     templates = [".claude/family.md", "tests/conftest.py", f"{pkg}/mcp.py"]
     for rel in [*mine, *templates]:
@@ -296,17 +302,40 @@ def test_the_files_a_source_fills_are_one_list(template_src: Path, tmp_path: Pat
         assert listing in " ".join((dst / rel).read_text().split()), rel
 
 
+def test_errors_module_and_classify_hook_are_scaffolded(generated: tuple[str, Path]) -> None:
+    """A source's own error classes (conventions §5) and the classify hook (§6), both empty."""
+    name, dst = generated
+    pkg = dst / "src/xippios" / package_dir(VARIANTS[name])
+    errors = (pkg / "errors.py").read_text()
+    assert "conventions §5" in errors.splitlines()[0]
+    assert "# class UnknownFilter(InvalidRequestError):" in errors, "a commented pattern"
+    assert errors.endswith("\n__all__: list[str] = []\n")
+    client = (pkg / "_client.py").read_text()
+    assert "def classify(response: httpx.Response) -> XippiosError | None:" in client
+    assert "``ClientConfig.classify`` hook" in client
+    assert "    return None\n" in client
+    assert "    classify=classify,\n" in client, "wired into the config"
+
+
+def test_a_long_source_name_passes_ruff(template_src: Path, tmp_path: Path) -> None:
+    """The four docstrings that once put the name into their summary line pass ruff with a
+    64-character name, rendered and checked as the proof does."""
+    answers = VARIANTS["long-name"]
+    assert len(str(answers["source_name"])) >= 64
+    dst = generate(template_src, tmp_path / "repo", **answers)
+    pkg = f"src/xippios/{package_dir(answers)}"
+    files = [f"{pkg}/{name}" for name in ["__init__.py", "_client.py", "models.py", "params.py"]]
+    check = ruff(dst, "check", *files)
+    assert check.returncode == 0, check.stdout + check.stderr
+
+
 def test_tool_prefix_is_the_underscored_slug_everywhere(generated: tuple[str, Path]) -> None:
     """The MCP tool prefix is the slug with underscores, never the dotted import path."""
     name, dst = generated
     slug = str(VARIANTS[name]["source_slug"])
     prefix = slug.replace("-", "_")
     dotted = package_dir(VARIANTS[name]).replace("/", ".")
-    for rel in [
-        "README.md",
-        ".claude/commands/add-endpoint.md",
-        f"src/xippios/{package_dir(VARIANTS[name])}/reference/README.md",
-    ]:
+    for rel in ["README.md", ".claude/commands/add-endpoint.md"]:
         text = (dst / rel).read_text()
         assert f"`{prefix}_" in text, rel
         if "." in dotted:
@@ -319,6 +348,12 @@ CONFTEST = """\
 # named under xippios_placeholder_key_envs in pyproject.toml, not here.
 pytest_plugins = ["xippios.core.testing.plugin"]
 """
+# A keyless source names no key variable, so its conftest points at none (row 61 d).
+CONFTEST_KEYLESS = """\
+# Core's plugin keeps the default run offline (ADR-0013), runs anyio tests on asyncio and
+# serves the family check in tests/test_family.py.
+pytest_plugins = ["xippios.core.testing.plugin"]
+"""
 
 
 def test_the_plugin_sends_the_placeholder_unless_live(generated: tuple[str, Path]) -> None:
@@ -328,7 +363,7 @@ def test_the_plugin_sends_the_placeholder_unless_live(generated: tuple[str, Path
     """
     name, dst = generated
     env = str(VARIANTS[name]["api_key_env"])
-    assert (dst / "tests/conftest.py").read_text() == CONFTEST
+    assert (dst / "tests/conftest.py").read_text() == (CONFTEST if env else CONFTEST_KEYLESS)
     ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
     assert ini.get("xippios_placeholder_key_envs") == ([env] if env else None)
     assert "placeholder" not in (dst / "tests/test_tasks.py").read_text()
@@ -361,22 +396,26 @@ def test_upstream_snapshot_is_kept_byte_for_byte(generated: tuple[str, Path]) ->
     fetched = (dst / "docs/upstream/FETCHED.md").read_text()
     assert "| File | URL | Fetched | Note |" in fetched
     assert "## Attribution" in fetched
+    flat = " ".join(fetched.split())
+    assert "the publisher's objection" in flat, "a vendor or a public-sector publisher"
     assert "UTC time of the run in ISO 8601 with an explicit `Z`" in fetched
 
 
 def test_models_use_validation_alias(generated: tuple[str, Path]) -> None:
     """Adapters serialise by alias: a plain alias would hand agents the upstream spelling.
 
-    The scaffold and the fixture check also carry ADR-0017's rule on personal identifiers.
+    The commands also carry ADR-0017's rule on personal identifiers.
     """
     name, dst = generated
     plain_alias = re.compile(r"Field\((?:[^)]*[\s,])?alias=")
     for path in dst.rglob("*.py"):
         assert not plain_alias.search(path.read_text()), path
-    assert "`Field(validation_alias=...)`" in (dst / ".claude/commands/add-endpoint.md").read_text()
+    add_endpoint = (dst / ".claude/commands/add-endpoint.md").read_text()
+    assert "`Field(validation_alias=...)`" in add_endpoint
     models = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/models.py").read_text()
-    assert "fixtures never carry their values (ADR-0017)" in models
-    assert "ADR-0017" in (dst / ".claude/commands/record-fixture.md").read_text()
+    assert "``/add-endpoint`` give the rules" in models, "the scaffold points at them"
+    for command in ["add-endpoint", "record-fixture"]:
+        assert "ADR-0017" in (dst / f".claude/commands/{command}.md").read_text(), command
 
 
 def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
@@ -386,6 +425,7 @@ def test_list_tools_are_not_promised(generated: tuple[str, Path]) -> None:
     mcp = (dst / f"src/xippios/{package_dir(VARIANTS[name])}/mcp.py").read_text()
     assert "Call the list tools first" not in mcp
     assert f"Where list tools ({prefix}_list_*) exist" in mcp
+    assert "to find valid values, then query" in mcp, "codes, releases or agencies alike"
 
 
 def test_servers_take_the_caps_kept_with_the_tasks(template_src: Path, tmp_path: Path) -> None:
@@ -394,8 +434,8 @@ def test_servers_take_the_caps_kept_with_the_tasks(template_src: Path, tmp_path:
     pkg = dst / "src/xippios/ex"
     assert 'caps=getattr(tasks, "MCP_CAPS", None),' in (pkg / "mcp.py").read_text()
     tasks = (pkg / "tasks.py").read_text()
-    assert "#     MCP_CAPS = {" in tasks, "a commented scaffold"
-    assert '#     MCP_CAPS: "Mapping[str, ResultCap]" = {}' in tasks, "a base install's caps"
+    assert "# MCP_CAPS = {" in tasks, "a commented scaffold"
+    assert "# from xippios.core import ResultCap" in tasks, "core 0.3.0 exports it"
 
 
 def test_local_env_files_are_ignored(generated: tuple[str, Path]) -> None:
@@ -421,8 +461,9 @@ def test_rate_limit_renders_pace_burst_and_provenance(generated: tuple[str, Path
     assert "# config = policy.install(config)" in client, "ADR-0015, a commented scaffold"
     assert "one `QuotaPolicy` installed on `config`" in " ".join(family.split())
     if answers.get("rate_limit_provenance") == "self-imposed":
-        assert "# A self-imposed pace: upstream documents no limit" in client
-        assert "a self-imposed pace, upstream documents none (ADR-0010)" in claude
+        own = "self-imposed pace: upstream documents no per-second or per-minute limit"
+        assert f"# A {own} (ADR-0010 decision 1)." in client, "a daily quota may exist"
+        assert f"a {own} (ADR-0010)" in claude
     else:
         assert "# Paced within the limit upstream documents" in client
         assert "within the limit documented by upstream (ADR-0010)" in claude
@@ -655,7 +696,8 @@ def test_adopt_release_walks_the_adoption_checklist(template_src: Path, tmp_path
         assert (keyed_line in text) is bool(env), "the ini option, for a keyed source only"
         assert "gh pr merge --auto --squash -R xippios/sdk-ex <number>" in text, "from the root"
         github = "`https://github.com/xippios/sdk-template/blob/<tag>/CHANGELOG.md` (or"
-        assert text.index(github) < text.index("git -C ../sdk-template"), "GitHub first"
+        local = "git -C <workspace root>/sdk-template"
+        assert text.index(github) < text.index(local), "GitHub first, the local clone named"
         flat = " ".join(text.split())
         assert "(`~=0.2.1` for template v0.2.1)" in flat, "the patch case, ADR-0018 amendment c"
         assert "a third never: core takes it in that minor (ADR-0023)" in flat, "§15 item 4"
@@ -707,6 +749,8 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(generated: tuple[str, Pa
     else:
         assert "secrets." not in text
     assert pytest_step["env"] == expected_env
+    for reason in ["the secret it names", "so that sources sharing a key do not start"]:
+        assert (reason in " ".join(text.split())) is bool(env_var), f"keyed only: {reason}"
     claude = (dst / "CLAUDE.md").read_text()
     if env_var:
         step = "Only its `uv run pytest -m live` step sees the key"
@@ -752,7 +796,9 @@ def test_generated_tests_need_no_key(generated: tuple[str, Path]) -> None:
     """The reachability probe sends no key."""
     name, dst = generated
     live = (dst / "tests/test_live.py").read_text()
-    assert ("the key's quota" in live) is bool(VARIANTS[name]["api_key_env"]), "keyed only"
+    flat = " ".join(live.split())
+    assert ("it spends no keyed call" in flat) is bool(VARIANTS[name]["api_key_env"])
+    assert "quota" not in live, "a keyed source need not have a quota"
     assert "httpx.AsyncClient(" in live
     assert "await http.get(BASE_URL)" in live
     assert "follow_redirects=True" in live
@@ -782,8 +828,22 @@ def test_documents_promise_what_the_code_does(generated: tuple[str, Path]) -> No
     assert "Hand-apply" in family
     assert "`/adopt-release <tag>` walks it" in family, "conventions §15, ADR-0018"
     assert "`tests/conftest.py` and `tests/test_family.py` among them" in " ".join(family.split())
-    assert ("xippios_placeholder_key_envs" in claude) is bool(VARIANTS[name]["api_key_env"])
+    keyed_source = bool(VARIANTS[name]["api_key_env"])
+    assert ("xippios_placeholder_key_envs" in claude) is keyed_source
+    assert ("(base URL, key, rate limit)" in claude) is keyed_source, "a key only if there is one"
+    stagger = "so that sources sharing a key never start together"
+    assert (stagger in flat) is keyed_source, "the start time's reason, keyed sources only"
+    assert "PACKAGED_LISTS" not in claude, "the Layout names the lists generically"
+    # A block tag that ends a line eats its newline (trim_blocks); these blank lines stay.
+    assert "\n\nuv run xippios-" in claude, "a blank line between the two commands"
+    record = (dst / ".claude/commands/record-fixture.md").read_text()
+    assert "\n\n2. Find the request path" in record
     assert "xippios_placeholder_key_envs" not in family, "the same file for every source"
+    rules = " ".join(family.split())
+    assert "or one per service where operation ids repeat across services" in rules
+    assert "lives there too, unexported, since `enums.py` is generated whole" in rules
+    assert "may gain a lead paragraph" in rules, "the released section is the tag's message"
+    assert "a write task" not in rules, "the template renders read-only packages"
     assert "(ADR-0017)" in family
     assert "| Write tools | no, this package is read-only |" in claude, "conventions §8"
 
@@ -814,6 +874,18 @@ def test_claude_md_imports_the_family_rules(generated: tuple[str, Path]) -> None
     for text in [claude, family]:
         assert "../" not in text, "a relative path leaves the repository (worktree, GitHub)"
         assert len(text) < 40_000, "Claude Code cuts a file that loads on demand"
+
+
+def test_every_command_points_at_the_process(template_src: Path, tmp_path: Path) -> None:
+    """The definition of done and the review checklist, by URL, instead of repeated text."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
+    commands = sorted((dst / ".claude/commands").glob("*.md"))
+    assert len(commands) == 6
+    for path in commands:
+        flat = " ".join(path.read_text().split())
+        for doc in ["definition-of-done.md", "review-checklist.md"]:
+            assert SDK_CORE_DOCS + doc in flat, f"{path.name}: {doc}"
+        assert "../" not in flat, f"{path.name}: a relative path leaves a worktree"
 
 
 def test_generated_tree_names_no_source_and_no_workspace_file(generated: tuple[str, Path]) -> None:
@@ -954,6 +1026,19 @@ def test_answers_file_is_copiers_canonical_form(
         check=True,
     )
     assert (again / ".copier-answers.yml").read_bytes() == written
+
+
+def test_readme_mcp_snippet_is_json(generated: tuple[str, Path]) -> None:
+    """The MCP client snippet parses, the key's env only for a keyed source, and no line
+    carries a closing brace after the args (the keyless render's trailing brace)."""
+    name, dst = generated
+    readme = (dst / "README.md").read_text()
+    block = readme.split("```json\n", 1)[1].split("```", 1)[0]
+    (server,) = json.loads(block)["mcpServers"].values()
+    env = str(VARIANTS[name]["api_key_env"])
+    assert server.get("env") == ({env: "..."} if env else None)
+    (args,) = [line for line in block.splitlines() if '"args"' in line]
+    assert args.rstrip().endswith(("]", "],")), args
 
 
 def test_readme_status_table_names_the_format_the_family_check_reads(

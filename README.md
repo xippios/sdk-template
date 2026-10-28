@@ -62,7 +62,7 @@ afterwards by rename or push.
 | `api_key_env` | environment variable with the key; empty for open APIs | `NASS_API_KEY` |
 | `api_key_location` | `query`, `header` or `bearer` | `query` |
 | `api_key_name` | query parameter or header name | `key` |
-| `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, or a self-imposed pace where upstream documents none (ADR-0010) | `30` |
+| `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, or a self-imposed pace where upstream documents neither, an hourly or daily quota notwithstanding (ADR-0010) | `30` |
 | `rate_limit_burst` | requests let through at once before the pace applies; `1` unless upstream documents a burst | `1` |
 | `rate_limit_provenance` | `documented` or `self-imposed`: where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
 | `domain_topic` | GitHub topic for the domain | `agriculture` |
@@ -73,9 +73,9 @@ afterwards by rename or push.
 
 ```
 sdk-<slug>/
-  src/xippios/<import path as dirs>/   __init__, py.typed, _version, _client, models, tasks,
-                       api/, mcp, http, reference/
-  tests/               conftest, test_family, test_tasks, test_live, fixtures/
+  src/xippios/<import path as dirs>/   __init__, py.typed, _version, _client, errors, models,
+                       tasks, api/, mcp, http, reference/
+  tests/               conftest, test_family, test_tasks, test_live
   docs/upstream/       FETCHED.md
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
                        adopt-release
@@ -115,12 +115,12 @@ git diff                             # review; resolve conflicts
 Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, as above
 to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the answers
 without moving the template). Files listed under `_skip_if_exists` in `copier.yml` (the
-package `__init__.py`, the client, models, endpoint wrappers, the task layer, the
-packaged lists and enums, reference data, scripts, the task and live tests and the
-fixtures, upstream snapshot, README, CHANGELOG and CLAUDE.md) are never overwritten
-once they exist, so a template fix to one of them does not reach existing repositories by
-itself; one the template stops rendering, though, is deleted by the update where the
-repository's earlier render had it, the source's content included.
+package `__init__.py`, the client, the package's errors, models, endpoint wrappers, the
+task layer, the packaged lists and enums, reference data, scripts, the task and live
+tests and the fixtures, upstream snapshot, README, CHANGELOG and CLAUDE.md) are never
+overwritten once they exist, so a template fix to one of them does not reach existing
+repositories by itself; one the template stops rendering, though, is deleted by the
+update where the repository's earlier render had it, the source's content included.
 [CHANGELOG.md](CHANGELOG.md) lists those fixes per release under **Hand-apply**:
 path, change, reason; port each one by hand in the same PR. A new file under those
 patterns is created by the update where the repository has none of that name. Every other
@@ -142,12 +142,14 @@ scripts/prove.sh --keyless         # a keyless flat source instead of the keyed 
 ## Releasing the template
 
 The template follows the release train (conventions §12): a `chore/release-X.Y.Z` PR
-turns `## [Unreleased]` in `CHANGELOG.md` into `## [X.Y.Z] - <date>` and changes nothing
-else, since the template has no version to bump. Its merge on `main` runs
-`.github/workflows/release.yml`, which tags `vX.Y.Z` on the merge commit with that section
-as the tag's message; every other push to `main` finds the top heading tagged and ends
-quietly. No session and no human pushes the tag. Generated repositories record the tag in
-`.copier-answers.yml`, and `copier update` reaches it.
+turns `## [Unreleased]` in `CHANGELOG.md` into `## [X.Y.Z] - <date>`, the section
+perhaps with a lead paragraph and its internal labels put into plain words, and changes
+no file outside conventions §12's release subset; the template has no version to bump.
+Its merge on `main` runs `.github/workflows/release.yml`, which tags `vX.Y.Z` on the
+merge commit with that section as the tag's message; every other push to `main` finds
+the top heading tagged and ends quietly. No session and no human pushes the tag.
+Generated repositories record the tag in `.copier-answers.yml`, and `copier update`
+reaches it.
 
 ## Licence
 
