@@ -687,6 +687,7 @@ source = { virtual = "." }
 dev = [
     { name = "copier" },
     { name = "detect-secrets" },
+    { name = "pathspec" },
     { name = "pytest" },
     { name = "pyyaml" },
     { name = "ruff" },
@@ -698,6 +699,7 @@ dev = [
 dev = [
     { name = "copier", specifier = ">=9.4" },
     { name = "detect-secrets", specifier = ">=1.5" },
+    { name = "pathspec", specifier = ">=1" },
     { name = "pytest", specifier = ">=8" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "ruff", specifier = ">=0.14" },

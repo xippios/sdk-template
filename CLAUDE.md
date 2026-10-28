@@ -23,6 +23,9 @@ template/                what gets generated; *.jinja files are rendered, others
   CLAUDE.md.jinja        the facts of a generated repo, importing the family rules; the source's once rendered
   .github/, .pre-commit-config.yaml, .secrets.baseline, LICENSE   copied from sdk-core, verbatim but for the deviations in Rules
   .github/workflows/live.yml.jinja   the nightly live workflow, the one rendered workflow (Rules)
+  .github/workflows/{% if '.' in import_path %}siblings.yml{% endif %}, .github/{% if '.' in import_path %}scripts{% endif %}/check-siblings.sh
+                         the sibling proof of ADR-0006, verbatim, only their names rendered (Rules)
+  scripts/refresh_upstream.py.jinja  the capture skeleton a source fills (/refresh-upstream)
   tests/test_family.py   one line collecting xippios.core.testing.family
   .gitattributes         docs/upstream/** -text: the snapshot stays byte for byte (CRLF, mixed endings)
 scripts/new-source.sh    generate + checks + GitHub repo + PR (the /new-source command)
@@ -63,7 +66,13 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   `live_schedule`, a hidden answer `copier.yml` computes from the slug. It writes GitHub's
   own expressions as `{{ '${{' }}` and `{{ '}}' }}`; `tests/test_template.py` checks that
   no Jinja survives, that a keyed source names its secret exactly once, on the pytest
-  step, and that an open one names none.
+  step, and that an open one names none. Two verbatim files render only where the import
+  path nests, so only their names hold Jinja: `.github/workflows/siblings.yml` and the
+  script it runs, `.github/scripts/check-siblings.sh` (executable; copier keeps the
+  bit), the sibling proof of ADR-0006. They stay outside the skip-listed `scripts/`, so
+  the merge classes trust a source's copy identical to the render, and the name of the
+  script's directory is the conditional one, so a flat render gets no empty directory.
+  `siblings` is a visible job the ruleset does not require: `ci.yml` stays core's file.
 - The verbatim files mirror sdk-core at the core release the template adopts (v0.2.1);
   `gates.yml` is core's file from after v0.2.1 (it calls `xippios/sdk-gates`);
   `tests/test_template.py` pins `gates.yml` and `PULL_REQUEST_TEMPLATE.md` to core's bytes,
@@ -104,7 +113,7 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
 ## Commands
 
 ```bash
-uv sync                         # copier, pytest, ruff, pyyaml, detect-secrets
+uv sync                         # copier, pytest, ruff, pyyaml, detect-secrets, pathspec
 uv run pytest                   # template tests (fast: generation + ruff on the output)
 scripts/prove.sh                  # full proof against the xippios-core release on PyPI
 scripts/prove.sh --core-ref main  # against unreleased core, before a core change lands

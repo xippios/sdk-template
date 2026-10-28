@@ -81,6 +81,7 @@ sdk-<slug>/
   src/xippios/<import path as dirs>/   __init__, py.typed, _version, _client, errors, models,
                        tasks, api/, mcp, http, reference/
   tests/               conftest, test_family, test_tasks, test_live
+  scripts/             refresh_reference.py, refresh_upstream.py (the capture skeleton)
   docs/upstream/       FETCHED.md
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
                        adopt-release
@@ -88,6 +89,7 @@ sdk-<slug>/
   .claude/settings.json  .github/workflows/{ci,publish,gates,live}.yml  .github/PULL_REQUEST_TEMPLATE.md
   CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
   .gitattributes       docs/upstream/** -text, so upstream files keep their bytes and line endings
+  .github/workflows/siblings.yml  .github/scripts/check-siblings.sh   where the import path nests
 ```
 
 The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit`
@@ -101,7 +103,12 @@ release train; `gates.yml` calls the merge gates as jobs once Johannes sets the
 repository variable `GATES_CALLER`. `live.yml` runs every `live` test every night and on
 demand. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources
 that share a key do not start together; only its pytest step sees the key, from the org
-secret named by `api_key_env`.
+secret named by `api_key_env`. Where the import path nests, `siblings.yml` runs
+`.github/scripts/check-siblings.sh` on every pull request and push to `main`: it installs
+the wheel beside every sibling on PyPI under the same provider namespace that shares its
+core minor and proves the namespace levels stay portions (ADR-0006), a visible check the
+ruleset does not require. `scripts/refresh_upstream.py` is the skeleton of the capture
+script `/refresh-upstream` runs; it refuses to run until the source fills it.
 
 ## Updating generated repositories
 

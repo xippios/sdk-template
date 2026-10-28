@@ -1,18 +1,25 @@
 """Generation tests: variants render, pass ruff, and respect skip-if-exists."""
 
 import ast
+import functools
 import hashlib
+import http.server
+import importlib.util
 import json
 import re
 import shutil
 import subprocess
 import sys
+import threading
 import tomllib
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 import yaml
 from copier import run_copy
+from pathspec import PathSpec
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -89,6 +96,7 @@ EXPECTED_FILES = [
     "src/xippios/{pkg}/params.py",
     "src/xippios/{pkg}/enums.py",
     "scripts/refresh_reference.py",
+    "scripts/refresh_upstream.py",
     "tests/conftest.py",
     "tests/test_family.py",
     "tests/test_tasks.py",
@@ -425,11 +433,143 @@ def test_upstream_snapshot_is_kept_byte_for_byte(generated: tuple[str, Path]) ->
     _, dst = generated
     assert (dst / ".gitattributes").read_text() == "docs/upstream/** -text\n"
     fetched = (dst / "docs/upstream/FETCHED.md").read_text()
-    assert "| File | URL | Fetched | Note |" in fetched
+    assert f"{TABLE_HEADER}\n" in fetched, "the columns scripts/refresh_upstream.py writes"
     assert "## Attribution" in fetched
     flat = " ".join(fetched.split())
     assert "the publisher's objection" in flat, "a vendor or a public-sector publisher"
     assert "UTC time of the run in ISO 8601 with an explicit `Z`" in fetched
+    example = fetched.split("```text\n", 1)[1].split("```", 1)[0].splitlines()
+    assert [row.split(" | ")[0] for row in example] == [
+        "| openapi/openapi.json",
+        "| (no file)",
+        "| openapi/part.json",
+    ], "a file row, a shell row and an excerpt row"
+    assert "Bytes and sha256 are the whole document's" in example[2], "conventions §3"
+
+
+TABLE_HEADER = "| File | URL | Fetched | HTTP | Bytes | sha256 | ETag | Last-Modified | Note |"
+
+
+class QuietHandler(http.server.SimpleHTTPRequestHandler):
+    """Serves a directory on the loopback interface, without a log line per request."""
+
+    def log_message(self, format: str, *args: object) -> None:
+        pass
+
+
+@pytest.fixture
+def site(tmp_path: Path) -> Iterator[tuple[Path, str]]:
+    """A local directory served over HTTP on 127.0.0.1: the pages, and their base URL."""
+    root = tmp_path / "site"
+    root.mkdir()
+    handler = functools.partial(QuietHandler, directory=str(root))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield root, f"http://127.0.0.1:{server.server_port}"
+    server.shutdown()
+    server.server_close()
+    thread.join()
+
+
+def refresh_upstream(template_src: Path, dst: Path) -> ModuleType:
+    """The rendered scripts/refresh_upstream.py of a fresh repository, imported, no pause."""
+    generate(template_src, dst, source_slug="ex", **keyed(""))
+    path = dst / "scripts/refresh_upstream.py"
+    spec = importlib.util.spec_from_file_location("refresh_upstream", path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.PAUSE = 0.0
+    return module
+
+
+def test_refresh_upstream_command_follows_the_skeleton(template_src: Path, tmp_path: Path) -> None:
+    """The command names what the skeleton defines: the hooks a source fills, --check, the
+    shell and excerpt rows, the spec URL convention (row 67 b) and the one converter a
+    capture script may declare (row 70); the skeleton itself declares no dependency."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", **keyed(""))
+    command = " ".join((dst / ".claude/commands/refresh-upstream.md").read_text().split())
+    script = (dst / "scripts/refresh_upstream.py").read_text()
+    tree = ast.parse(script)
+    defined = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+    defined |= {
+        target.id
+        for node in tree.body
+        if isinstance(node, ast.AnnAssign | ast.Assign)
+        for target in (node.targets if isinstance(node, ast.Assign) else [node.target])
+        if isinstance(target, ast.Name)
+    }
+    for name in ["PAGES", "SPEC_URL", "SPEC_FILE", "ATTRIBUTION", "CAPTURE"]:
+        assert f"`{name}`" in command, name
+        assert name in defined, name
+    for name in ["reduce", "load_json", "dump_json"]:
+        assert f"`{name}`" in command, name
+        assert name in defined, name
+    for field in ["status=403", "stable=False", "excerpt=True"]:
+        assert field in command, field
+    assert "uv run scripts/refresh_upstream.py --check" in command
+    assert '`dependencies = ["markdownify==X.Y.Z"]`' in command
+    assert "the same pin in the dev group of `pyproject.toml`" in command, "row 37 c"
+    assert "`git add docs/upstream scripts`" in command, "row 35 a"
+    assert script.startswith('# /// script\n# requires-python = ">=3.12"\n# dependencies = []\n')
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported |= {alias.name.split(".")[0] for alias in node.names}
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+    assert imported <= set(sys.stdlib_module_names), imported - set(sys.stdlib_module_names)
+
+
+def test_refresh_upstream_skeleton_checks_offline(
+    template_src: Path, tmp_path: Path, site: tuple[Path, str]
+) -> None:
+    """Rows 35 c and 67 c: the skeleton fetches through its one fetch function, writes a
+    file row and a shell row, and ``--check`` compares without writing (here against pages
+    served on the loopback interface)."""
+    root, base = site
+    (root / "openapi.json").write_text('{"openapi": "3.1.0"}\n')
+    module = refresh_upstream(template_src, tmp_path / "repo")
+    out = tmp_path / "repo/docs/upstream"
+    with pytest.raises(SystemExit, match="Nothing to fetch: fill PAGES"):
+        module.main(["--out", str(out)])
+    module.SPEC_URL = f"{base}/openapi.json"
+    module.PAGES = (module.Page(f"{base}/legal", status=404, note="404 Not Found"),)
+    assert module.main(["--out", str(out), "--check"]) == 1, "the stub records nothing"
+    assert module.main(["--out", str(out)]) == 0
+    assert (out / "openapi/openapi.json").read_text() == '{"openapi": "3.1.0"}\n'
+    fetched = (out / "FETCHED.md").read_text()
+    file_row = r"\| \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ \| 200 \| 21 \| [0-9a-f]{64} \| "
+    assert re.search(file_row, fetched), "the UTC time with Z, the status, size and sha256"
+    assert f"| (no file) | {base}/legal | " in fetched
+    assert "| 404 |" in fetched
+    assert f"{TABLE_HEADER}\n" in fetched
+    assert "None stated: no page this script reads states" in " ".join(fetched.split())
+    assert module.main(["--out", str(out), "--check"]) == 0, "Fetched aside, all the same"
+    (root / "openapi.json").write_text('{"openapi": "3.1.1"}\n')
+    assert module.main(["--out", str(out), "--check"]) == 1
+    assert (out / "openapi/openapi.json").read_text() == '{"openapi": "3.1.0"}\n', "unwritten"
+
+
+def test_refresh_upstream_skeleton_stops_on_an_unrecorded_statement(
+    template_src: Path, tmp_path: Path, site: tuple[Path, str]
+) -> None:
+    """Row 35 b: every run checks the attribution, and stops before writing on a copyright,
+    licence or terms that ATTRIBUTION does not record; a recorded one passes."""
+    root, base = site
+    (root / "guide.html").write_text("<p>Guide</p><footer>&copy; 2026 Example Ltd.</footer>\n")
+    module = refresh_upstream(template_src, tmp_path / "repo")
+    out = tmp_path / "repo/docs/upstream"
+    stub = (out / "FETCHED.md").read_bytes()
+    module.PAGES = (module.Page(f"{base}/guide.html", "pages/guide.html"),)
+    with pytest.raises(SystemExit, match="ATTRIBUTION does not record"):
+        module.main(["--out", str(out)])
+    assert (out / "FETCHED.md").read_bytes() == stub, "nothing written"
+    module.ATTRIBUTION = ("\N{COPYRIGHT SIGN} 2026 Example Ltd.",)
+    assert module.main(["--out", str(out)]) == 0
+    assert "The documentation states `\N{COPYRIGHT SIGN} 2026" in (out / "FETCHED.md").read_text()
 
 
 def test_models_use_validation_alias(generated: tuple[str, Path]) -> None:
@@ -669,11 +809,16 @@ def workflow_uses(path: Path) -> list[tuple[str, str]]:
 
 
 def test_workflow_actions_are_pinned_by_sha(generated: tuple[str, Path]) -> None:
-    """ci.yml, publish.yml and live.yml pin every action to a commit, its version in a
-    comment (conventions §13); live.yml takes ci.yml's pins."""
+    """ci.yml, publish.yml, live.yml and, where rendered, siblings.yml pin every action to a
+    commit, its version in a comment (conventions §13); live.yml and siblings.yml take
+    ci.yml's pins."""
     _, dst = generated
     workflows = dst / ".github/workflows"
-    for rel in ["ci.yml", "publish.yml", "live.yml"]:
+    rendered = sorted(path.name for path in workflows.glob("*.yml"))
+    assert rendered in [CORE_WORKFLOWS, sorted([*CORE_WORKFLOWS, "siblings.yml"])]
+    for rel in rendered:
+        if rel == "gates.yml":
+            continue  # core's bytes, calling the gates at @main by design (conventions §13)
         uses = workflow_uses(workflows / rel)
         assert uses, rel
         for action, comment in uses:
@@ -681,7 +826,72 @@ def test_workflow_actions_are_pinned_by_sha(generated: tuple[str, Path]) -> None
                 continue
             assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{rel}: {action}"
             assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{rel}: {action}{comment}"
-    assert set(workflow_uses(workflows / "live.yml")) <= set(workflow_uses(workflows / "ci.yml"))
+    for rel in set(rendered) & {"live.yml", "siblings.yml"}:
+        assert set(workflow_uses(workflows / rel)) <= set(workflow_uses(workflows / "ci.yml"))
+
+
+CORE_WORKFLOWS = ["ci.yml", "gates.yml", "live.yml", "publish.yml"]
+
+
+def skip_matcher(pkg: str) -> Callable[[str], bool]:
+    """Whether copier's ``_skip_if_exists`` protects a path, matched as copier 9.19.1 does:
+    the patterns rendered, read as gitignore lines by pathspec."""
+    patterns = yaml.safe_load((ROOT / "copier.yml").read_text())["_skip_if_exists"]
+    rendered = [pattern.replace("{{ package_dir }}", pkg) for pattern in patterns]
+    return PathSpec.from_lines("gitignore", rendered).match_file
+
+
+SIBLINGS_SCRIPT = ROOT / "template/.github/{% if '.' in import_path %}scripts{% endif %}"
+
+
+def test_siblings_check_renders_where_the_import_path_nests(generated: tuple[str, Path]) -> None:
+    """ADR-0006's sibling proof is the template's (T10): siblings.yml and the script it runs
+    render, byte for byte and executable, only where the import path nests, outside the
+    skip-listed scripts/ so that a source's copy is trusted when identical to the render;
+    a visible job, `ci` never aggregates it (ci.yml stays core's)."""
+    name, dst = generated
+    nested = "/" in package_dir(VARIANTS[name])
+    workflow = dst / ".github/workflows/siblings.yml"
+    script = dst / ".github/scripts/check-siblings.sh"
+    assert workflow.is_file() is nested
+    assert (dst / ".github/scripts").exists() is nested, "no empty directory where flat"
+    assert not (dst / "scripts/check-siblings.sh").exists()
+    claude = (dst / "CLAUDE.md").read_text()
+    assert ("siblings.yml" in claude) is nested
+    if not nested:
+        return
+    assert script.read_bytes() == (SIBLINGS_SCRIPT / "check-siblings.sh").read_bytes()
+    assert script.stat().st_mode & 0o111, "executable, as the render the merge classes compare"
+    syntax = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
+    assert syntax.returncode == 0, syntax.stderr
+    lines = script.read_text().splitlines()
+    first_uv = min(n for n, line in enumerate(lines) if line.lstrip().startswith("uv "))
+    assert lines.index("unset GITHUB_TOKEN") < first_uv, "conventions §13"
+    (handed,) = [line for line in lines if '"$token"' in line]
+    assert handed.startswith('  siblings="$(GITHUB_TOKEN="$token" "$python" - '), "listing only"
+    # D87: a sibling on another core minor is told by resolved versions, never by the text
+    # of uv's error; prove.sh runs both outcomes, since each needs PyPI.
+    assert not [line for line in lines if "$trial" in line and "grep" in line]
+    assert "uv pip compile --quiet --no-header --no-annotate" in script.read_text()
+    skipped = skip_matcher(package_dir(VARIANTS[name]))
+    assert skipped("scripts/check-siblings.sh"), "why the script is not under scripts/"
+    for rel in [".github/workflows/siblings.yml", ".github/scripts/check-siblings.sh"]:
+        assert not skipped(rel), f"{rel}: the template's, trusted when identical to the render"
+    text = workflow.read_text()
+    assert "{{" not in text.replace("${{", ""), "copied verbatim: only its name is rendered"
+    parsed = yaml.safe_load(text)
+    assert parsed[True] == {"push": {"branches": ["main"]}, "pull_request": None}
+    assert parsed["permissions"] == {"contents": "read"}
+    (job,) = parsed["jobs"].values()
+    assert job["name"] == "siblings"
+    checkout, setup, run = job["steps"]
+    assert checkout["with"] == {"persist-credentials": False}, "conventions §13"
+    assert setup["uses"].startswith("astral-sh/setup-uv@")
+    assert run["run"] == ".github/scripts/check-siblings.sh"
+    assert run["env"] == {"GITHUB_TOKEN": "${{ github.token }}"}, "the job's read-only token"
+    assert "secrets." not in text
+    ci = yaml.safe_load((dst / ".github/workflows/ci.yml").read_text())
+    assert "siblings" not in json.dumps(ci), "ci.yml stays core's file (row 34 c)"
 
 
 def test_the_templates_own_workflows_are_hardened() -> None:

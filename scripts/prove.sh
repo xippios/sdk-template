@@ -2,8 +2,11 @@
 # Prove the template: generate a throwaway sdk-example-api from the WORKING TREE and run
 # the full check suite on it (uv sync, ruff, mypy, pytest with core's family check,
 # pre-commit), then re-render enums.py from the (empty) packaged lists and require it
-# unchanged. No GitHub involved. The placeholder key is core's plugin's to guarantee, and
-# its own suite tests it.
+# unchanged, require the unfilled refresh_upstream.py skeleton to refuse to run, and run
+# the sibling check on the nested render (none renders where flat): with the wheel alone,
+# failing on a conflicting requirement, and warning on a sibling on another core minor.
+# No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
+# suite tests it.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF] [--keyless] [--keep] [-d key=value ...]
 #   --core-ref REF   sdk-core commit to depend on, main or a full SHA; default "" = the
@@ -87,6 +90,72 @@ echo "$(grep -c '^- \[x\] ' <<<"$ci_block") items ticked, no Adoption PR block, 
 echo
 echo "==> refresh_reference.py --render-only renders the shipped enums.py unchanged"
 (cd "$dest" && uv run python scripts/refresh_reference.py --render-only && git diff --exit-code)
+
+echo
+echo "==> refresh_upstream.py, the skeleton, refuses to run until a source fills it"
+if (cd "$dest" && uv run python scripts/refresh_upstream.py --check) 2> "$work/refresh.err"; then
+  echo "error: the unfilled skeleton ran" >&2
+  exit 1
+fi
+refusal="$(grep "Nothing to fetch: fill PAGES" "$work/refresh.err")" \
+  || { cat "$work/refresh.err" >&2; exit 1; }
+echo "refused: $refusal"
+
+echo
+if [ "$keyless" = 1 ]; then
+  echo "==> no sibling check where the import path is flat"
+  if [ -e "$dest/.github/workflows/siblings.yml" ] || [ -e "$dest/.github/scripts" ]; then
+    echo "error: a flat source renders the sibling check" >&2
+    exit 1
+  fi
+  echo "neither .github/workflows/siblings.yml nor .github/scripts/ rendered"
+else
+  # XIPPIOS_SIBLINGS set and empty: the wheel alone, so the proof lists no repositories
+  # on GitHub; the namespace levels, the import and the shipped files are checked as in CI.
+  echo "==> .github/scripts/check-siblings.sh on the nested render, the wheel alone"
+  (cd "$dest" && XIPPIOS_SIBLINGS='' .github/scripts/check-siblings.sh)
+
+  echo
+  echo "==> the sibling check fails on a conflict that is not the core minor: httpx<0.20"
+  if (cd "$dest" && XIPPIOS_SIBLINGS='httpx<0.20' .github/scripts/check-siblings.sh) \
+    > "$work/conflict.log" 2>&1; then
+    cat "$work/conflict.log" >&2
+    echo "error: the sibling check passed a conflicting sibling" >&2
+    exit 1
+  fi
+  if ! grep -qx "error: httpx<0.20 does not install beside this wheel" "$work/conflict.log"; then
+    cat "$work/conflict.log" >&2
+    exit 1
+  fi
+  echo "failed, as it must: $(tail -n 1 "$work/conflict.log")"
+
+  # A sibling built here whose one release needs a core minor on PyPI that this wheel does
+  # not take (0.3 beside 0.2, else 0.2; 0.1.0 is yanked): the check leaves it out with a
+  # warning and passes.
+  echo
+  echo "==> a sibling on another core minor only is left out with a warning, never a failure"
+  own_core="$("$dest/.venv/bin/python" -c \
+    'from importlib.metadata import version; print(version("xippios-core"))')"
+  case "$own_core" in
+    0.3.*) other_core="0.2.0" ;;
+    *) other_core="0.3.0" ;;
+  esac
+  other="$work/sdk-example-other"
+  mkdir -p "$other/src/xippios/example/other"
+  : > "$other/src/xippios/example/other/__init__.py"
+  printf '%s\n' '[project]' 'name = "xippios-example-other"' 'version = "0.1.0"' \
+    "dependencies = [\"xippios-core~=$other_core\"]" '' '[build-system]' \
+    'requires = ["hatchling>=1.27"]' 'build-backend = "hatchling.build"' '' \
+    '[tool.hatch.build.targets.wheel]' 'packages = ["src/xippios"]' > "$other/pyproject.toml"
+  if ! (cd "$dest" && XIPPIOS_SIBLINGS="xippios-example-other @ file://$other" \
+    .github/scripts/check-siblings.sh) > "$work/minor.log" 2>&1; then
+    cat "$work/minor.log" >&2
+    echo "error: the sibling check failed on a sibling on another core minor" >&2
+    exit 1
+  fi
+  grep "^::warning::xippios-example-other" "$work/minor.log" \
+    || { cat "$work/minor.log" >&2; exit 1; }
+fi
 
 echo
 echo "==> generated tree"

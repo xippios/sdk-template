@@ -12,7 +12,7 @@ the family rules every source shares are in `.claude/family.md`, which the next 
 | --- | --- |
 | Upstream | {{ source_name }}, {{ upstream_url }} |
 | API base URL | `{{ api_base_url }}` |
-| Documentation | {{ upstream_docs_url }}, snapshotted in `docs/upstream/` |
+| Documentation | {{ upstream_docs_url }}, snapshotted in `docs/upstream/`; an OpenAPI or Swagger document a page names is kept beside it, its URL in `SPEC_URL` of `scripts/refresh_upstream.py` (`/refresh-upstream`) |
 {% if api_key_env %}
 | Credentials | `{{ api_key_env }}` from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% endif %} |
 {% else %}
@@ -45,7 +45,8 @@ src/xippios/{{ package_dir }}/
   reference/       packaged code lists (CSV/JSON) plus README with provenance
 scripts/
   refresh_reference.py   fetches the packaged lists through api/ and regenerates enums.py
-  refresh_upstream.py    optional: a reproducible capture of docs/upstream/ (/refresh-upstream)
+  refresh_upstream.py    captures docs/upstream/ and writes FETCHED.md (/refresh-upstream); the
+                         template's skeleton until the source fills it
 tests/
   conftest.py      enables xippios.core.testing.plugin, which keeps the run offline
   fixtures/        recorded responses, <endpoint>/<case>.json, never hand-written
@@ -59,6 +60,11 @@ docs/upstream/     documentation snapshot and FETCHED.md
 .github/workflows/ ci.yml (the required ci check, with the CHANGELOG and fixture-size steps),
                    publish.yml (the release train: tag, build, PyPI), live.yml (nightly live
                    tests), gates.yml (the merge gates as jobs, off until GATES_CALLER is 1)
+{% if '.' in import_path %}
+                   siblings.yml (the sibling proof of ADR-0006: this wheel beside the
+                   siblings under xippios.{{ import_path.rsplit('.', 1)[0] }}, a visible check the ruleset does not require)
+.github/scripts/   check-siblings.sh, which siblings.yml runs; the template's, as is the workflow
+{% endif %}
 .claude/family.md  the family rules, the template's, imported above
 .claude/commands/  add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
                    adopt-release
