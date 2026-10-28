@@ -18,6 +18,8 @@ are not listed.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-28
+
 Generated repositories depend on xippios-core 0.3.0 (conventions 1.21) and take what it
 brought: the api.data.gov gateway behind a new `gateway` answer, packaged lists written
 and read through core's `PackagedList` with `enums.py` from one `render_enums` call,
