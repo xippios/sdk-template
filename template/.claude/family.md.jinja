@@ -31,6 +31,17 @@ data. If logic appears in `mcp.py` or `http.py`, it belongs in `tasks.py`. `api/
 one module per upstream operation, or one per service where operation ids repeat across
 services; the Layout in `CLAUDE.md` says which.
 
+A source whose upstream publishes files keeps the three layers (ADR-0020): `api/` wraps
+the HTTP endpoints it has, a catalog say, the download goes through core's `download` or
+through the source package it depends on, and `parse/` holds one module per file kind
+with one function, `parse_<file_kind>(path) -> list[Model]`, whose library (a
+spreadsheet reader, `pypdf`) the source declares, never core. A PDF is read for its
+narrative text only, never for numbers: a figure a task returns comes from the XLS,
+XML, CSV or TXT the release carries, or is not returned. A bulk task, one that returns a
+file or a list read from one, is named in `BULK_TASKS` in `tasks.py`, beside `MCP_CAPS`:
+it is Python-only, no tool and no route, since the adapters skip it and no tool hands
+an agent a file path (ADR-0019 decision 4).
+
 ## Namespace packages (ADR-0006)
 
 `src/xippios/` has **no** `__init__.py`: it is a PEP 420 namespace package shared with
@@ -88,7 +99,17 @@ Run `/record-fixture <endpoint> <case> <parameters>`. It performs one live reque
 through the real client with `xippios.core.testing.record_sync` and writes
 `tests/fixtures/<endpoint>/<case>.json` with credentials scrubbed. Grep the file for
 key patterns, and for the personal identifiers the package keeps out of its projections
-(ADR-0017), before committing. Fixtures are never typed in by hand.
+(ADR-0017), and stage it before `pre-commit run --all-files`, which scans only the files
+in git's index. Fixtures are never typed in by hand. A fixture file stays under 256 KiB:
+a large text or JSON array is recorded with `max_bytes=`, which marks it `truncated`,
+and anything the recorder will not cut (a JSON object, XML, ZIP, gzip, XLS, XLSX) is a
+small real answer or sample (ADR-0019 decision 5). A download's fixture is the recorded
+exchange of the file's URL, which the plugin replays for the download call. A source
+that parses files keeps beside it a sample of each file kind under
+`tests/fixtures/files/<file_kind>/<case>.<ext>`, which its parser tests read, with one
+provenance row per sample in `tests/fixtures/files/README.md`; a test on a sample or a
+cut fixture asserts the parser's shape, never a size, and one live test per file kind
+checks that the parser still reads the current release (ADR-0020).
 
 ## Commands
 
@@ -145,9 +166,10 @@ compares, so a live test asserts on shapes and counts, never on a raw payload.
   `uvx copier update` re-renders the files the template owns (this file,
   `tests/conftest.py` and `tests/test_family.py` among them; answers are in
   `.copier-answers.yml`) and never overwrites the files this package fills:
-  `__init__.py`, `_client.py`, `errors.py`, `models.py`, `api/`, `tasks.py`, `params.py`,
-  `enums.py`, `reference/`, `scripts/`, `tests/test_tasks.py`, `tests/test_live.py`,
-  `tests/fixtures/`, `docs/upstream/`, `README.md`, `CHANGELOG.md` and `CLAUDE.md`.
+  `__init__.py`, `_client.py`, `errors.py`, `models.py`, `api/`, `parse/`, `tasks.py`,
+  `params.py`, `enums.py`, `reference/`, `scripts/`, `tests/test_tasks.py`,
+  `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`, `README.md`, `CHANGELOG.md`
+  and `CLAUDE.md`.
   Template changes to those are listed per release under "Hand-apply" in sdk-template's
   [CHANGELOG](https://github.com/xippios/sdk-template/blob/main/CHANGELOG.md); port them
   by hand in the same PR.

@@ -46,7 +46,8 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
    personal identifiers (`ssn`, `iban` and their like) unless the task fetches them
    deliberately and says so in its docstring (ADR-0017). A list task whose whole list an
    agent needs, longer than the default result cap, gets a cap of its own in `MCP_CAPS`
-   (ADR-0016).
+   (ADR-0016). A bulk task, one that returns a file or a list read from one, is named in
+   `BULK_TASKS` beside it: Python-only, no tool and no route (ADR-0019 decision 4).
 
 5. **Docstring for agents** on the task: first line one sentence; then an `Args:` block
    explaining every parameter with examples of valid values. The MCP tool description and
@@ -72,8 +73,8 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
 8. **Checks**, all of them:
    `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest && uv run pre-commit run --all-files`.
    `tests/test_family.py`, core's family check, proves the new task is exposed as a tool
-   and a route without touching `mcp.py` or `http.py`, returns `Result[T]` with an agent
-   docstring, and is in the README status table.
+   and a route, a bulk task as neither, without touching `mcp.py` or `http.py`, returns
+   `Result[T]` with an agent docstring, and is in the README status table.
 
 9. Open the PR with `gh pr create`, its body as the definition of done says. Do not
    merge.

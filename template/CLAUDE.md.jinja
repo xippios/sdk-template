@@ -20,6 +20,9 @@ the family rules every source shares are in `.claude/family.md`, which the next 
 {% endif %}
 | Rate limit | {{ rate_limit_per_minute }} requests per minute, burst {{ rate_limit_burst }}; {% if rate_limit_provenance == 'self-imposed' %}a self-imposed pace: upstream documents no per-second or per-minute limit{% else %}within the limit documented by upstream{% endif %} (ADR-0010); enforced client-side in `_client.py`{% if gateway == 'api.data.gov' %}. The hourly quota is the gateway's, shared by every package on the key: one `QuotaPolicy` per process, `Gateway.policy`, which once the quota is spent waits within the policy's cap or refuses before sending (ADR-0009, ADR-0015){% else %} <!-- name here an hourly or daily quota upstream documents, if any, and the QuotaPolicy that keeps it (ADR-0015) -->{% endif %} |
 | Write tools | no, this package is read-only |
+{% if has_files %}
+| Files | parsed in `parse/`, one module per file kind; the parser tests read the samples under `tests/fixtures/files/`, their provenance in its `README.md` (ADR-0020) <!-- each file kind upstream publishes, its format and the library that reads it --> |
+{% endif %}
 {% if depends_on %}
 | Depends on | {% for dep in depends_on %}`xippios-{{ dep.name }}~={{ dep.minor }}.0`{{ ', key `' ~ dep.key_env ~ '`' if dep.key_env else '' }}{{ '; ' if not loop.last else '' }}{% endfor %}: the task layer and its models only, never `api/` or `_client`; this package's servers serve its own tasks, and an agent that wants a dependency's tools runs that package's server (ADR-0021) <!-- what this package uses each for, one line (ADR-0021 decision 6) --> |
 {% endif %}
@@ -38,8 +41,11 @@ src/xippios/{{ package_dir }}/
   errors.py        the package's own error classes, where conventions §5 calls for one
   models.py        pydantic models mirroring upstream payloads (UpstreamModel)
   api/             endpoint wrappers, one module per upstream operation
-  tasks.py         task functions; __all__ is what the adapters register, MCP_CAPS any
-                   per-tool result caps
+{% if has_files %}
+  parse/           file parsers, one module per file kind: parse_<file_kind>(path) -> list[Model]
+{% endif %}
+  tasks.py         task functions; __all__ is what the adapters register, but BULK_TASKS,
+                   the Python-only ones; MCP_CAPS any per-tool result caps
   mcp.py           xippios-{{ source_slug }}-mcp entry point
   http.py          FastAPI router
   params.py        the packaged reference lists, read from reference/
@@ -53,6 +59,9 @@ scripts/
 tests/
   conftest.py      enables xippios.core.testing.plugin, which keeps the run offline
   fixtures/        recorded responses, <endpoint>/<case>.json, never hand-written
+{% if has_files %}
+  fixtures/files/  a sample of each file kind, <file_kind>/<case>.<ext>; README.md, their provenance
+{% endif %}
   test_family.py   core's family check, one line: namespace levels, py.typed, __version__,
                    the adapters serving exactly the tasks, task shapes and docstrings, the
                    README status table, the template tag, the core bound

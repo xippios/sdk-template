@@ -45,6 +45,14 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
    with `AsyncClient` and `RetryPolicy` from `xippios.core` and
    `config`{% if api_key_env %} and `auth`{% endif %} from `xippios.{{ import_path }}._client`.
 
+   A downloaded file's fixture is the GET exchange of the file's URL, the one the
+   download task streams: pass that URL in place of the request path, absolute where
+   the file lives on another host, with `auth=None` there so the client's credentials
+   never go to it. The plugin replays it for the download call, and its envelope keeps
+   the provenance: the URL, `recorded_at`, the `ETag` and `Last-Modified` headers where
+   upstream sends them, and, for a cut body, the whole file's `original_bytes` and
+   `sha256` (step 5).
+
 4. Check the file: `grep -niE 'api[_-]?key|token|secret|authorization' tests/fixtures/<endpoint>/<case>.json`
    must print nothing but `REDACTED` values. A match in upstream's own text (a word such
    as `SECRETARY` in a name or a description) is no credential: read every match by eye.
@@ -58,9 +66,27 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
    must show a scrubbed value. A real value found means the file is deleted, never
    committed.
 
-5. The fixture file stays under 256 KiB (conventions §10, ADR-0019): narrow the query,
-   or record a JSON array or a text body with `max_bytes=` (`80_000` keeps the file under
-   the cap), which keeps the body's start and marks the fixture `truncated: true`; the
-   recorder refuses that for a JSON object, XML, ZIP, gzip, XLS, XLSX and a body that is
-   not UTF-8 text, so record a small real answer or sample there. Then reference it from
-   a test with the `replay_fixture("<endpoint>", "<case>")` fixture.
+5. The fixture file stays under 256 KiB (conventions §10, ADR-0019 decision 5); `ci.yml`
+   warns on a larger one. Narrow the query first. A text body or a JSON array too large
+   for the cap is recorded with `max_bytes=` (`80_000` keeps the file under the cap: it
+   bounds the body, which the file escapes as a JSON string): a JSON array keeps its
+   first whole elements, cut in upstream's own text, a text its first bytes, and the
+   envelope marks the cut with `truncated: true`, `original_bytes` and `sha256` of the
+   whole body and, for an array, `original_count`; replay serves the cut body. The
+   recorder refuses `max_bytes=` on a JSON object, whose parts are no list to take the
+   first of: record a small real answer instead (a short date range, one commodity). An
+   XML, ZIP, gzip, XLS or XLSX body is never cut either, nor one that is not UTF-8 text:
+   record a small real sample (a short query, one member of the archive, a few rows). A
+   downloaded file is recorded whole when it is small, else with `max_bytes=` where it
+   is text. The sample file a parser test reads is no recorded exchange: it lives under
+   `tests/fixtures/files/<file_kind>/`, its provenance one row in
+   `tests/fixtures/files/README.md` (ADR-0020). A test on a cut fixture or a sample
+   asserts the shape, never a size.
+
+6. Reference it from a test with the `replay_fixture("<endpoint>", "<case>")` fixture.
+   Stage it (`git add tests/fixtures`) before `uv run pre-commit run --all-files`, which
+   scans only the files in git's index: an unstaged fixture escapes detect-secrets. When
+   detect-secrets flags a recorded HTML error page (a site's "Page not found" carries
+   hashes it reads as secrets), never edit the fixture to pass it: narrow the request,
+   or drop the fixture and keep the status alone, named in the PR description with the
+   call counted. An HTML error body is kept only when a test needs it.

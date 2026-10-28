@@ -5,10 +5,12 @@
 # unchanged, require the unfilled refresh_upstream.py skeleton to refuse to run, and run
 # the sibling check where the import path nests (none renders where it is flat): with the
 # wheel alone, failing on a conflicting requirement, and warning on a sibling on another
-# core minor. No GitHub involved. The placeholder key is core's plugin's to guarantee, and
-# its own suite tests it. The template's CI runs the first three shapes; --gateway runs
-# locally, and stops at mypy on the generated scripts/refresh_reference.py until that
-# script takes core 0.3.0's render_enums.
+# core minor; and require parse/ and tests/fixtures/files/ exactly where has_files is true.
+# No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
+# suite tests it. The template's CI runs the first three shapes, and the keyless nested
+# one again with -d has_files=true, a source that parses the files it downloads
+# (ADR-0020); --gateway runs locally, and stops at mypy on the generated
+# scripts/refresh_reference.py until that script takes core 0.3.0's render_enums.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF]
 #                         [--keyless | --keyless-nested | --gateway] [--keep] [-d key=value ...]
@@ -23,6 +25,7 @@
 #                      derives the key answers, and core is 0.3.0, the first release with
 #                      xippios.core.data_gov
 #   --keep             leave the generated repository in place
+#   -d key=value       one more copier answer, e.g. -d has_files=true
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -114,6 +117,24 @@ echo "refused: $refusal"
 
 # Nested or flat as copier recorded it, so a -d import_path=... answer is proven as rendered.
 import_path="$(sed -n 's/^import_path: //p' "$dest/.copier-answers.yml")"
+
+# The parsers' package and the samples' table, as copier recorded has_files (ADR-0020):
+# the suite above passed on the render, with an empty parse/ where they are rendered.
+has_files="$(sed -n 's/^has_files: //p' "$dest/.copier-answers.yml")"
+parse_dir="src/xippios/${import_path//.//}/parse"
+echo
+if [ "$has_files" = true ]; then
+  echo "==> has_files: parse/ and tests/fixtures/files/README.md rendered, the suite passed"
+  for rel in "$parse_dir/__init__.py" tests/fixtures/files/README.md; do
+    [ -f "$dest/$rel" ] || { echo "error: has_files rendered no $rel" >&2; exit 1; }
+  done
+  (cd "$dest" && git ls-files "$parse_dir" tests/fixtures)
+else
+  echo "==> has_files: $has_files, so neither parse/ nor tests/fixtures/ rendered"
+  for rel in "$parse_dir" tests/fixtures; do
+    [ ! -e "$dest/$rel" ] || { echo "error: $rel rendered without has_files" >&2; exit 1; }
+  done
+fi
 if [ "$shape" = gateway ]; then
   # Offline: core's Gateway gives the client its key, its quota hooks and the first say
   # in classify, here on an answer in the shape the gateway sends to a refused key.

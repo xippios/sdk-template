@@ -248,6 +248,21 @@ key_envs:
     | select | list) | unique | list) | tojson }}
   when: false
 
+# Whether the source parses the files it downloads (ADR-0020): parse/ and the samples'
+# provenance table render only then. Its default, false, is a literal the merge classes
+# read, so every source that predates the question takes it free.
+has_files:
+  type: bool
+  help: >-
+    Whether this source parses files it downloads (ADR-0020). A source that parses
+    files answers true: parse/ renders, one module per file kind, and
+    tests/fixtures/files/README.md, one provenance row per sample file its parser tests
+    read. A retrieval-only source, which lists releases and downloads files without
+    parsing them, answers false: its download fixture is the recorded exchange of the
+    file's URL (ADR-0019 decision 5). false, the default, for an API that answers with
+    records.
+  default: false
+
 # 9.19.0 brought `ask`, which the key answers take behind a gateway.
 _min_copier_version: "9.19.0"
 _subdirectory: template
@@ -267,6 +282,7 @@ _skip_if_exists:
   - src/xippios/{{ package_dir }}/errors.py
   - src/xippios/{{ package_dir }}/models.py
   - src/xippios/{{ package_dir }}/api/**
+  - src/xippios/{{ package_dir }}/parse/**
   - src/xippios/{{ package_dir }}/tasks.py
   - src/xippios/{{ package_dir }}/params.py
   - src/xippios/{{ package_dir }}/enums.py
