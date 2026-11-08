@@ -1361,11 +1361,15 @@ def test_the_gateway_derives_the_key_answers(
         generate(template_src, tmp_path / "repo", source_slug="ex", **answers)
 
 
-def test_the_human_answer_owns_every_member_path(template_src: Path, tmp_path: Path) -> None:
-    """Another login renders as the owner of each path and is recorded as answered."""
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex", human="octo-cat", **keyed(""))
-    assert owner_rules(dst) == [f"{path} @octo-cat" for path in MEMBER_HUMAN_PATHS]
-    assert yaml.safe_load((dst / ".copier-answers.yml").read_text())["human"] == "octo-cat"
+@pytest.mark.parametrize("login", ["octo-cat", "a" * 39, "A1-b"])
+def test_the_human_answer_owns_every_member_path(
+    template_src: Path, tmp_path: Path, login: str
+) -> None:
+    """Another login renders as the owner of each path and is recorded as answered: a
+    hyphen, the bound of 39 characters and mixed case among them."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", human=login, **keyed(""))
+    assert owner_rules(dst) == [f"{path} @{login}" for path in MEMBER_HUMAN_PATHS]
+    assert yaml.safe_load((dst / ".copier-answers.yml").read_text())["human"] == login
 
 
 @pytest.mark.parametrize(
