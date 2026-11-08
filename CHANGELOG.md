@@ -34,6 +34,13 @@ are not listed.
   core's copy in those two passages only, which the template's tests name. `copier update`
   carries all four, none being under `_skip_if_exists`, so they need no Hand-apply bullet.
 
+### Fixed
+
+- `.gitignore` of a generated repository names copier's leftovers, `*.rej` and `*.orig`,
+  so no commit takes the reject file `copier update` leaves for a hunk it could not apply,
+  or an `.orig` beside it. `.gitignore` is not under `_skip_if_exists`, so `copier update`
+  carries the two lines, and they need no Hand-apply bullet.
+
 ### Hand-apply
 
 None.
