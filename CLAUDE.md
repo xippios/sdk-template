@@ -23,6 +23,8 @@ template/                what gets generated; *.jinja files are rendered, others
   CLAUDE.md.jinja        the facts of a generated repo, importing the family rules; the source's once rendered
   .github/, .pre-commit-config.yaml, .secrets.baseline, LICENSE   copied from sdk-core, verbatim but for the deviations in Rules
   .github/workflows/live.yml.jinja   the nightly live workflow, the one rendered workflow (Rules)
+  .github/CODEOWNERS.jinja  a member's human paths, each owned by the human answer (C70): a member
+                         gets the file from its template, never from `coordinate sync`
   .github/workflows/{% if '.' in import_path or depends_on %}siblings.yml{% endif %},
   .github/{% if '.' in import_path or depends_on %}scripts{% endif %}/check-siblings.sh
                          the sibling proof of ADR-0006 and ADR-0021, verbatim, only their names

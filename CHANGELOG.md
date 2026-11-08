@@ -18,6 +18,20 @@ are not listed.
 
 ## [Unreleased]
 
+### Added
+
+- `.github/CODEOWNERS`, template-owned: the human paths of a member, `/.github/**`,
+  `/CLAUDE.md`, `/.claude/**`, `/rules/**`, `/pyproject.toml` and `/.copier-answers.yml`,
+  each owned by the human's login, so the rulesets' code-owner rule has an owner to
+  request on every human path of a member (C70 of the coordinate workspace).
+  `coordinate sync` writes the file for a core or a template only, and a member gets it
+  from its template. It is not under `_skip_if_exists`, so `copier update` carries it,
+  and it needs no Hand-apply bullet.
+- `human`, an answer: the GitHub login that `.github/CODEOWNERS` names, without the `@`.
+  Its default, `jdidaskalu`, is a literal, which an adoption takes and records. The
+  validator refuses a login of anything but letters, digits and single hyphens, or one
+  over 39 characters.
+
 ## [0.3.0] - 2026-10-28
 
 Generated repositories depend on xippios-core 0.3.0 (conventions 1.21), now
