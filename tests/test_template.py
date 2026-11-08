@@ -835,6 +835,21 @@ def test_local_env_files_are_ignored(keyed_nested: Path) -> None:
     assert {".env", ".env.*", ".envrc", ".envrc.*"} <= ignored
 
 
+def test_copiers_leftovers_stay_untracked(keyed_nested: Path, tmp_path: Path) -> None:
+    """A `.rej` that `copier update` leaves for a hunk it could not apply, and an `.orig`,
+    are never committed: the `.gitignore` names both, at any depth."""
+    ignored = set((keyed_nested / ".gitignore").read_text().splitlines())
+    assert {"*.rej", "*.orig"} <= ignored
+    repo = tmp_path / "repo"
+    shutil.copytree(keyed_nested, repo)
+    git(repo, "init", "-q", "-b", "main")
+    (repo / ".github/workflows/ci.yml.rej").write_text("@@ -1 +1 @@\n-a\n+b\n")
+    (repo / "pyproject.toml.orig").write_text("[project]\n")
+    untracked = git(repo, "status", "--porcelain", "--untracked-files=all").splitlines()
+    assert "?? pyproject.toml" in untracked
+    assert not [line for line in untracked if line.endswith((".rej", ".orig"))], untracked
+
+
 TABLE_HEADER = "| File | URL | Fetched | HTTP | Bytes | sha256 | ETag | Last-Modified | Note |"
 
 
