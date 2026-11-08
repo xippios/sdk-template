@@ -1796,9 +1796,14 @@ def test_no_instruction_tells_a_human_to_tag() -> None:
     assert generated_contract <= scanned, "the facts and the family rules alike"
 
 
-# The rule of the retired merge gates: a pull request's merge class, and the auto-merge a
-# session enabled on one. A pull request merges under the rulesets of `main`.
-MERGE_CLASS = re.compile(r"\bmerge[ -]class(?:es)?\b|\bauto-merge\b", re.I)
+# The rule of the retired merge gates: a pull request's merge class, under any of its names
+# (`human class`, `class review`), and the auto-merge a session enabled on one. A pull
+# request merges under the rulesets of `main`.
+MERGE_CLASS = re.compile(
+    r"\bmerge[ -]class(?:es)?\b|\b(?:human|review) class\b|\bclass (?:human|review)\b"
+    r"|\bauto-merge\b",
+    re.I,
+)
 
 
 def test_no_instruction_names_the_merge_class() -> None:
