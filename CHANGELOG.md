@@ -20,10 +20,13 @@ are not listed.
 
 ### Added
 
-- `.github/CODEOWNERS`, template-owned: the human paths of a member, `/.github/**`,
-  `/CLAUDE.md`, `/.claude/**`, `/rules/**`, `/pyproject.toml` and `/.copier-answers.yml`,
-  each owned by the human's login, so the rulesets' code-owner rule has an owner to
-  request on every human path of a member (C70 of the coordinate workspace).
+- The template's own `.github/CODEOWNERS`, written from its human paths, so a change to
+  one of them waits for the human's review.
+- `.github/CODEOWNERS` of a generated repository, template-owned: the human paths of a
+  member, `/.github/**`, `/CLAUDE.md`, `/.claude/**`, `/rules/**`, `/pyproject.toml` and
+  `/.copier-answers.yml`, each owned by the human's login, so the rulesets' code-owner
+  rule has an owner to request on every human path of a member (C70 of the coordinate
+  workspace).
   `coordinate sync` writes the file for a core or a template only, and a member gets it
   from its template. It is not under `_skip_if_exists`, so `copier update` carries it,
   and it needs no Hand-apply bullet.
@@ -31,6 +34,21 @@ are not listed.
   Its default, `jdidaskalu`, is a literal, which an adoption takes and records. The
   validator refuses a login of anything but letters, digits and single hyphens, or one
   over 39 characters.
+
+### Changed
+
+- The template's `CLAUDE.md` and README and the files it renders name no merge class and
+  no auto-merge a session enables, the rule of the merge gates, which are retired.
+  `.claude/family.md`, `/adopt-release` and `/release-prep` say that a pull request merges
+  under the rulesets of `main` on the reviewer's approval, and the two commands open the
+  pull request and stop, with no `gh pr merge` step. `.github/PULL_REQUEST_TEMPLATE.md`
+  drops the exception from its Adoption PR block and its Process line, and departs from
+  core's copy in those two passages only, which the template's tests name. `copier update`
+  carries all four, none being under `_skip_if_exists`, so they need no Hand-apply bullet.
+
+### Hand-apply
+
+None.
 
 ## [0.3.0] - 2026-10-28
 

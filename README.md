@@ -127,10 +127,9 @@ runs; it refuses to run until the source fills it.
 A template release, and the xippios-core minor it carries, reach a generated repository
 in one adoption PR before its next release (conventions §15, ADR-0018): a
 `chore/template-update-<tag>` PR whose description is the definition of done's Adoption
-PR checklist; when its merge class is `auto` the session enables auto-merge after the
-reviewer's `ready`, and a `human` adoption waits for Johannes. The generated
-`/adopt-release <tag>` walks it step by step; at its core is `copier update`, run inside
-the generated repository:
+PR checklist, merged under the rulesets of `main` on the reviewer's approval. The
+generated `/adopt-release <tag>` walks it step by step; at its core is `copier update`,
+run inside the generated repository:
 
 ```bash
 uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.3.0 -d core_version=0.3.0 -d core_git_ref=
