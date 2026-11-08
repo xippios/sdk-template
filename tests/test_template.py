@@ -871,6 +871,21 @@ def test_local_env_files_are_ignored(keyed_nested: Path) -> None:
     assert {".env", ".env.*", ".envrc", ".envrc.*"} <= ignored
 
 
+def test_copiers_leftovers_stay_untracked(keyed_nested: Path, tmp_path: Path) -> None:
+    """A `.rej` that `copier update` leaves for a hunk it could not apply, and an `.orig`,
+    are never committed: the `.gitignore` names both, at any depth."""
+    ignored = set((keyed_nested / ".gitignore").read_text().splitlines())
+    assert {"*.rej", "*.orig"} <= ignored
+    repo = tmp_path / "repo"
+    shutil.copytree(keyed_nested, repo)
+    git(repo, "init", "-q", "-b", "main")
+    (repo / ".github/workflows/ci.yml.rej").write_text("@@ -1 +1 @@\n-a\n+b\n")
+    (repo / "pyproject.toml.orig").write_text("[project]\n")
+    untracked = git(repo, "status", "--porcelain", "--untracked-files=all").splitlines()
+    assert "?? pyproject.toml" in untracked
+    assert not [line for line in untracked if line.endswith((".rej", ".orig"))], untracked
+
+
 TABLE_HEADER = "| File | URL | Fetched | HTTP | Bytes | sha256 | ETag | Last-Modified | Note |"
 
 
@@ -1853,9 +1868,14 @@ def test_no_instruction_tells_a_human_to_tag() -> None:
     assert generated_contract <= scanned, "the facts and the family rules alike"
 
 
-# The rule of the retired merge gates: a pull request's merge class, and the auto-merge a
-# session enabled on one. A pull request merges under the rulesets of `main`.
-MERGE_CLASS = re.compile(r"\bmerge[ -]class(?:es)?\b|\bauto-merge\b", re.I)
+# The rule of the retired merge gates: a pull request's merge class, under any of its names
+# (`human class`, `class review`), and the auto-merge a session enabled on one. A pull
+# request merges under the rulesets of `main`.
+MERGE_CLASS = re.compile(
+    r"\bmerge[ -]class(?:es)?\b|\b(?:human|review) class\b|\bclass (?:human|review)\b"
+    r"|\bauto-merge\b",
+    re.I,
+)
 
 
 def test_no_instruction_names_the_merge_class() -> None:
