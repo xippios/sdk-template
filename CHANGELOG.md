@@ -18,12 +18,32 @@ are not listed.
 
 ## [Unreleased]
 
+### Added
+
+- The template's own `.github/CODEOWNERS`, written from its human paths, so a change to
+  one of them waits for the human's review.
+
+### Changed
+
+- The template's `CLAUDE.md` and README and the files it renders name no merge class and
+  no auto-merge a session enables, the rule of the merge gates, which are retired.
+  `.claude/family.md`, `/adopt-release` and `/release-prep` say that a pull request merges
+  under the rulesets of `main` on the reviewer's approval, and the two commands open the
+  pull request and stop, with no `gh pr merge` step. `.github/PULL_REQUEST_TEMPLATE.md`
+  drops the exception from its Adoption PR block and its Process line, and departs from
+  core's copy in those two passages only, which the template's tests name. `copier update`
+  carries all four, none being under `_skip_if_exists`, so they need no Hand-apply bullet.
+
 ### Fixed
 
 - `.gitignore` of a generated repository names copier's leftovers, `*.rej` and `*.orig`,
   so no commit takes the reject file `copier update` leaves for a hunk it could not apply,
   or an `.orig` beside it. `.gitignore` is not under `_skip_if_exists`, so `copier update`
   carries the two lines, and they need no Hand-apply bullet.
+
+### Hand-apply
+
+None.
 
 ## [0.3.0] - 2026-10-28
 

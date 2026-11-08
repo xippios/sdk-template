@@ -96,15 +96,16 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   `.github/workflows/siblings.yml` and the script it runs,
   `.github/scripts/check-siblings.sh` (executable; copier keeps the bit), the sibling
   proof of ADR-0006, which installs and imports the declared dependencies too (ADR-0021).
-  They stay outside the skip-listed `scripts/`, so the merge classes trust a source's copy
-  identical to the render, and the name of the script's directory is the conditional one,
+  They stay outside the skip-listed `scripts/`, so `copier update` keeps a source's copy
+  equal to the render, and the name of the script's directory is the conditional one,
   so a flat render gets no empty directory.
   `siblings` is a visible job the ruleset does not require: `ci.yml` stays core's file.
 - The verbatim files mirror sdk-core at the core release the template adopts (v0.3.0),
-  `gates.yml` calling `xippios/sdk-gates`; `tests/test_template.py` pins `gates.yml` and
-  `PULL_REQUEST_TEMPLATE.md` to core's bytes, and `ci.yml` and `publish.yml` to core's
-  bytes once the template's own steps below are taken out. sdk-template's own `.github/workflows/gates.yml` is the same file, byte for
-  byte `template/.github/workflows/gates.yml`, which the tests check: the template carries
+  `gates.yml` calling `xippios/sdk-gates`; `tests/test_template.py` pins `gates.yml` to
+  core's bytes, and `ci.yml`, `publish.yml` and `PULL_REQUEST_TEMPLATE.md` to core's
+  bytes once the template's own lines below are taken out. sdk-template's own
+  `.github/workflows/gates.yml` is the same file, byte for byte
+  `template/.github/workflows/gates.yml`, which the tests check: the template carries
   the gates caller as every repository does, off until Johannes sets the repository
   variable `GATES_CALLER` to `1` on it. When sdk-core changes one of them, change it here
   too (`gates.yml` in both places) and bump the template; `copier update` carries it
@@ -120,7 +121,11 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   CHANGELOG entry and the fixture cap, which core's `docs/handover.md` gives for the
   template ("Template v0.2.1: the two family checks that are CI steps"); from v0.3.0 the
   CHANGELOG step exempts a release and Dependabot only, no longer an adoption, whose line
-  conventions §15 item 9 requires.
+  conventions §15 item 9 requires. `PULL_REQUEST_TEMPLATE.md` deviates in two passages,
+  the Adoption PR block's lead from its second sentence and the Process block's line on
+  merges: core's copy keeps the merge exception of ADR-0018, amendment (e), which the
+  template drops, since a pull request merges under the rulesets of `main` on the
+  reviewer's approval; the tests name both passages.
 - Every template release has an entry in `CHANGELOG.md` (Keep a Changelog), and every
   entry ends with a `### Hand-apply` list: one bullet per generated file under
   `_skip_if_exists` that the release changes, `` - `<path>` — <what> — <why> ``, because
@@ -172,7 +177,6 @@ uv run ruff check . && uv run ruff format --check .
   and says internal labels (decisions, queue rows, plan items) in plain words, since it
   becomes the tag's message. Its merge runs `.github/workflows/release.yml`, which tags
   `vX.Y.Z` on the merge commit with that section as the message. No session pushes a tag.
-- Never tag, merge, release or touch secrets from a session; the one exception is
-  enabling auto-merge on a `chore/release-*` PR whose merge class is `auto`, after the
-  reviewer's `ready` (ADR-0018, amendments (a) and (e)).
+- Never tag, merge, release or touch secrets; a pull request merges under the rulesets of
+  `main` on the reviewer's approval.
 - Never read or print `.envrc`, `.env`, or any variable ending in `_API_KEY`.

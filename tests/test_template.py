@@ -924,19 +924,20 @@ CORE_VERBATIM = {
         # pragma: allowlist nextline secret
         "cf3097a2a34f40b98d4e511435204fdb07a7edf8aed94bcf5de467bbb0b814c5"
     ),
-    ".github/PULL_REQUEST_TEMPLATE.md": (
-        # pragma: allowlist nextline secret
-        "13900fdecd972d68bc9bab45c21dcfef0b40b73e64ace0f9328e21b7f345d409"
-    ),
 }
-# The same for the two workflows the template extends: core's bytes once the template's
-# own lines, named in CLAUDE.md's Rules, are taken out.
+# The same for the files the template departs from: core's bytes once the template's own
+# lines, named in CLAUDE.md's Rules, are taken out; for the PR template, core's file with
+# the passages of PR_PASSAGES taken out, as the test takes them out of the template's.
 CORE_EXTENDED = {
     # pragma: allowlist nextline secret
     ".github/workflows/ci.yml": "ebee09e20d7004a6761c1986f3bc0e16ee4a2dfa749921ac25040ebad5abacab",
     ".github/workflows/publish.yml": (
         # pragma: allowlist nextline secret
         "dc98ee245673db75f639fa94318668078ea0242f07072b6c333716ee9ffdcf9f"
+    ),
+    ".github/PULL_REQUEST_TEMPLATE.md": (
+        # pragma: allowlist nextline secret
+        "74d370d7cb6a1025da35de907cc072b9b06cd88e230f83a7e00da07e213763f5"
     ),
 }
 # The template's own lines: in ci.yml the full history for the two steps that read the
@@ -948,6 +949,13 @@ PUBLISH_STEP = (
     "      # sdk-template's one step beyond core's file",
     "      - name: Tag the merge commit",
 )
+# The PR template's two passages that differ from core's: the Adoption PR block's lead from
+# its second sentence, and the Process block's line on merges. The template's name no
+# auto-merge a session enables, core's still do (ADR-0018, amendment (e)).
+PR_PASSAGES = (
+    ("`chore/template-update*` PR", "- [ ] core floor raised"),
+    ("- [ ] no tag, release, merge, or secret operation", "- [ ] assumptions and open questions"),
+)
 
 
 def without(text: str, first: str, stop: str) -> str:
@@ -957,7 +965,8 @@ def without(text: str, first: str, stop: str) -> str:
 
 
 def test_workflows_and_pr_template_are_cores_bytes(keyed_nested: Path) -> None:
-    """The verbatim files are core's bytes; ci.yml and publish.yml core's plus ours."""
+    """gates.yml is core's bytes; ci.yml and publish.yml core's plus ours; the PR template
+    core's but for its two passages."""
     for rel, digest in CORE_VERBATIM.items():
         assert hashlib.sha256((keyed_nested / rel).read_bytes()).hexdigest() == digest, rel
     ci = (keyed_nested / ".github/workflows/ci.yml").read_text()
@@ -965,9 +974,13 @@ def test_workflows_and_pr_template_are_cores_bytes(keyed_nested: Path) -> None:
     core_ci = without(ci.replace(FETCH_DEPTH, ""), *CI_STEPS)
     publish = (keyed_nested / ".github/workflows/publish.yml").read_text()
     core_publish = without(publish, *PUBLISH_STEP)
+    core_pr = (keyed_nested / ".github/PULL_REQUEST_TEMPLATE.md").read_text()
+    for passage in PR_PASSAGES:
+        core_pr = without(core_pr, *passage)
     for rel, core in [
         (".github/workflows/ci.yml", core_ci),
         (".github/workflows/publish.yml", core_publish),
+        (".github/PULL_REQUEST_TEMPLATE.md", core_pr),
     ]:
         assert hashlib.sha256(core.encode()).hexdigest() == CORE_EXTENDED[rel], rel
 
@@ -1018,21 +1031,14 @@ def test_publish_is_the_release_train(keyed_nested: Path) -> None:
     assert "[tool\\.uv\\.sources\\]" in tag[guard]["run"]
     release_prep = (keyed_nested / ".claude/commands/release-prep.md").read_text()
     assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep, "the pin goes first"
-    slug = VARIANTS["keyed-nested"]["source_slug"]
-    assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in release_prep
 
 
-def test_the_session_enables_auto_merge_in_the_repository(keyed_nested: Path) -> None:
-    """ADR-0018 decision 3 and amendment (e): core's settings allow the one merge action,
-    ``gh pr merge --auto``, and deny no ``gh pr merge``, so ``/adopt-release`` and
-    ``/release-prep`` run it in the repository's own panel."""
-    permissions = json.loads((keyed_nested / ".claude/settings.json").read_text())["permissions"]
-    assert "Bash(gh pr merge --auto *)" in permissions["allow"]
-    assert not [rule for rule in permissions["deny"] if rule.startswith("Bash(gh pr merge")]
-    slug = VARIANTS["keyed-nested"]["source_slug"]
+def test_no_command_merges_a_pull_request(keyed_nested: Path) -> None:
+    """``/adopt-release`` and ``/release-prep`` open the pull request and stop: it merges
+    under the rulesets of ``main``, never by a ``gh pr merge`` the command runs."""
     for command in ["adopt-release.md", "release-prep.md"]:
         text = (keyed_nested / ".claude/commands" / command).read_text()
-        assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in text, command
+        assert "gh pr merge" not in text, command
 
 
 def test_adopt_release_runs_the_update_for_this_source(render: Callable[[str], Path]) -> None:
@@ -1054,8 +1060,6 @@ def test_adopt_release_runs_the_update_for_this_source(render: Callable[[str], P
         assert "`https://github.com/xippios/sdk-template/blob/<tag>/CHANGELOG.md`" in text
         assert "`git show HEAD:tests/test_adapters.py`" in text
         assert "uv run python scripts/refresh_reference.py --render-only" in text, "§15 item 6"
-        slug = VARIANTS[name]["source_slug"]
-        assert f"gh pr merge --auto --squash -R xippios/sdk-{slug} <number>" in text
         keys = key_envs(VARIANTS[name])
         assert ("xippios_placeholder_key_envs" in text) is bool(keys), name
         for key in keys:
@@ -1805,3 +1809,33 @@ def test_no_instruction_tells_a_human_to_tag() -> None:
                 assert not HUMAN_TAGS.search(line), f"{path.relative_to(ROOT)}:{number}: {line}"
     generated_contract = {"template/CLAUDE.md.jinja", "template/.claude/family.md.jinja"}
     assert generated_contract <= scanned, "the facts and the family rules alike"
+
+
+# The rule of the retired merge gates: a pull request's merge class, under any of its names
+# (`human class`, `class review`), and the auto-merge a session enabled on one. A pull
+# request merges under the rulesets of `main`.
+MERGE_CLASS = re.compile(
+    r"\bmerge[ -]class(?:es)?\b|\b(?:human|review) class\b|\bclass (?:human|review)\b"
+    r"|\bauto-merge\b",
+    re.I,
+)
+
+
+def test_no_instruction_names_the_merge_class() -> None:
+    """This CLAUDE.md and every file the template renders name no merge class and no
+    auto-merge; the workflows are core's files and are not read."""
+    scanned = set()
+    for path in [ROOT / "CLAUDE.md", *sorted((ROOT / "template").rglob("*"))]:
+        if not path.is_file() or ".github/workflows" in path.as_posix():
+            continue
+        scanned.add(path.relative_to(ROOT).as_posix())
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            assert not MERGE_CLASS.search(line), f"{path.relative_to(ROOT)}:{number}: {line}"
+    renders = {
+        "CLAUDE.md",
+        "template/.claude/family.md.jinja",
+        "template/.claude/commands/adopt-release.md.jinja",
+        "template/.claude/commands/release-prep.md.jinja",
+        "template/.github/PULL_REQUEST_TEMPLATE.md",
+    }
+    assert renders <= scanned, "the files that named it"
