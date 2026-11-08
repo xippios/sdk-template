@@ -18,6 +18,13 @@ are not listed.
 
 ## [Unreleased]
 
+### Fixed
+
+- `.gitignore` of a generated repository names copier's leftovers, `*.rej` and `*.orig`,
+  so no commit takes the reject file `copier update` leaves for a hunk it could not apply,
+  or an `.orig` beside it. `.gitignore` is not under `_skip_if_exists`, so `copier update`
+  carries the two lines, and they need no Hand-apply bullet.
+
 ## [0.3.0] - 2026-10-28
 
 Generated repositories depend on xippios-core 0.3.0 (conventions 1.21), now
