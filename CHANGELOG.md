@@ -18,6 +18,13 @@ are not listed.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-09
+
+A source's live tests can read secrets beyond its keys through a new `live_secrets` answer,
+and the fixture cap passes a fixture that a pull request only moves. Both replace hand edits
+of rendered workflows, which `copier update` renders anew: a source that kept such an edit
+records the answer at its adoption of this tag.
+
 ### Added
 
 - `live_secrets`, an answer: the variables a source's live tests read beyond its keys, a
@@ -38,6 +45,10 @@ are not listed.
   changes no content. A fixture moved and changed is still listed as added and judged by
   its size. `ci.yml` is not under `_skip_if_exists`, so `copier update` carries the line,
   and it needs no Hand-apply bullet.
+
+### Hand-apply
+
+None.
 
 ## [0.3.1] - 2026-11-09
 
