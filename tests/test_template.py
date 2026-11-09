@@ -147,6 +147,14 @@ def key_envs(answers: dict[str, object]) -> list[str]:
     return list(dict.fromkeys(key for key in keys if key))
 
 
+def live_secrets(answers: dict[str, object]) -> list[str]:
+    """The other variables a render's live run reads (#105), parsed from its answer; none at
+    the default, which every variant takes."""
+    parsed = yaml.safe_load(str(answers.get("live_secrets", "[]")))
+    assert isinstance(parsed, list)
+    return parsed
+
+
 # Every file a render has: the package's at the import path's directories, the rest at the
 # repository's root (the sibling check, where the import path nests, is tested on its own).
 PACKAGE_FILES = [
@@ -330,10 +338,13 @@ def test_answers_file_round_trips(variant: tuple[str, Path]) -> None:
         assert "api_key_name" not in answers
     assert answers["source_dependencies"] == expected.get("source_dependencies", "[]")
     assert yaml.safe_load(answers["source_dependencies"]) == dependencies(expected)
+    assert answers["live_secrets"] == expected.get("live_secrets", "[]"), "the default included"
+    assert yaml.safe_load(answers["live_secrets"]) == live_secrets(expected)
     assert answers["has_files"] is has_files(expected), "recorded, the default included"
     assert answers["human"] == HUMAN, "recorded, the default included"
-    for computed in ["package_dir", "tool_prefix", "live_schedule", "depends_on", "key_envs"]:
-        assert computed not in answers, f"{computed}: derived, never recorded"
+    computed = ["package_dir", "tool_prefix", "live_schedule", "depends_on", "key_envs"]
+    for derived in [*computed, "live_secret_names"]:
+        assert derived not in answers, f"{derived}: derived, never recorded"
     for gone in ["source_pkg", "domain_topic", "needs_write_tools"]:
         assert gone not in answers, f"{gone}: no question asks it"
 
@@ -639,12 +650,11 @@ def assert_the_sibling_check(dst: Path, pkg: str) -> None:
     assert "siblings" not in json.dumps(ci), "ci.yml stays core's file (row 34 c)"
 
 
-def test_live_workflow_hands_the_key_to_its_pytest_step(variant: tuple[str, Path]) -> None:
-    """Conventions §10: nightly and on demand; the secrets in the pytest step's env only, the
-    source's and those of the source packages it depends on (D47), and a render with no key
-    names no key at all (row 61 b)."""
-    name, dst = variant
-    keys = key_envs(VARIANTS[name])
+def assert_the_live_env(dst: Path, keys: list[str], secrets: list[str]) -> None:
+    """Conventions §10: nightly and on demand; the secrets in the pytest step's env only, each
+    once, the keys first, the source's and those of the source packages it depends on (D47),
+    then the others the answer ``live_secrets`` names (#105), in its order; a render with no
+    key names no key at all (row 61 b)."""
     text = (dst / ".github/workflows/live.yml").read_text()
     workflow = yaml.safe_load(text)
     triggers = workflow[True]  # YAML 1.1 reads the key `on` as a boolean
@@ -660,13 +670,74 @@ def test_live_workflow_hands_the_key_to_its_pytest_step(variant: tuple[str, Path
     assert checkout["uses"].startswith("actions/checkout@")
     assert checkout["with"] == {"persist-credentials": False}, "conventions §13"
     expected_env: dict[str, str] = {"XIPPIOS_LIVE_TESTS": "1"}
-    for key in keys:
-        expected_env[key] = f"${{{{ secrets.{key} }}}}"
-        assert text.count(f"${{{{ secrets.{key} }}}}") == 1
-    assert text.count("secrets.") == len(keys)
+    for name in [*keys, *secrets]:
+        expected_env[name] = f"${{{{ secrets.{name} }}}}"
+        assert text.count(f"${{{{ secrets.{name} }}}}") == 1
+    assert text.count("secrets.") == len(keys) + len(secrets)
     if not keys:
         assert "key" not in text.lower()
     assert pytest_step["env"] == expected_env
+    assert list(pytest_step["env"]) == list(expected_env), "the answers' order"
+
+
+def test_live_workflow_hands_the_key_to_its_pytest_step(variant: tuple[str, Path]) -> None:
+    """Every variant takes ``live_secrets``' default, so its pytest step names its keys and
+    no other secret."""
+    name, dst = variant
+    assert_the_live_env(dst, key_envs(VARIANTS[name]), live_secrets(VARIANTS[name]))
+
+
+# Two variables a live run reads beside its key, as sdk-faostat's username and password.
+LIVE_SECRETS = "[A_B, C_D]"
+
+
+@pytest.mark.parametrize("key", ["", "EX_API_KEY"])
+def test_live_secrets_reach_the_pytest_step(template_src: Path, tmp_path: Path, key: str) -> None:
+    """#105: two names render two more lines on the pytest step, after the key where the
+    source has one, and the answer is recorded on one line at column 0, a quoted scalar."""
+    dst = generate(
+        template_src,
+        tmp_path / "repo",
+        source_slug="ex",
+        live_secrets=LIVE_SECRETS,
+        **keyed(key),
+    )
+    assert_the_live_env(dst, [key] if key else [], ["A_B", "C_D"])
+    assert f"\nlive_secrets: '{LIVE_SECRETS}'\n" in (dst / ".copier-answers.yml").read_text()
+
+
+KEYED_DEPENDENCY = '[{name: example-keyed, minor: "0.1", key_env: EXAMPLE_KEYED_API_KEY}]'
+
+
+@pytest.mark.parametrize(
+    ("value", "answers"),
+    [
+        ("", keyed("")),
+        ("A_B", keyed("")),
+        ("{A_B: C_D}", keyed("")),
+        ("[a_b]", keyed("")),
+        ("[A-B]", keyed("")),
+        ("[1_A]", keyed("")),
+        ("[[A_B]]", keyed("")),
+        ("[A_B, A_B]", keyed("")),
+        ("[GITHUB_TOKEN]", keyed("")),
+        ("[XIPPIOS_LIVE_TESTS]", keyed("")),
+        ("[EX_API_KEY]", keyed("EX_API_KEY")),
+        (
+            "[EXAMPLE_KEYED_API_KEY]",
+            {"source_dependencies": KEYED_DEPENDENCY, **keyed("")},
+        ),
+        ("[A_B", keyed("")),
+    ],
+)
+def test_live_secrets_are_names_the_step_sets_once(
+    template_src: Path, tmp_path: Path, value: str, answers: dict[str, object]
+) -> None:
+    """#105: a YAML flow list of UPPER_SNAKE_CASE names, each once; none a key, which
+    ``api_key_env`` or ``source_dependencies`` passes already, none the switch the step sets
+    itself and none of GitHub's prefix, which no secret takes; nothing that is not a list."""
+    with pytest.raises(ValueError, match="live_secrets"):
+        generate(template_src, tmp_path / "repo", source_slug="ex", live_secrets=value, **answers)
 
 
 def test_release_prep_waits_for_the_dependencies(variant: tuple[str, Path]) -> None:
@@ -1320,6 +1391,13 @@ def test_answers_file_stays_in_the_merge_classes_subset(variant: tuple[str, Path
     block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
     assert "\n  default: false\n" in block, "one plain scalar, a literal for rule 2"
     assert f"\nhas_files: {str(has_files(VARIANTS[name])).lower()}\n" in text
+    # live_secrets as source_dependencies: a string holding a YAML flow list, '[]' at default.
+    question = QUESTIONS["live_secrets"]
+    assert (question["type"], question["default"]) == ("str", "[]")
+    raw = (ROOT / "copier.yml").read_text().split("\nlive_secrets:\n", 1)[1]
+    block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
+    assert '\n  default: "[]"\n' in block, "one quoted scalar, a literal for rule 2"
+    assert "\nlive_secrets: '[]'\n" in text
 
 
 @pytest.mark.parametrize(

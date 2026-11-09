@@ -18,6 +18,18 @@ are not listed.
 
 ## [Unreleased]
 
+### Added
+
+- `live_secrets`, an answer: the variables a source's live tests read beyond its keys, a
+  YAML flow list of UPPER_SNAKE_CASE names in a string, `[]` by default. `live.yml`
+  passes each one to its pytest step from the secret of the same name, after the keys.
+  The validator refuses a name that is not UPPER_SNAKE_CASE, a name given twice, a key
+  that `api_key_env` or `source_dependencies` passes already, `XIPPIOS_LIVE_TESTS` and a
+  name with GitHub's `GITHUB_` prefix. A source whose `live.yml` passes such a secret by
+  a hand edit records the answer at its adoption, `-d live_secrets='[...]'`, since the
+  update renders `live.yml` anew. `live.yml` is not under `_skip_if_exists`, so
+  `copier update` carries it, and it needs no Hand-apply bullet.
+
 ## [0.3.1] - 2026-11-09
 
 Generated repositories get `.github/CODEOWNERS` from a new `human` answer, so a change to a
