@@ -18,6 +18,13 @@ are not listed.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-09
+
+Generated repositories get `.github/CODEOWNERS` from a new `human` answer, so a change to a
+member's human paths waits for the human's review, and their `.gitignore` leaves copier's
+leftovers out. The template's own documents and the files it renders stop naming the retired
+merge gates. `copier update --vcs-ref v0.3.1` carries everything; nothing is applied by hand.
+
 ### Added
 
 - The template's own `.github/CODEOWNERS`, written from its human paths, so a change to
