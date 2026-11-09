@@ -32,8 +32,8 @@ merge gates. `copier update --vcs-ref v0.3.1` carries everything; nothing is app
 - `.github/CODEOWNERS` of a generated repository, template-owned: the human paths of a
   member, `/.github/**`, `/CLAUDE.md`, `/.claude/**`, `/rules/**`, `/pyproject.toml` and
   `/.copier-answers.yml`, each owned by the human's login, so the rulesets' code-owner
-  rule has an owner to request on every human path of a member (C70 of the coordinate
-  workspace).
+  rule has an owner to request on every human path of a member, as the code-owner
+  convention of the coordinate workspace asks.
   `coordinate sync` writes the file for a core or a template only, and a member gets it
   from its template. It is not under `_skip_if_exists`, so `copier update` carries it,
   and it needs no Hand-apply bullet.
