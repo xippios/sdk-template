@@ -12,6 +12,7 @@ import hashlib
 import http.server
 import importlib.util
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -1113,8 +1114,71 @@ def test_ci_reads_the_pull_request_and_runs_once_on_main(keyed_nested: Path) -> 
     assert "chore/template-update" not in changelog["if"], "conventions §15 item 9"
     assert cap["name"] == "Fixture files under 256 KiB"
     assert cap["env"]["LEVEL"] == "error", "the cap binds a source from v0.3.0 (ADR-0019)"
-    assert "--no-renames --diff-filter=AM" in cap["run"]
+    assert "git diff -z --name-only --find-renames=100% --diff-filter=AM" in cap["run"]
+    assert "--no-renames" not in cap["run"], "a pure move adds and changes no fixture"
     assert "262144" in cap["run"]
+
+
+CAP = 262144  # 256 KiB, ADR-0019
+
+
+def fixture_cap(repo: Path, step: dict[str, object]) -> subprocess.CompletedProcess[str]:
+    """The fixture-cap step's script in ``repo``, as GitHub runs a step that names no shell
+    (``bash -e``), the pull request's base ``main`` at ``origin/main``."""
+    step_env = step["env"]
+    assert isinstance(step_env, dict)
+    env = {**os.environ, **step_env, "BASE": "main"}
+    return subprocess.run(
+        ["bash", "-e", "-c", str(step["run"])],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_fixture_cap_judges_a_moved_fixture_by_its_content(
+    keyed_nested: Path, tmp_path: Path
+) -> None:
+    """ADR-0019 caps the fixture files a pull request adds or changes. A pure ``git mv`` of
+    a fixture over the cap adds and changes no content, so the step passes it (conventions
+    §10 keeps such a fixture until a PR re-records it); one moved and grown, or a new one
+    over the cap, fails under its new path."""
+    workflow = yaml.safe_load((keyed_nested / ".github/workflows/ci.yml").read_text())
+    step = steps_of(workflow, "test")[2]
+    repo = tmp_path / "source"
+    old = repo / "tests/fixtures/get_old"
+    old.mkdir(parents=True)
+    listed = b"[" + b"0," * (CAP // 2) + b"0]"
+    (old / "all.json").write_bytes(listed)
+    (old / "one.json").write_bytes(b"[0]")
+    git(repo, "init", "-q", "-b", "main")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "base")
+    git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    def pull_request(branch: str, change: Callable[[Path], None]) -> tuple[int, str]:
+        git(repo, "checkout", "-q", "-b", branch, "main")
+        git(repo, "mv", "tests/fixtures/get_old", "tests/fixtures/get_new")
+        change(repo / "tests/fixtures/get_new")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "--no-verify", "-m", branch)
+        run = fixture_cap(repo, step)
+        assert run.stderr == "", run.stderr
+        return run.returncode, run.stdout
+
+    def grow(new: Path) -> None:
+        (new / "all.json").write_bytes((new / "all.json").read_bytes() + b"\n")
+
+    def add(new: Path) -> None:
+        (new / "one.json").write_bytes(b"[1]")
+        (new / "big.json").write_bytes(b"1" * CAP)
+
+    assert pull_request("moved", lambda new: None) == (0, ""), "a pure move passes"
+    over = "::error file=tests/fixtures/get_new/{}::{} bytes, over the 256 KiB cap (ADR-0019)\n"
+    assert pull_request("grown", grow) == (1, over.format("all.json", len(listed) + 1))
+    assert pull_request("added", add) == (1, over.format("big.json", CAP))
 
 
 def test_publish_is_the_release_train(keyed_nested: Path) -> None:
