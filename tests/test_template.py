@@ -188,6 +188,7 @@ REPOSITORY_FILES = [
     ".github/workflows/gates.yml",
     ".github/workflows/live.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
+    ".github/CODEOWNERS",
     ".claude/family.md",
     ".claude/settings.json",
     ".claude/commands/add-endpoint.md",
@@ -330,6 +331,7 @@ def test_answers_file_round_trips(variant: tuple[str, Path]) -> None:
     assert answers["source_dependencies"] == expected.get("source_dependencies", "[]")
     assert yaml.safe_load(answers["source_dependencies"]) == dependencies(expected)
     assert answers["has_files"] is has_files(expected), "recorded, the default included"
+    assert answers["human"] == HUMAN, "recorded, the default included"
     for computed in ["package_dir", "tool_prefix", "live_schedule", "depends_on", "key_envs"]:
         assert computed not in answers, f"{computed}: derived, never recorded"
     for gone in ["source_pkg", "domain_topic", "needs_write_tools"]:
@@ -770,6 +772,40 @@ def test_readme_mcp_snippet_is_json(variant: tuple[str, Path]) -> None:
         assert f"`xippios-{dependency['name']}`" in readme
     (args,) = [line for line in block.splitlines() if '"args"' in line]
     assert args.rstrip().endswith(("]", "],")), args
+
+
+# The human paths of a member (C70 as amended by coordinate-core#122 and #167), in the order
+# the rendered .github/CODEOWNERS lists them; a PyPI member's one manifest is pyproject.toml.
+MEMBER_HUMAN_PATHS = [
+    "/.github/**",
+    "/CLAUDE.md",
+    "/.claude/**",
+    "/rules/**",
+    "/pyproject.toml",
+    "/.copier-answers.yml",
+]
+HUMAN = "jdidaskalu"
+
+
+def owner_rules(dst: Path) -> list[str]:
+    """The rules of a render's ``.github/CODEOWNERS``: its lines but comments and blanks."""
+    lines = (dst / ".github/CODEOWNERS").read_text().splitlines()
+    return [line for line in lines if line and not line.startswith("#")]
+
+
+def test_codeowners_names_the_human_for_every_member_path(variant: tuple[str, Path]) -> None:
+    """C70: a member's ``.github/CODEOWNERS`` comes from its template, never from
+    ``coordinate sync``: a header of comments that cites C70, then the six human paths of a
+    member, each owned by the ``human`` answer, its default ``jdidaskalu`` in every variant."""
+    _, dst = variant
+    assert (QUESTIONS["human"]["type"], QUESTIONS["human"]["default"]) == ("str", HUMAN)
+    rules = owner_rules(dst)
+    assert rules == [f"{path} @{HUMAN}" for path in MEMBER_HUMAN_PATHS]
+    lines = (dst / ".github/CODEOWNERS").read_text().splitlines()
+    head = lines[: lines.index(rules[0])]
+    assert head, "a header"
+    assert all(line.startswith("#") for line in head), "the header, then the rules"
+    assert "C70" in " ".join(head)
 
 
 # The checks no answer changes, on one render.
@@ -1340,6 +1376,27 @@ def test_the_gateway_derives_the_key_answers(
         generate(template_src, tmp_path / "repo", source_slug="ex", **answers)
 
 
+@pytest.mark.parametrize("login", ["octo-cat", "a" * 39, "A1-b"])
+def test_the_human_answer_owns_every_member_path(
+    template_src: Path, tmp_path: Path, login: str
+) -> None:
+    """Another login renders as the owner of each path and is recorded as answered: a
+    hyphen, the bound of 39 characters and mixed case among them."""
+    dst = generate(template_src, tmp_path / "repo", source_slug="ex", human=login, **keyed(""))
+    assert owner_rules(dst) == [f"{path} @{login}" for path in MEMBER_HUMAN_PATHS]
+    assert yaml.safe_load((dst / ".copier-answers.yml").read_text())["human"] == login
+
+
+@pytest.mark.parametrize(
+    "login", ["", "@jdidaskalu", "jd didaskalu", "-jdidaskalu", "jdidaskalu-", "jd--d", "a" * 40]
+)
+def test_the_human_is_a_github_login(template_src: Path, tmp_path: Path, login: str) -> None:
+    """A GitHub login without the ``@``: letters, digits and single hyphens, neither first
+    nor last, at most 39 characters; CODEOWNERS adds the ``@`` itself."""
+    with pytest.raises(ValueError, match="human"):
+        generate(template_src, tmp_path / "repo", source_slug="ex", human=login, **keyed(""))
+
+
 def test_the_sibling_check_names_the_declared_dependencies(render: Callable[[str], Path]) -> None:
     """The script reads the source packages a render depends on from ``pyproject.toml``,
     every ``xippios-*`` but core in ``[project] dependencies`` (ADR-0021), to install and
@@ -1486,7 +1543,7 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
     names = ["tasks.py", "_client.py", "errors.py", "__init__.py", "api/__init__.py"]
     mine = [f"{pkg}/{n}" for n in [*names, "parse/__init__.py"]]
     mine += ["tests/test_tasks.py", "tests/fixtures/files/README.md", "CLAUDE.md"]
-    templates = [".claude/family.md", "tests/conftest.py", f"{pkg}/mcp.py"]
+    templates = [".claude/family.md", "tests/conftest.py", f"{pkg}/mcp.py", ".github/CODEOWNERS"]
     for rel in [*mine, *templates]:
         (dst / rel).write_text("# edited\n")
     generate(template_src, dst, **answers)

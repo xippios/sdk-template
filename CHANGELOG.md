@@ -22,6 +22,18 @@ are not listed.
 
 - The template's own `.github/CODEOWNERS`, written from its human paths, so a change to
   one of them waits for the human's review.
+- `.github/CODEOWNERS` of a generated repository, template-owned: the human paths of a
+  member, `/.github/**`, `/CLAUDE.md`, `/.claude/**`, `/rules/**`, `/pyproject.toml` and
+  `/.copier-answers.yml`, each owned by the human's login, so the rulesets' code-owner
+  rule has an owner to request on every human path of a member (C70 of the coordinate
+  workspace).
+  `coordinate sync` writes the file for a core or a template only, and a member gets it
+  from its template. It is not under `_skip_if_exists`, so `copier update` carries it,
+  and it needs no Hand-apply bullet.
+- `human`, an answer: the GitHub login that `.github/CODEOWNERS` names, without the `@`.
+  Its default, `jdidaskalu`, is a literal, which an adoption takes and records. The
+  validator refuses a login of anything but letters, digits and single hyphens, or one
+  over 39 characters.
 
 ### Changed
 
