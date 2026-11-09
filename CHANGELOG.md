@@ -30,6 +30,15 @@ are not listed.
   update renders `live.yml` anew. `live.yml` is not under `_skip_if_exists`, so
   `copier update` carries it, and it needs no Hand-apply bullet.
 
+### Fixed
+
+- The fixture-cap step of `ci.yml` passes a fixture that a pull request only moves. It
+  diffs with `--find-renames=100%` in place of `--no-renames`, so a pure `git mv` of a
+  fixture over the cap is a rename, which the step leaves out, since the move adds and
+  changes no content. A fixture moved and changed is still listed as added and judged by
+  its size. `ci.yml` is not under `_skip_if_exists`, so `copier update` carries the line,
+  and it needs no Hand-apply bullet.
+
 ## [0.3.1] - 2026-11-09
 
 Generated repositories get `.github/CODEOWNERS` from a new `human` answer, so a change to a
