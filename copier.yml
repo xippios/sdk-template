@@ -248,6 +248,48 @@ key_envs:
     | select | list) | unique | list) | tojson }}
   when: false
 
+# The variables the live tests read beyond the keys, each passed to live.yml's pytest step
+# from the secret of the same name. A string holding a YAML flow list, as
+# source_dependencies, so copier records it on one line, '[]' at the default, the
+# question's literal default for the merge classes. live_secret_names is the parsed list.
+live_secrets:
+  type: str
+  help: >-
+    The variables the live tests read beyond the keys, such as a username and a password
+    or an OAuth client's pair: a YAML flow list of UPPER_SNAKE_CASE names, e.g.
+    [FAOSTAT_USERNAME, FAOSTAT_PASSWORD]. live.yml passes each one to its pytest step
+    from the secret of the same name, after the keys. A key is api_key_env's or a
+    dependency's key_env, never one of these. The default [] for none.
+  default: "[]"
+  validator: >-
+    {% set names = live_secrets | from_yaml %}
+    {% set ns = namespace(error='', seen=[]) %}
+    {% if names is string or names is mapping or names is not sequence %}
+    {% set ns.error = 'A YAML flow list of variable names, e.g. [EXAMPLE_USERNAME, EXAMPLE_TOKEN], or [] for none' %}
+    {% else %}
+    {% for name in names %}
+    {% if ns.error %}
+    {% elif name is not string or not (name | regex_search('^[A-Z][A-Z0-9_]*\\Z')) %}
+    {% set ns.error = 'Each name UPPER_SNAKE_CASE, e.g. EXAMPLE_USERNAME' %}
+    {% elif name.startswith('GITHUB_') or name == 'XIPPIOS_LIVE_TESTS' %}
+    {% set ns.error = name ~ ': GitHub takes no secret named GITHUB_*, and the step sets XIPPIOS_LIVE_TESTS itself' %}
+    {% elif name in key_envs %}
+    {% set ns.error = name ~ ': a key, which api_key_env or source_dependencies passes already' %}
+    {% elif name in ns.seen %}
+    {% set ns.error = name ~ ': each name once' %}
+    {% else %}
+    {% set ns.seen = ns.seen + [name] %}
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+    {{ ns.error }}
+
+# The live secrets as a list, parsed from the answer; live.yml reads this.
+live_secret_names:
+  type: yaml
+  default: "{{ live_secrets }}"
+  when: false
+
 # Whether the source parses the files it downloads (ADR-0020): parse/ and the samples'
 # provenance table render only then. Its default, false, is a literal the merge classes
 # read, so every source that predates the question takes it free.
