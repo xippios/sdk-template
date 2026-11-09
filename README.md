@@ -132,7 +132,7 @@ generated `/adopt-release <tag>` walks it step by step; at its core is `copier u
 run inside the generated repository:
 
 ```bash
-uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.3.0 -d core_version=0.3.0 -d core_git_ref=
+uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.3.1 -d core_version=0.3.0 -d core_git_ref=
 git diff                             # review; resolve conflicts
 ```
 
