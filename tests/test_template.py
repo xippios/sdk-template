@@ -194,7 +194,6 @@ REPOSITORY_FILES = [
     ".python-version",
     ".github/workflows/ci.yml",
     ".github/workflows/publish.yml",
-    ".github/workflows/gates.yml",
     ".github/workflows/live.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/CODEOWNERS",
@@ -210,13 +209,15 @@ REPOSITORY_FILES = [
 
 # Template v0.2.1 deleted the two structural tests: core's family check, which
 # tests/test_family.py collects, makes their checks (conventions §10). v0.3.0 renders
-# read-only packages (D35).
+# read-only packages (D35). v0.3.3 renders no caller of the retired merge gates, whose
+# reusable workflows are gone (#99).
 REMOVED_FILES = [
     "tests/test_layout.py",
     "tests/test_adapters.py",
     "tests/test_tasks_write.py",
     "src/xippios/{pkg}/tasks_write.py",
     "src/xippios/{pkg}/mcp_write.py",
+    ".github/workflows/gates.yml",
 ]
 FAMILY_TEST = "from xippios.core.testing.family import *  # noqa: F403\n"
 
@@ -544,7 +545,7 @@ def workflow_uses(path: Path) -> list[tuple[str, str]]:
     return re.findall(r"^\s+(?:- )?uses: (\S+)(.*)$", path.read_text(), re.MULTILINE)
 
 
-CORE_WORKFLOWS = ["ci.yml", "gates.yml", "live.yml", "publish.yml"]
+CORE_WORKFLOWS = ["ci.yml", "live.yml", "publish.yml"]
 
 
 def test_workflow_actions_are_pinned_by_sha(variant: tuple[str, Path]) -> None:
@@ -556,8 +557,6 @@ def test_workflow_actions_are_pinned_by_sha(variant: tuple[str, Path]) -> None:
     rendered = sorted(path.name for path in workflows.glob("*.yml"))
     assert rendered in [CORE_WORKFLOWS, sorted([*CORE_WORKFLOWS, "siblings.yml"])]
     for rel in rendered:
-        if rel == "gates.yml":
-            continue  # core's bytes, calling the gates at @main by design (conventions §13)
         uses = workflow_uses(workflows / rel)
         assert uses, rel
         for action, comment in uses:
@@ -618,7 +617,7 @@ def assert_the_sibling_check(dst: Path, pkg: str) -> None:
     script = dst / ".github/scripts/check-siblings.sh"
     assert not (dst / "scripts/check-siblings.sh").exists()
     assert script.read_bytes() == (SIBLINGS_SCRIPT / "check-siblings.sh").read_bytes()
-    assert script.stat().st_mode & 0o111, "executable, as the render the merge classes compare"
+    assert script.stat().st_mode & 0o111, "executable, as rendered"
     syntax = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
     assert syntax.returncode == 0, syntax.stderr
     lines = script.read_text().splitlines()
@@ -1024,18 +1023,12 @@ def test_generated_tests_need_no_key(keyed_nested: Path) -> None:
     assert "client.request" not in live
 
 
-# SHA-256 of sdk-core's files the template copies verbatim, at v0.3.0, the core release the
+# SHA-256 of sdk-core's files the template departs from, at v0.3.0, the core release the
 # template adopts: git -C <workspace root>/sdk-core show v0.3.0:<path> | sha256sum (digests,
-# not secrets).
-CORE_VERBATIM = {
-    ".github/workflows/gates.yml": (
-        # pragma: allowlist nextline secret
-        "cf3097a2a34f40b98d4e511435204fdb07a7edf8aed94bcf5de467bbb0b814c5"
-    ),
-}
-# The same for the files the template departs from: core's bytes once the template's own
-# lines, named in CLAUDE.md's Rules, are taken out; for the PR template, core's file with
-# the passages of PR_PASSAGES taken out, as the test takes them out of the template's.
+# not secrets). A render is core's bytes once the template's own lines, named in
+# CLAUDE.md's Rules, are taken out; for the PR template, core's file with the passages of
+# PR_PASSAGES taken out, as the test takes them out of the template's. Core's gates.yml
+# is no file of the template's (#99).
 CORE_EXTENDED = {
     # pragma: allowlist nextline secret
     ".github/workflows/ci.yml": "ebee09e20d7004a6761c1986f3bc0e16ee4a2dfa749921ac25040ebad5abacab",
@@ -1073,10 +1066,8 @@ def without(text: str, first: str, stop: str) -> str:
 
 
 def test_workflows_and_pr_template_are_cores_bytes(keyed_nested: Path) -> None:
-    """gates.yml is core's bytes; ci.yml and publish.yml core's plus ours; the PR template
-    core's but for its two passages."""
-    for rel, digest in CORE_VERBATIM.items():
-        assert hashlib.sha256((keyed_nested / rel).read_bytes()).hexdigest() == digest, rel
+    """ci.yml and publish.yml are core's plus ours; the PR template core's but for its two
+    passages."""
     ci = (keyed_nested / ".github/workflows/ci.yml").read_text()
     assert ci.count(FETCH_DEPTH) == 1
     core_ci = without(ci.replace(FETCH_DEPTH, ""), *CI_STEPS)
@@ -1403,7 +1394,7 @@ def test_core_git_ref_pins_core_and_keeps_the_bound(
     ],
 )
 def test_core_git_ref_is_main_or_a_full_sha(template_src: Path, tmp_path: Path, ref: str) -> None:
-    """uv and the merge-class check read main or a full SHA as one commit; nothing else."""
+    """uv reads main or a full SHA as one commit; nothing else."""
     with pytest.raises(ValueError, match="core_git_ref"):
         generate(template_src, tmp_path / "repo", source_slug="ex", core_git_ref=ref, **keyed(""))
 
@@ -1419,18 +1410,18 @@ def test_core_version_is_a_release_version(
         )
 
 
-# A line at column 0 of an answers file that the merge classes read (sdk-gates README,
-# rule 2): a plain key, a colon, then a blank or the end of the line.
+# A line at column 0 of an answers file: a plain key, a colon, then a blank or the end of
+# the line.
 ANSWER_LINE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*:(?:[ \t].*)?")
 
 
-def test_answers_file_stays_in_the_merge_classes_subset(variant: tuple[str, Path]) -> None:
-    """The merge classes read an answers file whose lines at column 0 are comments or plain
-    ``key: value`` lines only, and free a new answer at its question's literal default, one
-    scalar (rule 2). ``source_dependencies`` is a string holding a YAML flow list, so a
-    list of dependencies never writes block lines there, and its default, the string
-    ``[]``, is recorded as that one quoted scalar; ``gateway``'s default, ``none``, as
-    one plain scalar."""
+def test_answers_file_records_each_answer_on_one_line(variant: tuple[str, Path]) -> None:
+    """The answers file's lines at column 0 are comments or plain ``key: value`` lines
+    only, one per answer, as the README's question table says, and a question a source
+    predates has a literal default, one scalar, which its update records.
+    ``source_dependencies`` is a string holding a YAML flow list, so a list of dependencies
+    never writes block lines there, and its default, the string ``[]``, is recorded as that
+    one quoted scalar; ``gateway``'s default, ``none``, as one plain scalar."""
     name, dst = variant
     text = (dst / ".copier-answers.yml").read_text()
     for line in text.splitlines():
@@ -1440,27 +1431,27 @@ def test_answers_file_stays_in_the_merge_classes_subset(variant: tuple[str, Path
     assert (question["type"], question["default"]) == ("str", "[]")
     raw = (ROOT / "copier.yml").read_text().split("\nsource_dependencies:\n", 1)[1]
     block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
-    assert '\n  default: "[]"\n' in block, "one quoted scalar, a literal for rule 2"
+    assert '\n  default: "[]"\n' in block, "one quoted scalar, a literal"
     if not dependencies(VARIANTS[name]):
         assert "\nsource_dependencies: '[]'\n" in text
     # The gateway answer, which every source before it lacks, is free at its default.
     assert (QUESTIONS["gateway"]["type"], QUESTIONS["gateway"]["default"]) == ("str", "none")
     raw = (ROOT / "copier.yml").read_text().split("\ngateway:\n", 1)[1]
     block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
-    assert "\n  default: none\n" in block, "one plain scalar, a literal for rule 2"
+    assert "\n  default: none\n" in block, "one plain scalar, a literal"
     assert f"\ngateway: {gateway_of(VARIANTS[name])}\n" in text
     # has_files likewise: a bool whose default, false, is one plain scalar.
     assert (QUESTIONS["has_files"]["type"], QUESTIONS["has_files"]["default"]) == ("bool", False)
     raw = (ROOT / "copier.yml").read_text().split("\nhas_files:\n", 1)[1]
     block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
-    assert "\n  default: false\n" in block, "one plain scalar, a literal for rule 2"
+    assert "\n  default: false\n" in block, "one plain scalar, a literal"
     assert f"\nhas_files: {str(has_files(VARIANTS[name])).lower()}\n" in text
     # live_secrets as source_dependencies: a string holding a YAML flow list, '[]' at default.
     question = QUESTIONS["live_secrets"]
     assert (question["type"], question["default"]) == ("str", "[]")
     raw = (ROOT / "copier.yml").read_text().split("\nlive_secrets:\n", 1)[1]
     block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
-    assert '\n  default: "[]"\n' in block, "one quoted scalar, a literal for rule 2"
+    assert '\n  default: "[]"\n' in block, "one quoted scalar, a literal"
     assert "\nlive_secrets: '[]'\n" in text
 
 
@@ -1597,11 +1588,12 @@ def git(cwd: Path, *args: str) -> str:
 def test_answers_file_is_copiers_canonical_form(
     template_src: Path, tmp_path: Path, case: str
 ) -> None:
-    """The merge-class check trusts an answers file only as copier writes it back.
+    """An answers file is as copier writes it back, so an adoption that keeps the answers
+    changes no line of it but ``_commit``.
 
-    It re-renders the template at ``_commit`` (by SHA) with the answers less ``_commit``
-    and ``_src_path`` as ``--data-file`` and compares the answers file byte for byte
-    (merge classes, rule 4); a render from a tagged template must survive that.
+    The test re-renders the template at ``_commit`` (by SHA) with the answers less
+    ``_commit`` and ``_src_path`` as ``--data-file`` and compares the answers file byte for
+    byte; a render from a tagged template must survive that.
     """
     repo = tmp_path / "template"
     shutil.copytree(template_src, repo)
@@ -1738,11 +1730,16 @@ def test_new_source_checks_its_flags_before_it_generates(
 PR_TEMPLATE = ROOT / "template/.github/PULL_REQUEST_TEMPLATE.md"
 
 
-def write_body(tmp_path: Path, pr_template: str) -> subprocess.CompletedProcess[str]:
-    """new-source.sh's human_steps and write_body, run on a PR template and an answers file."""
+def new_source_functions() -> str:
+    """new-source.sh's human_steps and write_body, as the script defines them."""
     script = (ROOT / "scripts/new-source.sh").read_text()
     start = script.index("human_steps() {")
-    functions = script[start : script.index("\n}\n", script.index("write_body() {")) + 3]
+    return script[start : script.index("\n}\n", script.index("write_body() {")) + 3]
+
+
+def write_body(tmp_path: Path, pr_template: str) -> subprocess.CompletedProcess[str]:
+    """new-source.sh's human_steps and write_body, run on a PR template and an answers file."""
+    functions = new_source_functions()
     (tmp_path / ".github").mkdir()
     (tmp_path / ".github/PULL_REQUEST_TEMPLATE.md").write_text(pr_template)
     (tmp_path / ".copier-answers.yml").write_text("_commit: v0.0.1\nsource_slug: ex\n")
@@ -1787,6 +1784,28 @@ def test_new_source_fills_the_pr_template_or_names_what_it_lacks(
     assert run.returncode == 1
     assert missing in run.stderr
     assert "Nothing was\ncreated on GitHub; /x/sdk-ex is generated and verified." in run.stderr
+
+
+@pytest.mark.parametrize(
+    ("location", "step"),
+    [
+        ("query", "2. The key, EX_API_KEY."),
+        ("header", "2. The key, EX_API_KEY."),
+        ("bearer", "2. The bearer token, EX_API_KEY."),
+    ],
+)
+def test_new_source_names_the_credential_its_location_sends(location: str, step: str) -> None:
+    """The human step for the secret names what the variable holds: a bearer answer's
+    variable holds a token, not a key (#77)."""
+    harness = (
+        "set -euo pipefail\n"
+        f"slug=ex api_key_env=EX_API_KEY api_key_location={location}\n"
+        f"{new_source_functions()}\nhuman_steps\n"
+    )
+    run = subprocess.run(["bash", "-c", harness], capture_output=True, text=True, check=False)
+    assert run.returncode == 0, run.stderr
+    (line,) = [line for line in run.stdout.splitlines() if line.startswith("2. ")]
+    assert line.startswith(step), run.stdout
 
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -1941,21 +1960,21 @@ def test_block_tags_that_span_lines_stand_on_their_own() -> None:
     assert not misplaced, "\n".join(misplaced)
 
 
-def test_the_templates_own_gates_caller_is_the_one_it_ships() -> None:
-    """sdk-template carries core's gates.yml as every repository does, off until GATES_CALLER."""
-    own = (ROOT / ".github/workflows/gates.yml").read_bytes()
-    assert own == (ROOT / "template/.github/workflows/gates.yml").read_bytes()
-    assert hashlib.sha256(own).hexdigest() == CORE_VERBATIM[".github/workflows/gates.yml"]
+def test_no_workflow_calls_the_retired_gates() -> None:
+    """The merge gates are retired and their reusable workflows are gone (#99): neither this
+    repository nor a render carries a caller of them."""
+    for workflows in [ROOT / ".github/workflows", ROOT / "template/.github/workflows"]:
+        assert not (workflows / "gates.yml").exists(), workflows
+        for path in sorted(workflows.iterdir()):
+            assert "xippios/sdk-gates/" not in path.read_text(), path
 
 
 def test_the_templates_own_workflows_are_hardened() -> None:
     """Conventions §13 for this repository's own workflows too: SHA pins with the version
-    in a comment (the gates at ``@main`` by design), ``contents: read`` at the top, and no
-    checkout keeps its credentials but the one in a job that pushes, which says so."""
+    in a comment, ``contents: read`` at the top, and no checkout keeps its credentials but
+    the one in a job that pushes, which says so."""
     for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
         for action, comment in workflow_uses(path):
-            if action.startswith("xippios/sdk-gates/") and action.endswith("@main"):
-                continue
             assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{path.name}: {action}"
             assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{path.name}: {action}{comment}"
         text = path.read_text()
@@ -2038,3 +2057,33 @@ def test_no_instruction_names_the_merge_class() -> None:
         "template/.github/PULL_REQUEST_TEMPLATE.md",
     }
     assert renders <= scanned, "the files that named it"
+
+
+# The process before the migration, in the template's own files: the retired gates and
+# their switch, the merge classes, the branch names and the PR body of that process, and
+# the owners file of its coordination. The renders leave it in steps of their own.
+RETIRED_PROCESS = re.compile(
+    r"\bsdk-gates\b|\bGATES_CALLER\b|\bgates\.yml\b|\bmerge[ -]class(?:es)?\b"
+    r"|\b(?:feature|fix|chore)/|\bdocs/<topic>|definition-of-done checklist"
+    r"|as the definition of done says|\bowners\.toml\b",
+    re.I,
+)
+OWN_FILES = ["copier.yml", "README.md", "CLAUDE.md", ".claude", "scripts", ".github"]
+
+
+def test_the_templates_own_files_name_no_retired_process() -> None:
+    """The template's own instructions, scripts and workflows name none of the process
+    before the migration (#99); the CHANGELOG is history."""
+    scanned, found = set(), []
+    for name in OWN_FILES:
+        root = ROOT / name
+        for path in [root] if root.is_file() else sorted(root.rglob("*")):
+            if not path.is_file():
+                continue
+            scanned.add(path.relative_to(ROOT).as_posix())
+            for number, line in enumerate(path.read_text().splitlines(), 1):
+                if RETIRED_PROCESS.search(line):
+                    found.append(f"{path.relative_to(ROOT)}:{number}: {line}")
+    assert not found, "\n".join(found)
+    named = {"CLAUDE.md", "README.md", "scripts/new-source.sh", ".claude/commands/new-source.md"}
+    assert named <= scanned, "the files that named it"
