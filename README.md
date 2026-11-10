@@ -20,16 +20,14 @@ the `sdk-sessions` team's write access where the team exists and the `pypi` envi
 and opens the scaffold PR, its body the generated PR template filled from the run (the
 summary and the human steps, the answers and the evidence for them as assumptions). The
 repository creation and the environment call raise permission prompts the human
-approves. Before it, a session owns `sdk-<slug>` in the workspace's
-`coordination/owners.toml`, since the workspace's guard refuses work in a directory no
-session owns. Three steps stay with a human, in the PR's body and printed at the end: the
-PyPI pending publisher, which the first release's publish job needs; the API key, which
-the nightly `live.yml` reads from an org secret (for a key several sources share,
-ADR-0009, the new repository is added to the existing secret's repository access, never
-with `gh secret set --repos`, which replaces the list; a new key goes into `.envrc` and a
-new org secret); and the review and merge of the scaffold PR. Releases tag themselves:
-the merge of a release PR runs the generated `publish.yml`, which tags the version and
-waits for the approval of its `pypi` run.
+approves. Three steps stay with a human, in the PR's body and printed at the end: the
+PyPI pending publisher, which the first release's publish job needs; the key, or the
+bearer token, which the nightly `live.yml` reads from an org secret for the live tests that
+send it (for a key several sources share, ADR-0009, the new repository is added to the
+existing secret's repository access, never with `gh secret set --repos`, which replaces
+the list; a new key goes into `.envrc` and a new org secret); and the review and merge of
+the scaffold PR. Releases tag themselves: the merge of a release PR runs the generated
+`publish.yml`, which tags the version and waits for the approval of its `pypi` run.
 
 By hand:
 
@@ -67,7 +65,7 @@ afterwards by rename or push.
 | `upstream_url` | provider page, linked from the README | `https://quickstats.nass.usda.gov` |
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
 | `api_base_url` | base URL request paths join onto; required, usually not the provider page | `https://quickstats.nass.usda.gov/api` |
-| `gateway` | the shared gateway the API sits behind: `api.data.gov` for an API it fronts, whose key, documented error answers and hourly quota the generated client takes from `xippios.core.data_gov`'s `Gateway` (ADR-0009), so `core_version` is 0.3.0 or later; then the three key answers below are derived, `DATA_GOV_API_KEY` in the `X-Api-Key` header, never asked, and recorded as if answered; default `none`, the question's literal default for the merge classes | `none` |
+| `gateway` | the shared gateway the API sits behind: `api.data.gov` for an API it fronts, whose key, documented error answers and hourly quota the generated client takes from `xippios.core.data_gov`'s `Gateway` (ADR-0009), so `core_version` is 0.3.0 or later; then the three key answers below are derived, `DATA_GOV_API_KEY` in the `X-Api-Key` header, never asked, and recorded as if answered; default `none` | `none` |
 | `api_key_env` | environment variable with the key; empty for open APIs; behind a gateway, the gateway's | `NASS_API_KEY` |
 | `api_key_location` | `query`, `header` or `bearer`; behind a gateway, the gateway's | `query` |
 | `api_key_name` | query parameter or header name; behind a gateway, the gateway's | `key` |
@@ -76,9 +74,9 @@ afterwards by rename or push.
 | `rate_limit_provenance` | `documented` or `self-imposed` (upstream documents no per-second or per-minute limit): where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
 | `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, ADR-0018 amendment (c)); default `0.3.0`, the release the template adopts, rendered `~=0.3.0` | `0.3.0` |
 | `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); empty, the default, for no pin; a release carries none, since `/release-prep` removes it first, in a PR of its own | `main` |
-| `source_dependencies` | the source packages this one uses the task layer of (ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default, the question's literal default for the merge classes | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |
-| `live_secrets` | the variables the live tests read beyond the keys, such as a username and a password, a YAML flow list of UPPER_SNAKE_CASE names in a string: `live.yml` passes each one to its pytest step from the secret of the same name, after the keys; each name once, never a key (`api_key_env`'s or a dependency's `key_env`), `XIPPIOS_LIVE_TESTS` or a name with GitHub's `GITHUB_` prefix; default `[]`, none, recorded on one line, the question's literal default for the merge classes | `[FAOSTAT_USERNAME, FAOSTAT_PASSWORD]` |
-| `has_files` | whether the source parses the files it downloads (ADR-0020): `true` renders `parse/`, one module per file kind, and `tests/fixtures/files/README.md`, one provenance row per sample file its parser tests read, both the source's once rendered; a retrieval-only source, which lists releases and downloads files without parsing them, answers `false`, its download fixture the recorded exchange of the file's URL (ADR-0019 decision 5); default `false`, the question's literal default for the merge classes | `true` |
+| `source_dependencies` | the source packages this one uses the task layer of (ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |
+| `live_secrets` | the variables the live tests read beyond the keys, such as a username and a password, a YAML flow list of UPPER_SNAKE_CASE names in a string: `live.yml` passes each one to its pytest step from the secret of the same name, after the keys; each name once, never a key (`api_key_env`'s or a dependency's `key_env`), `XIPPIOS_LIVE_TESTS` or a name with GitHub's `GITHUB_` prefix; default `[]`, none, recorded on one line | `[FAOSTAT_USERNAME, FAOSTAT_PASSWORD]` |
+| `has_files` | whether the source parses the files it downloads (ADR-0020): `true` renders `parse/`, one module per file kind, and `tests/fixtures/files/README.md`, one provenance row per sample file its parser tests read, both the source's once rendered; a retrieval-only source, which lists releases and downloads files without parsing them, answers `false`, its download fixture the recorded exchange of the file's URL (ADR-0019 decision 5); default `false` | `true` |
 | `human` | the GitHub login of the human, without the `@`. `.github/CODEOWNERS` names it as the owner of every human path of a member, `.github/`, `CLAUDE.md`, `.claude/`, `rules/`, `pyproject.toml` and `.copier-answers.yml` (C70 of the coordinate workspace), so a change to one waits for that human's review. Default `jdidaskalu`, a literal, which a source that predates the question takes on update | `jdidaskalu` |
 
 ## What gets generated
@@ -94,7 +92,7 @@ sdk-<slug>/
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
                        adopt-release
   .claude/family.md    the family rules, imported by CLAUDE.md (the package's facts)
-  .claude/settings.json  .github/workflows/{ci,publish,gates,live}.yml  .github/PULL_REQUEST_TEMPLATE.md
+  .claude/settings.json  .github/workflows/{ci,publish,live}.yml  .github/PULL_REQUEST_TEMPLATE.md
   .github/CODEOWNERS   the human paths, each owned by the human answer (C70)
   CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
   .gitattributes       docs/upstream/** -text, so upstream files keep their bytes and line endings
@@ -109,9 +107,8 @@ table, the template tag and the core bound honest as tasks are added. A generate
 package is read-only: the template renders no write tools. `ci.yml` also requires a
 CHANGELOG entry on every PR but a release or Dependabot's, an adoption PR's included
 (conventions §15 item 9), and fails on a fixture file over 256 KiB; `publish.yml` is the
-release train; `gates.yml` calls the merge gates as jobs once Johannes sets the
-repository variable `GATES_CALLER`. `live.yml` runs every `live` test every night and on
-demand. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources that
+release train. `live.yml` runs every `live` test every night and on demand. Its start
+time derives from the slug, between 01:00 and 05:59 UTC, so sources that
 share a key do not start together; only its pytest step sees the keys, from the org
 secrets named by `api_key_env` and by `source_dependencies`' `key_env`, and the other
 variables `live_secrets` names, each from the secret of the same name. Where the import
@@ -127,11 +124,9 @@ runs; it refuses to run until the source fills it.
 ## Updating generated repositories
 
 A template release, and the xippios-core minor it carries, reach a generated repository
-in one adoption PR before its next release (conventions §15, ADR-0018): a
-`chore/template-update-<tag>` PR whose description is the definition of done's Adoption
-PR checklist, merged under the rulesets of `main` on the reviewer's approval. The
-generated `/adopt-release <tag>` walks it step by step; at its core is `copier update`,
-run inside the generated repository:
+in one adoption PR before its next release (conventions §15, ADR-0018), which the
+generated `/adopt-release <tag>` walks step by step. At its core is `copier update`, run
+inside the generated repository:
 
 ```bash
 uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.3.2 -d core_version=0.3.0 -d core_git_ref=
@@ -173,10 +168,10 @@ scripts/prove.sh --gateway         # a nested source behind api.data.gov; CI run
 
 ## Releasing the template
 
-The template follows the release train (conventions §12): a `chore/release-X.Y.Z` PR
-turns `## [Unreleased]` in `CHANGELOG.md` into `## [X.Y.Z] - <date>`, the section
-perhaps with a lead paragraph and its internal labels put into plain words, and changes
-no file outside conventions §12's release subset; the template has no version to bump.
+The template follows the release train (conventions §12): a release PR turns
+`## [Unreleased]` in `CHANGELOG.md` into `## [X.Y.Z] - <date>`, the section perhaps with
+a lead paragraph and its internal labels put into plain words, and changes no file
+outside conventions §12's release subset; the template has no version to bump.
 Its merge on `main` runs `.github/workflows/release.yml`, which tags `vX.Y.Z` on the
 merge commit with that section as the tag's message; every other push to `main` finds
 the top heading tagged and ends quietly. No session and no human pushes the tag.

@@ -183,9 +183,9 @@ core_git_ref:
   type: str
   help: >-
     Development only. The sdk-core commit to depend on for a core change that is not
-    released yet: main, or the full 40-character SHA of a commit on main, which uv and
-    the merge-class check read as that commit. Leave it empty, the default, for no pin;
-    a release carries none (/release-prep removes it first, in a PR of its own).
+    released yet: main, or the full 40-character SHA of a commit on main, which uv reads
+    as that commit. Leave it empty, the default, for no pin; a release carries none
+    (/release-prep removes it first, in a PR of its own).
   default: ""
   validator: >-
     {% if core_git_ref and not (core_git_ref | regex_search('^(main|[0-9a-f]{40})\\Z')) %}
@@ -193,9 +193,8 @@ core_git_ref:
     {% endif %}
 
 # A string holding a YAML flow list, not a yaml-typed answer: copier records a string on
-# one line, '[]' at the default, which the merge classes read as the question's literal
-# default (rule 2), where a list would be recorded as [] or as block lines at column 0,
-# outside the subset of YAML the classifier reads. depends_on below is the parsed list.
+# one line, '[]' at the default, where a list would be recorded as [] or as block lines at
+# column 0. depends_on below is the parsed list.
 source_dependencies:
   type: str
   help: >-
@@ -250,8 +249,8 @@ key_envs:
 
 # The variables the live tests read beyond the keys, each passed to live.yml's pytest step
 # from the secret of the same name. A string holding a YAML flow list, as
-# source_dependencies, so copier records it on one line, '[]' at the default, the
-# question's literal default for the merge classes. live_secret_names is the parsed list.
+# source_dependencies, so copier records it on one line, '[]' at the default.
+# live_secret_names is the parsed list.
 live_secrets:
   type: str
   help: >-
@@ -291,8 +290,8 @@ live_secret_names:
   when: false
 
 # Whether the source parses the files it downloads (ADR-0020): parse/ and the samples'
-# provenance table render only then. Its default, false, is a literal the merge classes
-# read, so every source that predates the question takes it free.
+# provenance table render only then. Its default, false, is a literal, so every source
+# that predates the question takes it on update.
 has_files:
   type: bool
   help: >-

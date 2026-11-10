@@ -58,7 +58,7 @@ scripts/
                          template's skeleton until the source fills it
 tests/
   conftest.py      enables xippios.core.testing.plugin, which keeps the run offline
-  fixtures/        recorded responses, <endpoint>/<case>.json, never hand-written
+  fixtures/        recorded responses, <wrapper>/<case>.json, never hand-written
 {% if has_files %}
   fixtures/files/  a sample of each file kind, <file_kind>/<case>.<ext>; README.md, their provenance
 {% endif %}
@@ -71,7 +71,7 @@ tests/
 docs/upstream/     documentation snapshot and FETCHED.md
 .github/workflows/ ci.yml (the required ci check, with the CHANGELOG and fixture-size steps),
                    publish.yml (the release train: tag, build, PyPI), live.yml (nightly live
-                   tests), gates.yml (the merge gates as jobs, off until GATES_CALLER is 1)
+                   tests)
 {% if '.' in import_path %}
                    siblings.yml (the sibling proof of ADR-0006: this wheel beside the
                    siblings under xippios.{{ import_path.rsplit('.', 1)[0] }}{{ ' and the source packages it depends on (ADR-0021)' if depends_on else '' }}, a visible check the ruleset does not require)

@@ -11,12 +11,43 @@ into the files it renders, but never touches a file under `_skip_if_exists` in
 endpoint wrappers, the task layer, the packaged lists and enums, reference data, scripts,
 the task and live tests and the fixtures, upstream snapshot, README, CHANGELOG and, from
 0.3.0, the package's errors, its file parsers and CLAUDE.md). Each change to such a file
-is one bullet, `` - `<path>` — <what> — <why> ``; port it by hand in the same
-`chore/template-update` PR. A new file under those patterns is created by the update
-where the repository has no file of that name. The list starts with 0.1.5; earlier tags
+is one bullet, `` - `<path>` — <what> — <why> ``; port it by hand in the same adoption
+PR. A new file under those patterns is created by the update where the repository has no
+file of that name. The list starts with 0.1.5; earlier tags
 are not listed.
 
 ## [Unreleased]
+
+### Removed
+
+- `.github/workflows/gates.yml` of a generated repository, the caller of the retired merge
+  gates, whose two reusable workflows are gone: its jobs failed at their start on every
+  pull request until they were disabled. The template renders the file no longer, and
+  `copier update` deletes a template-owned file the template stops rendering, so it needs
+  no Hand-apply bullet.
+- The template's own `.github/workflows/gates.yml`, the same caller, and the tests that
+  pinned both copies to core's bytes.
+
+### Changed
+
+- The template's own `CLAUDE.md`, README, `copier.yml` comments, `scripts/new-source.sh`,
+  `/new-source` and `release.yml` comment name neither the retired gates and their
+  `GATES_CALLER` switch nor the merge classes, nor the branch names, the pull-request body
+  and the owners file of the process before the migration. The scaffold branch of
+  `new-source.sh` is `scaffold`. A test keeps those names out of the template's own files.
+- `new-source.sh` and `/new-source` call a bearer answer's variable a bearer token, not a
+  key, and say that the nightly `live.yml` reads the secret for the live tests that send
+  it, where they said the run needs it either way.
+- The generated `CLAUDE.md`'s layout names no `gates.yml` and gives the fixtures' path as
+  `<wrapper>/<case>.json`, as conventions §10 does. `CLAUDE.md` is under
+  `_skip_if_exists`, so a source applies it by hand.
+
+### Hand-apply
+
+- `CLAUDE.md` — drop `gates.yml` and its parenthesis from the `.github/workflows/` line
+  of the layout, and write the `fixtures/` line's path as `<wrapper>/<case>.json` — the
+  template renders no `gates.yml`, and conventions §10 names a fixture's directory after
+  its wrapper.
 
 ## [0.3.2] - 2026-11-09
 

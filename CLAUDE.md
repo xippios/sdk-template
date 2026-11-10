@@ -45,7 +45,6 @@ tests/test_template.py   the family's variants, each rendered once; ruff on the 
 CHANGELOG.md             template releases, each with its Hand-apply list (Rules)
 .github/workflows/ci.yml       the template's own CI: tests and five proofs
 .github/workflows/release.yml  tags vX.Y.Z from the top CHANGELOG heading on push to main (Workflow rules)
-.github/workflows/gates.yml    core's gates.yml, byte for byte the template's copy, off until GATES_CALLER (Rules)
 .claude/commands/new-source.md
 ```
 
@@ -102,16 +101,12 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   equal to the render, and the name of the script's directory is the conditional one,
   so a flat render gets no empty directory.
   `siblings` is a visible job the ruleset does not require: `ci.yml` stays core's file.
-- The verbatim files mirror sdk-core at the core release the template adopts (v0.3.0),
-  `gates.yml` calling `xippios/sdk-gates`; `tests/test_template.py` pins `gates.yml` to
-  core's bytes, and `ci.yml`, `publish.yml` and `PULL_REQUEST_TEMPLATE.md` to core's
-  bytes once the template's own lines below are taken out. sdk-template's own
-  `.github/workflows/gates.yml` is the same file, byte for byte
-  `template/.github/workflows/gates.yml`, which the tests check: the template carries
-  the gates caller as every repository does, off until Johannes sets the repository
-  variable `GATES_CALLER` to `1` on it. When sdk-core changes one of them, change it here
-  too (`gates.yml` in both places) and bump the template; `copier update` carries it
-  into the generated repos. Two carry the exclusion of `.copier-answers.yml`, in the
+- The verbatim files mirror sdk-core at the core release the template adopts (v0.3.0), but
+  for core's caller of the retired merge gates, which the template does not carry.
+  `tests/test_template.py` pins `ci.yml`, `publish.yml` and `PULL_REQUEST_TEMPLATE.md` to
+  core's bytes once the template's own lines below are taken out. When sdk-core changes
+  one of them, change it here too and bump the template; `copier update` carries it into
+  the generated repos. Two carry the exclusion of `.copier-answers.yml`, in the
   detect-secrets hook's `exclude` in `.pre-commit-config.yaml` and in
   `should_exclude_file` in `.secrets.baseline`, because the answers file names the key's
   variable and trips the keyword check on commit and on a baseline rescan alike; sdk-core
@@ -162,23 +157,20 @@ uv run ruff check . && uv run ruff format --check .
 
 ## Workflow rules
 
-- Branch from `main` as `feature/<topic>`, `fix/<topic>`, `chore/<topic>` or `docs/<topic>`.
-  Never commit to `main`.
-- Conventional Commits; PR body is the definition-of-done checklist from sdk-core, ticked
-  honestly (items about task functions and fixtures are n/a here; say so).
+- Never commit to `main`: every change is a branch and a pull request. Commit subjects
+  follow Conventional Commits.
 - `/new-source` is run by a session; `gh repo create` and the environment `PUT` inside
   `scripts/new-source.sh` are not on the allow list, so the human approves each in the
   permission prompt. Never run those commands outside the script.
 - Generated repositories record the template tag they were made from; `new-source.sh`
   uses the latest tag (HEAD only while the template is untagged), and core's family
   check fails a repository whose `.copier-answers.yml` names no tag.
-- Releases follow the release train (conventions §12, ADR-0018 amendment (b)): a
-  `chore/release-X.Y.Z` PR turns `## [Unreleased]` into `## [X.Y.Z] - <date>` and changes
-  no file outside conventions §12's release subset (`CHANGELOG.md`, and `README.md` or
-  `CLAUDE.md` where a sentence names the release). The section may gain a lead paragraph
-  and says internal labels (decisions, queue rows, plan items) in plain words, since it
-  becomes the tag's message. Its merge runs `.github/workflows/release.yml`, which tags
-  `vX.Y.Z` on the merge commit with that section as the message. No session pushes a tag.
-- Never tag, merge, release or touch secrets; a pull request merges under the rulesets of
-  `main` on the reviewer's approval.
+- Releases follow the release train (conventions §12, ADR-0018 amendment (b)): a release
+  PR turns `## [Unreleased]` into `## [X.Y.Z] - <date>` and changes no file outside
+  conventions §12's release subset (`CHANGELOG.md`, and `README.md` or `CLAUDE.md` where a
+  sentence names the release). The section may gain a lead paragraph and says internal
+  labels (decisions, rows, plan steps) in plain words, since it becomes the tag's message.
+  Its merge runs `.github/workflows/release.yml`, which tags `vX.Y.Z` on the merge commit
+  with that section as the message. No session pushes a tag.
+- Never tag, merge, release or touch secrets.
 - Never read or print `.envrc`, `.env`, or any variable ending in `_API_KEY`.
