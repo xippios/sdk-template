@@ -21,7 +21,8 @@ lists what they check in an endpoint.
    upstream enumerations become `StrEnum`, an enumeration of integer ids `IntEnum`
    (conventions §3). No renaming to match another source. An enumeration written by
    hand, for a value set upstream documents and no packaged list renders, lives here
-   too, unexported: `enums.py` is generated whole (`/refresh-reference-data`).
+   too, by the family's precedent: `enums.py` is generated whole
+   (`/refresh-reference-data`).
 
 3. **Endpoint wrapper** in `src/xippios/{{ package_dir }}/api/<wrapper>.py`, or in the
    service's module where operation ids repeat across services and the Layout in
