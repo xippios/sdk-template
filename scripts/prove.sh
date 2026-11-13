@@ -11,9 +11,12 @@
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
 # suite tests it. The template's CI runs every shape below, and the keyless nested one
 # again with -d has_files=true, a source that parses the files it downloads (ADR-0020).
+# It generates with `copier copy` alone, as README.md says a source is generated.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF]
 #                         [--keyless | --keyless-nested | --gateway] [--keep] [-d key=value ...]
+#   --dest DIR         where to generate, a path that does not exist yet; default a new
+#                      temporary directory
 #   --core-ref REF     sdk-core commit to depend on, main or a full SHA; default "" = the
 #                      PyPI release, e.g. --core-ref main to prove against unreleased core
 #   (no shape flag)    a keyed nested source, sdk-example-api (xippios.example.api)
@@ -56,6 +59,10 @@ case "$shape" in
   gateway) slug="example-gov"; key=(-d "gateway=api.data.gov") ;;
   *) slug="example-api"; key=(-d "api_key_env=EXAMPLE_API_KEY" -d "api_key_location=query") ;;
 esac
+if [ -n "$dest" ] && [ -e "$dest" ]; then
+  echo "error: --dest $dest already exists" >&2
+  exit 2
+fi
 work="$(mktemp -d "${TMPDIR:-/tmp}/sdk-template-prove.XXXXXX")"
 dest="${dest:-$work/sdk-$slug}"
 
@@ -73,12 +80,11 @@ git -C "$snapshot" -c user.name=prove -c user.email=prove@example.invalid \
   -c commit.gpgsign=false commit -q --no-verify -m "the working tree of sdk-template"
 git -C "$snapshot" -c tag.gpgsign=false tag "v$version"
 
-# The evidence file and the topic go through the same path as in a real run: the PR body
-# new-source.sh prints under --local-only lists them under Assumptions.
-evidence="$work/evidence.md"
-echo "- Every answer is the proof's own: api.example.org is no upstream." > "$evidence"
-"$here/scripts/new-source.sh" "$slug" --local-only --topic example-domain \
-  --evidence "$evidence" --dest "$dest" --template "$snapshot" \
+# Generate as a source is generated, with copier alone: from the snapshot at its tag, every
+# answer given and the rest at their defaults, as the README's call does.
+echo "==> generating $dest from the working tree at v$version"
+uv run --project "$here" copier copy --defaults --quiet --vcs-ref "v$version" \
+  -d "source_slug=$slug" \
   -d "source_name=Example Data Service" \
   -d "upstream_url=https://api.example.org" \
   -d "upstream_docs_url=https://api.example.org/docs" \
@@ -86,17 +92,22 @@ echo "- Every answer is the proof's own: api.example.org is no upstream." > "$ev
   "${key[@]}" \
   -d "rate_limit_per_minute=120" \
   -d "core_git_ref=$core_ref" \
-  "${extra[@]}" | tee "$work/new-source.log"
+  "${extra[@]}" \
+  "$snapshot" "$dest"
 
 echo
-echo "==> the printed PR body: the summary and the assumptions filled in"
-body="$(sed -n "/^==> the scaffold PR's body/,/^generated and verified/p" "$work/new-source.log")"
-fail() { echo "error: the printed PR body: $1" >&2; exit 1; }
-grep -q "^Scaffold of \`xippios-$slug\`" <<<"$body" || fail "no summary"
-grep -qxF -- "- The GitHub topic for the domain: \`example-domain\`." <<<"$body" \
-  || fail "no topic under Assumptions"
-grep -qxF -- "$(cat "$evidence")" <<<"$body" || fail "no evidence under Assumptions"
-echo "summary filled in, topic and evidence listed"
+echo "==> the checks of the render: uv sync, ruff, mypy, pytest, pre-commit"
+(
+  cd "$dest"
+  uv sync --all-extras
+  uv run ruff check .
+  uv run ruff format --check .
+  uv run mypy
+  uv run pytest
+  git init -q -b main
+  git add -A
+  uv run pre-commit run --all-files
+)
 
 echo
 echo "==> refresh_reference.py --render-only renders the shipped enums.py unchanged"
