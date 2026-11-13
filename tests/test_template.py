@@ -184,6 +184,7 @@ REPOSITORY_FILES = [
     "CLAUDE.md",
     "README.md",
     "CHANGELOG.md",
+    "changelog/README.md",
     "LICENSE",
     "pyproject.toml",
     ".copier-answers.yml",
@@ -882,6 +883,19 @@ def test_codeowners_names_the_human_for_every_member_path(variant: tuple[str, Pa
 # The checks no answer changes, on one render.
 
 
+CHANGELOG_README = ROOT / "template/changelog/README.md"
+
+
+def test_a_render_keeps_its_changelog_entries_as_fragments(keyed_nested: Path) -> None:
+    """``changelog/`` renders its README alone, the template's file byte for byte, so every
+    source gets the same one. The ``README.md`` pattern of ``_skip_if_exists`` makes it the
+    source's once rendered: ``copier update`` creates it where a repository has none."""
+    folder = keyed_nested / "changelog"
+    assert sorted(path.name for path in folder.iterdir()) == ["README.md"]
+    assert (folder / "README.md").read_text() == CHANGELOG_README.read_text()
+    assert skip_matcher(package_dir(VARIANTS["keyed-nested"]))("changelog/README.md")
+
+
 def test_family_rules_render_the_same_in_every_source(keyed_nested: Path) -> None:
     """``.claude/family.md`` holds no Jinja, so a render is the template's file byte for
     byte, in every source: it imports nothing and names sdk-core's documents by URL."""
@@ -1099,7 +1113,7 @@ def test_ci_reads_the_pull_request_and_runs_once_on_main(keyed_nested: Path) -> 
     steps = steps_of(workflow, "test")
     assert steps[0]["with"] == {"fetch-depth": 0, "persist-credentials": False}
     changelog, cap = steps[1], steps[2]
-    assert changelog["name"] == "CHANGELOG.md has an entry"
+    assert changelog["name"] == "The changelog has an entry"
     for prefix in ["chore/release-", "dependabot/"]:
         assert f"!startsWith(github.head_ref, '{prefix}')" in changelog["if"], prefix
     assert "chore/template-update" not in changelog["if"], "conventions §15 item 9"
@@ -1113,9 +1127,9 @@ def test_ci_reads_the_pull_request_and_runs_once_on_main(keyed_nested: Path) -> 
 CAP = 262144  # 256 KiB, ADR-0019
 
 
-def fixture_cap(repo: Path, step: dict[str, object]) -> subprocess.CompletedProcess[str]:
-    """The fixture-cap step's script in ``repo``, as GitHub runs a step that names no shell
-    (``bash -e``), the pull request's base ``main`` at ``origin/main``."""
+def pull_request_step(repo: Path, step: dict[str, object]) -> subprocess.CompletedProcess[str]:
+    """The script of a step that reads the pull request, in ``repo``, as GitHub runs a step
+    that names no shell (``bash -e``), the pull request's base ``main`` at ``origin/main``."""
     step_env = step["env"]
     assert isinstance(step_env, dict)
     env = {**os.environ, **step_env, "BASE": "main"}
@@ -1155,7 +1169,7 @@ def test_fixture_cap_judges_a_moved_fixture_by_its_content(
         change(repo / "tests/fixtures/get_new")
         git(repo, "add", "-A")
         git(repo, "commit", "-q", "--no-verify", "-m", branch)
-        run = fixture_cap(repo, step)
+        run = pull_request_step(repo, step)
         assert run.stderr == "", run.stderr
         return run.returncode, run.stdout
 
@@ -1170,6 +1184,82 @@ def test_fixture_cap_judges_a_moved_fixture_by_its_content(
     over = "::error file=tests/fixtures/get_new/{}::{} bytes, over the 256 KiB cap (ADR-0019)\n"
     assert pull_request("grown", grow) == (1, over.format("all.json", len(listed) + 1))
     assert pull_request("added", add) == (1, over.format("big.json", CAP))
+
+
+# The groups of a changelog fragment, `changelog/<group>-<slug>.md`, in the order the
+# release assembles them (changelog/README.md).
+CHANGELOG_GROUPS = ("added", "changed", "fixed", "removed", "security", "breaking")
+FRAGMENT = re.compile(rf"(?:{'|'.join(CHANGELOG_GROUPS)})-[a-z0-9]+(?:-[a-z0-9]+)*\.md")
+
+
+def test_the_changelog_step_takes_a_fragment_or_the_changelog(
+    keyed_nested: Path, tmp_path: Path
+) -> None:
+    """Conventions §12: every pull request but a release or Dependabot's carries an entry,
+    a fragment ``changelog/<group>-<slug>.md`` it adds or changes, or a change of
+    ``CHANGELOG.md``. The folder's README, a file of another name and a fragment deleted
+    are none."""
+    workflow = yaml.safe_load((keyed_nested / ".github/workflows/ci.yml").read_text())
+    step = steps_of(workflow, "test")[1]
+    repo = tmp_path / "source"
+    (repo / "changelog").mkdir(parents=True)
+    (repo / "CHANGELOG.md").write_text("# Changelog\n\n## [Unreleased]\n")
+    (repo / "changelog/README.md").write_text("# Changelog fragments\n")
+    (repo / "changelog/fixed-an-old-bug.md").write_text("- An old fix.\n")
+    (repo / "tasks.py").write_text("")
+    git(repo, "init", "-q", "-b", "main")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "base")
+    git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+    def pull_request(branch: str, change: Callable[[Path], None]) -> int:
+        git(repo, "checkout", "-q", "-b", branch, "main")
+        (repo / "tasks.py").write_text(f"# {branch}\n")
+        change(repo)
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "--no-verify", "-m", branch)
+        run = pull_request_step(repo, step)
+        assert run.stderr == "", run.stderr
+        assert run.stdout.startswith("::error::") is (run.returncode != 0), run.stdout
+        return run.returncode
+
+    def write(rel: str, text: str = "- A change.\n") -> Callable[[Path], None]:
+        def change(root: Path) -> None:
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(text)
+
+        return change
+
+    for group in CHANGELOG_GROUPS:
+        assert pull_request(group, write(f"changelog/{group}-a-change.md")) == 0, group
+    unreleased = "# Changelog\n\n## [Unreleased]\n\n### Added\n\n- A change.\n"
+    assert pull_request("unreleased", write("CHANGELOG.md", unreleased)) == 0
+    assert pull_request("reworded", write("changelog/fixed-an-old-bug.md", "- A fix.\n")) == 0
+    assert pull_request("code", lambda root: None) == 1, "no entry"
+    assert pull_request("readme", write("changelog/README.md", "# Fragments\n")) == 1
+    for name in ["feature-a-change.md", "added_a_change.md", "Added-a-change.md", "added-.md"]:
+        assert pull_request(name, write(f"changelog/{name}")) == 1, name
+    assert pull_request("nested", write("changelog/added/a-change.md")) == 1
+
+    def delete(root: Path) -> None:
+        (root / "changelog/fixed-an-old-bug.md").unlink()
+
+    assert pull_request("deleted", delete) == 1, "a fragment deleted is no entry"
+
+
+def test_the_template_keeps_its_changelog_entries_as_fragments() -> None:
+    """The template's next release is assembled from ``changelog/``: its README and a
+    fragment per change, each named ``<group>-<slug>.md`` and holding one bullet."""
+    folder = ROOT / "changelog"
+    assert (folder / "README.md").is_file()
+    for path in sorted(folder.iterdir()):
+        if path.name == "README.md":
+            continue
+        assert path.is_file(), path.name
+        assert FRAGMENT.fullmatch(path.name), path.name
+        text = path.read_text()
+        assert text.startswith("- "), path.name
+        assert len([line for line in text.splitlines() if line.startswith("- ")]) == 1, path.name
 
 
 def test_publish_is_the_release_train(keyed_nested: Path) -> None:
