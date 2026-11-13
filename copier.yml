@@ -334,6 +334,9 @@ _envops:
 # also match the whole package of a slug ending in -api (example-api's xippios/example/api/).
 # They read as gitignore lines, so /README.md is the source's README at the root alone:
 # README.md would match changelog/README.md too, which every source shares.
+# scripts/ names the two scripts a source fills: scripts/adr_index.py is the template's, and
+# a script of the source's own is never rendered, so no update touches it. The ADR index is
+# the source's, generated from its records by that script, which writes it again.
 _skip_if_exists:
   - src/xippios/{{ package_dir }}/__init__.py
   - src/xippios/{{ package_dir }}/_client.py
@@ -345,11 +348,14 @@ _skip_if_exists:
   - src/xippios/{{ package_dir }}/params.py
   - src/xippios/{{ package_dir }}/enums.py
   - src/xippios/{{ package_dir }}/reference/**
-  - scripts/**
+  - scripts/refresh_reference.py
+  - scripts/refresh_upstream.py
   - tests/test_tasks.py
   - tests/test_live.py
   - tests/fixtures/**
   - docs/upstream/**
+  - docs/adr.md
+  - docs/adr.json
   - /README.md
   - CHANGELOG.md
   - CLAUDE.md
