@@ -1466,6 +1466,116 @@ def test_every_command_points_at_the_process(keyless_flat: Path) -> None:
         assert "../" not in flat, f"{path.name}: a relative path leaves a worktree"
 
 
+# The four commands that work on a source (#126, the part of #114 on them) say how the work
+# is done and checked, and nothing on how a change lands: no branch, no tool that opens a
+# pull request, no merge and no pull request's body laid out. A source works alone, so they
+# name no tooling around the repository either.
+SOURCE_COMMANDS = [
+    "add-endpoint.md",
+    "record-fixture.md",
+    "refresh-reference-data.md",
+    "refresh-upstream.md",
+]
+LANDING = re.compile(
+    r"\bbranch(?:es)?\b|\b(?:feature|fix|chore)/|docs/upstream-|\bgh\b|\bmerg(?:e|es|ing)\b"
+    r"|as the definition of done says|\bcoordinat|\bworkspace\b",
+    re.I,
+)
+
+
+def test_the_commands_on_a_source_say_no_way_a_change_lands(variant: tuple[str, Path]) -> None:
+    """No line of the four commands names a branch, the GitHub CLI, a merge, the definition
+    of done as a body to copy, or anything outside the repository, in every render."""
+    _, dst = variant
+    found = []
+    for command in SOURCE_COMMANDS:
+        lines = (dst / ".claude/commands" / command).read_text().splitlines()
+        for number, line in enumerate(lines, 1):
+            if LANDING.search(line):
+                found.append(f"{command}:{number}: {line}")
+    assert not found, "\n".join(found)
+
+
+def test_the_commands_on_a_source_ask_for_a_changelog_fragment(keyed_nested: Path) -> None:
+    """#130: a change that brings an entry brings it as a fragment under ``changelog/``, as
+    the rendered ``changelog/README.md`` lays it out; no command asks for a line under
+    Unreleased. A fixture rides with the task it tests, so ``/record-fixture`` asks none."""
+    commands = keyed_nested / ".claude/commands"
+    for command in SOURCE_COMMANDS:
+        text = " ".join((commands / command).read_text().split())
+        assert "Unreleased" not in text, command
+        named = "`changelog/README.md`" in text and "`changelog/`" in text
+        assert named is (command != "record-fixture.md"), command
+
+
+def test_the_commands_name_wrappers_and_fixtures_as_the_conventions_do(
+    keyed_nested: Path,
+) -> None:
+    """#48, conventions §2 and §10: a wrapper's module and function carry the operation's
+    name, its verbatim id kept in ``endpoint=``, and a fixture lives under its wrapper's
+    name, ``tests/fixtures/<wrapper>/<case>.json``, as ``/add-endpoint`` hands it on; the
+    status table's cell follows what core's family check reads, a comment above the table
+    being no part of every README."""
+    commands = keyed_nested / ".claude/commands"
+    add = " ".join((commands / "add-endpoint.md").read_text().split())
+    record = " ".join((commands / "record-fixture.md").read_text().split())
+    assert "/api/<wrapper>.py`" in add
+    assert "`endpoint=`" in add
+    assert "`/record-fixture <wrapper> <case> <parameters>`" in add
+    assert "`tests/fixtures/<wrapper>/<case>.json`" in record
+    assert '"<wrapper>", "<case>"' in record, "the recording script's fixture_path"
+    for name, text in [("add-endpoint.md", add), ("record-fixture.md", record)]:
+        assert "<endpoint>" not in text, name
+        assert "<operation>.py" not in text, name
+    assert "`## Status`" in add
+    assert "`Task function`" in add
+
+
+def test_add_endpoint_checks_the_samples_where_the_source_parses_files(
+    variant: tuple[str, Path],
+) -> None:
+    """ADR-0020, conventions §10: the definition of done's checks of an endpoint hold its
+    item for a source that parses files, a sample per file kind under
+    ``tests/fixtures/files/<file_kind>/`` with its row in ``tests/fixtures/files/README.md``
+    and one live parser test, exactly where ``has_files`` renders ``parse/``."""
+    name, dst = variant
+    add = " ".join((dst / ".claude/commands/add-endpoint.md").read_text().split())
+    for path in ["`tests/fixtures/files/<file_kind>/`", "`tests/fixtures/files/README.md`"]:
+        assert (path in add) is has_files(VARIANTS[name]), f"{name}: {path}"
+
+
+def test_record_fixture_leaves_the_key_to_the_clients_refusal(variant: tuple[str, Path]) -> None:
+    """#63: no step reads a key's variable, not even to test that it is set: the client
+    refuses an unset key before it sends, with core's ``ConfigError`` naming the variable.
+    A source without a key names neither."""
+    name, dst = variant
+    text = (dst / ".claude/commands/record-fixture.md").read_text()
+    keys = key_envs(VARIANTS[name])
+    for key in keys:
+        assert f"`{key}`" in text, key
+        assert f"${key}" not in text, key
+        assert f"${{{key}}}" not in text, key
+    assert ("`ConfigError`" in text) is bool(keys), name
+    assert "[ -n " not in text
+
+
+def test_the_commands_on_a_source_name_what_their_rows_add(keyed_nested: Path) -> None:
+    """The names each row's sentence brings: the second case of a cap above the default,
+    whose page keeps its ``next_token`` (#89, ADR-0016 as amended 2026-10-30), a module of
+    the source's own beside the rendered tests that ``copier update`` leaves alone (#78), a
+    second base's absolute URL (#59), and the fixtures a reference refresh records again,
+    with ``fetched`` read from the packaged file (#70)."""
+    commands = keyed_nested / ".claude/commands"
+    add = " ".join((commands / "add-endpoint.md").read_text().split())
+    record = " ".join((commands / "record-fixture.md").read_text().split())
+    refresh = " ".join((commands / "refresh-reference-data.md").read_text().split())
+    for name in ["`MCP_CAPS`", "`next_token`", "`tests/test_tasks.py`", "`copier update`"]:
+        assert name in add, name
+    assert "absolute URL" in record
+    for name in ["`/record-fixture`", "`fetched`"]:
+        assert name in refresh, name
+
+
 def test_readme_status_table_has_the_columns_the_family_check_reads(keyless_flat: Path) -> None:
     """Core's family check reads the tables under ``## Status`` by their Task function column."""
     readme = (keyless_flat / "README.md").read_text()
