@@ -1044,6 +1044,19 @@ def test_claude_md_lays_out_the_decisions_and_the_fragments(variant: tuple[str, 
         assert block[number - 1].rstrip().endswith(","), block[number - 1]
 
 
+def test_claude_md_lays_out_every_workflow(variant: tuple[str, Path]) -> None:
+    """#145: the Layout's ``.github/workflows/`` entry names each workflow the render has,
+    the caller of the organization's checks among them, and none it lacks."""
+    _, dst = variant
+    claude = (dst / "CLAUDE.md").read_text()
+    block = claude.split("\n## Layout\n", 1)[1].split("```\n", 2)[1].splitlines()
+    start = next(n for n, line in enumerate(block) if line.startswith(".github/workflows/"))
+    end = next((n for n in range(start + 1, len(block)) if block[n][:1].strip()), len(block))
+    named = set(re.findall(r"\b[\w-]+\.yml\b", " ".join(block[start:end])))
+    rendered = {path.name for path in (dst / ".github/workflows").glob("*.yml")}
+    assert named == rendered
+
+
 def test_claude_md_asks_for_a_fragment_and_takes_a_release_with_copier(
     keyed_nested: Path,
 ) -> None:
