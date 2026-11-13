@@ -79,13 +79,17 @@ human_steps() {
    the first release's publish job needs it.
 MSG
   if [ -n "$api_key_env" ]; then
+    local credential="The key"
+    if [ "$api_key_location" = bearer ]; then
+      credential="The bearer token"
+    fi
     cat <<MSG
-2. The key, $api_key_env. If the org secret $api_key_env exists already (one key
-   shared by several sources, ADR-0009), add sdk-$slug to that secret's
+2. $credential, $api_key_env. If the org secret $api_key_env exists already (one
+   secret shared by several sources, ADR-0009), add sdk-$slug to that secret's
    repository access in the org settings; never \`gh secret set --repos\`, which replaces
-   the list. Otherwise put the key into ~/github/sdk/.envrc and create the org secret
-   $api_key_env with access for sdk-$slug. Either way the nightly
-   .github/workflows/live.yml needs it.
+   the list. Otherwise put it into ~/github/sdk/.envrc and create the org secret
+   $api_key_env with access for sdk-$slug. The nightly .github/workflows/live.yml reads
+   it from that secret for the live tests that send it.
 MSG
   else
     echo "2. No API key is needed for this source."
@@ -164,15 +168,6 @@ write_body() {
     }' .github/PULL_REQUEST_TEMPLATE.md > "$scratch/body.md"
 }
 
-# The workspace's guard refuses work in a directory no session owns: a new source's
-# directory is in a session's list under [sessions] in coordination/owners.toml before it
-# is generated there. Johannes adds it; this only reminds.
-owners="$root/coordination/owners.toml"
-if [ "$(dirname "$dest")" = "$root" ] && [ -f "$owners" ] && ! grep -q "\"sdk-$slug\"" "$owners"; then
-  echo "notice: no session owns sdk-$slug in $owners ([sessions]); the guard refuses work in" >&2
-  echo "        $dest until Johannes adds it there" >&2
-fi
-
 if [ -d "$template" ]; then
   ref="$(git -C "$template" describe --tags --abbrev=0 2>/dev/null || echo HEAD)"
 else
@@ -184,6 +179,10 @@ uv run --project "$here" copier copy --defaults --vcs-ref "$ref" -d "source_slug
 cd "$dest"
 source_name="$(answer source_name)"
 api_key_env="$(answer api_key_env)"
+api_key_location=""
+if [ -n "$api_key_env" ]; then
+  api_key_location="$(answer api_key_location)"
+fi
 
 echo "==> environment"
 uv sync --all-extras
@@ -244,8 +243,7 @@ fi
 write_body
 gh repo create "$repo" --public --license Apache-2.0 --description "xippios SDK for $source_name"
 gh repo edit "$repo" --add-topic xippios-sdk --add-topic python --add-topic mcp --add-topic "$topic"
-# Adoption and release PRs of merge class `auto` auto-merge after the reviewer's `ready`
-# (ADR-0018, amendment (e)); merged branches are deleted, as in every sdk-* repository.
+# Auto-merge is allowed and merged branches are deleted, as in every sdk-* repository.
 gh repo edit "$repo" --enable-auto-merge --delete-branch-on-merge
 if [ "$team_found" = 1 ]; then
   gh api -X PUT "orgs/xippios/teams/$team/repos/$repo" -f permission=push --silent
@@ -259,16 +257,12 @@ git fetch -q origin
 git reset -q                           # unstage; the generated files stay in the tree
 rm -f LICENSE                          # origin/main carries the one GitHub generated
 git checkout -q -B main origin/main    # local main = GitHub's initial commit
-git switch -q -c feature/scaffold
+git switch -q -c scaffold
 git add -A
 git commit -q -m "chore: scaffold xippios-$slug from sdk-template"
-git push -q -u origin feature/scaffold
+git push -q -u origin scaffold
 gh pr create --title "chore: scaffold xippios-$slug from sdk-template" --body-file "$scratch/body.md"
 
 echo
 echo "Done. Human steps that remain (also in the PR's body):"
 human_steps | sed 's/^/  /'
-cat <<MSG
-Owners: sdk-$slug belongs to a session under [sessions] in coordination/owners.toml (Johannes
-adds it), since the workspace's guard refuses work in a directory no session owns.
-MSG

@@ -1,6 +1,6 @@
 # The template's release train (conventions §12, ADR-0018 amendment b): sdk-template
-# publishes nothing to PyPI, so its release is the tag. The release PR, `chore/release-X.Y.Z`,
-# turns Unreleased into `## [X.Y.Z] - <date>`; its merge on main runs this workflow, which
+# publishes nothing to PyPI, so its release is the tag. The release PR turns Unreleased
+# into `## [X.Y.Z] - <date>`; its merge on main runs this workflow, which
 # reads the top `## [X.Y.Z] - ` heading of CHANGELOG.md and, when `vX.Y.Z` has no tag yet,
 # tags the merge commit with that section as the tag's message. Every other push to main
 # finds the top heading tagged and ends quietly. No session and no human pushes the tag;
