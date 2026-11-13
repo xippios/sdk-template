@@ -889,9 +889,10 @@ def owner_rules(dst: Path) -> list[str]:
 
 def test_codeowners_names_the_human_for_every_member_path(variant: tuple[str, Path]) -> None:
     """A source's ``.github/CODEOWNERS`` comes from its template: a header of comments that
-    says what the file is and names the answer it is rendered from, and no tool, rule or
-    file around the repository (#129), then the six human paths, each owned by the
-    ``human`` answer, its default ``jdidaskalu`` in every variant."""
+    says what the file is, names each path it owns and the answer it is rendered from, and
+    no tool, rule or file around the repository (#129), then the six human paths, each
+    owned by the ``human`` answer, its default ``jdidaskalu`` in every variant. The
+    answer's help names each path too."""
     _, dst = variant
     assert (QUESTIONS["human"]["type"], QUESTIONS["human"]["default"]) == ("str", HUMAN)
     rules = owner_rules(dst)
@@ -903,6 +904,11 @@ def test_codeowners_names_the_human_for_every_member_path(variant: tuple[str, Pa
     header = " ".join(head)
     assert "`human`" in header, "the answer it is rendered from"
     assert not AROUND_THE_REPOSITORY.search(header), AROUND_THE_REPOSITORY.search(header)
+    help_text = " ".join(str(QUESTIONS["human"]["help"]).split())
+    for path in MEMBER_HUMAN_PATHS:
+        name = path.removeprefix("/").removesuffix("**")
+        assert f"`{name}`" in header, f"the header names {name}"
+        assert f" {name}" in help_text, f"the help names {name}"
 
 
 # The checks no answer changes, on one render.
