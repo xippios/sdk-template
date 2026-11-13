@@ -14,6 +14,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -2541,110 +2542,7 @@ def test_sources_sharing_a_key_start_at_stable_different_times(
     assert live_start(again) == starts["usda-psd"], "stable across renders"
 
 
-# The scripts: new-source.sh and the capture skeleton.
-
-
-@pytest.mark.parametrize(
-    ("args", "error"),
-    [
-        ([], "--topic DOMAIN is required to create the repository"),
-        (["--local-only", "--topic", "Trade_Data"], "--topic Trade_Data: use lowercase letters"),
-        (["--topic", "trade--data"], "--topic trade--data: use lowercase letters"),
-        (["--topic", "trade-data", "--evidence", "absent.md"], "--evidence absent.md: no such"),
-    ],
-)
-def test_new_source_checks_its_flags_before_it_generates(
-    tmp_path: Path, args: list[str], error: str
-) -> None:
-    """The domain topic is new-source.sh's flag, no copier answer, and the evidence a file;
-    a bad one of either costs nothing."""
-    dest = tmp_path / "sdk-ex"
-    script = [str(ROOT / "scripts/new-source.sh"), "ex", "--dest", str(dest), *args]
-    run = subprocess.run(script, cwd=tmp_path, capture_output=True, text=True, check=False)
-    assert run.returncode == 2, run.stdout + run.stderr
-    assert error in run.stderr
-    assert not dest.exists(), "refused before anything is generated"
-
-
-PR_TEMPLATE = ROOT / "template/.github/PULL_REQUEST_TEMPLATE.md"
-
-
-def new_source_functions() -> str:
-    """new-source.sh's human_steps and write_body, as the script defines them."""
-    script = (ROOT / "scripts/new-source.sh").read_text()
-    start = script.index("human_steps() {")
-    return script[start : script.index("\n}\n", script.index("write_body() {")) + 3]
-
-
-def write_body(tmp_path: Path, pr_template: str) -> subprocess.CompletedProcess[str]:
-    """new-source.sh's human_steps and write_body, run on a PR template and an answers file."""
-    functions = new_source_functions()
-    (tmp_path / ".github").mkdir()
-    (tmp_path / ".github/PULL_REQUEST_TEMPLATE.md").write_text(pr_template)
-    (tmp_path / ".copier-answers.yml").write_text("_commit: v0.0.1\nsource_slug: ex\n")
-    (tmp_path / "scratch").mkdir()
-    harness = (
-        "set -euo pipefail\n"
-        "slug=ex source_name=Ex ref=v0.0.1 topic=data evidence= api_key_env= dest=/x/sdk-ex\n"
-        f"scratch={tmp_path / 'scratch'}\n{functions}\nwrite_body\n"
-    )
-    return subprocess.run(
-        ["bash", "-c", harness], cwd=tmp_path, capture_output=True, text=True, check=False
-    )
-
-
-@pytest.mark.parametrize(
-    ("old", "new", "missing"),
-    [
-        ("", "", ""),
-        ("## Summary\n\n<!--", "## Summary\n\n-", 'a comment line under "## Summary"'),
-        ("## Assumptions\n\n<!--", "## Assumptions\n\n-", 'a comment line under "## Assumptions"'),
-    ],
-)
-def test_new_source_fills_the_pr_template_or_names_what_it_lacks(
-    tmp_path: Path, old: str, new: str, missing: str
-) -> None:
-    """The scaffold PR's body: the PR template with its summary and its assumptions filled
-    in; a PR template of another shape stops the script loudly, before anything is created
-    on GitHub."""
-    run = write_body(
-        tmp_path, PR_TEMPLATE.read_text().replace(old, new) if old else PR_TEMPLATE.read_text()
-    )
-    if not missing:
-        assert run.returncode == 0, run.stderr
-        body = (tmp_path / "scratch/body.md").read_text()
-        headings = [line for line in body.splitlines() if line.startswith("## ")]
-        assert headings == PR_SECTIONS, "the PR template's sections, in its order"
-        summary = body.split("## Summary\n", 1)[1].split("\n## ", 1)[0]
-        assert "Scaffold of `xippios-ex`" in summary
-        assert "  - `source_slug: ex`" in body
-        assert "_commit" not in body
-        return
-    assert run.returncode == 1
-    assert missing in run.stderr
-    assert "Nothing was\ncreated on GitHub; /x/sdk-ex is generated and verified." in run.stderr
-
-
-@pytest.mark.parametrize(
-    ("location", "step"),
-    [
-        ("query", "2. The key, EX_API_KEY."),
-        ("header", "2. The key, EX_API_KEY."),
-        ("bearer", "2. The bearer token, EX_API_KEY."),
-    ],
-)
-def test_new_source_names_the_credential_its_location_sends(location: str, step: str) -> None:
-    """The human step for the secret names what the variable holds: a bearer answer's
-    variable holds a token, not a key (#77)."""
-    harness = (
-        "set -euo pipefail\n"
-        f"slug=ex api_key_env=EX_API_KEY api_key_location={location}\n"
-        f"{new_source_functions()}\nhuman_steps\n"
-    )
-    run = subprocess.run(["bash", "-c", harness], capture_output=True, text=True, check=False)
-    assert run.returncode == 0, run.stderr
-    (line,) = [line for line in run.stdout.splitlines() if line.startswith("2. ")]
-    assert line.startswith(step), run.stdout
+# The capture skeleton.
 
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -2799,13 +2697,21 @@ def test_block_tags_that_span_lines_stand_on_their_own() -> None:
     assert not misplaced, "\n".join(misplaced)
 
 
+# The names of the retired process, built from parts, so that a search of this repository
+# for them, as a release's proof runs one, finds none in this file either.
+GATES_REPOSITORY = "sdk" + "-gates"
+GATES_SWITCH = "GATES" + "_CALLER"
+RETIRED_SCRIPT = "new" + "-source"
+RETIRED_COMMAND = "adopt" + "-release"
+
+
 def test_no_workflow_calls_the_retired_gates() -> None:
     """The merge gates are retired and their reusable workflows are gone (#99): neither this
     repository nor a render carries a caller of them."""
     for workflows in [ROOT / ".github/workflows", ROOT / "template/.github/workflows"]:
         assert not (workflows / "gates.yml").exists(), workflows
         for path in sorted(workflows.iterdir()):
-            assert "xippios/sdk-gates/" not in path.read_text(), path
+            assert f"xippios/{GATES_REPOSITORY}/" not in path.read_text(), path
 
 
 def test_the_templates_own_workflows_are_hardened() -> None:
@@ -2867,9 +2773,9 @@ def test_no_instruction_tells_a_human_to_tag() -> None:
     assert "template/CLAUDE.md.jinja" in scanned, "the generated instructions"
 
 
-# The rule of the retired merge gates: a pull request's merge class, under any of its names
-# (`human class`, `class review`), and the auto-merge a session enabled on one. A pull
-# request merges under the rulesets of `main`.
+# The rule of the retired merge gates: the class that decided a pull request's merge, under
+# any of its names (`human class`, `class review`), and the auto-merge a session enabled on
+# one. A pull request merges under the rulesets of `main`.
 MERGE_CLASS = re.compile(
     r"\bmerge[ -]class(?:es)?\b|\b(?:human|review) class\b|\bclass (?:human|review)\b"
     r"|\bauto-merge\b",
@@ -2878,7 +2784,7 @@ MERGE_CLASS = re.compile(
 
 
 def test_no_instruction_names_the_merge_class() -> None:
-    """This CLAUDE.md and every file the template renders name no merge class and no
+    """This CLAUDE.md and every file the template renders name no class of a merge and no
     auto-merge; the workflows are core's files and are not read."""
     scanned = set()
     for path in [ROOT / "CLAUDE.md", *sorted((ROOT / "template").rglob("*"))]:
@@ -2896,12 +2802,15 @@ def test_no_instruction_names_the_merge_class() -> None:
 
 
 # The process before the migration, in the template's own files: the retired gates and
-# their switch, the merge classes, the branch names and the PR body of that process, and
-# the owners file of its coordination. The renders leave it in steps of their own.
+# their switch, the classes of a merge, the branch names and the PR body of that process,
+# the owners file of its coordination, and the script and the commands that made a source
+# and adopted a release by it, with the pull request they opened. The renders leave it in
+# steps of their own.
 RETIRED_PROCESS = re.compile(
-    r"\bsdk-gates\b|\bGATES_CALLER\b|\bgates\.yml\b|\bmerge[ -]class(?:es)?\b"
+    rf"\b{GATES_REPOSITORY}\b|\b{GATES_SWITCH}\b|\bgates\.yml\b|\bmerge[ -]class(?:es)?\b"
     r"|\b(?:feature|fix|chore)/|\bdocs/<topic>|definition-of-done checklist"
-    r"|as the definition of done says|\bowners\.toml\b",
+    r"|as the definition of done says|\bowners\.toml\b"
+    rf"|\b{RETIRED_SCRIPT}\b|\b{RETIRED_COMMAND}\b|\bgh (?:pr|repo) create\b",
     re.I,
 )
 OWN_FILES = ["copier.yml", "README.md", "CLAUDE.md", ".claude", "scripts", ".github"]
@@ -2909,7 +2818,9 @@ OWN_FILES = ["copier.yml", "README.md", "CLAUDE.md", ".claude", "scripts", ".git
 
 def test_the_templates_own_files_name_no_retired_process() -> None:
     """The template's own instructions, scripts and workflows name none of the process
-    before the migration (#99); the CHANGELOG is history."""
+    before the migration (#99), and neither the script that made a source nor its command
+    is left: ``copier copy`` generates one, as the README says (#119). The CHANGELOG is
+    history."""
     scanned, found = set(), []
     for name in OWN_FILES:
         root = ROOT / name
@@ -2921,8 +2832,10 @@ def test_the_templates_own_files_name_no_retired_process() -> None:
                 if RETIRED_PROCESS.search(line):
                     found.append(f"{path.relative_to(ROOT)}:{number}: {line}")
     assert not found, "\n".join(found)
-    named = {"CLAUDE.md", "README.md", "scripts/new-source.sh", ".claude/commands/new-source.md"}
+    named = {"CLAUDE.md", "README.md", "scripts/prove.sh"}
     assert named <= scanned, "the files that named it"
+    assert not (ROOT / f"scripts/{RETIRED_SCRIPT}.sh").exists()
+    assert not (ROOT / f".claude/commands/{RETIRED_SCRIPT}.md").exists()
 
 
 # A release heading of CHANGELOG.md, as .github/workflows/release.yml finds the top one.
@@ -2945,3 +2858,133 @@ def test_the_manifest_names_the_latest_release() -> None:
     runs = [str(step.get("run", "")) for step in job["steps"]]
     syncs = [run for run in runs if run.startswith("uv sync")]
     assert syncs == ["uv sync --locked"], "a stale uv.lock fails CI's first step"
+
+
+# The template's own README and CLAUDE.md (#119, #144, #146). The README lists the documents
+# a change of the template follows under `## Documents`, in the form a render's README takes,
+# and says how a source is generated: with copier alone, its call run here on the working
+# tree. The CLAUDE.md links that section, its layout names the repository's own files, and
+# neither names anything around the repository.
+TEMPLATE_DOCUMENTS = ["docs/adr.md", "changelog/README.md"]
+TEMPLATE_URL = "https://github.com/xippios/sdk-template.git"
+
+
+def test_the_templates_own_readme_lists_its_documents() -> None:
+    """This README's ``## Documents`` lists sdk-core's conventions, ADR index, definition of
+    done and review checklist, then this repository's ADR index and changelog rules, each as
+    ``- <repository>: [<path>](<its file on GitHub>) — <what it is>``; its own are files
+    here."""
+    readme = (ROOT / "README.md").read_text()
+    assert readme.count("\n## Documents\n") == 1
+    expected = [("sdk-core", path) for path in CORE_DOCUMENTS]
+    expected += [("sdk-template", path) for path in TEMPLATE_DOCUMENTS]
+    assert documents(readme) == expected
+    for path in TEMPLATE_DOCUMENTS:
+        assert (ROOT / path).is_file(), path
+
+
+def test_the_templates_own_instructions_name_nothing_around_the_repository() -> None:
+    """This README and this CLAUDE.md name no tooling, session, claim or numbered rule around
+    the repository, nor ``.claude/family.md``, which no render has any more; the CLAUDE.md
+    links the README's documents instead of repeating them and names no branch, no GitHub
+    CLI, no merge, no reviewer and no person."""
+    readme = (ROOT / "README.md").read_text()
+    claude = (ROOT / "CLAUDE.md").read_text()
+    found = []
+    for name, text, patterns in [
+        ("README.md", readme, [AROUND]),
+        ("CLAUDE.md", claude, [AROUND, CHANGE_LANDING]),
+    ]:
+        for number, line in enumerate(text.splitlines(), 1):
+            if "family.md" in line or any(pattern.search(line) for pattern in patterns):
+                found.append(f"{name}:{number}: {line}")
+    assert not found, "\n".join(found)
+    assert "(README.md#documents)" in claude, "the README's section, linked"
+    for repository, path in documents(readme):
+        url = f"https://github.com/xippios/{repository}/blob/main/{path}"
+        assert url not in claude, url
+    assert "https://github.com/xippios/sdk-core/tree/" not in claude
+
+
+def margin_entries(claude: str) -> list[str]:
+    """The paths at the left margin of a CLAUDE.md's Layout block, several on a line where
+    commas join them."""
+    block = claude.split("\n## Layout\n", 1)[1].split("```\n", 2)[1]
+    entries = []
+    for line in block.splitlines():
+        if not line[:1].strip():
+            continue
+        words = line.split()
+        while words:
+            word = words.pop(0)
+            entries.append(word.rstrip(","))
+            if not word.endswith(","):
+                break
+    return entries
+
+
+def test_the_templates_own_layout_names_its_files() -> None:
+    """Each path at the left margin of this CLAUDE.md's layout is one the repository has, and
+    every file of its own scripts, workflows, Claude settings, tests and docs stands there,
+    by its path or its folder's, so a file that leaves takes its entry along."""
+    entries = margin_entries((ROOT / "CLAUDE.md").read_text())
+    assert [entry for entry in entries if not (ROOT / entry).exists()] == []
+    unnamed = []
+    for folder in ["scripts", ".github/workflows", ".claude", "tests", "docs"]:
+        for path in sorted((ROOT / folder).rglob("*")):
+            rel = path.relative_to(ROOT)
+            if not path.is_file() or "__pycache__" in rel.parts:
+                continue
+            folders = {f"{parent.as_posix()}/" for parent in rel.parents if parent.name}
+            if not ({rel.as_posix()} | folders) & set(entries):
+                unnamed.append(rel.as_posix())
+    assert unnamed == []
+
+
+def readme_copy_call() -> list[str]:
+    """The README's ``copier copy`` call, its continued lines joined, as the shell splits it."""
+    readme = (ROOT / "README.md").read_text()
+    blocks = re.findall(r"```bash\n(.*?)```", readme, re.S)
+    commands = [line for block in blocks for line in block.replace("\\\n", " ").splitlines()]
+    (call,) = [line for line in commands if "copier copy" in line.split("#", 1)[0]]
+    return shlex.split(call, comments=True)
+
+
+def test_the_readme_generates_a_source_with_copier_alone(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """#119: a source is generated with ``copier copy`` from this repository's GitHub URL at
+    its latest tag, which no ``--vcs-ref`` names, so no release rewrites the call; it passes
+    ``--defaults`` and an answer for each question that has no default. Run as the README
+    writes it, but on the working tree, it renders a source whose answers file records each
+    answer it gave."""
+    call = readme_copy_call()
+    copy = call.index("copy")
+    assert call[copy - 1] == "copier", call
+    args = iter(call[copy + 1 :])
+    flags, answers, positional = [], {}, []
+    for arg in args:
+        if arg in ("-d", "--data"):
+            key, value = next(args).split("=", 1)
+            answers[key] = value
+        elif arg.startswith("-"):
+            flags.append(arg)
+        else:
+            positional.append(arg)
+    assert flags == ["--defaults"], "the latest tag: no --vcs-ref"
+    src, dst = positional
+    assert src == TEMPLATE_URL
+    assert dst == f"sdk-{answers['source_slug']}"
+    asked = [
+        name
+        for name, question in QUESTIONS.items()
+        if not name.startswith("_")
+        and question.get("when") is not False
+        and "default" not in question
+    ]
+    assert set(asked) <= set(answers), set(asked) - set(answers)
+    repo = tmp_path / dst
+    run_copy(str(template_src), str(repo), data=answers, defaults=True, quiet=True)
+    recorded = yaml.safe_load((repo / ".copier-answers.yml").read_text())
+    for key, value in answers.items():
+        assert str(recorded[key]) == value, key
