@@ -102,6 +102,12 @@ lists what they check in an endpoint.
      fixture this change adds is recorded, free of key patterns and of the values of the
      fields the source keeps out of its projections (ADR-0017), and under 256 KiB
      (ADR-0019);
+{% if has_files %}
+   - each file kind the source parses has a sample under
+     `tests/fixtures/files/<file_kind>/` with its provenance row in
+     `tests/fixtures/files/README.md`, and one live test that checks the parser still
+     reads the current release (ADR-0020);
+{% endif %}
    - the changelog fragment says what the change adds for a user of the package;
    - the README says what changed in install, usage or endpoint coverage;
    - the checks of step 8 pass.
