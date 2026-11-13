@@ -1531,6 +1531,19 @@ def test_the_commands_name_wrappers_and_fixtures_as_the_conventions_do(
     assert "`Task function`" in add
 
 
+def test_add_endpoint_checks_the_samples_where_the_source_parses_files(
+    variant: tuple[str, Path],
+) -> None:
+    """ADR-0020, conventions §10: the definition of done's checks of an endpoint hold its
+    item for a source that parses files, a sample per file kind under
+    ``tests/fixtures/files/<file_kind>/`` with its row in ``tests/fixtures/files/README.md``
+    and one live parser test, exactly where ``has_files`` renders ``parse/``."""
+    name, dst = variant
+    add = " ".join((dst / ".claude/commands/add-endpoint.md").read_text().split())
+    for path in ["`tests/fixtures/files/<file_kind>/`", "`tests/fixtures/files/README.md`"]:
+        assert (path in add) is has_files(VARIANTS[name]), f"{name}: {path}"
+
+
 def test_record_fixture_leaves_the_key_to_the_clients_refusal(variant: tuple[str, Path]) -> None:
     """#63: no step reads a key's variable, not even to test that it is set: the client
     refuses an unset key before it sends, with core's ``ConfigError`` naming the variable.
