@@ -25,7 +25,7 @@ from types import ModuleType
 
 import pytest
 import yaml
-from copier import run_copy
+from copier import run_copy, run_update
 from pathspec import PathSpec
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -176,7 +176,12 @@ PACKAGE_FILES = [
 REPOSITORY_FILES = [
     "scripts/refresh_reference.py",
     "scripts/refresh_upstream.py",
+    "scripts/adr_index.py",
     "docs/upstream/FETCHED.md",
+    "docs/adr/README.md",
+    "docs/adr.md",
+    "docs/adr.json",
+    "docs/reports/README.md",
     "tests/conftest.py",
     "tests/test_family.py",
     "tests/test_tasks.py",
@@ -584,7 +589,7 @@ SIBLINGS_SCRIPT = (
 def test_siblings_check_renders_where_the_import_path_nests(variant: tuple[str, Path]) -> None:
     """ADR-0006's sibling proof is the template's (T10): siblings.yml and the script it runs
     render, byte for byte and executable, only where the import path nests or the source
-    declares a source package it depends on (ADR-0021), outside the skip-listed scripts/ so
+    declares a source package it depends on (ADR-0021), outside the skip-listed paths so
     that a source's copy is trusted when identical to the render; a visible job, `ci` never
     aggregates it (ci.yml stays core's)."""
     name, dst = variant
@@ -631,7 +636,6 @@ def assert_the_sibling_check(dst: Path, pkg: str) -> None:
     assert not [line for line in lines if "$trial" in line and "grep" in line]
     assert "uv pip compile --quiet --no-header --no-annotate" in script.read_text()
     skipped = skip_matcher(pkg)
-    assert skipped("scripts/check-siblings.sh"), "why the script is not under scripts/"
     for rel in [".github/workflows/siblings.yml", ".github/scripts/check-siblings.sh"]:
         assert not skipped(rel), f"{rel}: the template's, trusted when identical to the render"
     text = workflow.read_text()
@@ -896,6 +900,84 @@ def test_a_render_keeps_its_changelog_entries_as_fragments(keyed_nested: Path) -
     protected = skip_matcher(package_dir(VARIANTS["keyed-nested"]))
     assert protected("README.md"), "the source's README"
     assert not protected("changelog/README.md"), "the template's, as every source shares it"
+
+
+# A repository's decisions (#121): its records in docs/adr/, the index scripts/adr_index.py
+# writes from their headers, and its dated reports in docs/reports/. The script and the two
+# READMEs are the template's and update with it; the records, the reports and the index
+# generated from the records are the source's, the index kept by _skip_if_exists, as are the
+# two scripts a source fills. The template keeps the same folders for itself.
+ADR_SCRIPT = "scripts/adr_index.py"
+ADR_INDEX = ["docs/adr.md", "docs/adr.json"]
+ADR_TEMPLATE_FILES = [ADR_SCRIPT, "docs/adr/README.md", "docs/reports/README.md"]
+FILLED_SCRIPTS = ["scripts/refresh_reference.py", "scripts/refresh_upstream.py"]
+
+
+def adr_index(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """``repo``'s own ``scripts/adr_index.py`` as a check runs it: ``python3 -I`` from the
+    repository's root, the script finding the repository from its own path."""
+    return subprocess.run(
+        [sys.executable, "-I", ADR_SCRIPT, *args],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_a_render_keeps_its_decisions_and_their_index(keyed_nested: Path) -> None:
+    """``docs/adr/`` and ``docs/reports/`` render their READMEs alone, the template's files
+    byte for byte, as is the executable script, and the empty index passes ``--check`` run as
+    a check runs it. The index is the source's, kept by ``_skip_if_exists`` with the two
+    scripts a source fills; the script of the index and the two READMEs are the template's."""
+    for folder in ["docs/adr", "docs/reports"]:
+        assert sorted(p.name for p in (keyed_nested / folder).iterdir()) == ["README.md"], folder
+    for rel in ADR_TEMPLATE_FILES:
+        assert (keyed_nested / rel).read_bytes() == (ROOT / "template" / rel).read_bytes(), rel
+    assert os.access(keyed_nested / ADR_SCRIPT, os.X_OK), "executable, as its first line says"
+    run = adr_index(keyed_nested, "--check")
+    assert run.returncode == 0, run.stdout
+    assert json.loads((keyed_nested / "docs/adr.json").read_text()) == {"records": []}
+    protected = skip_matcher(package_dir(VARIANTS["keyed-nested"]))
+    for rel in [*ADR_INDEX, *FILLED_SCRIPTS]:
+        assert protected(rel), f"{rel} is the source's"
+    for rel in ADR_TEMPLATE_FILES:
+        assert not protected(rel), f"{rel} is the template's"
+
+
+def test_the_index_follows_the_records(keyed_nested: Path, tmp_path: Path) -> None:
+    """The rendered script writes the index from the records' headers and ``--check`` judges
+    it: a new record leaves the index stale until the script runs. A record whose first line
+    does not read ``# ADR-NNNN: <title>`` with its name's number, and a number two records
+    take, fail both runs, which name the record and write nothing; a file of another name in
+    ``docs/adr/`` is no record."""
+    repo = tmp_path / "repo"
+    for rel in [ADR_SCRIPT, *ADR_INDEX, "docs/adr/README.md"]:
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(keyed_nested / rel, repo / rel)
+    (repo / "docs/adr/0001-one-decision.md").write_text(
+        "# ADR-0001: One decision\n\n"
+        "Status: Accepted · Date: 2026-11-13 · Decided by https://example.org/1\n\n"
+        "## Context\n"
+    )
+    assert adr_index(repo, "--check").returncode == 1, "stale against the new record"
+    assert adr_index(repo).returncode == 0
+    assert adr_index(repo, "--check").returncode == 0
+    (entry,) = json.loads((repo / "docs/adr.json").read_text())["records"]
+    assert entry["id"] == "ADR-0001"
+    assert entry["path"] == "docs/adr/0001-one-decision.md"
+    assert (entry["status"], entry["date"]) == ("Accepted", "2026-11-13")
+    assert entry["decided_by"] == "https://example.org/1"
+    assert "](adr/0001-one-decision.md)" in (repo / "docs/adr.md").read_text()
+    written = {rel: (repo / rel).read_text() for rel in ADR_INDEX}
+    for name, title in [("0002-misnumbered.md", "ADR-0003"), ("0001-again.md", "ADR-0001")]:
+        (repo / "docs/adr" / name).write_text(f"# {title}: A record\n")
+        for args in [(), ("--check",)]:
+            run = adr_index(repo, *args)
+            assert run.returncode == 1, (name, args)
+            assert f"docs/adr/{name}" in run.stdout, (name, args)
+        assert {rel: (repo / rel).read_text() for rel in ADR_INDEX} == written, name
+        (repo / "docs/adr" / name).unlink()
 
 
 def test_family_rules_render_the_same_in_every_source(keyed_nested: Path) -> None:
@@ -1264,6 +1346,17 @@ def test_the_template_keeps_its_changelog_entries_as_fragments() -> None:
         assert len([line for line in text.splitlines() if line.startswith("- ")]) == 1, path.name
 
 
+def test_the_template_keeps_its_decisions_as_a_render_does() -> None:
+    """The template keeps ``docs/adr/``, ``docs/reports/`` and the script of the index for
+    itself, the script and the two READMEs byte for byte the files it renders, and its own
+    index is current against its own records, run as a check runs it."""
+    for rel in ADR_TEMPLATE_FILES:
+        assert (ROOT / rel).read_bytes() == (ROOT / "template" / rel).read_bytes(), rel
+    assert os.access(ROOT / ADR_SCRIPT, os.X_OK)
+    run = adr_index(ROOT, "--check")
+    assert run.returncode == 0, run.stdout
+
+
 def test_publish_is_the_release_train(keyed_nested: Path) -> None:
     """Conventions §12: every push to main; a release tags itself; no concurrency group.
 
@@ -1371,6 +1464,116 @@ def test_every_command_points_at_the_process(keyless_flat: Path) -> None:
         for doc in ["definition-of-done.md", "review-checklist.md"]:
             assert SDK_CORE_DOCS + doc in flat, f"{path.name}: {doc}"
         assert "../" not in flat, f"{path.name}: a relative path leaves a worktree"
+
+
+# The four commands that work on a source (#126, the part of #114 on them) say how the work
+# is done and checked, and nothing on how a change lands: no branch, no tool that opens a
+# pull request, no merge and no pull request's body laid out. A source works alone, so they
+# name no tooling around the repository either.
+SOURCE_COMMANDS = [
+    "add-endpoint.md",
+    "record-fixture.md",
+    "refresh-reference-data.md",
+    "refresh-upstream.md",
+]
+LANDING = re.compile(
+    r"\bbranch(?:es)?\b|\b(?:feature|fix|chore)/|docs/upstream-|\bgh\b|\bmerg(?:e|es|ing)\b"
+    r"|as the definition of done says|\bcoordinat|\bworkspace\b",
+    re.I,
+)
+
+
+def test_the_commands_on_a_source_say_no_way_a_change_lands(variant: tuple[str, Path]) -> None:
+    """No line of the four commands names a branch, the GitHub CLI, a merge, the definition
+    of done as a body to copy, or anything outside the repository, in every render."""
+    _, dst = variant
+    found = []
+    for command in SOURCE_COMMANDS:
+        lines = (dst / ".claude/commands" / command).read_text().splitlines()
+        for number, line in enumerate(lines, 1):
+            if LANDING.search(line):
+                found.append(f"{command}:{number}: {line}")
+    assert not found, "\n".join(found)
+
+
+def test_the_commands_on_a_source_ask_for_a_changelog_fragment(keyed_nested: Path) -> None:
+    """#130: a change that brings an entry brings it as a fragment under ``changelog/``, as
+    the rendered ``changelog/README.md`` lays it out; no command asks for a line under
+    Unreleased. A fixture rides with the task it tests, so ``/record-fixture`` asks none."""
+    commands = keyed_nested / ".claude/commands"
+    for command in SOURCE_COMMANDS:
+        text = " ".join((commands / command).read_text().split())
+        assert "Unreleased" not in text, command
+        named = "`changelog/README.md`" in text and "`changelog/`" in text
+        assert named is (command != "record-fixture.md"), command
+
+
+def test_the_commands_name_wrappers_and_fixtures_as_the_conventions_do(
+    keyed_nested: Path,
+) -> None:
+    """#48, conventions §2 and §10: a wrapper's module and function carry the operation's
+    name, its verbatim id kept in ``endpoint=``, and a fixture lives under its wrapper's
+    name, ``tests/fixtures/<wrapper>/<case>.json``, as ``/add-endpoint`` hands it on; the
+    status table's cell follows what core's family check reads, a comment above the table
+    being no part of every README."""
+    commands = keyed_nested / ".claude/commands"
+    add = " ".join((commands / "add-endpoint.md").read_text().split())
+    record = " ".join((commands / "record-fixture.md").read_text().split())
+    assert "/api/<wrapper>.py`" in add
+    assert "`endpoint=`" in add
+    assert "`/record-fixture <wrapper> <case> <parameters>`" in add
+    assert "`tests/fixtures/<wrapper>/<case>.json`" in record
+    assert '"<wrapper>", "<case>"' in record, "the recording script's fixture_path"
+    for name, text in [("add-endpoint.md", add), ("record-fixture.md", record)]:
+        assert "<endpoint>" not in text, name
+        assert "<operation>.py" not in text, name
+    assert "`## Status`" in add
+    assert "`Task function`" in add
+
+
+def test_add_endpoint_checks_the_samples_where_the_source_parses_files(
+    variant: tuple[str, Path],
+) -> None:
+    """ADR-0020, conventions §10: the definition of done's checks of an endpoint hold its
+    item for a source that parses files, a sample per file kind under
+    ``tests/fixtures/files/<file_kind>/`` with its row in ``tests/fixtures/files/README.md``
+    and one live parser test, exactly where ``has_files`` renders ``parse/``."""
+    name, dst = variant
+    add = " ".join((dst / ".claude/commands/add-endpoint.md").read_text().split())
+    for path in ["`tests/fixtures/files/<file_kind>/`", "`tests/fixtures/files/README.md`"]:
+        assert (path in add) is has_files(VARIANTS[name]), f"{name}: {path}"
+
+
+def test_record_fixture_leaves_the_key_to_the_clients_refusal(variant: tuple[str, Path]) -> None:
+    """#63: no step reads a key's variable, not even to test that it is set: the client
+    refuses an unset key before it sends, with core's ``ConfigError`` naming the variable.
+    A source without a key names neither."""
+    name, dst = variant
+    text = (dst / ".claude/commands/record-fixture.md").read_text()
+    keys = key_envs(VARIANTS[name])
+    for key in keys:
+        assert f"`{key}`" in text, key
+        assert f"${key}" not in text, key
+        assert f"${{{key}}}" not in text, key
+    assert ("`ConfigError`" in text) is bool(keys), name
+    assert "[ -n " not in text
+
+
+def test_the_commands_on_a_source_name_what_their_rows_add(keyed_nested: Path) -> None:
+    """The names each row's sentence brings: the second case of a cap above the default,
+    whose page keeps its ``next_token`` (#89, ADR-0016 as amended 2026-10-30), a module of
+    the source's own beside the rendered tests that ``copier update`` leaves alone (#78), a
+    second base's absolute URL (#59), and the fixtures a reference refresh records again,
+    with ``fetched`` read from the packaged file (#70)."""
+    commands = keyed_nested / ".claude/commands"
+    add = " ".join((commands / "add-endpoint.md").read_text().split())
+    record = " ".join((commands / "record-fixture.md").read_text().split())
+    refresh = " ".join((commands / "refresh-reference-data.md").read_text().split())
+    for name in ["`MCP_CAPS`", "`next_token`", "`tests/test_tasks.py`", "`copier update`"]:
+        assert name in add, name
+    assert "absolute URL" in record
+    for name in ["`/record-fixture`", "`fetched`"]:
+        assert name in refresh, name
 
 
 def test_readme_status_table_has_the_columns_the_family_check_reads(keyless_flat: Path) -> None:
@@ -1770,8 +1973,9 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
     names = ["tasks.py", "_client.py", "errors.py", "__init__.py", "api/__init__.py"]
     mine = [f"{pkg}/{n}" for n in [*names, "parse/__init__.py"]]
     mine += ["tests/test_tasks.py", "tests/fixtures/files/README.md", "README.md", "CLAUDE.md"]
+    mine += [*FILLED_SCRIPTS, *ADR_INDEX]
     templates = [".claude/family.md", "tests/conftest.py", f"{pkg}/mcp.py", ".github/CODEOWNERS"]
-    templates += ["changelog/README.md"]
+    templates += ["changelog/README.md", *ADR_TEMPLATE_FILES]
     for rel in [*mine, *templates]:
         (dst / rel).write_text("# edited\n")
     generate(template_src, dst, **answers)
@@ -1779,6 +1983,55 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
         assert (dst / rel).read_text() == "# edited\n", f"{rel} is the source's"
     for rel in templates:
         assert (dst / rel).read_text() != "# edited\n", f"{rel} is the template's"
+
+
+def test_an_update_brings_the_index_and_keeps_a_sources_scripts(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """A source made before ``docs/adr/``, by a template whose ``_skip_if_exists`` kept all
+    of ``scripts/``, gets the folders, the index and its script at ``copier update``, the
+    index current, while the scripts it filled and a script of its own stay as they were:
+    the template names the two it renders for a source to fill, and renders no other."""
+    template = tmp_path / "template"
+    shutil.copytree(template_src, template)
+    for rel in [ADR_SCRIPT, *ADR_INDEX, "docs/adr", "docs/reports"]:
+        path = template / "template" / rel
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    config = (template / "copier.yml").read_text()
+    filled = "".join(f"  - {rel}\n" for rel in FILLED_SCRIPTS)
+    index = "".join(f"  - {rel}\n" for rel in ADR_INDEX)
+    assert filled in config, "the two scripts a source fills, each by its name"
+    assert index in config, "the index"
+    config = config.replace(filled, "  - scripts/**\n").replace(index, "")
+    (template / "copier.yml").write_text(config)
+    git(template, "init", "-q", "-b", "main")
+    git(template, "add", "-A")
+    git(template, "commit", "-q", "--no-verify", "-m", "before the ADR folder")
+    git(template, "tag", "v0.0.1")
+    shutil.copytree(template_src, template, dirs_exist_ok=True)
+    git(template, "add", "-A")
+    git(template, "commit", "-q", "--no-verify", "-m", "the ADR folder")
+    git(template, "tag", "v0.0.2")
+    dst = tmp_path / "repo"
+    answers = {**BASE_ANSWERS, **VARIANTS["keyless-flat"]}
+    run_copy(str(template), str(dst), data=answers, defaults=True, vcs_ref="v0.0.1", quiet=True)
+    assert not (dst / ADR_SCRIPT).exists()
+    own = dict.fromkeys([*FILLED_SCRIPTS, "scripts/cut_sample.py"], "# the source's\n")
+    for rel, text in own.items():
+        (dst / rel).write_text(text)
+    git(dst, "init", "-q", "-b", "main")
+    git(dst, "add", "-A")
+    git(dst, "commit", "-q", "--no-verify", "-m", "a source")
+    run_update(str(dst), defaults=True, overwrite=True, vcs_ref="v0.0.2", quiet=True)
+    for rel, text in own.items():
+        assert (dst / rel).read_text() == text, f"{rel} is the source's"
+    for rel in ADR_TEMPLATE_FILES:
+        assert (dst / rel).read_bytes() == (template_src / "template" / rel).read_bytes(), rel
+    run = adr_index(dst, "--check")
+    assert run.returncode == 0, run.stdout
 
 
 def test_sources_sharing_a_key_start_at_stable_different_times(
