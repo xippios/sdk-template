@@ -19,20 +19,118 @@ in the same adoption PR. A new file under those patterns is created by the updat
 the repository has no file of that name. The list starts with 0.1.5; earlier tags are not
 listed.
 
-## [Unreleased]
+## [0.3.3] - 2026-11-13
 
-### Removed
+With this release a generated repository works alone. Its README lists its documents, its
+`CLAUDE.md` and its commands say how the work is done and checked and nothing on how a
+change lands, its changelog entries are fragments under `changelog/`, its design decisions
+get a folder and an index, and it calls the organization's checks from `organization.yml`.
+The generated `/adopt-release` and `.claude/family.md` leave, and so do this repository's
+`scripts/new-source.sh` and `/new-source`: the two entries under Changed that name the
+script describe it before it left. No file of a generated repository under `src/` or
+`tests/` changes. A source takes the release with `copier update` and applies three notes
+by hand, all in its `README.md` and `CLAUDE.md`.
 
-- `.github/workflows/gates.yml` of a generated repository, the caller of the retired merge
-  gates, whose two reusable workflows are gone: its jobs failed at their start on every
-  pull request until they were disabled. The template renders the file no longer, and
-  `copier update` deletes a template-owned file the template stops rendering, so it needs
-  no Hand-apply bullet.
-- The template's own `.github/workflows/gates.yml`, the same caller, and the tests that
-  pinned both copies to core's bytes.
+### Added
+
+- A generated repository calls the organization's checks of a pull request from
+  `.github/workflows/organization.yml`: the conventions review as the job `conventions`,
+  passed `ANTHROPIC_API_KEY` alone, and the check of the ADR index as the job `adr-index`,
+  which runs the repository's own `scripts/adr_index.py --check`. The file has a name of its
+  own because GitHub keeps a workflow's state by its path and the sources disabled the old
+  caller, `gates.yml`, by hand. A source that still holds `gates.yml` loses it at
+  `copier update`, which renders it no longer, and gets the new workflow enabled, with no
+  setting to change. (https://github.com/xippios/sdk-template/issues/129)
+- A generated repository has `docs/adr/` for its design decisions, one `NNNN-<slug>.md`
+  record each, and `docs/reports/` for its dated reports, each folder with a README that
+  lays its files out, and this repository keeps the same. `scripts/adr_index.py`, which
+  needs the standard library alone, writes the index `docs/adr.md` and `docs/adr.json` from
+  the records' headers, and its `--check` fails while either is stale. The script and the
+  READMEs are the template's and the index is the source's, as `_skip_if_exists` now names
+  the two scripts a source fills instead of all of `scripts/`, so `copier update` creates
+  the new files and touches no script of a source's own.
+  (https://github.com/xippios/sdk-template/issues/121)
+- A generated repository keeps its changelog entries as fragments, one file per change
+  under `changelog/`, which the release assembles into `CHANGELOG.md` as the new
+  `changelog/README.md` lays out. Its `ci.yml` takes a fragment that a pull request adds or
+  changes as the CHANGELOG entry, beside a line under Unreleased in `CHANGELOG.md`, and
+  `copier update` brings both files, so nothing is applied by hand. The template keeps its
+  own entries the same way. (https://github.com/xippios/sdk-template/issues/122)
 
 ### Changed
 
+- A generated repository's README lists its documents under `## Documents`, each by its
+  file on GitHub, and links its license by URL, and its `CLAUDE.md` says what the package
+  wraps, its layout, its commands and its code rules, links that section, and names no
+  branch, no tool that opens a pull request, no merge and no reviewer. `.claude/family.md`
+  leaves, its rules now in the `CLAUDE.md`, the commands or sdk-core's documents, and
+  `/add-endpoint` and `/release-prep` follow: neither calls a hand-written enumeration
+  unexported any more, and the live run takes `--assert=plain`. The README's line above the
+  status table reads as a released README does, for new repositories only.
+  (https://github.com/xippios/sdk-template/issues/128,
+  https://github.com/xippios/sdk-template/issues/82)
+  - Hand-apply: `README.md` — add `## Documents` above `## Licence` with the six items of
+    `template/README.md.jinja` at this tag, `sdk-<slug>` in the source's own two, link the
+    license as `https://github.com/xippios/sdk-<slug>/blob/main/LICENSE`, and in the
+    comment above the status table name `tasks_write.__all__` beside `tasks.__all__` — the
+    README is the one list of the repository's documents, PyPI shows it with no repository
+    around it to resolve a relative link, and core's family check reads both task lists.
+    `CLAUDE.md` — delete the `@.claude/family.md` line and the sentence before it that names
+    the file, then rewrite the rest once after `template/CLAUDE.md.jinja` at this tag. Take
+    the intro's link to `README.md#documents`, the Layout's entries for `models.py`, `api/`,
+    `scripts/adr_index.py`, `docs/`, `changelog/` and `CHANGELOG.md`, its
+    `.github/workflows/` entry with `organization.yml` and the comma before `siblings.yml`,
+    and the sentence on one module per service below it, the Commands with
+    `--assert=plain` and the live run's secrets named after its keys, and the sections Code
+    rules, Never, Template updates and When something is unclear, the secrecy rule naming
+    each of the source's credential variables. Keep the table, the Layout's own entries and
+    the specifics as the source wrote them, and move into the file any line the source had
+    added to its `.claude/family.md` — the update deletes `.claude/family.md`, a source's
+    own lines in it included, so its rules stand in the `CLAUDE.md` or in sdk-core's
+    documents, and no file of the source names a branch, a merge or a reviewer.
+- The changelog step of the generated `ci.yml` exempts Dependabot's branch alone and tells a
+  release by no branch name: a release's pull request changes `CHANGELOG.md` and passes as
+  any other does. `copier update` brings it, so nothing is applied by hand.
+  (https://github.com/xippios/sdk-template/issues/136)
+- The generated `.github/CODEOWNERS` opens with a header that says what the file is, the
+  paths whose change needs the owner's review, rendered from the `human` answer, and names
+  no tool around the repository. The answer's help says the same. `copier update` brings
+  it, so nothing is applied by hand. (https://github.com/xippios/sdk-template/issues/129)
+- The generated `live.yml` runs the live tests with `--assert=plain` beside `--tb=short`, so
+  a failed assertion prints its line and `AssertionError` in the run's log, never the values
+  it compared, a record of the upstream among them. `copier update` brings it, so nothing is
+  applied by hand. (https://github.com/xippios/sdk-template/issues/58)
+- The generated `.github/PULL_REQUEST_TEMPLATE.md` links sdk-core's definition of done where
+  it copied it, so no copy lags it: a summary, what was checked, the assumptions and the
+  decisions taken, the changelog entry asked for as a fragment under `changelog/`. It
+  describes no adoption pull request and no merge, and `copier update` brings it, so nothing
+  is applied by hand. (https://github.com/xippios/sdk-template/issues/107,
+  https://github.com/xippios/sdk-template/issues/52,
+  https://github.com/xippios/sdk-template/issues/82)
+- The generated `/release-prep` assembles the release's section from the fragments under
+  `changelog/` and what `## [Unreleased]` holds, by hand as `changelog/README.md` lays it
+  out, and deletes the fragments. It keeps the source's own checks before a release, among
+  them the refresh that gets no pull request while its records stay unchanged, a green live
+  run over the release's base and the pending publisher's project name, and says nothing on
+  how the pull request is opened or merged.
+  (https://github.com/xippios/sdk-template/issues/130,
+  https://github.com/xippios/sdk-template/issues/127)
+- The generated `.claude/settings.json` allows the checks and local git and no longer
+  allows a push, a pull request, a merge or the GitHub CLI's views, so Claude Code asks
+  before each. This repository's own file takes the same rules and drops its deny of
+  `gh pr merge`, which is asked from now on, so both deny the same, what destroys work or
+  reads a secret, and it allows `scripts/prove.sh` beside them.
+  (https://github.com/xippios/sdk-template/issues/127)
+- The generated `/add-endpoint`, `/record-fixture`, `/refresh-reference-data` and
+  `/refresh-upstream` say how the work is done and checked and nothing on how a change
+  lands: no branch, no command that opens a pull request and no merge, the checks of
+  sdk-core's definition of done for the change listed in the command, and a changelog entry
+  asked for as a fragment under `changelog/`. They name wrappers and fixtures by
+  conventions §2 and §10, leave the key to the client's own `ConfigError`, and take the
+  second case of a cap above the default, a second base's absolute URL, a module of tests
+  of a source's own beside `tests/test_tasks.py`, a reference script of a source's own
+  shape and the fixtures a reference refresh records again. `copier update` brings them,
+  so nothing is applied by hand. (ADR-0016, https://github.com/xippios/sdk-template/issues/126)
 - The template's own `CLAUDE.md`, README, `copier.yml` comments, `scripts/new-source.sh`,
   `/new-source` and `release.yml` comment name neither the retired gates and their
   `GATES_CALLER` switch nor the merge classes, nor the branch names, the pull-request body
@@ -44,6 +142,38 @@ listed.
 - The generated `CLAUDE.md`'s layout names no `gates.yml` and gives the fixtures' path as
   `<wrapper>/<case>.json`, as conventions §10 does. `CLAUDE.md` is under
   `_skip_if_exists`, so a source applies it by hand.
+
+### Fixed
+
+- The template's own `pyproject.toml` names the template's latest release, where it said
+  0.1.0, and each release's pull request sets it with the heading it writes into
+  `CHANGELOG.md`. A test holds the two equal, and the template's CI syncs with
+  `uv sync --locked`, which fails on a `uv.lock` the manifest has left behind. A generated
+  repository is unchanged. (https://github.com/xippios/sdk-template/issues/101)
+
+### Removed
+
+- This repository no longer has `scripts/new-source.sh` or its `/new-source` command: a
+  source is generated with `copier copy` from the template's URL at its latest tag, as the
+  README lays out with the answers and their evidence, and `scripts/prove.sh` renders its
+  proofs the same way and runs the checks itself. What the script did on GitHub, the
+  repository with its topics and settings, the `pypi` environment and the first pull
+  request, is left to whoever creates the repository, and a generated repository is
+  unchanged. (https://github.com/xippios/sdk-template/issues/119)
+- A generated repository no longer has `/adopt-release`: `copier update` deletes its copy.
+  A template release is taken with `uvx --from 'copier>=9.19' copier update --defaults
+  --vcs-ref=<tag>` in a pull request of its own, as the generated `/release-prep` says, and
+  this `CHANGELOG.md` says what each release asks to be applied by hand.
+  (https://github.com/xippios/sdk-template/issues/120)
+  - Hand-apply: `CLAUDE.md` — drop `adopt-release` from the layout's `.claude/commands/`
+    line — the update deletes the command.
+- `.github/workflows/gates.yml` of a generated repository, the caller of the retired merge
+  gates, whose two reusable workflows are gone: its jobs failed at their start on every
+  pull request until they were disabled. The template renders the file no longer, and
+  `copier update` deletes a template-owned file the template stops rendering, so it needs
+  no Hand-apply bullet.
+- The template's own `.github/workflows/gates.yml`, the same caller, and the tests that
+  pinned both copies to core's bytes.
 
 ### Hand-apply
 
