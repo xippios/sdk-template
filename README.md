@@ -95,6 +95,7 @@ sdk-<slug>/
   .claude/settings.json  .github/workflows/{ci,publish,live}.yml  .github/PULL_REQUEST_TEMPLATE.md
   .github/CODEOWNERS   the human paths, each owned by the human answer (C70)
   CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
+  changelog/README.md  the changelog fragments: one file per change, assembled at the release
   .gitattributes       docs/upstream/** -text, so upstream files keep their bytes and line endings
   .github/workflows/siblings.yml  .github/scripts/check-siblings.sh   where the import path nests
                        or the source declares a dependency
@@ -106,8 +107,8 @@ check, which then keeps the layout, the adapters, the task shapes, the README st
 table, the template tag and the core bound honest as tasks are added. A generated
 package is read-only: the template renders no write tools. `ci.yml` also requires a
 CHANGELOG entry on every PR but a release or Dependabot's, an adoption PR's included
-(conventions §15 item 9), and fails on a fixture file over 256 KiB; `publish.yml` is the
-release train. `live.yml` runs every `live` test every night and on demand. Its start
+(conventions §15 item 9), as a fragment under `changelog/` or a line in `CHANGELOG.md`,
+and fails on a fixture file over 256 KiB; `publish.yml` is the release train. `live.yml` runs every `live` test every night and on demand. Its start
 time derives from the slug, between 01:00 and 05:59 UTC, so sources that
 share a key do not start together; only its pytest step sees the keys, from the org
 secrets named by `api_key_env` and by `source_dependencies`' `key_env`, and the other
@@ -145,9 +146,10 @@ task and live tests and the fixtures, upstream snapshot, README, CHANGELOG and C
 are never overwritten once they exist, so a template fix to one of them does not reach
 existing repositories by itself; one the template stops rendering, though, is deleted by
 the update where the repository's earlier render had it, the source's content included.
-[CHANGELOG.md](CHANGELOG.md) lists those fixes per release under **Hand-apply**: path,
-change, reason; port each one by hand in the same PR. A new file under those patterns is
-created by the update where the repository has none of that name. Every other
+[CHANGELOG.md](CHANGELOG.md) lists those fixes per release, path, change and reason, in a
+**Hand-apply** list at the section's end or, from 0.3.3, in a `Hand-apply:` note under
+the change's bullet; port each one by hand in the same PR. A new file under those
+patterns is created by the update where the repository has none of that name. Every other
 file is the template's: `.claude/family.md`, `tests/conftest.py` and `tests/test_family.py`
 among them are re-rendered, and a source's own lines in them are merged three ways,
 conflicts marked. A template-owned file a release removes is deleted by the update, a
@@ -168,10 +170,13 @@ scripts/prove.sh --gateway         # a nested source behind api.data.gov; CI run
 
 ## Releasing the template
 
-The template follows the release train (conventions §12): a release PR turns
-`## [Unreleased]` in `CHANGELOG.md` into `## [X.Y.Z] - <date>`, the section perhaps with
-a lead paragraph and its internal labels put into plain words, and changes no file
-outside conventions §12's release subset; the template has no version to bump.
+Every change brings its CHANGELOG entry as a fragment under `changelog/`, one file per
+change, as [changelog/README.md](changelog/README.md) lays it out. The template follows
+the release train (conventions §12): a release PR assembles the fragments and what
+`## [Unreleased]` holds into `## [X.Y.Z] - <date>` in `CHANGELOG.md`, the section perhaps
+with a lead paragraph and its internal labels put into plain words, deletes the
+fragments, and changes no other file outside conventions §12's release subset; the
+template has no version to bump.
 Its merge on `main` runs `.github/workflows/release.yml`, which tags `vX.Y.Z` on the
 merge commit with that section as the tag's message; every other push to `main` finds
 the top heading tagged and ends quietly. No session and no human pushes the tag.

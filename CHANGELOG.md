@@ -3,18 +3,21 @@
 All notable changes to sdk-template are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the template uses
 [Semantic Versioning](https://semver.org/). A generated repository records the tag it
-was made from in `.copier-answers.yml`.
+was made from in `.copier-answers.yml`. From 0.3.3 each change brings its entry as a
+fragment under `changelog/`, which the release assembles into its section here, as
+[changelog/README.md](changelog/README.md) lays it out.
 
-Every release ends with a **Hand-apply** list. `copier update` carries a template change
-into the files it renders, but never touches a file under `_skip_if_exists` in
-`copier.yml` once that file exists (the package `__init__.py`, the client, models,
-endpoint wrappers, the task layer, the packaged lists and enums, reference data, scripts,
-the task and live tests and the fixtures, upstream snapshot, README, CHANGELOG and, from
-0.3.0, the package's errors, its file parsers and CLAUDE.md). Each change to such a file
-is one bullet, `` - `<path>` — <what> — <why> ``; port it by hand in the same adoption
-PR. A new file under those patterns is created by the update where the repository has no
-file of that name. The list starts with 0.1.5; earlier tags
-are not listed.
+Every release names what a source applies by hand: in a **Hand-apply** list at its end
+or, from 0.3.3, in a `Hand-apply:` note under the bullet of the change. `copier update`
+carries a template change into the files it renders, but never touches a file under
+`_skip_if_exists` in `copier.yml` once that file exists (the package `__init__.py`, the
+client, models, endpoint wrappers, the task layer, the packaged lists and enums,
+reference data, scripts, the task and live tests and the fixtures, upstream snapshot,
+README, CHANGELOG and, from 0.3.0, the package's errors, its file parsers and CLAUDE.md).
+Each change to such a file is one item, `` `<path>` — <what> — <why> ``; port it by hand
+in the same adoption PR. A new file under those patterns is created by the update where
+the repository has no file of that name. The list starts with 0.1.5; earlier tags are not
+listed.
 
 ## [Unreleased]
 
