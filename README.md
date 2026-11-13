@@ -174,9 +174,10 @@ the release train (conventions §12): a release PR assembles the fragments and w
 `## [Unreleased]` holds into `## [X.Y.Z] - <date>` in `CHANGELOG.md`, the section perhaps
 with a lead paragraph and its internal labels put into plain words, deletes the
 fragments, and changes no other file outside conventions §12's release subset. It also
-sets `version` in `pyproject.toml` to `X.Y.Z` and locks again (`uv lock`): no package is
-built from the manifest, but it names the template's latest release, and
-`tests/test_template.py` holds it to the top release heading of `CHANGELOG.md`.
+sets `version` in `pyproject.toml` to `X.Y.Z` and locks again with `uv lock`, which CI's
+`uv sync --locked` checks. No package is built from the manifest, but it names the
+template's latest release, and `tests/test_template.py` holds it to the top release
+heading of `CHANGELOG.md`.
 Its merge on `main` runs `.github/workflows/release.yml`, which tags `vX.Y.Z` on the
 merge commit with that section as the tag's message; every other push to `main` finds
 the top heading tagged and ends quietly. No session and no human pushes the tag.
