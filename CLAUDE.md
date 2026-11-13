@@ -35,8 +35,7 @@ template/                what gets generated; *.jinja files are rendered, others
                          that parses files (ADR-0020), skip-listed, only their names conditional
   scripts/refresh_upstream.py.jinja  the capture skeleton a source fills (/refresh-upstream)
   tests/test_family.py   one line collecting xippios.core.testing.family
-  changelog/README.md    a generated repo's changelog fragments; verbatim, the source's once rendered
-                         (the README.md pattern of _skip_if_exists)
+  changelog/README.md    a generated repo's changelog fragments; verbatim, the same in every source
   .gitattributes         docs/upstream/** -text: the snapshot stays byte for byte (CRLF, mixed endings)
 scripts/new-source.sh    generate + checks + GitHub repo + PR (the /new-source command)
 scripts/prove.sh         generate sdk-example-api (--keyless: sdk-example; --keyless-nested: sdk-example-files;
@@ -132,9 +131,10 @@ changelog/               the next release's entries, one fragment per change; RE
   Changelog) as a fragment, `changelog/<group>-<slug>.md` holding one bullet, as
   `changelog/README.md` lays it out; the release assembles the fragments into its section.
   A change to a generated file under `_skip_if_exists` adds a note under its bullet,
-  `` - Hand-apply: `<path>` — <what> — <why> ``, because `copier update` never touches
-  those files once they exist; a change that matters to new repositories only (a
-  scaffold's starting text) says so in its bullet instead. Releases up to 0.3.2 end with
+  `` - Hand-apply: `<path>` — <what> — <why>. ``, because `copier update` never touches
+  those files once they exist; a change to several such files names each in its one
+  note, an item per file on a line of its own, and a change that matters to new
+  repositories only (a scaffold's starting text) says so in its bullet instead. Releases up to 0.3.2 end with
   a `### Hand-apply` list instead of the notes.
 - Jinja renders with `trim_blocks` and `lstrip_blocks`, so a line holding only a block tag
   disappears, and a block tag at the end of a line takes that line's newline with it. A

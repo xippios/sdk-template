@@ -16,11 +16,13 @@ A generated repository gets the same folder, its rule in `template/changelog/REA
   say how it is used or what it replaces. Its citations close it in parentheses: an
   `ADR-NNNN` it follows, and the URL of the issue it answers.
 - **Its Hand-apply note.** A change to a generated file under `_skip_if_exists` in
-  `copier.yml`, which `copier update` never touches once it exists, adds one line under its
-  bullet, indented by two spaces, `` - Hand-apply: `<path>` — <what> — <why> ``: the port a
-  source makes by hand in its adoption. The note continues on lines indented by four spaces,
-  and a change has one at most. A change that matters to new repositories only, such as a
-  scaffold's starting text, says so in its bullet instead.
+  `copier.yml`, which `copier update` never touches once it exists, adds one note under its
+  bullet, indented by two spaces, `` - Hand-apply: `<path>` — <what> — <why>. ``: the port a
+  source makes by hand in its adoption. A change has one note at most, and a change to
+  several such files names each in it, one item `` `<path>` — <what> — <why>. `` per file,
+  each after the first on a line of its own indented by four spaces, as every line the note
+  continues is. A change that matters to new repositories only, such as a scaffold's
+  starting text, says so in its bullet instead.
 - **When.** Every pull request that changes more than the documentation adds one. A pull
   request that changes an entry not yet released edits its fragment.
 
@@ -31,6 +33,13 @@ A generated repository gets the same folder, its rule in `template/changelog/REA
   conventions §10 does. (https://github.com/xippios/sdk-template/issues/99)
   - Hand-apply: `CLAUDE.md` — write the `fixtures/` line's path as `<wrapper>/<case>.json`
     — conventions §10 names a fixture's directory after its wrapper.
+```
+
+The note of a change to two such files:
+
+```markdown
+  - Hand-apply: `README.md` — <what> — <why>.
+    `CLAUDE.md` — <what> — <why>.
 ```
 
 ## The release

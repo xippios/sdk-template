@@ -332,6 +332,8 @@ _envops:
 # tests/conftest.py and tests/test_family.py among them. Copier renders these
 # patterns, so those inside the package name its directory: src/xippios/**/api/** would
 # also match the whole package of a slug ending in -api (example-api's xippios/example/api/).
+# They read as gitignore lines, so /README.md is the source's README at the root alone:
+# README.md would match changelog/README.md too, which every source shares.
 _skip_if_exists:
   - src/xippios/{{ package_dir }}/__init__.py
   - src/xippios/{{ package_dir }}/_client.py
@@ -348,6 +350,6 @@ _skip_if_exists:
   - tests/test_live.py
   - tests/fixtures/**
   - docs/upstream/**
-  - README.md
+  - /README.md
   - CHANGELOG.md
   - CLAUDE.md
