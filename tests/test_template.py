@@ -2932,8 +2932,12 @@ RELEASE_HEADING = re.compile(r"^## \[(\d+\.\d+\.\d+)\] - ", re.M)
 def test_the_manifest_names_the_latest_release() -> None:
     """The template's version is its latest release's: the release's pull request sets
     ``version`` in pyproject.toml with the CHANGELOG heading that release.yml tags, so a
-    reader of the manifest bumps from the released version, never from 0.1.0 (#101)."""
+    reader of the manifest bumps from the released version, never from 0.1.0 (#101). It
+    locks again too: CI's ``uv sync --frozen`` passes on a lock that names the old one."""
     heading = RELEASE_HEADING.search((ROOT / "CHANGELOG.md").read_text())
     assert heading, "CHANGELOG.md has no release heading"
-    manifest = tomllib.loads((ROOT / "pyproject.toml").read_text())
-    assert manifest["project"]["version"] == heading[1]
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    assert project["version"] == heading[1]
+    lock = tomllib.loads((ROOT / "uv.lock").read_text())
+    (locked,) = [p["version"] for p in lock["package"] if p["name"] == project["name"]]
+    assert locked == project["version"], "uv.lock: run uv lock"
