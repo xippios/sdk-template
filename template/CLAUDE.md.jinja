@@ -86,7 +86,9 @@ changelog/         the next release's changelog entries, one fragment per change
 CHANGELOG.md       the releases, each section assembled from the fragments
 .github/workflows/ ci.yml (the required ci check, with the changelog and fixture-size steps),
                    publish.yml (the release train: tag, build, PyPI), live.yml (nightly live
-                   tests){{ ',' if '.' in import_path or depends_on else '' }}
+                   tests), organization.yml (the organization's checks from xippios/.github:
+                   conventions, a review of a pull request against the documents the README
+                   lists, and adr-index, which runs scripts/adr_index.py --check){{ ',' if '.' in import_path or depends_on else '' }}
 {% if '.' in import_path %}
                    siblings.yml (the sibling proof of ADR-0006: this wheel beside the
                    siblings under xippios.{{ import_path.rsplit('.', 1)[0] }}{{ ' and the source packages it depends on (ADR-0021)' if depends_on else '' }}, a visible check the ruleset does not require)

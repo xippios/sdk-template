@@ -17,8 +17,9 @@
     `CLAUDE.md` — delete the `@.claude/family.md` line and the sentence before it that names
     the file, then rewrite the rest once after `template/CLAUDE.md.jinja` at this tag. Take
     the intro's link to `README.md#documents`, the Layout's entries for `models.py`, `api/`,
-    `scripts/adr_index.py`, `docs/`, `changelog/` and `CHANGELOG.md` with the comma before
-    `siblings.yml` and the sentence on one module per service below it, the Commands with
+    `scripts/adr_index.py`, `docs/`, `changelog/` and `CHANGELOG.md`, its
+    `.github/workflows/` entry with `organization.yml` and the comma before `siblings.yml`,
+    and the sentence on one module per service below it, the Commands with
     `--assert=plain` and the live run's secrets named after its keys, and the sections Code
     rules, Never, Template updates and When something is unclear, the secrecy rule naming
     each of the source's credential variables. Keep the table, the Layout's own entries and
