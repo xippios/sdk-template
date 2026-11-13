@@ -6,9 +6,9 @@
 
 <!-- What the change was checked against: each item of sdk-core's definition of done that
 applies to it, https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md,
-with its result or the one-line reason it does not apply; the changelog entry, a fragment
-under `changelog/` as `changelog/README.md` lays it out; and the live calls the change
-spent, keyed calls by number, `none` being a count. -->
+with its result; the changelog entry, a fragment under `changelog/` as
+`changelog/README.md` lays it out; and the live calls the change spent, keyed calls by
+number, `none` being a count. -->
 
 ## Assumptions
 

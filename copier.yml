@@ -311,9 +311,9 @@ human:
   type: str
   help: >-
     The GitHub login of the human, without the @: .github/CODEOWNERS names it as the
-    owner of the paths that steer the repository, its workflows, CLAUDE.md, .claude/,
-    pyproject.toml and the answers, so a change to one waits for that human's review.
-    jdidaskalu, the default.
+    owner of the paths that steer the repository, .github/, CLAUDE.md, .claude/, rules/,
+    pyproject.toml and .copier-answers.yml, so a change to one waits for that human's
+    review. jdidaskalu, the default.
   default: jdidaskalu
   validator: >-
     {% if not (human | regex_search('^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\Z')) or human | length > 39 %}

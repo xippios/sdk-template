@@ -7,13 +7,14 @@
 # documents this repository's README links under `## Documents`, read from main. The
 # variable CONVENTIONS_REVIEW, the repository's over the organization's, sets its mode:
 # `release`, the default, reviews a release pull request, one labeled `release` or titled
-# `<version> Release`, and passes any other with a notice and no API call; `all` reviews
-# every pull request and `off` none. The job grants what the review asks, `pull-requests:
-# write` for its one comment and `checks: read` for the head's checks, and passes it one
-# secret by name. The workflow runs on `edited`, since the review reads the title and the
-# description and a change of the base arrives as `edited`, and on `labeled`, so that the
-# label `release` set after the opening starts the review; on `labeled` the review runs for
-# that label alone.
+# `<version> Release`, `all` reviews every pull request and `off` none. Under `release` and
+# `off`, the callee's own condition skips a pull request that is no release: no runner
+# starts, no API call is made, no notice is left, and the check reports as skipped and
+# passing. The job grants what the review asks, `pull-requests: write` for its one comment
+# and `checks: read` for the head's checks, and passes it one secret by name. The workflow
+# runs on `edited`, since the review reads the title and the description and a change of
+# the base arrives as `edited`, and on `labeled`, so that the label `release` set after the
+# opening starts the review; on `labeled` the review runs for that label alone.
 #
 # `adr-index`, check `adr-index / adr-index`, runs this repository's own
 # `scripts/adr_index.py --check`, which fails while `docs/adr.md` or `docs/adr.json` is not
