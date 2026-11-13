@@ -210,7 +210,6 @@ REPOSITORY_FILES = [
     ".claude/commands/refresh-upstream.md",
     ".claude/commands/refresh-reference-data.md",
     ".claude/commands/release-prep.md",
-    ".claude/commands/adopt-release.md",
 ]
 
 # Template v0.2.1 deleted the two structural tests: core's family check, which
@@ -1380,39 +1379,58 @@ def test_publish_is_the_release_train(keyed_nested: Path) -> None:
     assert "-d core_git_ref= -d core_version=X.Y.Z" in release_prep, "the pin goes first"
 
 
-def test_no_command_merges_a_pull_request(keyed_nested: Path) -> None:
-    """``/adopt-release`` and ``/release-prep`` open the pull request and stop: it merges
-    under the rulesets of ``main``, never by a ``gh pr merge`` the command runs."""
-    for command in ["adopt-release.md", "release-prep.md"]:
-        text = (keyed_nested / ".claude/commands" / command).read_text()
-        assert "gh pr merge" not in text, command
+# /release-prep keeps the source's own checks before a release (#114, #127): the release
+# train as `publish.yml` runs it, which tags the merge commit, and nothing on how the
+# release's pull request is opened or merged, by whom, or from which branch. A source works
+# alone, so it names no tooling around the repository either.
+RELEASE_LANDING = re.compile(
+    r"\bbranch(?:es)?\b|\b(?:feature|fix|chore)/|\bgh\b|\bmerg(?:e|es|ed|ing)\b(?! commit)"
+    r"|\brulesets?\b|\breviewer\b|as the definition of done says|force-push|\bJohannes\b"
+    r"|\bcoordinat|\bworkspace\b",
+    re.I,
+)
 
 
-def test_adopt_release_runs_the_update_for_this_source(render: Callable[[str], Path]) -> None:
-    """Conventions §15, ADR-0018: one chore/template-update PR that names the nine items
-    and whose commands name this source, the key's ini option only where there is a key,
-    and a dependency's minor raised with the core's only where there is one (ADR-0021)."""
-    update = (
-        "uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=<tag>"
-        " -d core_version=X.Y.Z -d core_git_ref="
-    )
-    items = ["Items 1 and 2", "Items 3 and 4", *(f"Item {n}:" for n in range(5, 10))]
-    for name in ["keyed-nested", "keyless-flat", "dependency"]:
-        dst = render(name)
-        text = (dst / ".claude/commands/adopt-release.md").read_text()
-        for item in items:
-            assert item in text, f"{item}: every item of conventions §15"
-        assert update in text
-        assert "`chore/template-update-<tag>`" in text
-        assert "`https://github.com/xippios/sdk-template/blob/<tag>/CHANGELOG.md`" in text
-        assert "`git show HEAD:tests/test_adapters.py`" in text
-        assert "uv run python scripts/refresh_reference.py --render-only" in text, "§15 item 6"
-        keys = key_envs(VARIANTS[name])
-        assert ("xippios_placeholder_key_envs" in text) is bool(keys), name
-        for key in keys:
-            assert f"`{key}`" in text, key
-        depended = dependencies(VARIANTS[name])
-        assert ("-d source_dependencies=" in text) is bool(depended), name
+def test_release_prep_says_no_way_a_release_lands(variant: tuple[str, Path]) -> None:
+    """``/release-prep`` names no branch, no GitHub CLI, no merge but the merge commit the
+    release train tags, no reviewer, no person and nothing outside the repository, in every
+    render."""
+    _, dst = variant
+    text = " ".join((dst / ".claude/commands/release-prep.md").read_text().split())
+    found = [text[max(m.start() - 40, 0) : m.end() + 40] for m in RELEASE_LANDING.finditer(text)]
+    assert not found, "\n".join(found)
+
+
+def test_release_prep_assembles_the_fragments(keyed_nested: Path) -> None:
+    """#130: the release's section takes the fragments under ``changelog/`` with what
+    ``## [Unreleased]`` holds, as the rendered ``changelog/README.md`` lays it out."""
+    text = " ".join((keyed_nested / ".claude/commands/release-prep.md").read_text().split())
+    for name in ["`changelog/`", "`changelog/README.md`", "`## [Unreleased]`"]:
+        assert name in text, name
+    assert (keyed_nested / "changelog/README.md").is_file()
+
+
+def test_release_prep_names_what_its_rows_add(variant: tuple[str, Path]) -> None:
+    """The names each row's sentence brings: the pending publisher's project, the
+    distribution's name in ``pyproject.toml`` (#72); the refresh that gets no pull request
+    of its own while its records stay unchanged, ``fetched`` aside (#39); the live run over
+    the release's base (#73); ``docs/handover.md`` only as sdk-core's file, which no render
+    has (#75); and the update that takes a template release, in a file every source gets
+    from the template (#120)."""
+    _, dst = variant
+    text = " ".join((dst / ".claude/commands/release-prep.md").read_text().split())
+    project = tomllib.loads((dst / "pyproject.toml").read_text())["project"]["name"]
+    assert f"project name `{project}`" in text, "#72"
+    for name in ["`/refresh-reference-data`", "`fetched`"]:
+        assert name in text, f"#39: {name}"
+    assert "`live.yml`" in text, "#73"
+    (local,) = [s for s in re.split(r"(?<=[.:;])\s", text) if "pytest -m live --tb=short" in s]
+    assert 0 <= local.find("dispatch") < local.find("pytest -m live"), f"#73: {local}"
+    sentences = [s for s in re.split(r"(?<=[.:;])\s", text) if "docs/handover.md" in s]
+    assert sentences, "#75"
+    assert all("sdk-core" in sentence for sentence in sentences), sentences
+    assert not (dst / "docs/handover.md").exists(), "#75"
+    assert "copier update --defaults --vcs-ref=<tag>`" in text, "#120"
 
 
 def assigned(tree: ast.Module) -> set[str]:
@@ -1455,15 +1473,98 @@ def test_reference_data_is_packaged_lists_and_one_renderer(keyless_flat: Path) -
     assert "uv run python scripts/refresh_reference.py --render-only" in command
 
 
+# The commands a render has: the four that work on a source and /release-prep (#120 retired
+# the sixth, since a template release is taken with one `copier update`).
+RENDERED_COMMANDS = [
+    "add-endpoint",
+    "record-fixture",
+    "refresh-reference-data",
+    "refresh-upstream",
+    "release-prep",
+]
+COMMAND_NAMED = re.compile(r"`/([a-z]+(?:-[a-z]+)*)[` ]")
+
+
+def layout_commands(text: str) -> list[str]:
+    """The commands a layout lists after ``.claude/commands/``, a trailing comma carrying
+    the list onto the next line."""
+    match = re.search(r"^\s*\.claude/commands/[ \t]+((?:[a-z-]+,\s*)*[a-z-]+)", text, re.M)
+    assert match, "a layout line lists the commands"
+    return re.split(r",\s*", match[1])
+
+
 def test_every_command_points_at_the_process(keyless_flat: Path) -> None:
     """The definition of done and the review checklist, by URL, instead of repeated text."""
     commands = sorted((keyless_flat / ".claude/commands").glob("*.md"))
-    assert len(commands) == 6
+    assert [path.stem for path in commands] == RENDERED_COMMANDS, "#120"
     for path in commands:
         flat = " ".join(path.read_text().split())
         for doc in ["definition-of-done.md", "review-checklist.md"]:
             assert SDK_CORE_DOCS + doc in flat, f"{path.name}: {doc}"
         assert "../" not in flat, f"{path.name}: a relative path leaves a worktree"
+
+
+def test_a_render_names_only_the_commands_it_has(variant: tuple[str, Path]) -> None:
+    """#120: every ``/<command>`` a render's files name is one it has, and its
+    ``CLAUDE.md`` lists them all in its layout, so a retired command leaves no mention."""
+    _, dst = variant
+    named: set[str] = set()
+    for path in dst.rglob("*"):
+        if path.is_file() and path.suffix in TEXT_SUFFIXES:
+            named |= set(COMMAND_NAMED.findall(path.read_text()))
+    assert named <= set(RENDERED_COMMANDS), named - set(RENDERED_COMMANDS)
+    assert sorted(layout_commands((dst / "CLAUDE.md").read_text())) == RENDERED_COMMANDS
+
+
+def test_the_templates_own_files_list_the_rendered_commands() -> None:
+    """#120: this README's generated tree and this CLAUDE.md's layout list the commands a
+    render has, and neither names a command that neither renders nor this repository has."""
+    own = {path.stem for path in (ROOT / ".claude/commands").glob("*.md")}
+    for name in ["README.md", "CLAUDE.md"]:
+        text = (ROOT / name).read_text()
+        assert sorted(layout_commands(text)) == sorted(RENDERED_COMMANDS), name
+        named = set(COMMAND_NAMED.findall(text))
+        assert named <= set(RENDERED_COMMANDS) | own, f"{name}: {named}"
+
+
+# What a repository's own Claude settings allow (#127, and the template's own file with
+# them, #43): its checks and local git, a deny for what destroys work or reads a secret, and
+# no push, no pull request and no merge, which Claude Code then asks the person about.
+SETTINGS_CHECKS = {
+    "Bash(uv run:*)",
+    "Bash(git status:*)",
+    "Bash(git diff:*)",
+    "Bash(git log:*)",
+    "Bash(git add:*)",
+    "Bash(git commit:*)",
+}
+SETTINGS_DENY = {
+    "Bash(git push --force:*)",
+    "Bash(git push -f:*)",
+    "Bash(git reset --hard:*)",
+    "Bash(rm -rf:*)",
+    "Bash(gh secret:*)",
+    "Read(**/.envrc)",
+    "Read(**/.env)",
+}
+
+
+def test_the_settings_allow_no_way_to_a_pull_request(keyed_nested: Path) -> None:
+    """A render's settings and this repository's allow the checks and local git and nothing
+    that reaches GitHub, deny the same, and name no merge; this repository's allow its own
+    proof beside the render's."""
+    rendered = json.loads((keyed_nested / ".claude/settings.json").read_text())["permissions"]
+    own = json.loads((ROOT / ".claude/settings.json").read_text())["permissions"]
+    for name, rules in [("render", rendered), ("template", own)]:
+        assert set(rules) == {"allow", "deny"}, name
+        assert set(rules["allow"]) >= SETTINGS_CHECKS, name
+        assert set(rules["deny"]) >= SETTINGS_DENY, name
+        remote = [r for r in rules["allow"] if r.startswith(("Bash(git push", "Bash(gh "))]
+        assert not remote, f"{name}: {remote}"
+        assert not [r for r in rules["allow"] + rules["deny"] if "merge" in r], name
+    assert own["deny"] == rendered["deny"], "one shape (#43)"
+    assert set(own["allow"]) - set(rendered["allow"]) == {"Bash(scripts/prove.sh:*)"}
+    assert set(rendered["allow"]) <= set(own["allow"])
 
 
 # The four commands that work on a source (#126, the part of #114 on them) say how the work
@@ -1585,16 +1686,16 @@ def test_readme_status_table_has_the_columns_the_family_check_reads(keyless_flat
 
 
 def test_the_files_a_source_fills_are_one_list(keyless_flat: Path) -> None:
-    """The family rules and /adopt-release name every protected path, in skip order; a
-    pattern anchored at the root by its slash is named without it."""
+    """The family rules name every protected path, in skip order; a pattern anchored at the
+    root by its slash is named without it."""
     names = [
         f"`{p.removeprefix('src/xippios/{{ package_dir }}/').lstrip('/').replace('/**', '/')}`"
         for p in QUESTIONS["_skip_if_exists"]
     ]
     listing = ", ".join(names[:-1]) + f" and {names[-1]}"
     assert names[-1] == "`CLAUDE.md`", "the facts are the source's"
-    for rel in [".claude/family.md", ".claude/commands/adopt-release.md"]:
-        assert listing in " ".join((keyless_flat / rel).read_text().split()), rel
+    family = (keyless_flat / ".claude/family.md").read_text()
+    assert listing in " ".join(family.split())
 
 
 # The answers: what each renders, and what copier refuses.
@@ -2399,7 +2500,6 @@ def test_no_instruction_names_the_merge_class() -> None:
     renders = {
         "CLAUDE.md",
         "template/.claude/family.md.jinja",
-        "template/.claude/commands/adopt-release.md.jinja",
         "template/.claude/commands/release-prep.md.jinja",
         "template/.github/PULL_REQUEST_TEMPLATE.md",
     }

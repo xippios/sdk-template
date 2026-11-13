@@ -17,8 +17,7 @@ template/                what gets generated; *.jinja files are rendered, others
   src/xippios/{{ package_dir }}/  the package (import_path as directories, ADR-0006): _client, errors, models, tasks, api/, mcp, http, reference/
   tests/                 conftest (plugin), test_family (core's family check, one line), task replay
                          tests, live smoke
-  .claude/commands/      add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
-                         adopt-release (walks conventions §15 for an adoption PR)
+  .claude/commands/      add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
   .claude/family.md.jinja  the family rules a generated repo's CLAUDE.md imports; no Jinja, the same in every source
   CLAUDE.md.jinja        the facts of a generated repo, importing the family rules; the source's once rendered
   .github/, .pre-commit-config.yaml, .secrets.baseline, LICENSE   copied from sdk-core, verbatim but for the deviations in Rules

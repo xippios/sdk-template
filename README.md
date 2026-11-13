@@ -89,8 +89,7 @@ sdk-<slug>/
                        the samples' provenance table, where has_files
   scripts/             refresh_reference.py, refresh_upstream.py (the capture skeleton)
   docs/upstream/       FETCHED.md
-  .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep,
-                       adopt-release
+  .claude/commands/    add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
   .claude/family.md    the family rules, imported by CLAUDE.md (the package's facts)
   .claude/settings.json  .github/workflows/{ci,publish,live}.yml  .github/PULL_REQUEST_TEMPLATE.md
   .github/CODEOWNERS   the human paths, each owned by the human answer (C70)
@@ -125,9 +124,8 @@ runs; it refuses to run until the source fills it.
 ## Updating generated repositories
 
 A template release, and the xippios-core minor it carries, reach a generated repository
-in one adoption PR before its next release (conventions §15, ADR-0018), which the
-generated `/adopt-release <tag>` walks step by step. At its core is `copier update`, run
-inside the generated repository:
+in one adoption PR before its next release (conventions §15, ADR-0018), taken with
+`copier update` run inside the generated repository:
 
 ```bash
 uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.3.2 -d core_version=0.3.0 -d core_git_ref=

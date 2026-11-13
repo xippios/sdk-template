@@ -16,7 +16,7 @@ The family rules for every `xippios-<source>` repository; `CLAUDE.md` imports th
 4. The facts of this package in `CLAUDE.md`. The workspace's own `CLAUDE.md` applies
    as well when you work from it.
 5. When a new core minor or template release comes: conventions §15, the adoption
-   checklist, which `/adopt-release` walks
+   checklist
 
 ## The one rule: three layers (ADR-0001)
 
@@ -161,7 +161,7 @@ compares, so a live test asserts on shapes and counts, never on a raw payload.
 - `ruff` leaves `docs/` alone; never reformat the upstream snapshot.
 - Template and core updates: a new sdk-template release, and the core minor it carries,
   arrive in one adoption PR, `chore/template-update-<tag>`, before the next release
-  (conventions §15); `/adopt-release <tag>` walks it.
+  (conventions §15).
   `uvx copier update` re-renders the files the template owns (this file,
   `tests/conftest.py` and `tests/test_family.py` among them; answers are in
   `.copier-answers.yml`) and never overwrites the files this package fills:
