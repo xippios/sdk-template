@@ -143,7 +143,7 @@ in one adoption PR before its next release (conventions §15, ADR-0018), taken w
 `copier update` run inside the generated repository:
 
 ```bash
-uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.3.2 -d core_version=0.3.0 -d core_git_ref=
+uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.3.3 -d core_version=0.3.0 -d core_git_ref=
 git diff                             # review; resolve conflicts
 ```
 
