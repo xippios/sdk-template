@@ -49,9 +49,9 @@ checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.m
    pull request before the release, one dispatch of `live.yml` on `main`. An adoption
    that landed late counts as such a pull request, since it changes what the live tests
    run through, and a task added since the last green run would otherwise reach its tag
-   without a live test. Where the live tests can run here (`XIPPIOS_LIVE_TESTS=1`), run
-   them first, `uv run pytest -m live --tb=short`, so that a failure shows before the
-   dispatch.
+   without a live test. Before a dispatch, where the live tests can run here
+   (`XIPPIOS_LIVE_TESTS=1`), run them first, `uv run pytest -m live --tb=short`, so that
+   a failure shows before the dispatch spends a run.
 4. SemVer check: pre-1.0, a breaking change bumps the minor. An upstream API change that
    changed our public surface is a breaking change. Read the fragments under `changelog/`
    and what `## [Unreleased]` holds, and confirm that the version matches them; say so in
