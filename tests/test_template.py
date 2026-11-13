@@ -888,12 +888,14 @@ CHANGELOG_README = ROOT / "template/changelog/README.md"
 
 def test_a_render_keeps_its_changelog_entries_as_fragments(keyed_nested: Path) -> None:
     """``changelog/`` renders its README alone, the template's file byte for byte, so every
-    source gets the same one. The ``README.md`` pattern of ``_skip_if_exists`` makes it the
-    source's once rendered: ``copier update`` creates it where a repository has none."""
+    source gets the same one. It is the template's and updates with it: ``_skip_if_exists``
+    anchors the source's README at the root, so the folder's README is no source content."""
     folder = keyed_nested / "changelog"
     assert sorted(path.name for path in folder.iterdir()) == ["README.md"]
     assert (folder / "README.md").read_text() == CHANGELOG_README.read_text()
-    assert skip_matcher(package_dir(VARIANTS["keyed-nested"]))("changelog/README.md")
+    protected = skip_matcher(package_dir(VARIANTS["keyed-nested"]))
+    assert protected("README.md"), "the source's README"
+    assert not protected("changelog/README.md"), "the template's, as every source shares it"
 
 
 def test_family_rules_render_the_same_in_every_source(keyed_nested: Path) -> None:
@@ -1380,9 +1382,10 @@ def test_readme_status_table_has_the_columns_the_family_check_reads(keyless_flat
 
 
 def test_the_files_a_source_fills_are_one_list(keyless_flat: Path) -> None:
-    """The family rules and /adopt-release name every protected path, in skip order."""
+    """The family rules and /adopt-release name every protected path, in skip order; a
+    pattern anchored at the root by its slash is named without it."""
     names = [
-        f"`{p.removeprefix('src/xippios/{{ package_dir }}/').replace('/**', '/')}`"
+        f"`{p.removeprefix('src/xippios/{{ package_dir }}/').lstrip('/').replace('/**', '/')}`"
         for p in QUESTIONS["_skip_if_exists"]
     ]
     listing = ", ".join(names[:-1]) + f" and {names[-1]}"
@@ -1766,8 +1769,9 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
     pkg = "src/xippios/ex/api"
     names = ["tasks.py", "_client.py", "errors.py", "__init__.py", "api/__init__.py"]
     mine = [f"{pkg}/{n}" for n in [*names, "parse/__init__.py"]]
-    mine += ["tests/test_tasks.py", "tests/fixtures/files/README.md", "CLAUDE.md"]
+    mine += ["tests/test_tasks.py", "tests/fixtures/files/README.md", "README.md", "CLAUDE.md"]
     templates = [".claude/family.md", "tests/conftest.py", f"{pkg}/mcp.py", ".github/CODEOWNERS"]
+    templates += ["changelog/README.md"]
     for rel in [*mine, *templates]:
         (dst / rel).write_text("# edited\n")
     generate(template_src, dst, **answers)
