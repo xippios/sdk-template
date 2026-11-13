@@ -51,8 +51,9 @@ https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
    of its own in `conftest.py`; a line of its own in `.claude/family.md` moves to
    `CLAUDE.md`. The files the source fills, `__init__.py`, `_client.py`, `errors.py`,
    `models.py`, `api/`, `parse/`, `tasks.py`, `params.py`, `enums.py`, `reference/`,
-   `scripts/`, `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`,
-   `docs/upstream/`, `README.md`, `CHANGELOG.md` and `CLAUDE.md`, are never touched by
+   `scripts/refresh_reference.py`, `scripts/refresh_upstream.py`, `tests/test_tasks.py`,
+   `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`, `docs/adr.md`,
+   `docs/adr.json`, `README.md`, `CHANGELOG.md` and `CLAUDE.md`, are never touched by
    the update. Then `uv lock` and `uv sync --all-extras`. `pyproject.toml` depends on
    `xippios-core~=X.Y.Z`, its `mcp`, `http` and `testing` extras likewise, with no
    `[tool.uv.sources]` left: `~=X.Y.0`, or `~=X.Y.Z` when patch `Z` shipped what the
