@@ -122,7 +122,7 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   `.github/workflows/siblings.yml` and the script it runs,
   `.github/scripts/check-siblings.sh` (executable; copier keeps the bit), the sibling
   proof of ADR-0006, which installs and imports the declared dependencies too (ADR-0021).
-  They stay outside the skip-listed `scripts/`, so `copier update` keeps a source's copy
+  They stay outside `_skip_if_exists`, so `copier update` keeps a source's copy
   equal to the render, and the name of the script's directory is the conditional one,
   so a flat render gets no empty directory.
   `siblings` is a visible job the ruleset does not require: `ci.yml` stays core's file.

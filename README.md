@@ -47,7 +47,7 @@ does for the template's proofs:
 cd sdk-usda-nass
 uv sync --all-extras
 uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
-git init -q && git add -A && uv run pre-commit run --all-files
+git init -q -b main && git add -A && uv run pre-commit run --all-files
 ```
 
 A check that fails on the render is the template's fault: fix the template and generate
