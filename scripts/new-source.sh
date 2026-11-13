@@ -109,11 +109,9 @@ MSG
 
 # The scaffold PR's body ($scratch/body.md): the generated PULL_REQUEST_TEMPLATE.md with its
 # summary (and the human steps) and its assumptions (the answers as .copier-answers.yml
-# records them, the topic, the --evidence lines) filled in, the "Enforced by CI" block
-# ticked, since the checks above passed, and the Adoption PR block deleted, as the template
-# says for every PR but an adoption. The session completes the rest (/new-source). The PR
-# template is core's: where one of those four parts is not found, the script names it and
-# stops. It is written before anything is created on GitHub, so nothing is.
+# records them, the topic, the --evidence lines) filled in. The session completes the rest
+# (/new-source). Where one of those two parts is not found, the script names it and stops.
+# It is written before anything is created on GitHub, so nothing is.
 write_body() {
   local summary="$scratch/summary.md" assumptions="$scratch/assumptions.md"
   {
@@ -146,21 +144,16 @@ write_body() {
   awk -v summary="$summary" -v assumptions="$assumptions" -v dest="$dest" '
     function emit(file,   line) { while ((getline line < file) > 0) print line; close(file) }
     /^##+ / { block = $0 }
-    /^### Adoption PR/ { adoption++ }
-    block ~ /^### Adoption PR/ { next }
     block == "## Summary" && /^<!--/ && !summarised { emit(summary); summarised++; next }
     block == "## Assumptions" && /^<!--/ && !assumed { emit(assumptions); assumed++; next }
-    block == "### Enforced by CI" { ticked += sub(/^- \[ \] /, "- [x] ") }
     { print }
     END {
       if (!summarised) missing = missing "\n  a comment line under \"## Summary\""
       if (!assumed) missing = missing "\n  a comment line under \"## Assumptions\""
-      if (!ticked) missing = missing "\n  unticked items under \"### Enforced by CI\""
-      if (!adoption) missing = missing "\n  the \"### Adoption PR\" block"
       if (missing != "") {
         printf "error: .github/PULL_REQUEST_TEMPLATE.md lacks what the PR body fills:%s\n", \
           missing > "/dev/stderr"
-        printf "Adapt write_body in new-source.sh to the PR template of sdk-core. Nothing was\n" \
+        printf "Adapt write_body in new-source.sh to the PR template. Nothing was\n" \
           > "/dev/stderr"
         printf "created on GitHub; %s is generated and verified.\n", dest > "/dev/stderr"
         exit 1

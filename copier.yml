@@ -304,15 +304,16 @@ has_files:
     records.
   default: false
 
-# The human's GitHub login, which .github/CODEOWNERS names as the owner of every human path
-# of a member (C70): a member gets the file from its template, never from coordinate sync.
-# Its default is a literal, so every source that predates the question takes it on update.
+# The human's GitHub login, which the rendered .github/CODEOWNERS names as the owner of the
+# paths that steer the repository. Its default is a literal, so every source that predates
+# the question takes it on update.
 human:
   type: str
   help: >-
     The GitHub login of the human, without the @: .github/CODEOWNERS names it as the
-    owner of every human path of a member (C70), so a change to one waits for that
-    human's review. jdidaskalu, the default, the human of the sdk workspace.
+    owner of the paths that steer the repository, its workflows, CLAUDE.md, .claude/,
+    pyproject.toml and the answers, so a change to one waits for that human's review.
+    jdidaskalu, the default.
   default: jdidaskalu
   validator: >-
     {% if not (human | regex_search('^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\Z')) or human | length > 39 %}

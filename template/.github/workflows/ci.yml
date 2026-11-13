@@ -25,16 +25,14 @@ jobs:
         with:
           fetch-depth: 0 # both steps below diff against origin/<base>
           persist-credentials: false
-      # Conventions §12: every PR but a release or Dependabot's (which writes no entry) adds
-      # a CHANGELOG entry; an adoption PR's names the versions it adopts (§15 item 9). The
-      # entry is a fragment the PR adds or changes, changelog/<group>-<slug>.md as
-      # changelog/README.md lays it out, or a line under Unreleased in CHANGELOG.md, which
-      # the release assembles with the fragments. The folder's README and a fragment deleted
+      # Conventions §12: every PR but Dependabot's (which writes no entry) adds a CHANGELOG
+      # entry; an adoption PR's names the versions it adopts (§15 item 9). The entry is a
+      # fragment the PR adds or changes, changelog/<group>-<slug>.md as changelog/README.md
+      # lays it out, or a change of CHANGELOG.md. The folder's README and a fragment deleted
       # are no entry.
       - name: The changelog has an entry
         if: >-
           github.event_name == 'pull_request'
-          && !startsWith(github.head_ref, 'chore/release-')
           && !startsWith(github.head_ref, 'dependabot/')
         env:
           BASE: ${{ github.base_ref }}
