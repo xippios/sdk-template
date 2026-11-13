@@ -2923,3 +2923,17 @@ def test_the_templates_own_files_name_no_retired_process() -> None:
     assert not found, "\n".join(found)
     named = {"CLAUDE.md", "README.md", "scripts/new-source.sh", ".claude/commands/new-source.md"}
     assert named <= scanned, "the files that named it"
+
+
+# A release heading of CHANGELOG.md, as .github/workflows/release.yml finds the top one.
+RELEASE_HEADING = re.compile(r"^## \[(\d+\.\d+\.\d+)\] - ", re.M)
+
+
+def test_the_manifest_names_the_latest_release() -> None:
+    """The template's version is its latest release's: the release's pull request sets
+    ``version`` in pyproject.toml with the CHANGELOG heading that release.yml tags, so a
+    reader of the manifest bumps from the released version, never from 0.1.0 (#101)."""
+    heading = RELEASE_HEADING.search((ROOT / "CHANGELOG.md").read_text())
+    assert heading, "CHANGELOG.md has no release heading"
+    manifest = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    assert manifest["project"]["version"] == heading[1]
