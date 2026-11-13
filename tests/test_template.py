@@ -201,6 +201,7 @@ REPOSITORY_FILES = [
     ".github/workflows/ci.yml",
     ".github/workflows/publish.yml",
     ".github/workflows/live.yml",
+    ".github/workflows/organization.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/CODEOWNERS",
     ".claude/family.md",
@@ -551,21 +552,31 @@ def workflow_uses(path: Path) -> list[tuple[str, str]]:
 
 
 CORE_WORKFLOWS = ["ci.yml", "live.yml", "publish.yml"]
+# The caller of the organization's checks (#129): its jobs call reusable workflows of
+# xippios/.github at `@main`, the one reference to another repository that is not pinned
+# (conventions §13).
+ORG_CALLER = "organization.yml"
+ORG_WORKFLOW = "xippios/.github/.github/workflows/{}.yml@main"
 
 
 def test_workflow_actions_are_pinned_by_sha(variant: tuple[str, Path]) -> None:
     """ci.yml, publish.yml, live.yml and, where rendered, siblings.yml pin every action to a
     commit, its version in a comment (conventions §13); live.yml and siblings.yml take
-    ci.yml's pins."""
+    ci.yml's pins. The caller of the organization's checks calls them at ``@main``."""
     _, dst = variant
     workflows = dst / ".github/workflows"
     rendered = sorted(path.name for path in workflows.glob("*.yml"))
-    assert rendered in [CORE_WORKFLOWS, sorted([*CORE_WORKFLOWS, "siblings.yml"])]
+    always = [*CORE_WORKFLOWS, ORG_CALLER]
+    assert rendered in [sorted(always), sorted([*always, "siblings.yml"])]
     for rel in rendered:
         uses = workflow_uses(workflows / rel)
         assert uses, rel
         for action, comment in uses:
             if action.startswith("./"):
+                continue
+            if rel == ORG_CALLER:
+                assert re.fullmatch(r"xippios/\.github/\.github/workflows/[\w-]+\.yml@main", action)
+                assert not comment, f"{rel}: {action}{comment}"
                 continue
             assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{rel}: {action}"
             assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{rel}: {action}{comment}"
@@ -654,11 +665,16 @@ def assert_the_sibling_check(dst: Path, pkg: str) -> None:
     assert "siblings" not in json.dumps(ci), "ci.yml stays core's file (row 34 c)"
 
 
+LIVE_RUN = "uv run pytest -m live --tb=short --assert=plain"
+
+
 def assert_the_live_env(dst: Path, keys: list[str], secrets: list[str]) -> None:
     """Conventions §10: nightly and on demand; the secrets in the pytest step's env only, each
     once, the keys first, the source's and those of the source packages it depends on (D47),
     then the others the answer ``live_secrets`` names (#105), in its order; a render with no
-    key names no key at all (row 61 b)."""
+    key names no key at all (row 61 b). The run takes ``--assert=plain`` beside
+    ``--tb=short``, so a failed assertion prints no value it compared, a record of the
+    upstream among them, into a log that is public (#58)."""
     text = (dst / ".github/workflows/live.yml").read_text()
     workflow = yaml.safe_load(text)
     triggers = workflow[True]  # YAML 1.1 reads the key `on` as a boolean
@@ -668,7 +684,7 @@ def assert_the_live_env(dst: Path, keys: list[str], secrets: list[str]) -> None:
     (job,) = workflow["jobs"].values()
     assert "env" not in job, "the secret reaches the pytest step only"
     *setup, pytest_step = job["steps"]
-    assert pytest_step["run"] == "uv run pytest -m live --tb=short", "every live test"
+    assert pytest_step["run"] == LIVE_RUN, "every live test"
     assert all("env" not in step for step in setup), "checkout and uv sync never see it"
     checkout = setup[0]
     assert checkout["uses"].startswith("actions/checkout@")
@@ -860,6 +876,9 @@ MEMBER_HUMAN_PATHS = [
     "/.copier-answers.yml",
 ]
 HUMAN = "jdidaskalu"
+# What a file of a repository that works alone names nothing of: the tooling around it, its
+# sessions, and its numbered rules and their files (#129).
+AROUND_THE_REPOSITORY = re.compile(r"\bcoordinat|\bworkspace|\bsessions?\b|\bC\d+\b", re.I)
 
 
 def owner_rules(dst: Path) -> list[str]:
@@ -869,9 +888,10 @@ def owner_rules(dst: Path) -> list[str]:
 
 
 def test_codeowners_names_the_human_for_every_member_path(variant: tuple[str, Path]) -> None:
-    """C70: a member's ``.github/CODEOWNERS`` comes from its template, never from
-    ``coordinate sync``: a header of comments that cites C70, then the six human paths of a
-    member, each owned by the ``human`` answer, its default ``jdidaskalu`` in every variant."""
+    """A source's ``.github/CODEOWNERS`` comes from its template: a header of comments that
+    says what the file is and names the answer it is rendered from, and no tool, rule or
+    file around the repository (#129), then the six human paths, each owned by the
+    ``human`` answer, its default ``jdidaskalu`` in every variant."""
     _, dst = variant
     assert (QUESTIONS["human"]["type"], QUESTIONS["human"]["default"]) == ("str", HUMAN)
     rules = owner_rules(dst)
@@ -880,7 +900,9 @@ def test_codeowners_names_the_human_for_every_member_path(variant: tuple[str, Pa
     head = lines[: lines.index(rules[0])]
     assert head, "a header"
     assert all(line.startswith("#") for line in head), "the header, then the rules"
-    assert "C70" in " ".join(head)
+    header = " ".join(head)
+    assert "`human`" in header, "the answer it is rendered from"
+    assert not AROUND_THE_REPOSITORY.search(header), AROUND_THE_REPOSITORY.search(header)
 
 
 # The checks no answer changes, on one render.
@@ -1123,9 +1145,8 @@ def test_generated_tests_need_no_key(keyed_nested: Path) -> None:
 # SHA-256 of sdk-core's files the template departs from, at v0.3.0, the core release the
 # template adopts: git -C <workspace root>/sdk-core show v0.3.0:<path> | sha256sum (digests,
 # not secrets). A render is core's bytes once the template's own lines, named in
-# CLAUDE.md's Rules, are taken out; for the PR template, core's file with the passages of
-# PR_PASSAGES taken out, as the test takes them out of the template's. Core's gates.yml
-# is no file of the template's (#99).
+# CLAUDE.md's Rules, are taken out. Core's gates.yml is no file of the template's (#99),
+# and the PR template links core's definition of done where it copied it (#129).
 CORE_EXTENDED = {
     # pragma: allowlist nextline secret
     ".github/workflows/ci.yml": "ebee09e20d7004a6761c1986f3bc0e16ee4a2dfa749921ac25040ebad5abacab",
@@ -1133,26 +1154,18 @@ CORE_EXTENDED = {
         # pragma: allowlist nextline secret
         "dc98ee245673db75f639fa94318668078ea0242f07072b6c333716ee9ffdcf9f"
     ),
-    ".github/PULL_REQUEST_TEMPLATE.md": (
-        # pragma: allowlist nextline secret
-        "74d370d7cb6a1025da35de907cc072b9b06cd88e230f83a7e00da07e213763f5"
-    ),
 }
 # The template's own lines: in ci.yml the full history for the two steps that read the
 # pull request (core's docs/handover.md, "Template v0.2.1"), in publish.yml the refusal
 # of a git-pinned core before the tag.
 FETCH_DEPTH = "          fetch-depth: 0 # both steps below diff against origin/<base>\n"
-CI_STEPS = ("      # Conventions §12: every PR but a release", "      - uses: astral-sh/setup-uv@")
+CI_STEPS = (
+    "      # Conventions §12: every PR but Dependabot's",
+    "      - uses: astral-sh/setup-uv@",
+)
 PUBLISH_STEP = (
     "      # sdk-template's one step beyond core's file",
     "      - name: Tag the merge commit",
-)
-# The PR template's two passages that differ from core's: the Adoption PR block's lead from
-# its second sentence, and the Process block's line on merges. The template's name no
-# auto-merge a session enables, core's still do (ADR-0018, amendment (e)).
-PR_PASSAGES = (
-    ("`chore/template-update*` PR", "- [ ] core floor raised"),
-    ("- [ ] no tag, release, merge, or secret operation", "- [ ] assumptions and open questions"),
 )
 
 
@@ -1162,21 +1175,16 @@ def without(text: str, first: str, stop: str) -> str:
     return text[:start] + text[text.index(stop, start) :]
 
 
-def test_workflows_and_pr_template_are_cores_bytes(keyed_nested: Path) -> None:
-    """ci.yml and publish.yml are core's plus ours; the PR template core's but for its two
-    passages."""
+def test_workflows_are_cores_bytes(keyed_nested: Path) -> None:
+    """ci.yml and publish.yml are core's plus ours."""
     ci = (keyed_nested / ".github/workflows/ci.yml").read_text()
     assert ci.count(FETCH_DEPTH) == 1
     core_ci = without(ci.replace(FETCH_DEPTH, ""), *CI_STEPS)
     publish = (keyed_nested / ".github/workflows/publish.yml").read_text()
     core_publish = without(publish, *PUBLISH_STEP)
-    core_pr = (keyed_nested / ".github/PULL_REQUEST_TEMPLATE.md").read_text()
-    for passage in PR_PASSAGES:
-        core_pr = without(core_pr, *passage)
     for rel, core in [
         (".github/workflows/ci.yml", core_ci),
         (".github/workflows/publish.yml", core_publish),
-        (".github/PULL_REQUEST_TEMPLATE.md", core_pr),
     ]:
         assert hashlib.sha256(core.encode()).hexdigest() == CORE_EXTENDED[rel], rel
 
@@ -1189,6 +1197,14 @@ def steps_of(workflow: dict[str, object], job: str) -> list[dict[str, object]]:
     return steps
 
 
+# The changelog step's condition: every pull request but Dependabot's, which writes no
+# entry. An adoption's pull request carries one (conventions §15 item 9), and a release's
+# changes CHANGELOG.md itself (#136).
+CHANGELOG_STEP_RUNS = (
+    "github.event_name == 'pull_request' && !startsWith(github.head_ref, 'dependabot/')"
+)
+
+
 def test_ci_reads_the_pull_request_and_runs_once_on_main(keyed_nested: Path) -> None:
     """No push trigger (publish.yml calls it for a release); the two family CI steps."""
     workflow = yaml.safe_load((keyed_nested / ".github/workflows/ci.yml").read_text())
@@ -1197,9 +1213,7 @@ def test_ci_reads_the_pull_request_and_runs_once_on_main(keyed_nested: Path) -> 
     assert steps[0]["with"] == {"fetch-depth": 0, "persist-credentials": False}
     changelog, cap = steps[1], steps[2]
     assert changelog["name"] == "The changelog has an entry"
-    for prefix in ["chore/release-", "dependabot/"]:
-        assert f"!startsWith(github.head_ref, '{prefix}')" in changelog["if"], prefix
-    assert "chore/template-update" not in changelog["if"], "conventions §15 item 9"
+    assert changelog["if"] == CHANGELOG_STEP_RUNS, "Dependabot's branch alone (#136)"
     assert cap["name"] == "Fixture files under 256 KiB"
     assert cap["env"]["LEVEL"] == "error", "the cap binds a source from v0.3.0 (ADR-0019)"
     assert "git diff -z --name-only --find-renames=100% --diff-filter=AM" in cap["run"]
@@ -1696,6 +1710,161 @@ def test_the_files_a_source_fills_are_one_list(keyless_flat: Path) -> None:
     assert names[-1] == "`CLAUDE.md`", "the facts are the source's"
     family = (keyless_flat / ".claude/family.md").read_text()
     assert listing in " ".join(family.split())
+
+
+# The render's .github/ (#129): a pull-request template that links sdk-core's definition of
+# done where it copied it, the organization's checks called from a workflow of their own,
+# and a changelog step that tells a release by no branch name. The live run's
+# --assert=plain is pinned with its environment, the owners file's header with its rules.
+
+PR_SECTIONS = ["## Summary", "## Checked", "## Assumptions", "## Decisions taken"]
+# What the pull-request template of a repository that works alone leaves to that
+# repository's rules: a branch, a tool that opens or merges a pull request, and the
+# adoption pull request of the process before with the class that decided its merge.
+PR_LANDING = re.compile(
+    r"\bbranch(?:es)?\b|\b(?:feature|fix|chore)/|\bgh\b|\bmerg(?:e|es|ed|ing)\b"
+    r"|\badoption\b|\bclass\b",
+    re.I,
+)
+
+
+def test_the_pr_template_links_the_definition_of_done(keyed_nested: Path) -> None:
+    """#107, #52, #82: the template's file, copied as it stands into every source, holds a
+    summary, what was checked, the assumptions and the decisions taken, and links sdk-core's
+    definition of done where it copied it, so no copy lags; it holds no checklist, names no
+    way a change lands and nothing around the repository, and asks for the changelog entry
+    as a fragment (#130)."""
+    text = (keyed_nested / ".github/PULL_REQUEST_TEMPLATE.md").read_text()
+    assert text == (ROOT / "template/.github/PULL_REQUEST_TEMPLATE.md").read_text()
+    assert [line for line in text.splitlines() if line.startswith("#")] == PR_SECTIONS
+    flat = " ".join(text.split())
+    assert SDK_CORE_DOCS + "definition-of-done.md" in flat
+    assert "- [ ]" not in text, "no copy of the checklist"
+    for pattern in [PR_LANDING, AROUND_THE_REPOSITORY]:
+        assert not pattern.search(text), pattern.search(text)
+    assert "`changelog/`" in flat
+    assert "Unreleased" not in flat
+
+
+# GitHub starts a caller on these: `edited` because the review reads the title and the
+# description and a change of the base arrives as `edited`, `labeled` because a label set
+# after the opening makes a release pull request (the README of xippios/.github).
+ORG_TRIGGERS = {
+    "pull_request": {"types": ["opened", "synchronize", "reopened", "edited", "labeled"]}
+}
+
+
+def test_the_organizations_checks_are_called_from_a_workflow_of_their_own(
+    keyed_nested: Path,
+) -> None:
+    """#129: one workflow, the template's and copied as it stands, calls the organization's
+    conventions review and its check of the ADR index as the jobs ``conventions`` and
+    ``adr-index``. It reads by default, grants the review what it asks and passes it one
+    secret by name; the index check takes no input and no secret and runs the repository's
+    own script. It names nothing around the repository."""
+    text = (keyed_nested / ".github/workflows" / ORG_CALLER).read_text()
+    assert text == (ROOT / "template/.github/workflows" / ORG_CALLER).read_text()
+    protected = skip_matcher(package_dir(VARIANTS["keyed-nested"]))
+    assert not protected(f".github/workflows/{ORG_CALLER}"), "the template's, updated with it"
+    workflow = yaml.safe_load(text)
+    assert workflow[True] == ORG_TRIGGERS
+    assert workflow["permissions"] == {"contents": "read"}
+    jobs = workflow["jobs"]
+    assert list(jobs) == ["conventions", "adr-index"]
+    review, index = jobs["conventions"], jobs["adr-index"]
+    assert review["uses"] == ORG_WORKFLOW.format("conventions")
+    asked = {"contents": "read", "pull-requests": "write", "checks": "read"}
+    assert review["permissions"] == asked, "its one comment and the head's checks"
+    assert review["secrets"] == {"ANTHROPIC_API_KEY": "${{ secrets.ANTHROPIC_API_KEY }}"}
+    assert "github.event.label.name == 'release'" in review["if"], "a label: the release's"
+    assert index["uses"] == ORG_WORKFLOW.format("adr-index")
+    assert index["permissions"] == {"contents": "read"}
+    assert index["if"] == "github.event.action != 'labeled'", "a label changes no record"
+    for job in [review, index]:
+        assert "with" not in job, "the callees take no input"
+    assert "secrets" not in index
+    assert text.count("secrets.") == 1, "one secret, by name, never inherited"
+    assert (keyed_nested / ADR_SCRIPT).is_file(), "the script the index check runs"
+    assert not AROUND_THE_REPOSITORY.search(text), AROUND_THE_REPOSITORY.search(text)
+
+
+# The caller of the retired merge gates as the template rendered it up to v0.3.2, in its
+# shape: one workflow of that name with two jobs.
+RETIRED_CALLER = """name: gates
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  merge-class:
+    uses: ./.github/workflows/merge-class.yml
+  family-review:
+    uses: ./.github/workflows/family-review.yml
+"""
+
+
+def test_an_update_replaces_the_retired_caller(template_src: Path, tmp_path: Path) -> None:
+    """A source made while the template rendered ``.github/workflows/gates.yml`` loses it at
+    ``copier update``, since the template renders it no longer, and gets the caller of the
+    organization's checks under a name of its own: GitHub keeps a workflow's state by its
+    path, and the sources disabled the old one by hand, so the new one starts enabled."""
+    template = tmp_path / "template"
+    shutil.copytree(template_src, template)
+    workflows = template / "template/.github/workflows"
+    (workflows / ORG_CALLER).unlink(missing_ok=True)
+    (workflows / "gates.yml").write_text(RETIRED_CALLER)
+    git(template, "init", "-q", "-b", "main")
+    git(template, "add", "-A")
+    git(template, "commit", "-q", "--no-verify", "-m", "the retired caller")
+    git(template, "tag", "v0.0.1")
+    (workflows / "gates.yml").unlink()
+    shutil.copytree(template_src, template, dirs_exist_ok=True)
+    git(template, "add", "-A")
+    git(template, "commit", "-q", "--no-verify", "-m", "the organization's checks")
+    git(template, "tag", "v0.0.2")
+    dst = tmp_path / "repo"
+    answers = {**BASE_ANSWERS, **VARIANTS["keyless-flat"]}
+    run_copy(str(template), str(dst), data=answers, defaults=True, vcs_ref="v0.0.1", quiet=True)
+    assert (dst / ".github/workflows/gates.yml").read_text() == RETIRED_CALLER
+    git(dst, "init", "-q", "-b", "main")
+    git(dst, "add", "-A")
+    git(dst, "commit", "-q", "--no-verify", "-m", "a source")
+    run_update(str(dst), defaults=True, overwrite=True, vcs_ref="v0.0.2", quiet=True)
+    assert not (dst / ".github/workflows/gates.yml").exists()
+    rendered = dst / ".github/workflows" / ORG_CALLER
+    assert rendered.read_bytes() == (workflows / ORG_CALLER).read_bytes()
+
+
+def test_a_release_passes_the_changelog_step_by_its_changelog(
+    keyed_nested: Path, tmp_path: Path
+) -> None:
+    """#136: the changelog step tells a release by no branch name. A release's pull request
+    assembles the fragments into ``CHANGELOG.md`` and deletes them: it changes
+    ``CHANGELOG.md``, adds no fragment, and passes, whatever its branch."""
+    workflow = yaml.safe_load((keyed_nested / ".github/workflows/ci.yml").read_text())
+    step = steps_of(workflow, "test")[1]
+    assert step["if"] == CHANGELOG_STEP_RUNS
+    repo = tmp_path / "source"
+    (repo / "changelog").mkdir(parents=True)
+    released = "# Changelog\n\n## [0.1.0] - 2026-01-01\n\n- The first release.\n"
+    (repo / "CHANGELOG.md").write_text(released)
+    (repo / "changelog/README.md").write_text("# Changelog fragments\n")
+    (repo / "changelog/added-a-task.md").write_text("- A task.\n")
+    git(repo, "init", "-q", "-b", "main")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "base")
+    git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    git(repo, "checkout", "-q", "-b", "the-next-version")
+    (repo / "changelog/added-a-task.md").unlink()
+    section = "## [0.2.0] - 2026-02-01\n\n### Added\n\n- A task.\n\n"
+    (repo / "CHANGELOG.md").write_text(released.replace("## [0.1.0]", section + "## [0.1.0]"))
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "the release")
+    run = pull_request_step(repo, step)
+    assert (run.returncode, run.stdout, run.stderr) == (0, "", "")
 
 
 # The answers: what each renders, and what copier refuses.
@@ -2206,26 +2375,26 @@ def write_body(tmp_path: Path, pr_template: str) -> subprocess.CompletedProcess[
     ("old", "new", "missing"),
     [
         ("", "", ""),
-        ("### Enforced by CI", "### Checked by CI", 'unticked items under "### Enforced by CI"'),
-        ("### Adoption PR", "### Adoption", 'the "### Adoption PR" block'),
+        ("## Summary\n\n<!--", "## Summary\n\n-", 'a comment line under "## Summary"'),
         ("## Assumptions\n\n<!--", "## Assumptions\n\n-", 'a comment line under "## Assumptions"'),
     ],
 )
 def test_new_source_fills_the_pr_template_or_names_what_it_lacks(
     tmp_path: Path, old: str, new: str, missing: str
 ) -> None:
-    """The scaffold PR's body: the CI block ticked, no Adoption PR block; a PR template of
-    another shape stops the script loudly, before anything is created on GitHub."""
+    """The scaffold PR's body: the PR template with its summary and its assumptions filled
+    in; a PR template of another shape stops the script loudly, before anything is created
+    on GitHub."""
     run = write_body(
         tmp_path, PR_TEMPLATE.read_text().replace(old, new) if old else PR_TEMPLATE.read_text()
     )
     if not missing:
         assert run.returncode == 0, run.stderr
         body = (tmp_path / "scratch/body.md").read_text()
-        ci = body.split("### Enforced by CI\n", 1)[1].split("\n### ", 1)[0]
-        assert ci.count("- [x] ") == 4
-        assert "- [ ] " not in ci
-        assert "### Adoption PR" not in body
+        headings = [line for line in body.splitlines() if line.startswith("## ")]
+        assert headings == PR_SECTIONS, "the PR template's sections, in its order"
+        summary = body.split("## Summary\n", 1)[1].split("\n## ", 1)[0]
+        assert "Scaffold of `xippios-ex`" in summary
         assert "  - `source_slug: ex`" in body
         assert "_commit" not in body
         return
