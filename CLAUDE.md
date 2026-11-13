@@ -35,6 +35,8 @@ template/                what gets generated; *.jinja files are rendered, others
                          that parses files (ADR-0020), skip-listed, only their names conditional
   scripts/refresh_upstream.py.jinja  the capture skeleton a source fills (/refresh-upstream)
   tests/test_family.py   one line collecting xippios.core.testing.family
+  changelog/README.md    a generated repo's changelog fragments; verbatim, the source's once rendered
+                         (the README.md pattern of _skip_if_exists)
   .gitattributes         docs/upstream/** -text: the snapshot stays byte for byte (CRLF, mixed endings)
 scripts/new-source.sh    generate + checks + GitHub repo + PR (the /new-source command)
 scripts/prove.sh         generate sdk-example-api (--keyless: sdk-example; --keyless-nested: sdk-example-files;
@@ -42,7 +44,8 @@ scripts/prove.sh         generate sdk-example-api (--keyless: sdk-example; --key
                          -d key=value passes one more answer (-d has_files=true)
 tests/test_template.py   the family's variants, each rendered once; ruff on the output, the answers' rules,
                          skip-if-exists behaviour
-CHANGELOG.md             template releases, each with its Hand-apply list (Rules)
+CHANGELOG.md             template releases, each section assembled from changelog/ (Rules)
+changelog/               the next release's entries, one fragment per change; README.md lays them out
 .github/workflows/ci.yml       the template's own CI: tests and five proofs
 .github/workflows/release.yml  tags vX.Y.Z from the top CHANGELOG heading on push to main (Workflow rules)
 .claude/commands/new-source.md
@@ -118,17 +121,21 @@ CHANGELOG.md             template releases, each with its Hand-apply list (Rules
   CHANGELOG entry and the fixture cap, which core's `docs/handover.md` gives for the
   template ("Template v0.2.1: the two family checks that are CI steps"); from v0.3.0 the
   CHANGELOG step exempts a release and Dependabot only, no longer an adoption, whose line
-  conventions §15 item 9 requires. `PULL_REQUEST_TEMPLATE.md` deviates in two passages,
-  the Adoption PR block's lead from its second sentence and the Process block's line on
-  merges: core's copy keeps the merge exception of ADR-0018, amendment (e), which the
-  template drops, since a pull request merges under the rulesets of `main` on the
-  reviewer's approval; the tests name both passages.
-- Every template release has an entry in `CHANGELOG.md` (Keep a Changelog), and every
-  entry ends with a `### Hand-apply` list: one bullet per generated file under
-  `_skip_if_exists` that the release changes, `` - `<path>` — <what> — <why> ``, because
-  `copier update` never touches those files once they exist. A PR that changes such a
-  file adds its bullet under Unreleased; a change that matters to new repositories only
-  (a scaffold's starting text) says so instead of a bullet.
+  conventions §15 item 9 requires, and from v0.3.3 it takes a fragment the PR adds or
+  changes under `changelog/` as well as a change of `CHANGELOG.md`.
+  `PULL_REQUEST_TEMPLATE.md` deviates in two passages, the Adoption PR block's lead from
+  its second sentence and the Process block's line on merges: core's copy keeps the merge
+  exception of ADR-0018, amendment (e), which the template drops, since a pull request
+  merges under the rulesets of `main` on the reviewer's approval; the tests name both
+  passages.
+- Every PR that changes more than the documentation brings its `CHANGELOG.md` entry (Keep a
+  Changelog) as a fragment, `changelog/<group>-<slug>.md` holding one bullet, as
+  `changelog/README.md` lays it out; the release assembles the fragments into its section.
+  A change to a generated file under `_skip_if_exists` adds a note under its bullet,
+  `` - Hand-apply: `<path>` — <what> — <why> ``, because `copier update` never touches
+  those files once they exist; a change that matters to new repositories only (a
+  scaffold's starting text) says so in its bullet instead. Releases up to 0.3.2 end with
+  a `### Hand-apply` list instead of the notes.
 - Jinja renders with `trim_blocks` and `lstrip_blocks`, so a line holding only a block tag
   disappears, and a block tag at the end of a line takes that line's newline with it. A
   block tag therefore stands alone on its line or opens and closes there, before the
@@ -166,10 +173,12 @@ uv run ruff check . && uv run ruff format --check .
   uses the latest tag (HEAD only while the template is untagged), and core's family
   check fails a repository whose `.copier-answers.yml` names no tag.
 - Releases follow the release train (conventions §12, ADR-0018 amendment (b)): a release
-  PR turns `## [Unreleased]` into `## [X.Y.Z] - <date>` and changes no file outside
-  conventions §12's release subset (`CHANGELOG.md`, and `README.md` or `CLAUDE.md` where a
-  sentence names the release). The section may gain a lead paragraph and says internal
-  labels (decisions, rows, plan steps) in plain words, since it becomes the tag's message.
+  PR assembles the fragments under `changelog/` and what `## [Unreleased]` holds into
+  `## [X.Y.Z] - <date>`, as `changelog/README.md` lays it out, deletes the fragments, and
+  changes no other file outside conventions §12's release subset (`CHANGELOG.md`, and
+  `README.md` or `CLAUDE.md` where a sentence names the release). The section may gain a
+  lead paragraph and says internal labels (decisions, rows, plan steps) in plain words,
+  since it becomes the tag's message.
   Its merge runs `.github/workflows/release.yml`, which tags `vX.Y.Z` on the merge commit
   with that section as the message. No session pushes a tag.
 - Never tag, merge, release or touch secrets.
