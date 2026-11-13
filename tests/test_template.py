@@ -2933,11 +2933,15 @@ def test_the_manifest_names_the_latest_release() -> None:
     """The template's version is its latest release's: the release's pull request sets
     ``version`` in pyproject.toml with the CHANGELOG heading that release.yml tags, so a
     reader of the manifest bumps from the released version, never from 0.1.0 (#101). It
-    locks again too: CI's ``uv sync --frozen`` passes on a lock that names the old one."""
+    locks again too, and CI syncs with ``--locked``, which fails on a lock that names the
+    old one: ``--frozen`` passes it, and the next ``uv run`` writes the lock again before
+    the suite reads it."""
     heading = RELEASE_HEADING.search((ROOT / "CHANGELOG.md").read_text())
     assert heading, "CHANGELOG.md has no release heading"
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
-    assert project["version"] == heading[1]
-    lock = tomllib.loads((ROOT / "uv.lock").read_text())
-    (locked,) = [p["version"] for p in lock["package"] if p["name"] == project["name"]]
-    assert locked == project["version"], "uv.lock: run uv lock"
+    manifest = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    assert manifest["project"]["version"] == heading[1]
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    (job,) = workflow["jobs"].values()
+    runs = [str(step.get("run", "")) for step in job["steps"]]
+    syncs = [run for run in runs if run.startswith("uv sync")]
+    assert syncs == ["uv sync --locked"], "a stale uv.lock fails CI's first step"
