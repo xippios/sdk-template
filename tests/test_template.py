@@ -204,7 +204,6 @@ REPOSITORY_FILES = [
     ".github/workflows/organization.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/CODEOWNERS",
-    ".claude/family.md",
     ".claude/settings.json",
     ".claude/commands/add-endpoint.md",
     ".claude/commands/record-fixture.md",
@@ -216,7 +215,8 @@ REPOSITORY_FILES = [
 # Template v0.2.1 deleted the two structural tests: core's family check, which
 # tests/test_family.py collects, makes their checks (conventions §10). v0.3.0 renders
 # read-only packages (D35). v0.3.3 renders no caller of the retired merge gates, whose
-# reusable workflows are gone (#99).
+# reusable workflows are gone (#99), and no family rules beside CLAUDE.md, whose rules the
+# CLAUDE.md, the commands and sdk-core's documents state (#128).
 REMOVED_FILES = [
     "tests/test_layout.py",
     "tests/test_adapters.py",
@@ -224,6 +224,7 @@ REMOVED_FILES = [
     "src/xippios/{pkg}/tasks_write.py",
     "src/xippios/{pkg}/mcp_write.py",
     ".github/workflows/gates.yml",
+    ".claude/family.md",
 ]
 FAMILY_TEST = "from xippios.core.testing.family import *  # noqa: F403\n"
 
@@ -798,32 +799,28 @@ def test_every_live_run_keeps_payloads_out_of_tracebacks(variant: tuple[str, Pat
             text = path.read_text()
             assert not re.search(r"pytest -m live(?! --tb=short)", text), path
             runs += text.count("pytest -m live --tb=short")
-    assert runs >= 4, "live.yml, CLAUDE.md, .claude/family.md and /release-prep"
+    assert runs >= 4, "live.yml, CLAUDE.md's commands and live run, and /release-prep"
 
 
 # Claude Code imports a line `@<path>` relative to the importing file, never one inside
 # backticks or a code block, and cuts a file that loads on demand at 40,000 characters.
-FAMILY_RULES = ROOT / "template/.claude/family.md.jinja"
-IMPORT_LINE = "@.claude/family.md"
 SDK_CORE_DOCS = "https://github.com/xippios/sdk-core/blob/main/docs/"
 
 
-def test_claude_md_holds_the_facts_and_imports_the_family_rules(
-    variant: tuple[str, Path],
-) -> None:
-    """The source's CLAUDE.md imports the family rules on the line after its intro and names
-    its own import path, the provider level where it nests, the key's ini option only where
-    there is a key (row 61), and a "Depends on" row naming each bound only where it
-    declares a dependency (ADR-0021)."""
+def test_claude_md_holds_the_facts_and_imports_nothing(variant: tuple[str, Path]) -> None:
+    """The source's CLAUDE.md links the README's documents in its intro and imports no
+    file (#128), and names its own import path, the provider level where it nests, the key's
+    ini option only where there is a key (row 61), and a "Depends on" row naming each bound
+    only where it declares a dependency (ADR-0021)."""
     name, dst = variant
     answers = VARIANTS[name]
     slug, pkg = answers["source_slug"], package_dir(answers)
     claude = (dst / "CLAUDE.md").read_text()
-    title, intro, first = claude.split("\n\n")[:3]
+    title, intro = claude.split("\n\n")[:2]
     assert title.startswith(f"# sdk-{slug} "), title
     assert intro.startswith(f"`xippios-{slug}`"), intro
-    assert first == IMPORT_LINE, "the import on a line of its own, first after the intro"
-    assert [line for line in claude.splitlines() if line.startswith("@")] == [IMPORT_LINE]
+    assert "(README.md#documents)" in intro, "the README's section, linked"
+    assert not [line for line in claude.splitlines() if line.startswith("@")], "no import"
     assert f"`xippios.{pkg.replace('/', '.')}`" in claude
     if "/" in pkg:
         assert f"`src/xippios/{pkg.rsplit('/', 1)[0]}/`" in claude, "the provider level"
@@ -863,6 +860,224 @@ def test_readme_mcp_snippet_is_json(variant: tuple[str, Path]) -> None:
         assert f"`xippios-{dependency['name']}`" in readme
     (args,) = [line for line in block.splitlines() if '"args"' in line]
     assert args.rstrip().endswith(("]", "],")), args
+
+
+# The render's documents and instructions (#128). The README lists the repository's
+# documents under `## Documents`, each by its file on GitHub, and links nothing relative,
+# since PyPI shows it with no repository around it. The CLAUDE.md links that section instead
+# of repeating it, says what the package wraps, its layout, its commands and its code rules,
+# and names nothing around the repository, nor does any file under .claude/.
+DOCUMENT_ITEM = re.compile(
+    r"- (?P<repository>[\w-]+): \[(?P<path>[^\]]+)\]"
+    r"\(https://github\.com/xippios/(?P<on>[\w-]+)/blob/main/(?P<file>[^)\s]+)\) — \S"
+)
+CORE_DOCUMENTS = [
+    "docs/conventions.md",
+    "docs/adr.md",
+    "docs/definition-of-done.md",
+    "docs/review-checklist.md",
+]
+OWN_DOCUMENTS = ["docs/adr.md", "docs/upstream/FETCHED.md"]
+# What a repository that works alone names nothing of, in its CLAUDE.md and its .claude/:
+# the tooling around it, its sessions and claims, its numbered rules, a pull request's
+# class and the script before the tooling.
+AROUND = re.compile(
+    r"\bcoordinat|\bworkspace\b|\bsessions?\b|\bclaims?\b|\bC\d+\b|\bmerge[ -]class"
+    r"|\bcoord\.py\b",
+    re.I,
+)
+# What its CLAUDE.md says nothing of on how a change lands: a branch, the GitHub CLI, a
+# merge, a reviewer or a person, and the release's own files and section.
+CHANGE_LANDING = re.compile(
+    r"\bbranch(?:es)?\b|\b(?:feature|fix|chore|docs)/<|\bgh\b|\bmerg(?:e|es|ed|ing)\b"
+    r"|\breviewers?\b|\bJohannes\b|\bjdidaskalu\b|docs/handover\.md|\bUnreleased\b",
+    re.I,
+)
+SECRET_SUFFIXES = ["`_API_KEY`", "`_REFRESH_TOKEN`", "`_SECRET`"]
+LIVE_COMMAND = "uv run pytest -m live --tb=short --assert=plain"
+
+
+def documents(readme: str) -> list[tuple[str, str]]:
+    """The items under a README's ``## Documents``, up to the next heading, as (repository,
+    path): an item not in the form, or whose URL is not its repository's path, fails."""
+    section = readme.split("\n## Documents\n", 1)[1].split("\n## ", 1)[0]
+    found = []
+    for item in [line for line in section.splitlines() if line.strip()]:
+        match = DOCUMENT_ITEM.match(item)
+        assert match, item
+        assert (match["on"], match["file"]) == (match["repository"], match["path"]), item
+        found.append((match["repository"], match["path"]))
+    return found
+
+
+def layout_entries(claude: str) -> list[str]:
+    """The first word of each entry of the CLAUDE.md's Layout block: a line at the left
+    margin or two spaces in, never a description's continuation."""
+    block = claude.split("\n## Layout\n", 1)[1].split("```\n", 2)[1]
+    lines = [line for line in block.splitlines() if line.strip()]
+    return [line.split()[0] for line in lines if len(line) - len(line.lstrip()) <= 2]
+
+
+def secrecy_rule(claude: str) -> str:
+    """The rule of the Never list on what is never read or printed, its lines joined."""
+    never = claude.split("\n## Never\n", 1)[1].split("\n## ", 1)[0]
+    (rule,) = [item for item in never.split("\n- ") if "`.envrc`" in item]
+    return " ".join(rule.split())
+
+
+def test_the_readme_lists_its_documents(variant: tuple[str, Path]) -> None:
+    """``## Documents`` lists sdk-core's conventions, ADR index, definition of done and review
+    checklist, then the source's own ADR index and upstream snapshot, each as
+    ``- <repository>: [<path>](<its file on GitHub>) — <what it is>``; the source's own are
+    files of the render."""
+    name, dst = variant
+    own = f"sdk-{VARIANTS[name]['source_slug']}"
+    readme = (dst / "README.md").read_text()
+    assert readme.count("\n## Documents\n") == 1
+    expected = [("sdk-core", path) for path in CORE_DOCUMENTS]
+    expected += [(own, path) for path in OWN_DOCUMENTS]
+    assert documents(readme) == expected
+    for path in OWN_DOCUMENTS:
+        assert (dst / path).is_file(), path
+
+
+def test_the_readme_links_only_by_url(variant: tuple[str, Path]) -> None:
+    """#28 (a): PyPI shows the README with no repository around it, so every link is a URL,
+    the license's its file on GitHub."""
+    name, dst = variant
+    readme = (dst / "README.md").read_text()
+    targets = re.findall(r"\]\(([^)\s]+)\)", readme)
+    assert [target for target in targets if not target.startswith("https://")] == []
+    slug = VARIANTS[name]["source_slug"]
+    assert f"[LICENSE](https://github.com/xippios/sdk-{slug}/blob/main/LICENSE)" in readme
+
+
+def test_the_status_table_comment_names_both_task_lists(keyless_flat: Path) -> None:
+    """#88: core's family check reads the status table against ``tasks.__all__`` and
+    ``tasks_write.__all__``, so the comment above the table names both."""
+    readme = (keyless_flat / "README.md").read_text()
+    status = readme[readme.index("\n## Status\n") :]
+    comment = status.split("<!--", 1)[1].split("-->", 1)[0]
+    for name in ["tasks.__all__", "tasks_write.__all__"]:
+        assert name in comment, name
+
+
+def test_claude_md_and_its_commands_name_nothing_around_the_repository(
+    variant: tuple[str, Path],
+) -> None:
+    """The CLAUDE.md and every file under ``.claude/`` name no tooling, session, claim,
+    numbered rule or pull request's class around the repository, and the CLAUDE.md no branch, no
+    GitHub CLI, no merge, no reviewer and no person; no ``.claude/family.md`` is left."""
+    _, dst = variant
+    found = []
+    claude = dst / "CLAUDE.md"
+    paths = [claude, *sorted(p for p in (dst / ".claude").rglob("*") if p.is_file())]
+    for path in paths:
+        patterns = [AROUND, CHANGE_LANDING] if path == claude else [AROUND]
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            if any(pattern.search(line) for pattern in patterns):
+                found.append(f"{path.relative_to(dst)}:{number}: {line}")
+    assert not found, "\n".join(found)
+    assert not (dst / ".claude/family.md").exists()
+    assert "family.md" not in claude.read_text()
+
+
+def test_claude_md_links_the_documents_and_repeats_none(variant: tuple[str, Path]) -> None:
+    """The CLAUDE.md names the documents through the README's section: no URL that the
+    section lists stands in it."""
+    _, dst = variant
+    readme = (dst / "README.md").read_text()
+    claude = (dst / "CLAUDE.md").read_text()
+    for repository, path in documents(readme):
+        url = f"https://github.com/xippios/{repository}/blob/main/{path}"
+        assert url not in claude, url
+    assert "https://github.com/xippios/sdk-core/tree/" not in claude
+
+
+def test_the_secrecy_rule_names_every_credential_variable(variant: tuple[str, Path]) -> None:
+    """#82: the Never list's secrecy rule names each credential variable of the source, its
+    keys and its dependencies' (none in a keyless render), and the endings of every other
+    credential's variable that sdk-core's review checklist names."""
+    name, dst = variant
+    rule = secrecy_rule((dst / "CLAUDE.md").read_text())
+    for variable in [*key_envs(VARIANTS[name]), *live_secrets(VARIANTS[name])]:
+        assert f"`{variable}`" in rule, variable
+    for suffix in SECRET_SUFFIXES:
+        assert suffix in rule, suffix
+
+
+@pytest.mark.parametrize("key", ["", "EX_API_KEY"])
+def test_claude_md_names_the_live_secrets(template_src: Path, tmp_path: Path, key: str) -> None:
+    """#108, #82: the variables ``live_secrets`` names stand in the live run's paragraph after
+    the key, in the answer's order, and in the secrecy rule beside the key."""
+    dst = generate(
+        template_src,
+        tmp_path / "repo",
+        source_slug="ex",
+        live_secrets=LIVE_SECRETS,
+        **keyed(key),
+    )
+    claude = (dst / "CLAUDE.md").read_text()
+    names = [*([key] if key else []), "A_B", "C_D"]
+    rule = secrecy_rule(claude)
+    (live,) = [p for p in claude.split("\n\n") if p.startswith("`.github/workflows/live.yml`")]
+    live = " ".join(live.split())
+    for name in names:
+        assert f"`{name}`" in rule, name
+    places = [live.find(f"`{name}`") for name in names]
+    assert -1 not in places, live
+    assert places == sorted(places), "the keys first, then the answer's order"
+
+
+def test_claude_md_lays_out_the_decisions_and_the_fragments(variant: tuple[str, Path]) -> None:
+    """#135: the Layout lists ``scripts/adr_index.py``, ``docs/adr/`` with its index and
+    ``docs/reports/``, which the render holds, and ``changelog/``; where ``siblings.yml``
+    renders, the entry it continues ends with a comma (#35)."""
+    _, dst = variant
+    claude = (dst / "CLAUDE.md").read_text()
+    entries = layout_entries(claude)
+    for entry in ["adr_index.py", "adr/", "adr.md", "adr.json", "reports/", "changelog/"]:
+        assert entry in entries, entry
+    block = claude.split("\n## Layout\n", 1)[1].split("```\n", 2)[1].splitlines()
+    siblings = [n for n, line in enumerate(block) if line.lstrip().startswith("siblings.yml")]
+    for number in siblings:
+        assert block[number - 1].rstrip().endswith(","), block[number - 1]
+
+
+def test_claude_md_asks_for_a_fragment_and_takes_a_release_with_copier(
+    keyed_nested: Path,
+) -> None:
+    """#130: a change's changelog entry is a fragment under ``changelog/``, as
+    ``changelog/README.md`` lays it out; a template release is taken with one ``copier
+    update`` at its tag."""
+    claude = " ".join((keyed_nested / "CLAUDE.md").read_text().split())
+    for name in [
+        "`changelog/`",
+        "`changelog/README.md`",
+        "`uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=<tag>`",
+    ]:
+        assert name in claude, name
+
+
+def test_every_documented_live_run_asserts_plain(variant: tuple[str, Path]) -> None:
+    """#58: wherever the render documents the live run, in its CLAUDE.md and its commands,
+    the command is ``uv run pytest -m live --tb=short --assert=plain``, as ``live.yml``
+    runs it."""
+    _, dst = variant
+    claude = (dst / "CLAUDE.md").read_text()
+    for path in [dst / "CLAUDE.md", *sorted((dst / ".claude/commands").glob("*.md"))]:
+        text = " ".join(path.read_text().split())
+        assert text.count("pytest -m live") == text.count(LIVE_COMMAND), path.name
+    assert claude.count(LIVE_COMMAND) >= 2, "the commands and the live run's paragraph"
+    assert LIVE_COMMAND in (dst / ".claude/commands/release-prep.md").read_text()
+
+
+def test_no_instruction_calls_a_hand_written_enumeration_unexported(keyed_nested: Path) -> None:
+    """#36: an enumeration written by hand lives in ``models.py`` by precedent, and one a
+    dependent imports is part of its source's contract, so no instruction calls it
+    unexported."""
+    for rel in ["CLAUDE.md", ".claude/commands/add-endpoint.md"]:
+        assert "unexported" not in (keyed_nested / rel).read_text(), rel
 
 
 # The human paths of a member (C70 as amended by coordinate-core#122 and #167), in the order
@@ -1005,19 +1220,6 @@ def test_the_index_follows_the_records(keyed_nested: Path, tmp_path: Path) -> No
             assert f"docs/adr/{name}" in run.stdout, (name, args)
         assert {rel: (repo / rel).read_text() for rel in ADR_INDEX} == written, name
         (repo / "docs/adr" / name).unlink()
-
-
-def test_family_rules_render_the_same_in_every_source(keyed_nested: Path) -> None:
-    """``.claude/family.md`` holds no Jinja, so a render is the template's file byte for
-    byte, in every source: it imports nothing and names sdk-core's documents by URL."""
-    family = (keyed_nested / ".claude/family.md").read_text()
-    assert family == FAMILY_RULES.read_text()
-    assert not [line for line in family.splitlines() if line.startswith("@")], "no import"
-    for doc in ["conventions.md", "definition-of-done.md", "review-checklist.md"]:
-        assert SDK_CORE_DOCS + doc in family, doc
-    assert "https://github.com/xippios/sdk-core/tree/main/docs/adr" in family
-    assert "../" not in family, "a relative path leaves the repository (worktree, GitHub)"
-    assert len(family) < 40_000, "Claude Code cuts a file that loads on demand"
 
 
 def test_pyproject_tooling(keyed_nested: Path) -> None:
@@ -1706,16 +1908,17 @@ def test_readme_status_table_has_the_columns_the_family_check_reads(keyless_flat
 
 
 def test_the_files_a_source_fills_are_one_list(keyless_flat: Path) -> None:
-    """The family rules name every protected path, in skip order; a pattern anchored at the
-    root by its slash is named without it."""
+    """The CLAUDE.md names every protected path, in skip order, where it says what a
+    template release re-renders; a pattern anchored at the root by its slash is named
+    without it."""
     names = [
         f"`{p.removeprefix('src/xippios/{{ package_dir }}/').lstrip('/').replace('/**', '/')}`"
         for p in QUESTIONS["_skip_if_exists"]
     ]
     listing = ", ".join(names[:-1]) + f" and {names[-1]}"
     assert names[-1] == "`CLAUDE.md`", "the facts are the source's"
-    family = (keyless_flat / ".claude/family.md").read_text()
-    assert listing in " ".join(family.split())
+    claude = (keyless_flat / "CLAUDE.md").read_text()
+    assert listing in " ".join(claude.split())
 
 
 # The render's .github/ (#129): a pull-request template that links sdk-core's definition of
@@ -2250,8 +2453,8 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
     mine = [f"{pkg}/{n}" for n in [*names, "parse/__init__.py"]]
     mine += ["tests/test_tasks.py", "tests/fixtures/files/README.md", "README.md", "CLAUDE.md"]
     mine += [*FILLED_SCRIPTS, *ADR_INDEX]
-    templates = [".claude/family.md", "tests/conftest.py", f"{pkg}/mcp.py", ".github/CODEOWNERS"]
-    templates += ["changelog/README.md", *ADR_TEMPLATE_FILES]
+    templates = ["tests/conftest.py", f"{pkg}/mcp.py", ".github/CODEOWNERS"]
+    templates += [".claude/settings.json", "changelog/README.md", *ADR_TEMPLATE_FILES]
     for rel in [*mine, *templates]:
         (dst / rel).write_text("# edited\n")
     generate(template_src, dst, **answers)
@@ -2648,8 +2851,7 @@ def test_no_instruction_tells_a_human_to_tag() -> None:
             scanned.add(path.relative_to(ROOT).as_posix())
             for number, line in enumerate(path.read_text().splitlines(), 1):
                 assert not HUMAN_TAGS.search(line), f"{path.relative_to(ROOT)}:{number}: {line}"
-    generated_contract = {"template/CLAUDE.md.jinja", "template/.claude/family.md.jinja"}
-    assert generated_contract <= scanned, "the facts and the family rules alike"
+    assert "template/CLAUDE.md.jinja" in scanned, "the generated instructions"
 
 
 # The rule of the retired merge gates: a pull request's merge class, under any of its names
@@ -2674,7 +2876,6 @@ def test_no_instruction_names_the_merge_class() -> None:
             assert not MERGE_CLASS.search(line), f"{path.relative_to(ROOT)}:{number}: {line}"
     renders = {
         "CLAUDE.md",
-        "template/.claude/family.md.jinja",
         "template/.claude/commands/release-prep.md.jinja",
         "template/.github/PULL_REQUEST_TEMPLATE.md",
     }
