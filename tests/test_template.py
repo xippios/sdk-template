@@ -1424,7 +1424,8 @@ def test_release_prep_names_what_its_rows_add(variant: tuple[str, Path]) -> None
     for name in ["`/refresh-reference-data`", "`fetched`"]:
         assert name in text, f"#39: {name}"
     assert "`live.yml`" in text, "#73"
-    assert "pytest -m live --tb=short" in text, "#73"
+    (local,) = [s for s in re.split(r"(?<=[.:;])\s", text) if "pytest -m live --tb=short" in s]
+    assert 0 <= local.find("dispatch") < local.find("pytest -m live"), f"#73: {local}"
     sentences = [s for s in re.split(r"(?<=[.:;])\s", text) if "docs/handover.md" in s]
     assert sentences, "#75"
     assert all("sdk-core" in sentence for sentence in sentences), sentences
