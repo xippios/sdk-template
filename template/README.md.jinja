@@ -15,7 +15,7 @@ uv add "xippios-{{ source_slug }}[http]"    # + FastAPI router
 ```
 
 {% if depends_on %}
-It depends on {% for dep in depends_on %}`xippios-{{ dep.name }}`{{ ', ' if not loop.last else '' }}{% endfor %}, installed with it. <!-- what it uses each for, one line (ADR-0021 decision 6) -->
+It depends on {% for dep in depends_on %}`xippios-{{ dep.name }}`{{ ', ' if not loop.last else '' }}{% endfor %}, installed with it. <!-- what it uses each for, one line (sdk-core ADR-0021 decision 6) -->
 
 {% endif %}
 {% if key_envs %}

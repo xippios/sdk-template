@@ -58,6 +58,8 @@ CHANGELOG.md             template releases, each section assembled from changelo
 changelog/               the next release's entries, one fragment per change; README.md lays them out
 pyproject.toml, uv.lock  the development tooling; version names the latest release (Releases)
 .github/workflows/ci.yml       the template's own CI: tests and five proofs
+.github/workflows/organization.yml  the organization's checks on this repository's own pull
+                         requests, conventions and adr-index; byte for byte the render's (Rules)
 .github/workflows/release.yml  tags vX.Y.Z from the top CHANGELOG heading (Releases)
 .claude/settings.json    what Claude Code may run here: the checks, the proofs and local git
 ```
@@ -117,9 +119,14 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   `.github/workflows/organization.yml` is verbatim too and the template's own: it calls
   the organization's checks of a pull request, the conventions review against the
   documents the README lists and the check of the ADR index, which runs the render's
-  `scripts/adr_index.py --check`. Two verbatim files render only where the
-  import path nests or the source declares a dependency, so only their names hold Jinja:
-  `.github/workflows/siblings.yml` and the script it runs,
+  `scripts/adr_index.py --check`. It runs on the opening, a push, a reopening and an edit,
+  never on `labeled`, and neither job has a condition of its own, since GitHub reports a
+  head's checks from its newest run and the callee tells a release pull request by its own
+  condition. This repository runs the same file, byte for byte, on its own pull requests,
+  as `.github/workflows/organization.yml`, and the tests hold the two equal.
+  Two verbatim files render only where the import path nests or the source declares a
+  dependency, so only their names hold Jinja: `.github/workflows/siblings.yml` and the
+  script it runs,
   `.github/scripts/check-siblings.sh` (executable; copier keeps the bit), the sibling
   proof of ADR-0006, which installs and imports the declared dependencies too (ADR-0021).
   They stay outside `_skip_if_exists`, so `copier update` keeps a source's copy
@@ -149,7 +156,8 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   `.github/PULL_REQUEST_TEMPLATE.md` is the template's own, no copy of core's: it links
   sdk-core's definition of done where core's copy repeats it, so it cannot lag, and the
   tests pin its sections.
-- Commit subjects follow Conventional Commits.
+- Commit subjects follow Conventional Commits: the rule binds a pull request's own commits,
+  not the commit that lands the pull request on `main`, whose subject GitHub writes.
 - Every PR that changes more than the documentation brings its `CHANGELOG.md` entry (Keep a
   Changelog) as a fragment, `changelog/<group>-<slug>.md` holding one bullet, as
   `changelog/README.md` lays it out; the release assembles the fragments into its section.

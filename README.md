@@ -84,7 +84,7 @@ organization secret whose repository access takes the new repository, never set 
 | `source_dependencies` | the source packages this one uses the task layer of (ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |
 | `live_secrets` | the variables the live tests read beyond the keys, such as a username and a password, a YAML flow list of UPPER_SNAKE_CASE names in a string: `live.yml` passes each one to its pytest step from the secret of the same name, after the keys; each name once, never a key (`api_key_env`'s or a dependency's `key_env`), `XIPPIOS_LIVE_TESTS` or a name with GitHub's `GITHUB_` prefix; default `[]`, none, recorded on one line | `[FAOSTAT_USERNAME, FAOSTAT_PASSWORD]` |
 | `has_files` | whether the source parses the files it downloads (ADR-0020): `true` renders `parse/`, one module per file kind, and `tests/fixtures/files/README.md`, one provenance row per sample file its parser tests read, both the source's once rendered; a retrieval-only source, which lists releases and downloads files without parsing them, answers `false`, its download fixture the recorded exchange of the file's URL (ADR-0019 decision 5); default `false` | `true` |
-| `human` | the GitHub login of the human, without the `@`. `.github/CODEOWNERS` names it as the owner of the paths that steer the repository, `.github/`, `CLAUDE.md`, `.claude/`, `rules/`, `pyproject.toml` and `.copier-answers.yml`, so a change to one waits for that human's review. Default `jdidaskalu`, a literal, which a source that predates the question takes on update | `jdidaskalu` |
+| `human` | the GitHub login of the human, without the `@`. `.github/CODEOWNERS` names it as the owner of the paths that steer the repository, `.github/`, `CLAUDE.md`, `.claude/`, `pyproject.toml` and `.copier-answers.yml`, so a change to one waits for that human's review. Default `jdidaskalu`, a literal, which a source that predates the question takes on update | `jdidaskalu` |
 
 ## What gets generated
 
@@ -170,6 +170,28 @@ own lines in them are merged three ways, conflicts marked. A template-owned file
 release removes is deleted by the update, a source's own lines in it included, so the
 release's CHANGELOG says where they move first.
 
+Before its update a source checks two things on its `main`. First, its own lines in the
+template's files, against a render of the tag it records with the answers it records. In a
+clean checkout, `copier recopy` renders that tag over every file but those under
+`_skip_if_exists`, so `git diff` shows each such line as its removal:
+
+```bash
+uvx --from 'copier>=9.19' copier recopy --defaults --overwrite --vcs-ref=:current:
+git diff                             # the source's own lines in the template's files
+git checkout -- .
+```
+
+The update carries such a line into the new render silently where the release leaves its
+place alone, and as a conflict where it changes it; a line every source shares belongs in
+the template, and one of the source's own in a file it fills. Second, its answers in
+`.copier-answers.yml`, which the update keeps as they stand, a wrong one included:
+`has_files` is `true` for a source that parses the files it downloads, and one that answers
+`false` lacks, among others, the file sample's item of `/add-endpoint`. A wrong answer
+changes in a pull request of its own, before the update, with `uvx --from 'copier>=9.19'
+copier update --defaults --vcs-ref=:current: -d has_files=true`, which renders the
+template's files again; the files the source fills, `CLAUDE.md` among them, take the
+answer's lines by hand in the same pull request, as a render with the new answer has them.
+
 ## Developing the template
 
 ```bash
@@ -182,6 +204,11 @@ scripts/prove.sh --keyless-nested  # a keyless nested source
 scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files
 scripts/prove.sh --gateway         # a nested source behind api.data.gov; CI runs these five proofs
 ```
+
+A pull request of the template runs `.github/workflows/ci.yml`, the tests and the five
+proofs, and `.github/workflows/organization.yml`, byte for byte the file it renders into a
+source: the organization's conventions review, which reads a release pull request against
+the documents listed under [Documents](#documents), and the check of the ADR index.
 
 ## Releasing the template
 

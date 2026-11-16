@@ -311,7 +311,7 @@ human:
   type: str
   help: >-
     The GitHub login of the human, without the @: .github/CODEOWNERS names it as the
-    owner of the paths that steer the repository, .github/, CLAUDE.md, .claude/, rules/,
+    owner of the paths that steer the repository, .github/, CLAUDE.md, .claude/,
     pyproject.toml and .copier-answers.yml, so a change to one waits for that human's
     review. jdidaskalu, the default.
   default: jdidaskalu
@@ -328,7 +328,7 @@ _answers_file: .copier-answers.yml
 _envops:
   trim_blocks: true
   lstrip_blocks: true
-# Files a session fills with source-specific content: never overwritten by `copier update`.
+# Files a source fills with its own content: never overwritten by `copier update`.
 # Every other rendered file is the template's and updates with it, the commands under
 # .claude/commands/, tests/conftest.py and tests/test_family.py among them. Copier renders these
 # patterns, so those inside the package name its directory: src/xippios/**/api/** would
