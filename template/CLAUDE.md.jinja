@@ -15,17 +15,17 @@ follows, sdk-core's conventions among them, are listed under
 | API base URL | `{{ api_base_url }}` |
 | Documentation | {{ upstream_docs_url }}, snapshotted in `docs/upstream/`; an OpenAPI or Swagger document a page names is kept beside it, its URL in `SPEC_URL` of `scripts/refresh_upstream.py` (`/refresh-upstream`) |
 {% if api_key_env %}
-| Credentials | `{{ api_key_env }}` from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% endif %}{% if gateway == 'api.data.gov' %} by `xippios.core.data_gov`'s `Gateway`; the key is api.data.gov's, shared by every package that reads it (ADR-0009){% endif %} |
+| Credentials | `{{ api_key_env }}` from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% endif %}{% if gateway == 'api.data.gov' %} by `xippios.core.data_gov`'s `Gateway`; the key is api.data.gov's, shared by every package that reads it (sdk-core ADR-0009){% endif %} |
 {% else %}
 | Credentials | none; the API is open |
 {% endif %}
-| Rate limit | {{ rate_limit_per_minute }} requests per minute, burst {{ rate_limit_burst }}; {% if rate_limit_provenance == 'self-imposed' %}a self-imposed pace: upstream documents no per-second or per-minute limit{% else %}within the limit documented by upstream{% endif %} (ADR-0010); enforced client-side in `_client.py`{% if gateway == 'api.data.gov' %}. The hourly quota is the gateway's, shared by every package on the key: one `QuotaPolicy` per process, `Gateway.policy`, which once the quota is spent waits within the policy's cap or refuses before sending (ADR-0009, ADR-0015){% else %} <!-- name here an hourly or daily quota upstream documents, if any, and the QuotaPolicy that keeps it (ADR-0015) -->{% endif %} |
+| Rate limit | {{ rate_limit_per_minute }} requests per minute, burst {{ rate_limit_burst }}; {% if rate_limit_provenance == 'self-imposed' %}a self-imposed pace: upstream documents no per-second or per-minute limit{% else %}within the limit documented by upstream{% endif %} (sdk-core ADR-0010); enforced client-side in `_client.py`{% if gateway == 'api.data.gov' %}. The hourly quota is the gateway's, shared by every package on the key: one `QuotaPolicy` per process, `Gateway.policy`, which once the quota is spent waits within the policy's cap or refuses before sending (sdk-core ADR-0009, sdk-core ADR-0015){% else %} <!-- name here an hourly or daily quota upstream documents, if any, and the QuotaPolicy that keeps it (sdk-core ADR-0015) -->{% endif %} |
 | Write tools | no, this package is read-only |
 {% if has_files %}
-| Files | parsed in `parse/`, one module per file kind; the parser tests read the samples under `tests/fixtures/files/`, their provenance in its `README.md` (ADR-0020) <!-- each file kind upstream publishes, its format and the library that reads it --> |
+| Files | parsed in `parse/`, one module per file kind; the parser tests read the samples under `tests/fixtures/files/`, their provenance in its `README.md` (sdk-core ADR-0020) <!-- each file kind upstream publishes, its format and the library that reads it --> |
 {% endif %}
 {% if depends_on %}
-| Depends on | {% for dep in depends_on %}`xippios-{{ dep.name }}~={{ dep.minor }}.0`{{ ', key `' ~ dep.key_env ~ '`' if dep.key_env else '' }}{{ '; ' if not loop.last else '' }}{% endfor %}: the task layer and its models only, never `api/` or `_client`; this package's servers serve its own tasks, and an agent that wants a dependency's tools runs that package's server (ADR-0021) <!-- what this package uses each for, one line (ADR-0021 decision 6) --> |
+| Depends on | {% for dep in depends_on %}`xippios-{{ dep.name }}~={{ dep.minor }}.0`{{ ', key `' ~ dep.key_env ~ '`' if dep.key_env else '' }}{{ '; ' if not loop.last else '' }}{% endfor %}: the task layer and its models only, never `api/` or `_client`; this package's servers serve its own tasks, and an agent that wants a dependency's tools runs that package's server (sdk-core ADR-0021) <!-- what this package uses each for, one line (sdk-core ADR-0021 decision 6) --> |
 {% endif %}
 
 The snapshot listed in `docs/upstream/FETCHED.md` is the reference for names, parameters and
@@ -90,11 +90,11 @@ CHANGELOG.md       the releases, each section assembled from the fragments
                    conventions, a review of a pull request against the documents the README
                    lists, and adr-index, which runs scripts/adr_index.py --check){{ ',' if '.' in import_path or depends_on else '' }}
 {% if '.' in import_path %}
-                   siblings.yml (the sibling proof of ADR-0006: this wheel beside the
-                   siblings under xippios.{{ import_path.rsplit('.', 1)[0] }}{{ ' and the source packages it depends on (ADR-0021)' if depends_on else '' }}, a visible check the ruleset does not require)
+                   siblings.yml (the sibling proof of sdk-core ADR-0006: this wheel beside the
+                   siblings under xippios.{{ import_path.rsplit('.', 1)[0] }}{{ ' and the source packages it depends on (sdk-core ADR-0021)' if depends_on else '' }}, a visible check the ruleset does not require)
 {% elif depends_on %}
-                   siblings.yml (this wheel beside the source packages it depends on, ADR-0021,
-                   a visible check the ruleset does not require)
+                   siblings.yml (this wheel beside the source packages it depends on,
+                   sdk-core ADR-0021, a visible check the ruleset does not require)
 {% endif %}
 {% if '.' in import_path or depends_on %}
 .github/scripts/   check-siblings.sh, which siblings.yml runs; the template's, as is the workflow
@@ -102,8 +102,8 @@ CHANGELOG.md       the releases, each section assembled from the fragments
 .claude/commands/  add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
 ```
 
-The import path is `xippios.{{ import_path }}` (ADR-0006); `src/xippios/` is a namespace
-package{% if '/' in package_dir %}, and so is `src/xippios/{{ package_dir.rsplit('/', 1)[0] }}/`, the provider level{% endif %}.
+The import path is `xippios.{{ import_path }}` (sdk-core ADR-0006); `src/xippios/` is a
+namespace package{% if '/' in package_dir %}, and so is `src/xippios/{{ package_dir.rsplit('/', 1)[0] }}/`, the provider level{% endif %}.
 Where the API's operation ids repeat across its services, `api/` keeps one module per service
 instead, named after the service, and this Layout says so (conventions §2).
 
@@ -122,9 +122,9 @@ uv run xippios-{{ source_slug }}-mcp   # stdio; add --http for streamable HTTP
 ```
 
 `uv run pytest` is offline: core's plugin refuses the network and skips the rate limiter's
-waits in every test not marked `live` (conventions §10, ADR-0013). A test that asserts a
-limiter wait or a quota pause is marked `rate_limited`, one that must reach the network
-`network`.
+waits in every test not marked `live` (conventions §10, sdk-core ADR-0013). A test that
+asserts a limiter wait or a quota pause is marked `rate_limited`, one that must reach the
+network `network`.
 {% if key_envs %}
 It sends the key's placeholder, with `{{ key_envs | join('` and `') }}` set to it because
 `pyproject.toml` names {{ 'that variable' if key_envs | length == 1 else 'those variables' }} under `xippios_placeholder_key_envs`; the package
@@ -146,17 +146,18 @@ and counts, never on a raw payload.
 
 ## Code rules
 
-- Three layers (ADR-0001, conventions §2): endpoint wrappers in `api/`, task functions in
-  `tasks.py`, adapters in `mcp.py` and `http.py`. The adapters register `tasks.__all__` and
-  call only tasks, the tasks call only wrappers and reference data, and a wrapper returns
-  models.
+- Three layers (sdk-core ADR-0001, conventions §2): endpoint wrappers in `api/`, task
+  functions in `tasks.py`, adapters in `mcp.py` and `http.py`. The adapters register
+  `tasks.__all__` and call only tasks, the tasks call only wrappers and reference data, and
+  a wrapper returns models.
 - Upstream's documented error shapes go into `classify` in `_client.py`, once, and an error
   class of the package's own into `errors.py`; a wrapper never inspects a status code
   (conventions §5, §6).
 - A change brings its tests, written before the code, and passes the offline checks above;
   its changelog entry is a fragment under `changelog/`, one file holding its bullet, as
   `changelog/README.md` lays it out (conventions §12). Commit subjects follow Conventional
-  Commits (conventions §13).
+  Commits (conventions §13): the rule binds a pull request's own commits, not the commit
+  that lands the pull request on `main`, whose subject GitHub writes.
 - `ruff` leaves `docs/` and `.claude/` alone (`pyproject.toml`), so the upstream snapshot
   keeps its bytes: never reformat it.
 - A convention that seems wrong is followed anyway and said in the pull request; changing
@@ -176,14 +177,14 @@ and counts, never on a raw payload.
 {% endif %}
 - Never write a key, a token or another credential into a file or a commit.
 - Never put logic in `mcp.py` or `http.py`, and never add a route or a tool by hand: the
-  adapters register `tasks.__all__` (ADR-0001).
-- Never rename or re-map an upstream concept to another source's (ADR-0003).
+  adapters register `tasks.__all__` (sdk-core ADR-0001).
+- Never rename or re-map an upstream concept to another source's (sdk-core ADR-0003).
 - Never return a documented personal identifier in a task's projection, echo one in
-  `meta.request`, or commit one in a fixture (ADR-0017).
+  `meta.request`, or commit one in a fixture (sdk-core ADR-0017).
 - Never edit `docs/upstream/` by hand: `/refresh-upstream` fetches it, and the pull request
   shows its diff (conventions §3).
 - Never add `src/xippios/__init__.py`, nor an `__init__.py` at a level between it and the
-  package (ADR-0006).
+  package (sdk-core ADR-0006).
 - Never push a tag by hand: a release's tag comes from `publish.yml` alone (conventions §12).
 
 ## Template updates

@@ -1073,6 +1073,38 @@ def test_claude_md_asks_for_a_fragment_and_takes_a_release_with_copier(
         assert name in claude, name
 
 
+def commit_rule(claude: str) -> str:
+    """The sentence of a CLAUDE.md that names Conventional Commits, its lines joined."""
+    flat = " ".join(claude.split())
+    (rule,) = [s for s in re.split(r"(?<=\.) ", flat) if "Conventional Commits" in s]
+    return rule
+
+
+def test_both_claude_mds_say_which_commits_follow_conventional_commits(
+    keyed_nested: Path,
+) -> None:
+    """#149: the rule on Conventional Commits binds a pull request's own commits, and the
+    template's CLAUDE.md and the rendered one say so where they state it."""
+    for claude in [ROOT / "CLAUDE.md", keyed_nested / "CLAUDE.md"]:
+        assert "a pull request's own commits" in commit_rule(claude.read_text()), claude
+
+
+# A citation of a decision record by its bare number, which a source keeps for its own.
+BARE_ADR = re.compile(r"(?<!sdk-core )\bADR-\d{4}\b")
+
+
+def test_the_render_cites_sdk_cores_records_as_sdk_cores(variant: tuple[str, Path]) -> None:
+    """#152: a source cites its own records as ``ADR-NNNN`` (its ``docs/adr/README.md``), so
+    its CLAUDE.md and README cite each of sdk-core's as ``sdk-core ADR-NNNN``."""
+    _, dst = variant
+    assert "cited as `ADR-NNNN`" in " ".join((dst / "docs/adr/README.md").read_text().split())
+    for rel in ["CLAUDE.md", "README.md"]:
+        flat = " ".join((dst / rel).read_text().split())
+        assert BARE_ADR.findall(flat) == [], rel
+    claude = " ".join((dst / "CLAUDE.md").read_text().split())
+    assert "sdk-core ADR-0001" in claude, "the three layers"
+
+
 def test_every_documented_live_run_asserts_plain(variant: tuple[str, Path]) -> None:
     """#58: wherever the render documents the live run, in its CLAUDE.md and its commands,
     the command is ``uv run pytest -m live --tb=short --assert=plain``, as ``live.yml``
@@ -1094,13 +1126,12 @@ def test_no_instruction_calls_a_hand_written_enumeration_unexported(keyed_nested
         assert "unexported" not in (keyed_nested / rel).read_text(), rel
 
 
-# The human paths of a member (C70 as amended by coordinate-core#122 and #167), in the order
-# the rendered .github/CODEOWNERS lists them; a PyPI member's one manifest is pyproject.toml.
+# The paths that steer a source, in the order the rendered .github/CODEOWNERS lists them; a
+# source's one manifest is pyproject.toml. No `/rules/**`, a path no source has (#152).
 MEMBER_HUMAN_PATHS = [
     "/.github/**",
     "/CLAUDE.md",
     "/.claude/**",
-    "/rules/**",
     "/pyproject.toml",
     "/.copier-answers.yml",
 ]
@@ -1119,9 +1150,10 @@ def owner_rules(dst: Path) -> list[str]:
 def test_codeowners_names_the_human_for_every_member_path(variant: tuple[str, Path]) -> None:
     """A source's ``.github/CODEOWNERS`` comes from its template: a header of comments that
     says what the file is, names each path it owns and the answer it is rendered from, and
-    no tool, rule or file around the repository (#129), then the six human paths, each
-    owned by the ``human`` answer, its default ``jdidaskalu`` in every variant. The
-    answer's help names each path too."""
+    no tool, rule or file around the repository (#129), then the five paths that steer it,
+    each owned by the ``human`` answer, its default ``jdidaskalu`` in every variant. The
+    answer's help names each path too, and neither names ``rules/``, which no source has
+    (#152)."""
     _, dst = variant
     assert (QUESTIONS["human"]["type"], QUESTIONS["human"]["default"]) == ("str", HUMAN)
     rules = owner_rules(dst)
@@ -1138,6 +1170,10 @@ def test_codeowners_names_the_human_for_every_member_path(variant: tuple[str, Pa
         name = path.removeprefix("/").removesuffix("**")
         assert f"`{name}`" in header, f"the header names {name}"
         assert f" {name}" in help_text, f"the help names {name}"
+    readme = (ROOT / "README.md").read_text().splitlines()
+    (row,) = [line for line in readme if line.startswith("| `human` |")]
+    for text in [header, help_text, row]:
+        assert "rules/" not in text, text
 
 
 # The checks no answer changes, on one render.
@@ -1970,11 +2006,13 @@ def test_the_pr_template_links_the_definition_of_done(keyed_nested: Path) -> Non
 
 
 # GitHub starts a caller on these: `edited` because the review reads the title and the
-# description and a change of the base arrives as `edited`, `labeled` because a label set
-# after the opening makes a release pull request (the README of xippios/.github).
-ORG_TRIGGERS = {
-    "pull_request": {"types": ["opened", "synchronize", "reopened", "edited", "labeled"]}
-}
+# description and a change of the base arrives as `edited`. Never `labeled`: GitHub reports
+# a head's checks from its newest run, and a label set at the opening started a run that
+# skipped both jobs at the caller (#152).
+ORG_TRIGGERS = {"pull_request": {"types": ["opened", "synchronize", "reopened", "edited"]}}
+# The title form of a release pull request, which the callee's own condition knows and the
+# README of xippios/.github lays out: the caller names none (#152).
+RELEASE_TITLE_FORM = re.compile(r"<version>|\btitled\b", re.I)
 
 
 def test_the_organizations_checks_are_called_from_a_workflow_of_their_own(
@@ -1984,7 +2022,9 @@ def test_the_organizations_checks_are_called_from_a_workflow_of_their_own(
     conventions review and its check of the ADR index as the jobs ``conventions`` and
     ``adr-index``. It reads by default, grants the review what it asks and passes it one
     secret by name; the index check takes no input and no secret and runs the repository's
-    own script. It names nothing around the repository."""
+    own script. #152: it starts on no label, neither job has a condition of its own, since
+    the callee tells a release pull request by its own, and it names no title form. It
+    names nothing around the repository."""
     text = (keyed_nested / ".github/workflows" / ORG_CALLER).read_text()
     assert text == (ROOT / "template/.github/workflows" / ORG_CALLER).read_text()
     protected = skip_matcher(package_dir(VARIANTS["keyed-nested"]))
@@ -1999,16 +2039,27 @@ def test_the_organizations_checks_are_called_from_a_workflow_of_their_own(
     asked = {"contents": "read", "pull-requests": "write", "checks": "read"}
     assert review["permissions"] == asked, "its one comment and the head's checks"
     assert review["secrets"] == {"ANTHROPIC_API_KEY": "${{ secrets.ANTHROPIC_API_KEY }}"}
-    assert "github.event.label.name == 'release'" in review["if"], "a label: the release's"
     assert index["uses"] == ORG_WORKFLOW.format("adr-index")
     assert index["permissions"] == {"contents": "read"}
-    assert index["if"] == "github.event.action != 'labeled'", "a label changes no record"
     for job in [review, index]:
+        assert "if" not in job, "the newest run of a head reports both checks"
         assert "with" not in job, "the callees take no input"
     assert "secrets" not in index
     assert text.count("secrets.") == 1, "one secret, by name, never inherited"
     assert (keyed_nested / ADR_SCRIPT).is_file(), "the script the index check runs"
+    assert not RELEASE_TITLE_FORM.search(text), RELEASE_TITLE_FORM.search(text)
     assert not AROUND_THE_REPOSITORY.search(text), AROUND_THE_REPOSITORY.search(text)
+
+
+def test_the_templates_own_pull_requests_call_the_organizations_checks() -> None:
+    """#151: this repository calls the organization's checks on its own pull requests from
+    the file it renders into a source, byte for byte, so its triggers and its two jobs are
+    the render's and a pull request of the template reports ``conventions / conventions``
+    and ``adr-index / adr-index`` beside ``ci``; the index check runs its own script."""
+    own = ROOT / ".github/workflows" / ORG_CALLER
+    assert own.is_file(), "the template's own caller"
+    assert own.read_bytes() == (ROOT / "template/.github/workflows" / ORG_CALLER).read_bytes()
+    assert os.access(ROOT / ADR_SCRIPT, os.X_OK), "the script the index check runs"
 
 
 # The caller of the retired merge gates as the template rendered it up to v0.3.2, in its
@@ -2716,10 +2767,15 @@ def test_no_workflow_calls_the_retired_gates() -> None:
 
 def test_the_templates_own_workflows_are_hardened() -> None:
     """Conventions §13 for this repository's own workflows too: SHA pins with the version
-    in a comment, ``contents: read`` at the top, and no checkout keeps its credentials but
-    the one in a job that pushes, which says so."""
+    in a comment, but the organization's checks, called at ``@main``, ``contents: read``
+    at the top, and no checkout keeps its credentials but the one in a job that pushes,
+    which says so."""
     for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
         for action, comment in workflow_uses(path):
+            if path.name == ORG_CALLER:
+                assert re.fullmatch(r"xippios/\.github/\.github/workflows/[\w-]+\.yml@main", action)
+                assert not comment, f"{path.name}: {action}{comment}"
+                continue
             assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", action), f"{path.name}: {action}"
             assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{path.name}: {action}{comment}"
         text = path.read_text()
@@ -2836,6 +2892,40 @@ def test_the_templates_own_files_name_no_retired_process() -> None:
     assert named <= scanned, "the files that named it"
     assert not (ROOT / f"scripts/{RETIRED_SCRIPT}.sh").exists()
     assert not (ROOT / f".claude/commands/{RETIRED_SCRIPT}.md").exists()
+
+
+# What stands around a repository that works alone, by the words a comment used for it: a
+# session, the workspace, and the maintainer by name where the role is meant (#150).
+AROUND_BY_NAME = re.compile(r"\bsessions?\b|\bworkspaces?\b|\bJohannes\b", re.I)
+# The two files that keep such words for now: the owners file, which the tool around the
+# template writes, and the render's publish.yml, sdk-core's bytes until
+# https://github.com/xippios/sdk-core/issues/215.
+AROUND_BY_NAME_KEPT = {".github/CODEOWNERS", "template/.github/workflows/publish.yml"}
+
+
+def test_the_templates_files_say_what_stands_around_them_in_their_own_words() -> None:
+    """#150: the template's own files and every file it renders say what they mean in the
+    repository's own words, the maintainer, a sibling's checkout beside the repository, a
+    source that fills a file, never a session, the workspace or a person's name."""
+    scanned, found = set(), []
+    for name in [*OWN_FILES, "template"]:
+        root = ROOT / name
+        for path in [root] if root.is_file() else sorted(root.rglob("*")):
+            rel = path.relative_to(ROOT).as_posix()
+            if not path.is_file() or rel in AROUND_BY_NAME_KEPT:
+                continue
+            scanned.add(rel)
+            for number, line in enumerate(path.read_text().splitlines(), 1):
+                if AROUND_BY_NAME.search(line):
+                    found.append(f"{rel}:{number}: {line}")
+    assert not found, "\n".join(found)
+    named = {
+        "copier.yml",
+        ".github/workflows/release.yml",
+        "template/.github/{% if '.' in import_path or depends_on %}scripts{% endif %}"
+        "/check-siblings.sh",
+    }
+    assert named <= scanned, "the files that named it"
 
 
 # A release heading of CHANGELOG.md, as .github/workflows/release.yml finds the top one.
@@ -2988,3 +3078,50 @@ def test_the_readme_generates_a_source_with_copier_alone(
     recorded = yaml.safe_load((repo / ".copier-answers.yml").read_text())
     for key, value in answers.items():
         assert str(recorded[key]) == value, key
+
+
+def readme_bash_lines(word: str) -> list[list[str]]:
+    """The lines of the README's ``bash`` blocks that run ``copier <word>``, as the shell
+    splits them, their comments dropped."""
+    readme = (ROOT / "README.md").read_text()
+    blocks = re.findall(r"```bash\n(.*?)```", readme, re.S)
+    commands = [line for block in blocks for line in block.replace("\\\n", " ").splitlines()]
+    calls = [shlex.split(line, comments=True) for line in commands]
+    return [call for call in calls if f"copier {word}" in " ".join(call)]
+
+
+def test_the_readme_shows_a_sources_hand_edits_before_its_update(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """#152: before an update a source compares its ``main`` with a render of the tag it
+    records, with the README's ``copier recopy`` in a clean checkout: the diff is the
+    source's own lines in the template's files, which the update carries on, and leaves
+    the files the source fills. The README names ``has_files`` among the answers to check."""
+    (call,) = readme_bash_lines("recopy")
+    recopy = call.index("recopy")
+    assert call[recopy - 1] == "copier", call
+    assert sorted(call[recopy + 1 :]) == ["--defaults", "--overwrite", "--vcs-ref=:current:"]
+    template = tmp_path / "template"
+    shutil.copytree(template_src, template)
+    git(template, "init", "-q", "-b", "main")
+    git(template, "add", "-A")
+    git(template, "commit", "-q", "--no-verify", "-m", "a release")
+    git(template, "tag", "v0.0.1")
+    dst = tmp_path / "repo"
+    answers = {**BASE_ANSWERS, **VARIANTS["keyless-flat"]}
+    run_copy(str(template), str(dst), data=answers, defaults=True, vcs_ref="v0.0.1", quiet=True)
+    git(dst, "init", "-q", "-b", "main")
+    git(dst, "add", "-A")
+    git(dst, "commit", "-q", "--no-verify", "-m", "a source")
+    edited = ".claude/commands/add-endpoint.md"
+    for rel in [edited, "CLAUDE.md"]:
+        with (dst / rel).open("a") as file:
+            file.write("\nA line of the source's own.\n")
+    git(dst, "commit", "-q", "--no-verify", "-a", "-m", "its own lines")
+    copier = [sys.executable, "-m", "copier", *call[recopy:], "--quiet"]
+    subprocess.run(copier, cwd=dst, capture_output=True, text=True, check=True)
+    assert git(dst, "diff", "--name-only").split() == [edited]
+    assert git(dst, "status", "--porcelain", "--untracked-files=all").split() == ["M", edited]
+    readme = (ROOT / "README.md").read_text()
+    updating = readme.split("\n## Updating generated repositories\n", 1)[1].split("\n## ", 1)[0]
+    assert "`has_files`" in updating, "an answer the update keeps, a wrong one included"
