@@ -19,6 +19,106 @@ in the same adoption PR. A new file under those patterns is created by the updat
 the repository has no file of that name. The list starts with 0.1.5; earlier tags are not
 listed.
 
+## [0.3.4] - 2026-11-17
+
+With this release the organization's checks of a generated repository start on no label,
+and the notes leave a source no decision open. Its `organization.yml` runs on the opening,
+a push, a reopening and an edit of a pull request, so a label set at the opening no longer
+starts a run that skips both checks. No file of a generated repository under `src/` or
+`tests/` changes. Before its update a source checks two things on its `main`, as the
+README's section on updating generated repositories lays out: its own lines in the
+template's files, against a render of the tag it records, and its recorded answers,
+`has_files` among them, a wrong one changing in a pull request of its own first. A source
+that adopts from v0.3.2 or earlier takes the notes of 0.3.3 and of this release in one
+adoption, those of 0.3.3 as the entry under Fixed settles them. This release's notes apply
+by hand to `CLAUDE.md` and `README.md`, and `copier update` brings every other change. The
+source's own text that still speaks of the earlier process changes in a pull request of its
+own, as the entry under Fixed lists it. A source's first release after it takes 0.3.3 or
+later is the first pull request there whose conventions review runs.
+
+### Added
+
+- This repository calls the organization's checks on its own pull requests from
+  `.github/workflows/organization.yml`, byte for byte the file it renders into a source, so
+  `conventions / conventions` and `adr-index / adr-index` report beside `ci` and the
+  template's release pull request gets the conventions review. A test holds the two files
+  equal, and a generated repository is unchanged.
+  (https://github.com/xippios/sdk-template/issues/151)
+- The README says what a source checks on its `main` before it takes a release. Its own
+  lines in the template's files show as the diff of `copier recopy --defaults --overwrite
+  --vcs-ref=:current:` in a clean checkout, and the update carries them on, silently where
+  the release leaves their place alone. Its recorded answers, `has_files` among them, stay
+  as they are at the update, a wrong one included, and a wrong one changes in a pull
+  request of its own with `copier update --defaults --vcs-ref=:current: -d
+  <answer>=<value>`, the files the source fills taking the answer's lines by hand there.
+  (https://github.com/xippios/sdk-template/issues/152,
+  https://github.com/xippios/sdk-eurostat/issues/21)
+
+### Changed
+
+- The generated `.github/CODEOWNERS` no longer owns `/rules/**`, a path no source has, and
+  its header and the `human` answer's help name the five paths it owns. `copier update`
+  brings it, so nothing is applied by hand.
+  (https://github.com/xippios/sdk-template/issues/152)
+- Four comments say in the repository's own words what they said of a session, the
+  workspace or a person: the generated `.github/scripts/check-siblings.sh` takes a sibling
+  not on PyPI from its checkout beside the repository, and this repository's `copier.yml`
+  says which files a source fills and its `release.yml` that nobody pushes the tag by hand
+  and that the maintainer deletes a tag a race left. `copier update` brings the script, so
+  nothing is applied by hand, and the generated `publish.yml` keeps sdk-core's bytes, its
+  three such lines included, until sdk-core changes them there.
+  (https://github.com/xippios/sdk-template/issues/150,
+  https://github.com/xippios/sdk-core/issues/215)
+- The generated `.github/workflows/organization.yml` runs on the opening, a push, a
+  reopening and an edit of a pull request, no longer on `labeled`, and neither of its jobs
+  has a condition of its own: GitHub reports a head's checks from its newest run, and a
+  label set at the opening started a run that skipped both jobs at the caller. The callee
+  tells a release pull request by its own condition, which the README of xippios/.github
+  lays out, so the file's comment names no title form, and `copier update` brings the file,
+  so nothing is applied by hand. The workflow has no switch of its own, so a source's first
+  release after it takes 0.3.3 or later is the first pull request there whose conventions
+  review runs. (https://github.com/xippios/sdk-template/issues/152)
+- This repository's `CLAUDE.md` and the generated one say which commit subjects follow
+  Conventional Commits: a pull request's own commits, not the commit that lands it on
+  `main`, whose subject GitHub writes.
+  (https://github.com/xippios/sdk-template/issues/149)
+  - Hand-apply: `CLAUDE.md` — in Code rules, follow the sentence on Conventional Commits
+    with the clause `template/CLAUDE.md.jinja` adds at this tag — the rule binds a pull
+    request's own commits, and the commit that lands one takes the subject GitHub writes.
+- The generated `CLAUDE.md` and `README.md` cite sdk-core's decision records as
+  `sdk-core ADR-NNNN`, where they gave a bare number, since a source cites its own records
+  as `ADR-NNNN`, as its `docs/adr/README.md` says, and its first record would make a bare
+  number ambiguous. (https://github.com/xippios/sdk-template/issues/152)
+  - Hand-apply: `CLAUDE.md` — write each `ADR-NNNN` that cites a record of sdk-core as
+    `sdk-core ADR-NNNN`, in the table, the layout, the text and the lists alike — a bare
+    number is the source's own record.
+    `README.md` — the same in the comment beside the line on the packages the source
+    depends on, where it has one — a bare number is the source's own record.
+
+### Fixed
+
+- The Hand-apply notes of 0.3.3 leave no decision open: where a source keeps one module per
+  service, its own `api/` entry of the `CLAUDE.md` layout stands in place of the
+  template's, and `## Documents` goes above the README's licence heading whatever its
+  spelling. A source's own text that still speaks of the process before the repository
+  worked alone changes in a pull request of its own before the source's next release, since
+  an adoption changes nothing else (conventions §15). That pull request deletes
+  `docs/handover.md`, which the family's rules asked for up to 0.3.2, moving a fact a
+  reader needs into the `README.md` or the `CLAUDE.md`, rewords a line under
+  `## [Unreleased]` of `CHANGELOG.md` that names a class of a merge, an automatic merge, a
+  reviewer's approval or a login, since the section becomes the next tag's message, and
+  cites by its URL, or says, a decision that a docstring or the specifics of `CLAUDE.md`
+  cite by a row of the retired queue, a first name or a date.
+  (https://github.com/xippios/sdk-template/issues/152,
+  https://github.com/xippios/sdk-eurostat/issues/22)
+  - Hand-apply: `CLAUDE.md` — where `api/` keeps one module per service, keep the layout's
+    own `api/` entry in place of the template's, one module per operation, and take the
+    sentence on one module per service below the layout as 0.3.3 says — the template's
+    entry is wrong for such a source.
+    `README.md` — put `## Documents` directly above the licence's heading, `## Licence`,
+    `## License` or however the source spells it — the section is the README's list of
+    the documents, whatever the heading after it is called.
+
 ## [0.3.3] - 2026-11-13
 
 With this release a generated repository works alone. Its README lists its documents, its
