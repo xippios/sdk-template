@@ -31,10 +31,10 @@ template's files, against a render of the tag it records, and its recorded answe
 `has_files` among them, a wrong one changing in a pull request of its own first. A source
 that adopts from v0.3.2 or earlier takes the notes of 0.3.3 and of this release in one
 adoption, those of 0.3.3 as the entry under Fixed settles them. This release's notes apply
-by hand to `CLAUDE.md` and `README.md`, and to the source's own `docs/handover.md`,
-`CHANGELOG.md` and `src/`. `copier update` brings every other change. A source's first
-release after it takes 0.3.3 or later is the first pull request there whose conventions
-review runs.
+by hand to `CLAUDE.md` and `README.md`, and `copier update` brings every other change. The
+source's own text that still speaks of the earlier process changes in a pull request of its
+own, as the entry under Fixed lists it. A source's first release after it takes 0.3.3 or
+later is the first pull request there whose conventions review runs.
 
 ### Added
 
@@ -100,29 +100,24 @@ review runs.
 - The Hand-apply notes of 0.3.3 leave no decision open: where a source keeps one module per
   service, its own `api/` entry of the `CLAUDE.md` layout stands in place of the
   template's, and `## Documents` goes above the README's licence heading whatever its
-  spelling. The same adoption rewrites the source's own files that still speak of the
-  process before the repository worked alone, as the note below lists them.
+  spelling. A source's own text that still speaks of the process before the repository
+  worked alone changes in a pull request of its own before the source's next release, since
+  an adoption changes nothing else (conventions §15). That pull request deletes
+  `docs/handover.md`, which the family's rules asked for up to 0.3.2, moving a fact a
+  reader needs into the `README.md` or the `CLAUDE.md`, rewords a line under
+  `## [Unreleased]` of `CHANGELOG.md` that names a class of a merge, an automatic merge, a
+  reviewer's approval or a login, since the section becomes the next tag's message, and
+  cites by its URL, or says, a decision that a docstring or the specifics of `CLAUDE.md`
+  cite by a row of the retired queue, a first name or a date.
   (https://github.com/xippios/sdk-template/issues/152,
   https://github.com/xippios/sdk-eurostat/issues/22)
   - Hand-apply: `CLAUDE.md` — where `api/` keeps one module per service, keep the layout's
     own `api/` entry in place of the template's, one module per operation, and take the
-    sentence on one module per service below the layout as 0.3.3 says, and in the
-    specifics section cite a decision by its URL or say it, never by a first name, a date
-    or a row of the retired queue — the template's entry is wrong for such a source, and a
-    reader of the repository resolves neither a row nor a first name.
+    sentence on one module per service below the layout as 0.3.3 says — the template's
+    entry is wrong for such a source.
     `README.md` — put `## Documents` directly above the licence's heading, `## Licence`,
     `## License` or however the source spells it — the section is the README's list of
     the documents, whatever the heading after it is called.
-    `docs/handover.md` — delete it, and move a fact a reader of the repository needs into
-    the `README.md` or the `CLAUDE.md` — the family's rules asked for it up to 0.3.2, it
-    names a directory, a script, branches and classes of a merge outside the repository,
-    and the generated `/release-prep` says the hand-over is sdk-core's file and not one a
-    source must have.
-    `CHANGELOG.md` — reword a line under `## [Unreleased]`, such as the one the adoption
-    of 0.3.1 wrote, that names a class of a merge, an automatic merge, a reviewer's
-    approval or a login — the section becomes the next release's tag message.
-    `src/` — where a docstring or a README cites a row of the retired queue, cite the
-    decision by its URL or say it — a reader of the repository cannot resolve the row.
 
 ## [0.3.3] - 2026-11-13
 
