@@ -399,7 +399,7 @@ from xippios.core import XippiosError
 
 package = importlib.import_module(f"{sys.argv[1]}._client")
 if package.API_KEY_ENV:
-    os.environ[package.API_KEY_ENV] = "placeholder"  # a stand-in that respx keeps in
+    os.environ[package.API_KEY_ENV] = "placeholder"  # pragma: allowlist secret (a stand-in)
 spec = importlib.util.spec_from_file_location("refresh", "scripts/refresh_reference.py")
 assert spec is not None and spec.loader is not None
 script = importlib.util.module_from_spec(spec)
