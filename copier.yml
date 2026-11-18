@@ -289,19 +289,20 @@ live_secret_names:
   default: "{{ live_secrets }}"
   when: false
 
-# Whether the source parses the files it downloads (ADR-0020): parse/ and the samples'
-# provenance table render only then. Its default, false, is a literal, so every source
-# that predates the question takes it on update.
+# Whether the source parses the files it downloads (ADR-0020): parse/, the samples'
+# provenance table and the .gitattributes line that keeps the samples render only then.
+# Its default, false, is a literal, so every source that predates the question takes it on
+# update.
 has_files:
   type: bool
   help: >-
     Whether this source parses files it downloads (ADR-0020). A source that parses
     files answers true: parse/ renders, one module per file kind, and
     tests/fixtures/files/README.md, one provenance row per sample file its parser tests
-    read. A retrieval-only source, which lists releases and downloads files without
-    parsing them, answers false: its download fixture is the recorded exchange of the
-    file's URL (ADR-0019 decision 5). false, the default, for an API that answers with
-    records.
+    read, and .gitattributes keeps tests/fixtures/files/ byte for byte. A retrieval-only
+    source, which lists releases and downloads files without parsing them, answers false:
+    its download fixture is the recorded exchange of the file's URL (ADR-0019 decision 5).
+    false, the default, for an API that answers with records.
   default: false
 
 # The human's GitHub login, which the rendered .github/CODEOWNERS names as the owner of the

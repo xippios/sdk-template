@@ -9,12 +9,14 @@
 # organisation named sdk-<provider>-* whose distribution, xippios-<provider>-*, is on
 # PyPI; uv installs the newest release of each that shares one xippios-core minor with
 # this wheel. A sibling every release of which sits on another core minor is left out with
-# a warning, never a failure; every other conflict fails. The script builds the wheel,
-# installs it with the siblings into a fresh virtual environment, fails if a namespace
-# level is a regular package (an __init__.py at xippios/ or xippios/<provider>/), imports
-# every package under the provider namespace, checks that every tracked file of the
-# package ships in the wheel and runs `uv pip check`. It calls nothing upstream. Needs the
-# network, no key. Run from anywhere: .github/scripts/check-siblings.sh
+# a warning, never a failure, and so is a sibling that pins this package's previous minor,
+# since it takes this minor in its own adoption; every other conflict fails. The script
+# builds the wheel, installs it with the siblings into a fresh virtual environment, fails if
+# a namespace level is a regular package (an __init__.py at xippios/ or
+# xippios/<provider>/), imports every package under the provider namespace, checks that
+# every tracked file of the package ships in the wheel and runs `uv pip check`. It calls
+# nothing upstream. Needs the network, no key. Run from anywhere:
+# .github/scripts/check-siblings.sh
 #
 # The source packages this one depends on (ADR-0021), as pyproject.toml declares them
 # (xippios-<slug>~=X.Y.0), install with the wheel from PyPI at their bound and import
@@ -174,22 +176,40 @@ if ! uv pip install --quiet --python "$python" "${wheel[@]}" ${core:+"$core"}; t
   exit 1
 fi
 own_core="$("$python" -c 'from importlib.metadata import version; print(version("xippios-core"))')"
+own="$("$python" -c 'import sys, importlib.metadata as m; print(m.version(sys.argv[1]))' \
+  "$distribution")"
 
 minor() { local rest="${1#*.}"; echo "${1%%.*}.${rest%%.*}"; }
-# The xippios-core release that the requirements given resolve to, on their own; fails when
-# they do not resolve. A resolved version, read from uv's pinned output, never its errors.
-resolved_core() {
-  local pinned
+# The minor below a version's own, 0.1 for 0.2.3; none for a major's first minor.
+previous_minor() {
+  local rest="${1#*.}"
+  local number="${rest%%.*}"
+  if [ "$number" -gt 0 ]; then
+    echo "${1%%.*}.$((number - 1))"
+  fi
+}
+# The release of a distribution that the requirements given resolve to, on their own; fails
+# when they do not resolve. A resolved version, read from uv's pinned output, never its errors.
+resolved() {
+  local name="$1" pinned
+  shift
   pinned="$(printf '%s\n' "$@" | uv pip compile --quiet --no-header --no-annotate \
     --python "$python" - 2> /dev/null)" || return 1
-  sed -n 's/^xippios-core==//p' <<< "$pinned"
+  sed -n "s/^$name==//p" <<< "$pinned"
 }
 
 # A sibling every release of which sits on another xippios-core minor cannot install beside
 # this wheel until one of the two adopts the other's minor (conventions §15): it is left out
 # with a warning, so the proof stays with the siblings on this wheel's minor. It is told by
 # resolved versions: on its own the sibling resolves to a core of another minor, and held to
-# this wheel's minor it resolves to none. Any other conflict fails the check.
+# this wheel's minor it resolves to none.
+# A sibling that depends on this package and pins its previous minor takes this minor in its
+# own adoption, which follows this package's release (conventions §12): it is left out with
+# a warning that names the pin, so the release of a new minor stays green. It is told by
+# resolved versions too: on its own the sibling resolves to a release of this package's
+# previous minor, and with its requirement on this package overridden by the wheel it
+# installs, so the pin is its one conflict. Any other conflict fails the check.
+printf '%s @ file://%s\n' "$distribution" "${wheel[0]}" > "$work/override.txt"
 kept=()
 for requirement in "${requirements[@]}"; do
   if trial="$(uv pip install --dry-run --python "$python" "${wheel[@]}" "$requirement" \
@@ -197,9 +217,16 @@ for requirement in "${requirements[@]}"; do
     kept+=("$requirement")
     continue
   fi
-  alone="$(resolved_core "$requirement" || true)"
-  if [ -n "$alone" ] && [ "$(minor "$alone")" != "$(minor "$own_core")" ] \
-    && ! resolved_core "$requirement" "xippios-core==$(minor "$own_core").*" > /dev/null; then
+  pinned="$(resolved "$distribution" "$requirement" || true)"
+  alone="$(resolved xippios-core "$requirement" || true)"
+  if [ -n "$pinned" ] && [ "$(minor "$pinned")" = "$(previous_minor "$own")" ] \
+    && uv pip install --quiet --dry-run --python "$python" "${wheel[@]}" "$requirement" \
+      ${core:+"$core"} --override "$work/override.txt" > /dev/null 2>&1; then
+    echo "::warning::${requirement}: pins ${distribution} $(minor "$pinned").*, this wheel" \
+      "${own}; left out until it adopts $(minor "$own") in its own package"
+  elif [ -n "$alone" ] && [ "$(minor "$alone")" != "$(minor "$own_core")" ] \
+    && ! resolved xippios-core "$requirement" "xippios-core==$(minor "$own_core").*" \
+      > /dev/null; then
     echo "::warning::${requirement}: every release needs xippios-core $(minor "$alone").*, this" \
       "wheel $(minor "$own_core").*; left out until both share a minor"
   else
