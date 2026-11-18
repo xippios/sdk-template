@@ -12,3 +12,7 @@ All notable changes to this project are documented here. The format follows
   client for {{ source_name }}, empty task layer, MCP server and FastAPI router
   wired to it, test harness with core's family check, CI, the nightly live tests and
   the release train, in which a release PR's merge tags and publishes.
+{% for dep in depends_on %}
+- Depends on `xippios-{{ dep.name }}` {{ dep.minor }}.0 (`~={{ dep.minor }}.0`),
+  whose task layer and models this package uses.
+{% endfor %}

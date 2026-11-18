@@ -4,8 +4,9 @@
 # pre-commit), then re-render enums.py from the (empty) packaged lists and require it
 # unchanged, require the unfilled refresh_upstream.py skeleton to refuse to run, and run
 # the sibling check where the import path nests (none renders where it is flat): with the
-# wheel alone, failing on a conflicting requirement, and warning on a sibling on another
-# core minor; require parse/ and tests/fixtures/files/ exactly where has_files is true;
+# wheel alone, failing on a conflicting requirement, warning on a sibling on another core
+# minor and on one that pins this package's previous minor, and failing on one that pins a
+# later minor; require parse/ and tests/fixtures/files/ exactly where has_files is true;
 # check offline that a task named in BULK_TASKS gets no tool and no route, and that the
 # refresh script renders a value list and an id list into one enums.py, as ruff leaves it.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
@@ -227,6 +228,59 @@ else
   fi
   grep "^::warning::xippios-example-other" "$work/minor.log" \
     || { cat "$work/minor.log" >&2; exit 1; }
+
+  # Two siblings built here that depend on this package, each beside a release of it that a
+  # find-links directory holds as PyPI would: one pins its previous minor (0.0 beside 0.1),
+  # which the check leaves out with a warning that names the pin, and passes; one pins a
+  # later minor (0.2), which fails it.
+  echo
+  echo "==> a sibling that pins this package's previous minor is left out with a warning"
+  own_version="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$dest/pyproject.toml")"
+  own_rest="${own_version#*.}"
+  previous="${own_version%%.*}.$((${own_rest%%.*} - 1))"
+  later="${own_version%%.*}.$((${own_rest%%.*} + 1))"
+  # A project of one empty package: its directory under $work, its name, version and
+  # dependencies, and its package's directory under src/.
+  project() {
+    mkdir -p "$work/$1/src/$5"
+    : > "$work/$1/src/$5/__init__.py"
+    printf '%s\n' '[project]' "name = \"$2\"" "version = \"$3\"" "dependencies = [$4]" '' \
+      '[build-system]' 'requires = ["hatchling>=1.27"]' 'build-backend = "hatchling.build"' \
+      '' '[tool.hatch.build.targets.wheel]' 'packages = ["src/xippios"]' \
+      > "$work/$1/pyproject.toml"
+  }
+  for minor in "$previous" "$later"; do
+    project "own-$minor" "xippios-$slug" "$minor.0" "" "xippios/${import_path//.//}"
+    uv build --quiet --wheel --out-dir "$work/links" "$work/own-$minor"
+  done
+  project pinned xippios-example-pinned 0.1.0 "\"xippios-$slug~=$previous.0\"" \
+    xippios/example/pinned
+  project ahead xippios-example-ahead 0.1.0 "\"xippios-$slug~=$later.0\"" xippios/example/ahead
+  if ! (cd "$dest" && UV_FIND_LINKS="$work/links" \
+    XIPPIOS_SIBLINGS="xippios-example-pinned @ file://$work/pinned" \
+    .github/scripts/check-siblings.sh) > "$work/pin.log" 2>&1; then
+    cat "$work/pin.log" >&2
+    echo "error: the sibling check failed on a sibling that pins the previous minor" >&2
+    exit 1
+  fi
+  grep -F "::warning::xippios-example-pinned @ file://$work/pinned: pins xippios-$slug $previous.*" \
+    "$work/pin.log" || { cat "$work/pin.log" >&2; exit 1; }
+
+  echo
+  echo "==> the sibling check fails on a sibling that pins a later minor of this package"
+  if (cd "$dest" && UV_FIND_LINKS="$work/links" \
+    XIPPIOS_SIBLINGS="xippios-example-ahead @ file://$work/ahead" \
+    .github/scripts/check-siblings.sh) > "$work/ahead.log" 2>&1; then
+    cat "$work/ahead.log" >&2
+    echo "error: the sibling check passed a sibling that pins a later minor" >&2
+    exit 1
+  fi
+  ahead_error="error: xippios-example-ahead @ file://$work/ahead does not install beside this wheel"
+  if ! grep -qxF "$ahead_error" "$work/ahead.log"; then
+    cat "$work/ahead.log" >&2
+    exit 1
+  fi
+  echo "failed, as it must: $(tail -n 1 "$work/ahead.log")"
 fi
 
 # Offline, on core's adapters as the render calls them: a task named in BULK_TASKS gets no

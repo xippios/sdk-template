@@ -83,7 +83,7 @@ organization secret whose repository access takes the new repository, never set 
 | `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); empty, the default, for no pin; a release carries none, since `/release-prep` removes it first, in a PR of its own | `main` |
 | `source_dependencies` | the source packages this one uses the task layer of (ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |
 | `live_secrets` | the variables the live tests read beyond the keys, such as a username and a password, a YAML flow list of UPPER_SNAKE_CASE names in a string: `live.yml` passes each one to its pytest step from the secret of the same name, after the keys; each name once, never a key (`api_key_env`'s or a dependency's `key_env`), `XIPPIOS_LIVE_TESTS` or a name with GitHub's `GITHUB_` prefix; default `[]`, none, recorded on one line | `[FAOSTAT_USERNAME, FAOSTAT_PASSWORD]` |
-| `has_files` | whether the source parses the files it downloads (ADR-0020): `true` renders `parse/`, one module per file kind, and `tests/fixtures/files/README.md`, one provenance row per sample file its parser tests read, both the source's once rendered; a retrieval-only source, which lists releases and downloads files without parsing them, answers `false`, its download fixture the recorded exchange of the file's URL (ADR-0019 decision 5); default `false` | `true` |
+| `has_files` | whether the source parses the files it downloads (ADR-0020): `true` renders `parse/`, one module per file kind, and `tests/fixtures/files/README.md`, one provenance row per sample file its parser tests read, both the source's once rendered, and a line of `.gitattributes` that keeps the samples byte for byte; a retrieval-only source, which lists releases and downloads files without parsing them, answers `false`, its download fixture the recorded exchange of the file's URL (ADR-0019 decision 5); default `false` | `true` |
 | `human` | the GitHub login of the human, without the `@`. `.github/CODEOWNERS` names it as the owner of the paths that steer the repository, `.github/`, `CLAUDE.md`, `.claude/`, `pyproject.toml` and `.copier-answers.yml`, so a change to one waits for that human's review. Default `jdidaskalu`, a literal, which a source that predates the question takes on update | `jdidaskalu` |
 
 ## What gets generated
@@ -105,7 +105,10 @@ sdk-<slug>/
   .github/CODEOWNERS   the paths that steer the repository, each owned by the human answer
   CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
   changelog/README.md  the changelog fragments: one file per change, assembled at the release
-  .gitattributes       docs/upstream/** -text, so upstream files keep their bytes and line endings
+  .gitattributes       docs/upstream/** -text, and tests/fixtures/files/** -text where has_files,
+                       so upstream files and the samples keep their bytes and line endings
+  .gitignore           caches, builds, local env files, copier's leftovers and .local/, the
+                       operator's own files
   .github/workflows/siblings.yml  .github/scripts/check-siblings.sh   where the import path nests
                        or the source declares a dependency
 ```
@@ -132,7 +135,10 @@ path nests or the source declares a dependency, `siblings.yml` runs
 the wheel beside every sibling on PyPI under the same provider namespace that shares its
 core minor and beside the source packages it depends on, at their bound, and proves the
 namespace levels stay portions (ADR-0006, ADR-0021), a visible check the ruleset does not
-require; a declared dependency on another core minor fails it.
+require; a declared dependency on another core minor fails it. A sibling that depends on
+the source and pins its previous minor is left out with a warning that names the pin, since
+it takes the new minor in its own adoption (conventions §12), so the release of a minor
+stays green; one that pins another minor of the source fails it.
 `scripts/refresh_upstream.py` is the skeleton of the capture script `/refresh-upstream`
 runs; it refuses to run until the source fills it.
 
