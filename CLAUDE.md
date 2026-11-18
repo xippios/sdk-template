@@ -48,8 +48,10 @@ scripts/prove.sh         generate sdk-example-api (--keyless: sdk-example; --key
                          every check on it; -d key=value passes one more answer (-d has_files=true)
 scripts/adr_index.py     writes docs/adr.md and docs/adr.json from the records in docs/adr/; --check
                          fails while either is stale
-tests/test_template.py   the family's variants, each rendered once; ruff on the output, the answers' rules,
-                         skip-if-exists behaviour
+tests/                   the template's tests: conftest.py renders each of the family's variants once,
+                         helpers.py holds their answers and the tools a test runs on a render, and
+                         test_template.py checks the renders, ruff on the output, the answers' rules,
+                         skip-if-exists behaviour; a new concern's tests take a module of their own
 docs/adr/                this repository's design decisions, one NNNN-<slug>.md record each, laid
                          out in its README.md
 docs/adr.md, docs/adr.json  their index, written by scripts/adr_index.py, never by hand
@@ -75,14 +77,17 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   all five. Run them before every pull request and paste their tails into its description.
   A dependent (`source_dependencies`) has no proof of its own, since a dependency that is
   not on PyPI cannot be installed; the template tests cover its render.
-- `tests/test_template.py` renders each of the family's variants once per test run, keyed
-  nested, keyless flat, keyless nested, a dependent that parses files (keyless nested
-  with `source_dependencies`, one open and one keyed, and `has_files`) and one behind the
+- The tests render each of the family's variants once per test run, by the fixtures of
+  `tests/conftest.py` from the answers in `tests/helpers.py`: keyed nested, keyless flat,
+  keyless nested, a dependent that parses files (keyless nested with
+  `source_dependencies`, one open and one keyed, and `has_files`) and one behind the
   api.data.gov gateway (`gateway`, which derives the key answers); a check no answer
   changes reads one render, and an answer outside the variants (a key location, a core
   pin, a name at its bound, an `import_path` override, a flat source with a dependency)
   is tested by its own rule. The tests assert mechanics, never rendered prose: a file
   rendered or not, a name present, no Jinja left, a digest equal, a script's behaviour.
+  A new concern's tests take a module of their own beside `tests/test_template.py` and
+  import what the modules share from `tests/helpers.py`.
 - Files a source fills with its own content (`__init__.py`, `_client.py`, `errors.py`,
   `models.py`, `api/`, `parse/`, `tasks.py`, `params.py`, `enums.py`, `reference/`,
   `scripts/refresh_reference.py`, `scripts/refresh_upstream.py`, `tests/test_tasks.py`,
