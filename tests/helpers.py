@@ -28,6 +28,10 @@ BASE_ANSWERS: dict[str, object] = {
 }
 
 
+# The table of the files and pages that FETCHED.md lists, as the capture skeleton writes it.
+TABLE_HEADER = "| File | URL | Fetched | HTTP | Bytes | sha256 | ETag | Last-Modified | Note |"
+
+
 # A stand-in for a 40-character sdk-core commit, never fetched: hex of high entropy, as a
 # real SHA is, computed so that no literal in this file looks like a secret.
 FAKE_CORE_SHA = hashlib.sha1(b"a fixed stand-in for an sdk-core commit").hexdigest()
