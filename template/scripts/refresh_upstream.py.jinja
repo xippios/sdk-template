@@ -5,37 +5,49 @@
 """Refresh the upstream documentation snapshot in ``docs/upstream/`` (``/refresh-upstream``).
 
 The template's skeleton of a capture script. A source fills ``PAGES``, ``SPEC_URL`` where
-its documentation names a machine-readable API document, ``ATTRIBUTION``, ``CAPTURE`` and,
-where a page is not kept as fetched, ``reduce``, and rewrites this paragraph to say what it
+its documentation names a machine-readable API document, ``ATTRIBUTION`` and ``CAPTURE``,
+where it needs them ``NOT_FETCHED``, ``VOCABULARY`` and ``SPEC_PAGE``, and the hooks
+``reduce``, ``canonical`` and ``linked``, and rewrites this paragraph to say what it
 captures; the rest is the family's capture frame. Until ``PAGES`` or ``SPEC_URL`` is
 filled, the script refuses to run.
 
 Everything is fetched before anything is written, one request at a time after a pause,
-each URL retried at most once after a network error or a 5xx. Each page with a file is
-written under ``docs/upstream/``, and ``FETCHED.md`` is regenerated whole: the UTC time of
-the run with an explicit ``Z``, the attribution, and one row per page with its HTTP
-status, the size and sha256 of the body as fetched, and its ETag and Last-Modified where
-sent. A page recorded without a file (a 403 or a 404, a page without documentation text)
-has a row of its own, and a file cut from a shared document keeps the whole document's
-size and sha256 in its row (conventions §3). Files the run does not produce are removed
-from the subdirectories it writes to; nothing else under ``docs/upstream/`` is touched.
-Every run stops, before writing, when a page states a copyright, a licence or terms of use
-that ``ATTRIBUTION`` does not record. No key is needed or read. Run from the repository
-root::
+each URL retried at most once after a network error or a 5xx. No redirect to another host
+is followed, no browser is imitated, and no key is sent or read (conventions §3). Each page
+with a file is written under ``docs/upstream/``, and ``FETCHED.md`` is regenerated whole:
+the UTC time of the run with an explicit ``Z``, the attribution, and one row per page with
+its HTTP status, the size and sha256 of the body as fetched, and its ETag and
+Last-Modified where sent. A row with an ETag ends in the secret scan's allowlist mark,
+since an ETag of hex digits reads to the scan as a secret. A page recorded without a file
+has a row of its own, a file cut from a shared document keeps the whole document's size
+and sha256 in its row, ``OBSERVED.md``, the one file under ``docs/upstream/`` written by
+hand, has a row that says so, and a page the snapshot leaves out, or that an anonymous
+client cannot read, a row in the table ``Not fetched`` (conventions §3). Files the run
+does not produce are removed from the subdirectories it writes to; nothing else under
+``docs/upstream/`` is touched. Every run stops, before writing, when a page states a
+copyright, a licence or terms of use that ``ATTRIBUTION`` does not record, or no longer
+prints one that it records. Run from the repository root::
 
     uv run scripts/refresh_upstream.py            # fetch, then write the snapshot
     uv run scripts/refresh_upstream.py --check    # fetch and compare; write nothing
 
-``--check`` exits 1 when the snapshot differs from what upstream serves now, ``Fetched``
-aside. Where the documentation is HTML, ``reduce`` converts it to Markdown with
-``markdownify``, the one converter a capture script may declare: in the ``# /// script``
-block above, ``dependencies = ["markdownify==X.Y.Z"]``, and at the same pin in the dev
-group of ``pyproject.toml``, so that ``mypy --strict`` reads its types.
+``--check`` compares content. It exits 1 when a file's content differs from what upstream
+serves now, compared after ``canonical``, or when ``FETCHED.md`` would change in more than
+its rows' measures: Fetched, Bytes, sha256, ETag and Last-Modified. A measure that moved
+while the content stayed is an information line, never a change.
+
+Where the documentation is HTML, ``reduce`` converts it to Markdown with ``markdownify``,
+the one converter a capture script may declare: in the ``# /// script`` block above,
+``dependencies = ["markdownify==X.Y.Z"]``, and at the same pin in the dev group of
+``pyproject.toml``, so that ``mypy --strict`` reads its types. The packages markdownify
+pulls in are pinned in the block at the versions ``uv.lock`` holds, or the block sets
+``exclude-newer`` under ``[tool.uv]``, so that a release of theirs cannot change the
+conversion. The standard library's ``html.parser``, which the attribution check reads
+pages with, is no dependency: a script that converts with it declares none.
 """
 
 import argparse
 import hashlib
-import html
 import http.client
 import json
 import re
@@ -45,11 +57,13 @@ import urllib.error
 import urllib.request
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import IO, Any
+from urllib.parse import urljoin, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUT = ROOT / "docs/upstream"
@@ -63,6 +77,12 @@ PAUSE = 2.0
 """Seconds before every request; requests never run in parallel."""
 RETRY_PAUSE = 10.0
 """Seconds before the one retry after a network error or a 5xx."""
+OBSERVED = "OBSERVED.md"
+"""What upstream does but never documents, each note with its evidence: the one file under
+``docs/upstream/`` written by hand, which this script neither writes nor checks."""
+ALLOWLIST = "<!-- pragma: allowlist secret (an ETag, not a key) -->"
+"""The end of a row with an ETag: the secret scan reads a quoted ETag of hex digits as a
+secret, and a line that ends in this mark as audited."""
 
 
 @dataclass(frozen=True)
@@ -72,14 +92,25 @@ class Page:
     Attributes:
         url: Where the page is fetched from.
         file: Its path under ``docs/upstream/`` (``pages/guide.md``,
-            ``openapi/openapi.json``), or ``None`` for a page recorded without a file.
-        status: The HTTP status it must answer with: 200, or the 403 or 404 of a page
-            recorded by its status.
-        note: The row's note in ``FETCHED.md``: how the file was made, or why there is none.
+            ``openapi/openapi.json``, ``samples/<operation>.json``), or ``None`` for a page
+            recorded without a file.
+        status: The HTTP status it must answer with: 200, or the 404 of a page recorded by
+            its status; a 401 or a 403, or the 3xx of a redirect to another host, for a page
+            an anonymous client cannot read, whose row goes to ``Not fetched``.
+        note: The row's note in ``FETCHED.md``: how the file was made, or why there is
+            none; in ``Not fetched``, the reason.
         stable: ``False`` for a body that changes on every request (a per-request
-            reference in a refusal page): its row records no size, sha256 or validators.
+            reference, a script's nonce): its row records no size, sha256 or ETag, which
+            name the bytes, and keeps Last-Modified; its note says why.
         excerpt: The file is this source's part of a shared document (conventions §3);
             the row keeps the whole document's size and sha256, and its note says so.
+        terms: The page is itself the terms: it must print each statement ``ATTRIBUTION``
+            records from it, and nothing else on it is searched.
+        sample: The file is a small answer of the API, kept verbatim under ``samples/``,
+            which documents the answer's shape and is no test fixture; its row says so,
+            and it is not searched, being no documentation.
+        names: A text the page must hold as served, such as the URL of the API document
+            for the page that names it: a page that no longer holds it stops the run.
     """
 
     url: str
@@ -88,13 +119,46 @@ class Page:
     note: str = ""
     stable: bool = True
     excerpt: bool = False
+    terms: bool = False
+    sample: bool = False
+    names: str = ""
 
 
-PAGES: tuple[Page, ...] = (
-    # Page(DOCS_URL, "pages/index.md", note="converted to Markdown"),
-    # Page("https://api.example.org/legal", status=403, note="403 at the CDN edge"),
-)
-"""Every page the snapshot records, in the order of ``FETCHED.md``'s rows."""
+@dataclass(frozen=True)
+class Statement:
+    """A copyright line, licence or terms of use the documentation states, as printed.
+
+    Attributes:
+        text: The statement as the page prints it: a footer's line, a line of a terms
+            page, a link's text, the name of the licence an API document's ``info`` gives.
+        source: The URL of the page that prints it, which every run checks for it; ``""``
+            for a line that only a browser shows, such as a footer a script assembles,
+            which no fetch of this script sees and so none checks.
+        where: Where it stands and what it is, for ``FETCHED.md``'s Attribution; for a line
+            only a browser shows, the page and the date it was read on by hand.
+        link: The URL it links to, where it is a link (a footer's Terms of Service): the
+            page must link its text there.
+    """
+
+    text: str
+    source: str
+    where: str = ""
+    link: str | None = None
+
+
+@dataclass(frozen=True)
+class NotFetched:
+    """A page the documentation links that the snapshot deliberately does not request.
+
+    Attributes:
+        url: The page.
+        reason: Why: a feed, a third-party specification (cited, not snapshotted), an API
+            answer, a page that is no API documentation.
+    """
+
+    url: str
+    reason: str
+
 
 SPEC_URL: str | None = None
 """The machine-readable API document (OpenAPI, Swagger) the documentation names, if any.
@@ -106,31 +170,63 @@ source reads it there instead and ``CAPTURE`` says from where.
 """
 SPEC_FILE = "openapi/openapi.json"
 """The document's path under ``docs/upstream/``, with the extension it is served with."""
+SPEC_PAGE: Page | None = None
+"""The document's ``Page`` where its row is not ``Page(SPEC_URL, SPEC_FILE)``: one served in
+a new order on each request (``stable=False``, ``canonical``), or with a note of its own."""
 
-ATTRIBUTION: tuple[str, ...] = ()
+PAGES: tuple[Page, ...] = (
+    # Page(DOCS_URL, "pages/index.md", note="converted to Markdown"),
+    # Page(DOCS_URL, names="https://api.example.org/openapi.json", stable=False),
+    # Page("https://example.org/legal/terms", "terms/terms.md", terms=True),
+    # Page("https://api.example.org/v1/items?limit=2", "samples/items.json", sample=True),
+    # Page("https://api.example.org/admin", status=302, note="a login on another host"),
+)
+"""Every page the snapshot records, in the order of ``FETCHED.md``'s rows."""
+
+NOT_FETCHED: tuple[NotFetched, ...] = ()
+"""Every page the documentation links that the snapshot deliberately does not request."""
+
+ATTRIBUTION: tuple[Statement, ...] = ()
 """Every copyright line, licence or terms of use the documentation states, as printed.
 
-Empty: it states none. ``FETCHED.md`` quotes them under Attribution, and every run stops
-when a page states one that is not here.
+Empty: it states none. ``FETCHED.md`` quotes them under Attribution. Every run stops when a
+page no longer prints a statement recorded from it, and when a page states one that is not
+here.
 """
+
+VOCABULARY: tuple[str, ...] = ()
+"""Words a page prints that state no copyright, licence or terms, such as a field of the API
+named ``license`` or a trade's import licence: the search reads past them, ``FETCHED.md``
+lists them, and ``CAPTURE`` says why."""
 
 CAPTURE = ""
 """``FETCHED.md``'s "How this is captured": what is converted, cut or left out, and why."""
 
+INFO_TERMS = ("license", "termsOfService", "contact")
+"""The fields of an API document's ``info`` that state a licence, terms, or whom to ask:
+each one it holds must be recorded in ``ATTRIBUTION`` from that document."""
+
 _STATEMENT = re.compile(
-    r"\N{COPYRIGHT SIGN}|copyright|licen[cs]e|terms of (?:use|service)|public domain",
+    r"\N{COPYRIGHT SIGN}|copyright|licen[cs]e|terms\s*of\s*(?:use|service)"
+    r"|terms\s+and\s+conditions|all\s+rights\s+reserved|public\s+domain|creative\s+commons"
+    r"|\bCC[\s-]BY\b",
     re.IGNORECASE,
 )
-_FETCHED = re.compile(r"\| (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z) \|")
+_HIDDEN = frozenset({"script", "style", "template"})
+_TEXT_TYPE = re.compile(r"text/.+|application/(?:[\w.-]+\+)?(?:json|xml|yaml|x-yaml)")
+_HTML_TYPES = frozenset({"text/html", "application/xhtml+xml"})
+_MEASURES = ("Bytes", "sha256", "ETag", "Last-Modified")
+_CELL = re.compile(r"(?<!\\)\|")
 
 
 @dataclass(frozen=True)
 class Response:
-    """One GET as served: status, body and validators, and the redirects on the way."""
+    """One GET as served: status, body, type and validators, and the redirects on the way."""
 
     url: str
     status: int
     body: bytes
+    content_type: str | None
     etag: str | None
     last_modified: str | None
     redirects: tuple[tuple[int, str], ...]
@@ -150,7 +246,11 @@ class _RetryableError(Exception):
 
 
 class _RecordRedirects(urllib.request.HTTPRedirectHandler):
-    """Follow redirects as urllib does, remembering each status and target."""
+    """Follow redirects on the page's host as urllib does, remembering each status and target.
+
+    A redirect to another host is remembered and not followed: the page then answers its
+    3xx (conventions §3).
+    """
 
     def __init__(self) -> None:
         super().__init__()
@@ -165,13 +265,54 @@ class _RecordRedirects(urllib.request.HTTPRedirectHandler):
         headers: http.client.HTTPMessage,
         newurl: str,
     ) -> urllib.request.Request | None:
-        """Record the hop, then let urllib build the follow-up request."""
+        """Record the hop, then let urllib build the follow-up request on the same host."""
         self.hops.append((code, newurl))
+        if urlsplit(newurl).netloc != urlsplit(req.full_url).netloc:
+            return None
         return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+class _Reader(HTMLParser):
+    """An HTML page's visible text and links: comments, scripts, styles and templates left out."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self.links: list[tuple[str, str]] = []
+        self._hidden = 0
+        self._open: list[tuple[str, list[str]]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        """Enter a hidden element, or open a link."""
+        if tag in _HIDDEN:
+            self._hidden += 1
+        elif tag == "a":
+            self._open.append((dict(attrs).get("href") or "", []))
+
+    def handle_endtag(self, tag: str) -> None:
+        """Leave a hidden element, or close a link with its text."""
+        if tag in _HIDDEN and self._hidden:
+            self._hidden -= 1
+        elif tag == "a" and self._open:
+            href, parts = self._open.pop()
+            self.links.append((href, _flat("".join(parts))))
+
+    def handle_data(self, data: str) -> None:
+        """Keep visible text, in the page and in each open link."""
+        if self._hidden:
+            return
+        self.parts.append(data)
+        for _, parts in self._open:
+            parts.append(data)
 
 
 def _log(message: str) -> None:
     print(message, flush=True)  # noqa: T201
+
+
+def _flat(text: str) -> str:
+    """``text`` with each run of white space, a no-break space or a line break, as one space."""
+    return " ".join(text.split())
 
 
 def _get(url: str, expect: int) -> Response:
@@ -186,6 +327,14 @@ def _get(url: str, expect: int) -> Response:
     except urllib.error.HTTPError as error:
         if error.code >= 500:
             raise _RetryableError(f"HTTP {error.code} {error.reason}") from None
+        hop = redirects.hops[-1] if redirects.hops else None
+        if error.code != expect and hop and urlsplit(hop[1]).netloc != urlsplit(url).netloc:
+            raise SystemExit(
+                f"GET {url}: redirected ({error.code}) to another host, {hop[1]}, and no "
+                "redirect to another host is followed (conventions §3).\nFetch the target "
+                f"where it is documentation, or record the page with status={error.code} "
+                "where it asks for a login. Nothing was written."
+            ) from None
         if error.code != expect:
             raise SystemExit(f"GET {url}: HTTP {error.code} {error.reason}") from None
         body, status, headers = error.read(), error.code, error.headers
@@ -200,6 +349,7 @@ def _get(url: str, expect: int) -> Response:
         url,
         status,
         body,
+        headers.get("Content-Type"),
         headers.get("ETag"),
         headers.get("Last-Modified"),
         tuple(redirects.hops),
@@ -243,24 +393,128 @@ def decode(response: Response) -> str:
         raise changed(response.url, f"the body is not UTF-8 ({error})") from None
 
 
+def _unread(page: Page) -> bool:
+    """Whether the page is one an anonymous client cannot read: its row goes to Not fetched."""
+    return page.status in (401, 403) or 300 <= page.status < 400
+
+
+@dataclass(frozen=True)
+class Reading:
+    """What the attribution check reads of a page.
+
+    Attributes:
+        text: Its text, white space flattened.
+        links: An HTML page's links as ``(href, text)``; ``None`` for another text.
+    """
+
+    text: str
+    links: tuple[tuple[str, str], ...] | None
+
+
+def read_text(response: Response) -> Reading | None:
+    """The text the attribution check reads, or ``None`` for a binary body.
+
+    An HTML page gives its visible text, its comments, scripts, styles and templates left
+    out, and its links; another text body gives its text as decoded. A binary body (a PDF,
+    an image, an archive) is not read, and its sha256 tells a change.
+    """
+    media = (response.content_type or "").split(";")[0].strip().lower()
+    if media and not _TEXT_TYPE.fullmatch(media):
+        return None
+    try:
+        text = response.body.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return None
+    start = text.lstrip()[:15].lower()
+    if media in _HTML_TYPES or (not media and start.startswith(("<!doctype html", "<html"))):
+        reader = _Reader()
+        reader.feed(text)
+        reader.close()
+        return Reading(_flat("".join(reader.parts)), tuple(reader.links))
+    return Reading(_flat(text), None)
+
+
+def _links(page: Page, statement: Statement, reading: Reading) -> bool:
+    """Whether the page links the statement: by a link of its text, or, not HTML, its URL."""
+    if reading.links is None:
+        return str(statement.link) in reading.text
+    wanted = (statement.link, _flat(statement.text))
+    return any((urljoin(page.url, href), text) == wanted for href, text in reading.links)
+
+
+def _api_document(response: Response) -> dict[str, Any] | None:
+    """The body as an OpenAPI or Swagger document in JSON, or ``None`` where it is none."""
+    try:
+        document = json.loads(response.body)
+    except ValueError:
+        return None
+    if isinstance(document, dict) and ("openapi" in document or "swagger" in document):
+        return document
+    return None
+
+
+def _searched(page: Page, response: Response, text: str, recorded: list[Statement]) -> str:
+    """The text the search reads: an API document's without its ``info``'s ``INFO_TERMS``.
+
+    Each of them the document holds is checked first against the statements recorded from it.
+    """
+    document = _api_document(response)
+    info = document.get("info") if document else None
+    if document is None or not isinstance(info, dict):
+        return text
+    quoted = {value for item in recorded for value in (item.text, item.link) if value}
+    for name in INFO_TERMS:
+        value = info.get(name)
+        values = list(value.values()) if isinstance(value, dict) else [value]
+        if value is not None and not quoted.intersection(str(v) for v in values):
+            raise SystemExit(
+                f"GET {page.url}: info.{name} names {value!r}, which ATTRIBUTION does not "
+                "record from this document.\nRead it by hand, record it in ATTRIBUTION and "
+                "update scripts/refresh_upstream.py. Nothing was written."
+            )
+    rest = {key: value for key, value in info.items() if key not in INFO_TERMS}
+    return _flat(json.dumps({**document, "info": rest}, ensure_ascii=False))
+
+
 def check_attribution(page: Page, response: Response) -> None:
     """Stop when the page states a copyright, licence or terms that ``ATTRIBUTION`` lacks.
 
-    The check reads the whole body with its entities decoded, so a footer that the Markdown
-    drops counts too; a source whose markup carries one of the words without stating
-    anything (a ``license`` class) checks the text its ``reduce`` keeps instead.
+    The check reads what ``read_text`` gives, so a commented-out footer, a script's strings and a
+    PDF's bytes state nothing. It stops, too, when the page no longer prints a statement
+    recorded from it, or no longer links one that is a link. A terms page must print each
+    statement recorded from it and is searched no further; an API document's ``info`` names
+    a licence, terms or a contact only as ``ATTRIBUTION`` records them from it. A sample, an
+    answer and no documentation, and a page an anonymous client cannot read are not read.
     """
-    body = html.unescape(response.body.decode("utf-8", "replace"))
-    for statement in ATTRIBUTION:
-        body = body.replace(statement, "")
-    match = _STATEMENT.search(body)
+    reading = None if page.sample or _unread(page) else read_text(response)
+    if reading is None:
+        return
+    text = reading.text
+    recorded = [statement for statement in ATTRIBUTION if statement.source == page.url]
+    for statement in recorded:
+        if _flat(statement.text) not in text:
+            raise changed(page.url, f"it no longer prints {statement.text!r}")
+        if statement.link and not _links(page, statement, reading):
+            raise changed(page.url, f"it no longer links {statement.text!r} to {statement.link}")
+    if page.terms:
+        if not recorded:
+            raise SystemExit(
+                f"{page.url} is a terms page, and ATTRIBUTION records no statement from it: "
+                "record the lines it must print. Nothing was written."
+            )
+        return
+    text = _searched(page, response, text, recorded)
+    for words in (*(statement.text for statement in ATTRIBUTION), *VOCABULARY):
+        text = text.replace(_flat(words), " ")
+    match = _STATEMENT.search(text)
     if match:
-        around = " ".join(body[max(match.start() - 60, 0) : match.end() + 60].split())
+        around = text[max(match.start() - 60, 0) : match.end() + 60]
         raise SystemExit(
             f"GET {page.url}: the page states {match.group(0)!r} ({around!r}), a copyright, "
-            "licence or terms of use that ATTRIBUTION does not record.\nRead it by hand, "
-            "record it in ATTRIBUTION and update scripts/refresh_upstream.py. Nothing was "
-            "written."
+            "licence or terms of use that ATTRIBUTION does not record.\nRead it by hand and "
+            "record it in ATTRIBUTION, or, where the words state nothing, narrow the check: "
+            "add them to VOCABULARY, which FETCHED.md lists, and say why in CAPTURE. "
+            "Nothing was written."
         )
 
 
@@ -280,10 +534,10 @@ def dump_json(value: Any, indent: int = 2) -> bytes:
 def load_json(response: Response, indent: int = 2) -> Any:
     """The JSON document of ``response``, once re-serialising it reproduces the fetched text.
 
-    A source that keeps a JSON document cut to its part writes the part with ``dump_json``;
-    this check makes sure that the whole document, written the same way, is the fetched
-    text up to line endings, so the part is an excerpt of upstream's text. A duplicate key,
-    which ``json.loads`` would drop silently, stops the run too.
+    A source that keeps a JSON document cut to its part, or in the form ``canonical`` gives
+    it, writes it with ``dump_json``; this check makes sure that the whole document, written
+    the same way, is the fetched text up to line endings, so what is written is upstream's
+    text. A duplicate key, which ``json.loads`` would drop silently, stops the run too.
     """
     try:
         document = json.loads(response.body, object_pairs_hook=_no_duplicates)
@@ -294,7 +548,7 @@ def load_json(response: Response, indent: int = 2) -> Any:
         raise SystemExit(
             f"GET {response.url}: re-serialised with json.dumps(indent={indent}, "
             "ensure_ascii=False), the document no longer reproduces the fetched text up to "
-            "line endings, so a part cut from it would not be an excerpt of upstream's text."
+            "line endings, so what is written from it would not be upstream's text."
             "\nLook at the document by hand and update scripts/refresh_upstream.py. Nothing "
             "was written."
         )
@@ -314,17 +568,76 @@ def reduce(page: Page, response: Response) -> bytes:
 
           return markdownify(decode(response), heading_style="ATX").encode("utf-8")
 
+      markdownify's types name ``convert`` and ``convert_soup`` alone, so a conversion of
+      the script's own, one that keeps the page's ``<main>`` and drops its navigation,
+      subclasses ``MarkdownConverter`` and types the parsed elements its hooks receive as
+      ``Any``. Those elements come from markdownify, and the script declares nothing else::
+
+          class _Markdown(MarkdownConverter):
+              def convert_soup(self, soup: Any) -> str:
+                  return str(super().convert_soup(soup.find("main")))
+
     - a shared document is cut to this source's part, ``load_json`` then ``dump_json``,
       and its page marked ``excerpt=True``.
     """
     return response.body
 
 
+def canonical(page: Page, content: bytes) -> bytes:
+    """The form ``--check`` compares ``page``'s file in: its content as written, by default.
+
+    A source fills this for a document that upstream serves in a new order on each request
+    with nothing else changed, such as an API document whose members come in another order:
+    the form with the order fixed. ``--check`` compares the snapshot's file and this run's
+    content in that form, so a new order is no change. Where the source wants the file
+    written in that form too, ``reduce`` returns it, after ``load_json``::
+
+        if page.file == SPEC_FILE:
+            return json.dumps(json.loads(content), indent=2, sort_keys=True).encode()
+        return content
+    """
+    return content
+
+
+def linked(row: Row) -> tuple[Page, ...]:
+    """The pages whose URL ``row``'s page gives, captured right after it: none, by default.
+
+    A source fills this for a page it finds on another page, such as the newest release's
+    page, read from the first row of a publication's list of releases: it reads
+    ``row.response`` and stops with ``changed`` where the page no longer gives the URL.
+    """
+    return ()
+
+
+def _check_page(page: Page) -> None:
+    """Stop on a page the frame cannot record as it is written."""
+    if page.file == OBSERVED:
+        raise SystemExit(f"{page.url}: {OBSERVED} is written by hand, never by this script")
+    if page.sample and not (page.file or "").startswith("samples/"):
+        raise SystemExit(f"{page.url}: a sample is kept under samples/, not as {page.file!r}")
+    if _unread(page) and page.file:
+        raise SystemExit(f"{page.url}: a page an anonymous client cannot read has no file")
+
+
 def capture(page: Page) -> Row:
-    """Fetch ``page``, check its attribution and make its file's content; write nothing."""
+    """Fetch ``page``, check it and its attribution, and make its file's content."""
+    _check_page(page)
     response = fetch(page.url, page.status)
+    if page.names and page.names not in response.body.decode("utf-8", "replace"):
+        raise changed(page.url, f"it no longer holds {page.names!r}")
     check_attribution(page, response)
     return Row(page, response, reduce(page, response) if page.file else None)
+
+
+def capture_all(pages: Sequence[Page]) -> list[Row]:
+    """Capture every page in order, each page that ``linked`` names right after its own."""
+    rows: list[Row] = []
+    waiting = list(pages)
+    while waiting:
+        row = capture(waiting.pop(0))
+        rows.append(row)
+        waiting[:0] = linked(row)
+    return rows
 
 
 def _iso_http_date(value: str | None) -> str:
@@ -343,24 +656,68 @@ def _paragraph(*sentences: str) -> list[str]:
     return [*wrapped.splitlines(), ""]
 
 
+def _bullet(text: str) -> list[str]:
+    wrapped = textwrap.fill(
+        text,
+        width=88,
+        initial_indent="- ",
+        subsequent_indent="  ",
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    return wrapped.splitlines()
+
+
 def _note(row: Row) -> str:
     parts = [f"redirected ({code}) to {target}" for code, target in row.response.redirects]
     if row.page.excerpt:
         parts.append("excerpt of a shared document; Bytes and sha256 are the whole document's")
-    if not row.page.stable:
-        parts.append("the body changes on every request, so no size, sha256 or validators")
+    if row.page.sample:
+        parts.append("a sample: an answer of the API, kept verbatim; no test fixture")
     if row.page.note:
         parts.append(row.page.note)
     return "; ".join(parts) or "-"
 
 
-def render_fetched(rows: Sequence[Row], fetched: str) -> str:
-    """The whole of ``FETCHED.md``, ``fetched`` being the UTC time the run started."""
-    if ATTRIBUTION:
-        stated = "The documentation states " + "; ".join(f"`{s}`" for s in ATTRIBUTION) + "."
-    else:
-        stated = "None stated: no page this script reads states a copyright line, a licence"
-        stated += " or terms of use."
+def _attribution() -> list[str]:
+    """``FETCHED.md``'s Attribution: every recorded statement, as printed, and where."""
+    if not ATTRIBUTION:
+        return _paragraph(
+            "None stated: no page this script reads states a copyright line, a licence or",
+            "terms of use.",
+        )
+    lines = _paragraph("The documentation states these, as printed:")
+    for statement in ATTRIBUTION:
+        text = f"`{statement.text}`"
+        if statement.link:
+            text += f", a link to {statement.link}"
+        if statement.source:
+            text += f", printed at {statement.source}"
+        else:
+            text += ", which only a browser shows, so no run checks it"
+        if statement.where:
+            text += f": {statement.where}"
+        lines += _bullet(text)
+    return [*lines, ""]
+
+
+def _row(cells: Sequence[str]) -> str:
+    return "| " + " | ".join(_cell(cell) for cell in cells) + " |"
+
+
+def render_fetched(rows: Sequence[Row], fetched: str, observed: bool = False) -> str:
+    """The whole of ``FETCHED.md``.
+
+    ``fetched`` is the UTC time the run started, and ``observed`` whether ``docs/upstream/``
+    holds ``OBSERVED.md``.
+    """
+    vocabulary = []
+    if VOCABULARY:
+        words = "; ".join(f"`{word}`" for word in VOCABULARY)
+        vocabulary = _paragraph(
+            f"The check reads past these words, which state none here: {words}. How this is",
+            "captured says why.",
+        )
     lines = [
         f"# Upstream documentation snapshot \N{EM DASH} {SOURCE_NAME}",
         "",
@@ -369,16 +726,19 @@ def render_fetched(rows: Sequence[Row], fetched: str) -> str:
             "directory are written by `scripts/refresh_upstream.py` (`/refresh-upstream`)",
             "from the pages in the table below and refreshed deliberately by PR, so that",
             "changes show up as diffs. This file is generated by the same script; nothing",
-            "here is edited by hand.",
+            f"here is edited by hand but `{OBSERVED}`, where it exists: what upstream does",
+            "but never documents, each note with its evidence.",
         ),
         "## Attribution",
         "",
+        *_attribution(),
+        *vocabulary,
         *_paragraph(
-            stated,
-            "The script stops when a page it reads states one it does not record. The",
-            "documentation's text is reproduced here as this package's reference",
-            "(ADR-0003); the publisher's objection is met by replacing it with a summary",
-            "that keeps the names and semantics the wrappers rely on.",
+            "The script stops when a page it reads states one it does not record, or no",
+            "longer prints one it records. The documentation's text is reproduced here as",
+            "this package's reference (ADR-0003); the publisher's objection is met by",
+            "replacing it with a summary that keeps the names and semantics the wrappers",
+            "rely on.",
         ),
         "## How this is captured",
         "",
@@ -387,11 +747,15 @@ def render_fetched(rows: Sequence[Row], fetched: str) -> str:
             "Fetched is the UTC time the run started, in ISO 8601 with an explicit Z, the",
             "same for every row. Bytes and sha256 are those of the body as fetched: a",
             "converted page's row holds the HTML page's, an excerpt's the whole document's.",
-            "Last-Modified is the HTTP header in UTC, ETag as sent. A page recorded without",
-            "a file is `(no file)`, and a body that changes on every request records no",
-            f"size, sha256 or validators. Requests go one at a time, {PAUSE:g} s apart,",
-            f"each retried at most once, identified as `{USER_AGENT}`; no API key is sent",
-            "or read.",
+            "Last-Modified is the HTTP header in UTC, ETag as sent, and a row with an ETag",
+            "ends in a comment that tells the secret scan it is no key. A page recorded",
+            "without a file is `(no file)`, and a body that changes on every request records",
+            "no size, sha256 or ETag. A sample is a small answer of the API kept verbatim",
+            "under `samples/`, which documents the answer's shape and is no test fixture.",
+            f"Requests go one at a time, {PAUSE:g} s apart, each retried at most once,",
+            f"identified as `{USER_AGENT}`. No redirect to another host is followed, no",
+            "browser is imitated, and no key is sent or read: a page an anonymous client",
+            "cannot read is requested once and listed under Not fetched.",
         ),
         "## Files and pages",
         "",
@@ -399,19 +763,43 @@ def render_fetched(rows: Sequence[Row], fetched: str) -> str:
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for row in rows:
+        if _unread(row.page):
+            continue
         response, kept = row.response, row.page.stable
-        cells = [
-            row.page.file or "(no file)",
-            response.url,
-            fetched,
-            str(response.status),
-            str(len(response.body)) if kept else "-",
-            hashlib.sha256(response.body).hexdigest() if kept else "-",
-            (response.etag or "-") if kept else "-",
-            _iso_http_date(response.last_modified) if kept else "-",
-            _note(row),
-        ]
-        lines.append("| " + " | ".join(_cell(cell) for cell in cells) + " |")
+        etag = (response.etag or "-") if kept else "-"
+        line = _row(
+            [
+                row.page.file or "(no file)",
+                response.url,
+                fetched,
+                str(response.status),
+                str(len(response.body)) if kept else "-",
+                hashlib.sha256(response.body).hexdigest() if kept else "-",
+                etag,
+                _iso_http_date(response.last_modified),
+                _note(row),
+            ]
+        )
+        lines.append(line if etag == "-" else f"{line} {ALLOWLIST}")
+    if observed:
+        hand = "written by hand: what upstream does but never documents; not fetched or checked"
+        lines.append(_row([OBSERVED, "-", "-", "-", "-", "-", "-", "-", hand]))
+    left_out = [
+        _row(
+            [
+                row.page.url,
+                str(row.response.status),
+                urlsplit(row.response.redirects[-1][1]).netloc if row.response.redirects else "-",
+                row.page.note or "-",
+            ]
+        )
+        for row in rows
+        if _unread(row.page)
+    ]
+    left_out += [_row([page.url, "(not requested)", "-", page.reason]) for page in NOT_FETCHED]
+    if left_out:
+        lines += ["", "## Not fetched", "", "| URL | HTTP | Redirects to | Reason |"]
+        lines += ["| --- | --- | --- | --- |", *left_out]
     lines += ["", f"Regenerate: `{COMMAND}`"]
     return "\n".join(lines) + "\n"
 
@@ -442,21 +830,61 @@ def write_snapshot(out: Path, rows: Sequence[Row], fetched_md: str) -> None:
     (out / "FETCHED.md").write_bytes(fetched_md.encode("utf-8"))
 
 
-def compare(out: Path, rows: Sequence[Row]) -> list[str]:
-    """The snapshot's files that differ from this run's, ``FETCHED.md``'s ``Fetched`` aside."""
+@dataclass
+class _Table:
+    """``FETCHED.md`` with its rows' measures blanked, and the measures of each row."""
+
+    masked: list[str] = field(default_factory=list)
+    measures: dict[str, list[str]] = field(default_factory=dict)
+
+
+def _measured(text: str) -> _Table:
+    """Split ``FETCHED.md`` into what ``--check`` compares and what it reports."""
+    table, rows = _Table(), False
+    for line in text.splitlines():
+        cells = [cell.strip() for cell in _CELL.split(line)[1:-1]]
+        rows = rows and line.startswith("| ")
+        if rows and len(cells) == 9:
+            table.measures[f"{cells[0]} {cells[1]}"] = cells[4:8]
+            line = " | ".join([f"| {cells[0]}", cells[1], "", cells[3], "", "", "", "", cells[8]])
+        rows = rows or line.startswith("| --- | --- | --- | --- | --- |")
+        table.masked.append(line)
+    return table
+
+
+def compare(out: Path, rows: Sequence[Row]) -> tuple[list[str], list[str]]:
+    """What differs between the snapshot and this run: the changes, and the measures that moved.
+
+    A file differs when its content does, compared after ``canonical``, and ``FETCHED.md``
+    when it would change in more than its rows' measures, Fetched, Bytes, sha256, ETag and
+    Last-Modified. A measure that moved while the content stayed is reported, never counted:
+    a page rendered again with the same converted text, a Last-Modified a cache moves.
+    """
     files = _files(rows)
+    pages = {row.page.file: row.page for row in rows if row.page.file}
     differ = [
         name
         for name, content in files.items()
-        if not (out / name).is_file() or (out / name).read_bytes() != content
+        if not (out / name).is_file()
+        or canonical(pages[name], (out / name).read_bytes()) != canonical(pages[name], content)
     ]
     differ += [f"{name} (no longer produced)" for name in _stale(out, files)]
     current = out / "FETCHED.md"
-    old = current.read_bytes().decode("utf-8") if current.is_file() else ""
-    match = _FETCHED.search(old, max(old.find("| --- |"), 0))
-    if not match or render_fetched(rows, match.group(1)) != old:
+    old = _measured(current.read_bytes().decode("utf-8") if current.is_file() else "")
+    new = _measured(render_fetched(rows, "-", (out / OBSERVED).is_file()))
+    if old.masked != new.masked:
         differ.append("FETCHED.md")
-    return differ
+    moved = []
+    for key, measures in new.measures.items():
+        before = old.measures.get(key, measures)
+        steps = [
+            f"{name} {was} to {now}"
+            for name, was, now in zip(_MEASURES, before, measures, strict=True)
+            if was != now
+        ]
+        if steps:
+            moved.append(f"{key}: {', '.join(steps)}")
+    return differ, moved
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -469,18 +897,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     out: Path = args.out
     pages = list(PAGES)
-    if SPEC_URL:
-        pages.append(Page(SPEC_URL, SPEC_FILE, note="SPEC_URL, verbatim"))
+    spec = SPEC_PAGE or (Page(SPEC_URL, SPEC_FILE, note="SPEC_URL, verbatim") if SPEC_URL else None)
+    if spec:
+        pages.append(spec)
     if not pages:
         raise SystemExit(
             "Nothing to fetch: fill PAGES, and SPEC_URL where the documentation names an "
             "API document, as /refresh-upstream says."
         )
     fetched = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    _log(f"Fetching {len(pages)} pages; nothing is written before the last")
-    rows = [capture(page) for page in pages]
+    _log(f"Fetching {len(pages)} pages and those they link; nothing is written before the last")
+    rows = capture_all(pages)
     if args.check:
-        differ = compare(out, rows)
+        differ, moved = compare(out, rows)
+        for line in moved:
+            _log(f"  moved, no change: {line}")
         for name in differ:
             _log(f"  differs: {name}")
         _log(
@@ -489,7 +920,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             else "The snapshot is current: upstream serves what it records."
         )
         return 1 if differ else 0
-    write_snapshot(out, rows, render_fetched(rows, fetched))
+    write_snapshot(out, rows, render_fetched(rows, fetched, (out / OBSERVED).is_file()))
     written = sum(1 for row in rows if row.content is not None)
     _log(f"Wrote {written} files and FETCHED.md under {out} (Fetched {fetched})")
     return 0
