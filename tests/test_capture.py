@@ -348,6 +348,51 @@ def test_the_check_narrows_by_a_vocabulary_that_fetched_md_lists(
     assert "`import license`" in snapshot(out)
 
 
+def test_a_page_in_its_declared_charset_is_read(
+    capture: tuple[ModuleType, Path], site: Site
+) -> None:
+    """Finding 1 of #188: a text page is decoded by the charset its Content-Type declares,
+    and one that declares none and is not UTF-8 is read with replacement; only a binary
+    body goes unread, a PDF sent without a type among them."""
+    module, out = capture
+    footer = "<p>Guide</p><footer>\N{COPYRIGHT SIGN} 2026 Example Ltd.</footer>"
+    latin = {"Content-Type": "text/html; charset=iso-8859-1"}
+    site.routes["/latin.html"] = (200, latin, footer.encode("latin-1"))
+    url = f"{site.base}/latin.html"
+    module.PAGES = (module.Page(url, "pages/latin.html"),)
+    with pytest.raises(SystemExit, match="ATTRIBUTION does not record"):
+        run(module, out)
+    module.ATTRIBUTION = (module.Statement("\N{COPYRIGHT SIGN} 2026 Example Ltd.", url),)
+    assert run(module, out) == 0
+    module.ATTRIBUTION = ()
+    site.routes["/untyped.html"] = (200, {}, b"<p>All rights reserved \xa9 2026</p>")
+    module.PAGES = (module.Page(f"{site.base}/untyped.html", "pages/untyped.html"),)
+    with pytest.raises(SystemExit, match="ATTRIBUTION does not record"):
+        run(module, out)
+    pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n<< /Producer (Copyright 2026 Example) >>\n%%EOF\n"
+    site.routes["/layout.pdf"] = (200, {}, pdf)
+    module.PAGES = (module.Page(f"{site.base}/layout.pdf", "files/layout.pdf"),)
+    assert run(module, out) == 0
+
+
+def test_a_statement_names_a_page_the_run_captures(
+    capture: tuple[ModuleType, Path], site: Site
+) -> None:
+    """Finding 2 of #188: a statement whose page is no page of the run, such as its URL
+    without the trailing slash, would never be checked, so the run stops and names it."""
+    module, out = capture
+    site.routes["/docs/"] = (200, {"Content-Type": "text/html"}, b"<footer>&copy; 2026 Ex</footer>")
+    module.PAGES = (module.Page(f"{site.base}/docs/", "pages/docs.html"),)
+    statement = module.Statement("\N{COPYRIGHT SIGN} 2026 Ex", f"{site.base}/docs", "the footer")
+    module.ATTRIBUTION = (statement,)
+    stub = (out / "FETCHED.md").read_bytes()
+    with pytest.raises(SystemExit, match=f"from {re.escape(site.base)}/docs, a page this run"):
+        run(module, out)
+    assert (out / "FETCHED.md").read_bytes() == stub, "nothing written"
+    module.ATTRIBUTION = (module.Statement(statement.text, f"{site.base}/docs/", "the footer"),)
+    assert run(module, out) == 0
+
+
 def test_a_line_only_a_browser_shows_is_quoted_and_never_checked(
     capture: tuple[ModuleType, Path], site: Site
 ) -> None:
