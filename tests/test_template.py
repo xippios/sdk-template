@@ -34,6 +34,7 @@ from helpers import (
     TABLE_HEADER,
     VARIANTS,
     dependencies,
+    detect_secrets_hook,
     gateway_of,
     generate,
     git,
@@ -1991,18 +1992,6 @@ def test_key_auth_matches_location(
     assert "client = AsyncClient(config)" in keyless
     with pytest.raises(ValueError, match="api_key_location"):
         generate(template_src, tmp_path / "basic", source_slug="ex", **keyed("EX_API_KEY", "basic"))
-
-
-def detect_secrets_hook(directory: Path, *files: str) -> subprocess.CompletedProcess[str]:
-    """The generated repository's detect-secrets hook, on ``files`` in ``directory``."""
-    hook = [sys.executable, "-m", "detect_secrets.pre_commit_hook"]
-    return subprocess.run(
-        [*hook, "--baseline", ".secrets.baseline", *files],
-        cwd=directory,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
 
 
 @pytest.mark.parametrize("ref", ["main", FAKE_CORE_SHA])

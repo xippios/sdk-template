@@ -177,6 +177,18 @@ def skip_matcher(pkg: str) -> Callable[[str], bool]:
     return PathSpec.from_lines("gitignore", rendered).match_file
 
 
+def detect_secrets_hook(directory: Path, *files: str) -> subprocess.CompletedProcess[str]:
+    """The generated repository's detect-secrets hook, on ``files`` in ``directory``."""
+    hook = [sys.executable, "-m", "detect_secrets.pre_commit_hook"]
+    return subprocess.run(
+        [*hook, "--baseline", ".secrets.baseline", *files],
+        cwd=directory,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 def git(cwd: Path, *args: str) -> str:
     """git with a fixed identity and no signing, independent of the user's configuration."""
     identity = ["-c", "user.name=t", "-c", "user.email=t@example.invalid"]
