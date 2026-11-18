@@ -215,6 +215,10 @@ _STATEMENT = re.compile(
 _HIDDEN = frozenset({"script", "style", "template"})
 _TEXT_TYPE = re.compile(r"text/.+|application/(?:[\w.-]+\+)?(?:json|xml|yaml|x-yaml)")
 _HTML_TYPES = frozenset({"text/html", "application/xhtml+xml"})
+_CHARSET = re.compile(r"""charset=["']?([\w.:-]+)""", re.IGNORECASE)
+_BINARY = (b"%PDF-", b"PK\x03\x04", b"\x89PNG", b"GIF8", b"\xff\xd8\xff", b"\x1f\x8b")
+"""The first bytes of a binary body sent without a type: a PDF, a ZIP, a PNG, a GIF, a JPEG
+or a gzip file."""
 _MEASURES = ("Bytes", "sha256", "ETag", "Last-Modified")
 _CELL = re.compile(r"(?<!\\)\|")
 
@@ -414,17 +418,25 @@ class Reading:
 def read_text(response: Response) -> Reading | None:
     """The text the attribution check reads, or ``None`` for a binary body.
 
-    An HTML page gives its visible text, its comments, scripts, styles and templates left
-    out, and its links; another text body gives its text as decoded. A binary body (a PDF,
-    an image, an archive) is not read, and its sha256 tells a change.
+    A text body is decoded by the charset its ``Content-Type`` declares, else as UTF-8, a
+    byte it cannot decode replaced, so a page in a legacy charset is read too. An HTML page
+    gives its visible text, its comments, scripts, styles and templates left out, and its
+    links; another text body gives its text. A binary body, by its type or, sent without
+    one, by its first bytes or a NUL (a PDF, an image, an archive), is not read, and its
+    sha256 tells a change.
     """
-    media = (response.content_type or "").split(";")[0].strip().lower()
+    content_type = response.content_type or ""
+    media = content_type.split(";")[0].strip().lower()
     if media and not _TEXT_TYPE.fullmatch(media):
         return None
-    try:
-        text = response.body.decode("utf-8-sig")
-    except UnicodeDecodeError:
+    if not media and (response.body.startswith(_BINARY) or b"\x00" in response.body[:1024]):
         return None
+    declared = _CHARSET.search(content_type)
+    charset = declared[1].lower() if declared else "utf-8"
+    try:
+        text = response.body.decode("utf-8-sig" if charset == "utf-8" else charset, "replace")
+    except LookupError:
+        text = response.body.decode("utf-8-sig", "replace")
     start = text.lstrip()[:15].lower()
     if media in _HTML_TYPES or (not media and start.startswith(("<!doctype html", "<html"))):
         reader = _Reader()
@@ -630,13 +642,26 @@ def capture(page: Page) -> Row:
 
 
 def capture_all(pages: Sequence[Page]) -> list[Row]:
-    """Capture every page in order, each page that ``linked`` names right after its own."""
+    """Capture every page in order, each page that ``linked`` names right after its own.
+
+    A statement of ``ATTRIBUTION`` whose ``source`` is none of the pages captured, such as
+    its page's URL without the trailing slash, would never be checked: it stops the run.
+    """
     rows: list[Row] = []
     waiting = list(pages)
     while waiting:
         row = capture(waiting.pop(0))
         rows.append(row)
         waiting[:0] = linked(row)
+    captured = {row.page.url for row in rows}
+    for statement in ATTRIBUTION:
+        if statement.source and statement.source not in captured:
+            raise SystemExit(
+                f"ATTRIBUTION records {statement.text!r} from {statement.source}, a page this "
+                "run does not capture, so no run would check it.\nGive the URL of its page "
+                'as PAGES writes it, or source="" for a line only a browser shows. Nothing '
+                "was written."
+            )
     return rows
 
 
