@@ -109,6 +109,28 @@ def test_an_update_brings_no_reference_scaffold_back(template_src: Path, tmp_pat
     run_update(str(unanswered), defaults=True, overwrite=True, vcs_ref="v0.0.2", quiet=True)
     back = [rel for rel in paths(FILLED, answers) if (unanswered / rel).exists()]
     assert back, "without the answer, the update brings back what the source deleted"
+    # A source that kept the scaffold, a line of its own in params.py and a packaged list of
+    # its own beside the rendered files: the answer deletes what the template rendered, the
+    # source's lines in it included, and leaves the source's own file for it to delete.
+    kept = tmp_path / "kept"
+    run_copy(str(template), str(kept), data=data, defaults=True, vcs_ref="v0.0.1", quiet=True)
+    pkg = kept / "src/xippios" / package_dir(answers)
+    with (pkg / "params.py").open("a") as params:
+        params.write('UNITS = "unit"\n')
+    (pkg / "reference/unit.json").write_text("{}\n")
+    git(kept, "init", "-q", "-b", "main")
+    git(kept, "add", "-A")
+    git(kept, "commit", "-q", "--no-verify", "-m", "a source with a list of its own")
+    run_update(
+        str(kept),
+        data={"has_reference_data": False},
+        defaults=True,
+        overwrite=True,
+        vcs_ref="v0.0.2",
+        quiet=True,
+    )
+    assert [rel for rel in paths(FILLED, answers) if (kept / rel).exists()] == []
+    assert (pkg / "reference/unit.json").read_text() == "{}\n", "the source's own file"
     scaffold = paths(SCAFFOLD, answers)
     run_update(
         str(dst),
@@ -124,6 +146,20 @@ def test_an_update_brings_no_reference_scaffold_back(template_src: Path, tmp_pat
     git(dst, "commit", "-q", "--no-verify", "-m", "the answer")
     run_update(str(dst), defaults=True, overwrite=True, vcs_ref="v0.0.3", quiet=True)
     assert [rel for rel in scaffold if (dst / rel).exists()] == [], "the recorded answer"
+
+
+def test_the_readme_names_the_scaffold_with_its_answer() -> None:
+    """This README's generated tree names each path of the scaffold on a line that names
+    ``has_reference_data``, so no line lists one among the files every render has."""
+    readme = (ROOT / "README.md").read_text()
+    tree = readme.split("\n## What gets generated\n", 1)[1].split("```", 2)[1]
+    scaffold = re.compile(r"\bparams\b|\benums\b|\breference/|refresh.reference")
+    unqualified = [
+        line
+        for line in tree.splitlines()
+        if scaffold.search(line) and "has_reference_data" not in line
+    ]
+    assert unqualified == []
 
 
 def test_the_refresh_sends_each_request_once_and_takes_only(keyed_nested: Path) -> None:
