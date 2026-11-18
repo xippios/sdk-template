@@ -179,6 +179,16 @@ def test_the_stub_lays_out_every_kind_of_row(keyless_flat: Path) -> None:
     assert "| samples/" in stub
 
 
+def test_the_rule_on_the_snapshot_leaves_the_notes_to_the_hand(keyless_flat: Path) -> None:
+    """Conventions §3: the render's CLAUDE.md forbids a hand edit of ``docs/upstream/`` but
+    for OBSERVED.md, which the command and the script name as the one file so written."""
+    claude = flat((keyless_flat / "CLAUDE.md").read_text())
+    (rule,) = [
+        line for line in claude.split("- Never ") if line.startswith("edit `docs/upstream/`")
+    ]
+    assert "`docs/upstream/OBSERVED.md`" in rule
+
+
 def test_refresh_upstream_skeleton_checks_offline(
     capture: tuple[ModuleType, Path], site: Site
 ) -> None:
