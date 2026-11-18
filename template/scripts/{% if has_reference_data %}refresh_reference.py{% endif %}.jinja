@@ -21,6 +21,14 @@ endpoints need in the environment (a key only where they take one)::
 
     uv run python scripts/refresh_reference.py
 
+The package's client sends each request once, ``RetryPolicy(max_attempts=1)``, so a 5xx
+or a 429 spends no second call of upstream's quota: a run that fails writes nothing and
+is run again. After the fetches it prints the requests it sent and the quota left that
+upstream reported in ``QUOTA_HEADER``, a failed run's too. ``--only <list> [<list> ...]``
+fetches the named lists of ``PACKAGED_LISTS`` alone, writes their files and keeps every
+other list's file as it is, as a change that packages a new list does; ``enums.py`` is
+then regenerated from all of them.
+
 ``--render-only`` regenerates ``enums.py`` from the packaged ``reference/*.json`` alone,
 without a request and without a key: after a core release changes the renderer
 (conventions §15, item 6), it changes ``enums.py`` and nothing else.
@@ -29,14 +37,18 @@ without a request and without a key: after a core release changes the renderer
 import argparse
 import subprocess
 import sys
-from collections.abc import Callable, Coroutine, Sequence
+from collections.abc import Callable, Coroutine, Iterator, Sequence
+from contextlib import contextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from xippios.core import PackagedList, UpstreamModel, sync
+import httpx
+from xippios.core import AsyncClient, PackagedList, RetryPolicy, UpstreamModel, sync
 from xippios.core.reference import id_name_pairs, render_enums
 
+from xippios.{{ import_path }}._client import client
 from xippios.{{ import_path }}.params import PACKAGED_LISTS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +56,10 @@ PACKAGE_DIR = ROOT / "src/xippios/{{ package_dir }}"
 REFERENCE = PACKAGE_DIR / "reference"
 ENUMS = PACKAGE_DIR / "enums.py"
 GENERATOR = "scripts/refresh_reference.py"
+
+QUOTA_HEADER: str | None = "x-ratelimit-remaining"
+"""The response header in which upstream reports the requests left in its quota, as its
+documentation names it, or ``None`` where it reports none."""
 
 Values = Callable[[], Coroutine[Any, Any, Sequence[str]]]
 """An async fetcher of a list's values through ``api/``."""
@@ -61,7 +77,9 @@ LISTS: dict[str, tuple[str, Values]] = {
 ID_LISTS: dict[str, tuple[str, Records, str, str]] = {
     # the list to (the upstream operation, an async fetcher of its records through api/,
     # the id field, the name field), the fields as upstream names them, e.g.
-    # "unitsOfMeasure": ("GetUnitsOfMeasure", api.GetUnitsOfMeasure, "unitId", "unitDescription"),
+    # "unitsOfMeasure": (
+    #     "GetUnitsOfMeasure", api.get_units_of_measure, "unitId", "unitDescription"
+    # ),
 }
 """Lists of integer ids and names, packaged as upstream's records, one ``IntEnum`` each.
 
@@ -71,9 +89,58 @@ whose docstring reads "Values of ``unitId``" (conventions §3).
 
 TABLES: dict[str, tuple[str, Records]] = {
     # the list to (the upstream operation, an async fetcher of its records through api/), e.g.
-    # "commodities": ("GetCommodities", api.GetCommodities),
+    # "commodities": ("GetCommodities", api.get_commodities),
 }
 """Record lists packaged as tables, with no enum, e.g. the codes ``params`` checks."""
+
+
+class Meter:
+    """What a run spent: the requests it sent and the quota left that upstream reported.
+
+    The client's ``observe`` hook, which core calls with every response from the wire. It
+    calls the hook the client had first, a quota policy's say (ADR-0015), and keeps the
+    last count that upstream sent in ``QUOTA_HEADER``. A request is counted by its
+    response: with no retry each has one, but for one that fails in transport, whose error
+    ends the run.
+    """
+
+    def __init__(self, observe: Callable[[httpx.Response], None] | None) -> None:
+        self.sent = 0
+        self.left: int | None = None
+        self._observe = observe
+
+    def __call__(self, response: httpx.Response) -> None:
+        """Count ``response`` and keep the quota it reports, after the hook it replaces."""
+        if self._observe is not None:
+            self._observe(response)
+        self.sent += 1
+        value = response.headers.get(QUOTA_HEADER) if QUOTA_HEADER else None
+        if value is not None and value.isascii() and value.isdigit():
+            self.left = int(value)
+
+    def report(self) -> str:
+        """The requests sent and the quota left, as upstream last reported it, one line."""
+        left = "not reported" if self.left is None else f"{self.left} ({QUOTA_HEADER})"
+        return f"requests sent: {self.sent}; quota left: {left}"
+
+
+@contextmanager
+def metered(target: AsyncClient) -> Iterator[Meter]:
+    """``target`` for the block: one attempt per request, each counted, then the report.
+
+    ``RetryPolicy(max_attempts=1)`` keeps a 5xx or a 429 from spending a second call of
+    upstream's quota. ``target``'s configuration is restored after the block, and the
+    report is printed, a failed run's too. A list fetched through another client of the
+    source's, a second host's, is metered by a block of its own.
+    """
+    configured = target.config
+    meter = Meter(configured.observe)
+    target.config = replace(configured, retry=RetryPolicy(max_attempts=1), observe=meter)
+    try:
+        yield meter
+    finally:
+        target.config = configured
+        print(meter.report())  # noqa: T201
 
 
 def packaged(name: str, endpoint: str, records: Sequence[dict[str, Any]]) -> PackagedList:
@@ -118,24 +185,40 @@ def render() -> None:
     print(f"{ENUMS.name}: {len(lists)} enums")  # noqa: T201
 
 
-def refresh() -> None:
-    """Fetch every list, then write its file, then regenerate ``enums.py`` from the files."""
-    if sorted([*LISTS, *ID_LISTS, *TABLES]) != sorted(PACKAGED_LISTS):
+def refresh(only: Sequence[str] = ()) -> None:
+    """Fetch every list, then write its file, then regenerate ``enums.py`` from the files.
+
+    ``only``, the lists ``--only`` names, fetches those alone and keeps every other list's
+    file, which must be packaged already. Both are checked before the first request, and
+    every list is fetched before the first file is written.
+    """
+    names = [*LISTS, *ID_LISTS, *TABLES]
+    if sorted(names) != sorted(PACKAGED_LISTS):
         raise SystemExit("LISTS, ID_LISTS and TABLES name other lists than params.PACKAGED_LISTS")
-    lists = [
-        *(
-            packaged(name, endpoint, [{name: value} for value in sync(fetch)()])
-            for name, (endpoint, fetch) in LISTS.items()
-        ),
-        *(
-            packaged(name, endpoint, [record.dump_upstream() for record in sync(fetch)()])
-            for name, (endpoint, fetch, _, _) in ID_LISTS.items()
-        ),
-        *(
-            packaged(name, endpoint, [record.dump_upstream() for record in sync(fetch)()])
-            for name, (endpoint, fetch) in TABLES.items()
-        ),
-    ]
+    if unknown := [name for name in only if name not in names]:
+        raise SystemExit(f"--only: no list {', '.join(unknown)} in {', '.join(names) or '()'}")
+    chosen = set(only or names)
+    kept = [name for name in names if name not in chosen]
+    if missing := [name for name in kept if not (REFERENCE / f"{name}.json").is_file()]:
+        raise SystemExit(f"{', '.join(missing)} is not packaged yet: run without --only")
+    with metered(client):
+        lists = [
+            *(
+                packaged(name, endpoint, [{name: value} for value in sync(fetch)()])
+                for name, (endpoint, fetch) in LISTS.items()
+                if name in chosen
+            ),
+            *(
+                packaged(name, endpoint, [record.dump_upstream() for record in sync(fetch)()])
+                for name, (endpoint, fetch, _, _) in ID_LISTS.items()
+                if name in chosen
+            ),
+            *(
+                packaged(name, endpoint, [record.dump_upstream() for record in sync(fetch)()])
+                for name, (endpoint, fetch) in TABLES.items()
+                if name in chosen
+            ),
+        ]
     REFERENCE.mkdir(exist_ok=True)
     for fetched in lists:
         path = REFERENCE / f"{fetched.param}.json"
@@ -144,19 +227,27 @@ def refresh() -> None:
     render()
 
 
-def main() -> None:
-    """Refresh from upstream, or with ``--render-only`` regenerate ``enums.py`` alone."""
+def main(argv: Sequence[str] | None = None) -> None:
+    """Refresh from upstream, some lists with ``--only``, or ``enums.py`` alone."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else None)
-    parser.add_argument(
+    choice = parser.add_mutually_exclusive_group()
+    choice.add_argument(
         "--render-only",
         action="store_true",
         help="regenerate enums.py from the packaged reference/*.json, without a request or a key",
     )
-    args = parser.parse_args()
+    choice.add_argument(
+        "--only",
+        nargs="+",
+        default=[],
+        metavar="LIST",
+        help="fetch these lists of PACKAGED_LISTS alone and keep every other list's file",
+    )
+    args = parser.parse_args(argv)
     if args.render_only:
         render()
     else:
-        refresh()
+        refresh(args.only)
 
 
 if __name__ == "__main__":

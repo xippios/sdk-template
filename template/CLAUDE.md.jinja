@@ -52,12 +52,16 @@ src/xippios/{{ package_dir }}/
                    the Python-only ones; MCP_CAPS any per-tool result caps
   mcp.py           xippios-{{ source_slug }}-mcp entry point
   http.py          FastAPI router
+{% if has_reference_data %}
   params.py        the packaged reference lists, read from reference/
   enums.py         StrEnums (IntEnums for integer ids) generated from the packaged lists;
                    never edited by hand
   reference/       packaged code lists (CSV/JSON) plus README with provenance
+{% endif %}
 scripts/
+{% if has_reference_data %}
   refresh_reference.py   fetches the packaged lists through api/ and regenerates enums.py
+{% endif %}
   refresh_upstream.py    captures docs/upstream/ and writes FETCHED.md (/refresh-upstream); the
                          template's skeleton until the source fills it
   adr_index.py           writes docs/adr.md and docs/adr.json from the records in docs/adr/;
@@ -99,7 +103,7 @@ CHANGELOG.md       the releases, each section assembled from the fragments
 {% if '.' in import_path or depends_on %}
 .github/scripts/   check-siblings.sh, which siblings.yml runs; the template's, as is the workflow
 {% endif %}
-.claude/commands/  add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
+.claude/commands/  add-endpoint, record-fixture, refresh-upstream,{{ ' refresh-reference-data,' if has_reference_data else '' }} release-prep
 ```
 
 The import path is `xippios.{{ import_path }}` (sdk-core ADR-0006); `src/xippios/` is a
@@ -194,7 +198,9 @@ template release reaches it in a pull request of its own, with
 `uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=<tag>` (conventions §15): the
 update renders the template's files again and never overwrites the files this package
 fills, `__init__.py`, `_client.py`, `errors.py`, `models.py`, `api/`, `parse/`, `tasks.py`,
+{% if has_reference_data %}
 `params.py`, `enums.py`, `reference/`, `scripts/refresh_reference.py`,
+{% endif %}
 `scripts/refresh_upstream.py`, `tests/test_tasks.py`, `tests/test_live.py`,
 `tests/fixtures/`, `docs/upstream/`, `docs/adr.md`, `docs/adr.json`, `README.md`,
 `CHANGELOG.md` and `CLAUDE.md`. sdk-template's
