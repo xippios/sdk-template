@@ -6,7 +6,12 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from helpers import ROOT, VARIANTS, generate
+
+# Before the first import of helpers, so its asserts fail with the values they compared, as
+# a test module's do.
+pytest.register_assert_rewrite("helpers")
+
+from helpers import ROOT, VARIANTS, generate  # noqa: E402
 
 
 @pytest.fixture(scope="session")
