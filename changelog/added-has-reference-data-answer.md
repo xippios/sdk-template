@@ -2,8 +2,9 @@
   `params.py`, `enums.py`, `reference/`, `scripts/refresh_reference.py` and
   `/refresh-reference-data` renders, and no update brings them back, where copier brought
   back the deleted script. Such a source passes `-d has_reference_data=false` to the update
-  that takes this release, which deletes the scaffold, the source's content in it included.
-  Every other source keeps the default, `true`, and its scaffold.
+  that takes this release, which deletes the files the template rendered, the source's
+  lines in them included, and leaves a file the source added under `reference/` for the
+  source to delete. Every other source keeps the default, `true`, and its scaffold.
   (https://github.com/xippios/sdk-template/issues/40)
   - Hand-apply: `CLAUDE.md` — where the answer is `false`, drop the Layout's rows of
     `params.py`, `enums.py`, `reference/` and `refresh_reference.py`, the command

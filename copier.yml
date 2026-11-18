@@ -318,7 +318,8 @@ has_reference_data:
     default, renders that scaffold, params.py, enums.py, reference/,
     scripts/refresh_reference.py and /refresh-reference-data, whether or not a list is
     packaged yet. A source that packages none answers false: none of it renders, and an
-    update deletes it, the source's content in it included.
+    update deletes the files the template rendered, the source's lines in them included,
+    and leaves a file the source added under reference/ for the source to delete.
   default: true
 
 # The human's GitHub login, which the rendered .github/CODEOWNERS names as the owner of the
