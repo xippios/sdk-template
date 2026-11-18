@@ -7,8 +7,10 @@
 # wheel alone, failing on a conflicting requirement, warning on a sibling on another core
 # minor and on one that pins this package's previous minor, and failing on one that pins a
 # later minor; require parse/ and tests/fixtures/files/ exactly where has_files is true;
-# check offline that a task named in BULK_TASKS gets no tool and no route, and that the
-# refresh script renders a value list and an id list into one enums.py, as ruff leaves it.
+# check offline that a task named in BULK_TASKS gets no tool and no route, that the
+# refresh script renders a value list and an id list into one enums.py, as ruff leaves it,
+# and that it sends each request once, counts it and keeps the lists --only leaves out;
+# require none of the reference scaffold where has_reference_data is false.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
 # suite tests it. The template's CI runs every shape below, and the keyless nested one
 # again with -d has_files=true, a source that parses the files it downloads (ADR-0020).
@@ -29,7 +31,8 @@
 #                      derives the key answers, on the default core, 0.3.0, the first
 #                      release with xippios.core.data_gov
 #   --keep             leave the generated repository in place
-#   -d key=value       one more copier answer, e.g. -d has_files=true
+#   -d key=value       one more copier answer, e.g. -d has_files=true, or
+#                      -d has_reference_data=false for a source that packages none
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -110,9 +113,24 @@ echo "==> the checks of the render: uv sync, ruff, mypy, pytest, pre-commit"
   uv run pre-commit run --all-files
 )
 
+# Nested or flat as copier recorded it, so a -d import_path=... answer is proven as rendered.
+import_path="$(sed -n 's/^import_path: //p' "$dest/.copier-answers.yml")"
+package_dir="src/xippios/${import_path//.//}"
+
+# The reference scaffold, as copier recorded has_reference_data (#40): whole, or none of it.
+has_reference_data="$(sed -n 's/^has_reference_data: //p' "$dest/.copier-answers.yml")"
 echo
-echo "==> refresh_reference.py --render-only renders the shipped enums.py unchanged"
-(cd "$dest" && uv run python scripts/refresh_reference.py --render-only && git diff --exit-code)
+if [ "$has_reference_data" = true ]; then
+  echo "==> refresh_reference.py --render-only renders the shipped enums.py unchanged"
+  (cd "$dest" && uv run python scripts/refresh_reference.py --render-only && git diff --exit-code)
+else
+  echo "==> has_reference_data: $has_reference_data, so none of the reference scaffold rendered"
+  for rel in "$package_dir/params.py" "$package_dir/enums.py" "$package_dir/reference" \
+    scripts/refresh_reference.py .claude/commands/refresh-reference-data.md; do
+    [ ! -e "$dest/$rel" ] || { echo "error: $rel rendered without reference data" >&2; exit 1; }
+  done
+  echo "none of params.py, enums.py, reference/, refresh_reference.py, /refresh-reference-data"
+fi
 
 echo
 echo "==> refresh_upstream.py, the skeleton, refuses to run until a source fills it"
@@ -124,13 +142,10 @@ refusal="$(grep "Nothing to fetch: fill PAGES" "$work/refresh.err")" \
   || { cat "$work/refresh.err" >&2; exit 1; }
 echo "refused: $refusal"
 
-# Nested or flat as copier recorded it, so a -d import_path=... answer is proven as rendered.
-import_path="$(sed -n 's/^import_path: //p' "$dest/.copier-answers.yml")"
-
 # The parsers' package and the samples' table, as copier recorded has_files (ADR-0020):
 # the suite above passed on the render, with an empty parse/ where they are rendered.
 has_files="$(sed -n 's/^has_files: //p' "$dest/.copier-answers.yml")"
-parse_dir="src/xippios/${import_path//.//}/parse"
+parse_dir="$package_dir/parse"
 echo
 if [ "$has_files" = true ]; then
   echo "==> has_files: parse/ and tests/fixtures/files/README.md rendered, the suite passed"
@@ -320,6 +335,7 @@ print(f"tools {tools}, routes {routes}: download_example, in BULK_TASKS, neither
 PY
 )
 
+if [ "$has_reference_data" = true ]; then
 # The refresh script's render on two packaged lists fetched on different days, a value
 # list and an id list whose names repeat: one enums.py of a StrEnum and an IntEnum, each
 # with its date, as ruff leaves it (conventions §3, ADR-0008). The tree is restored after.
@@ -358,6 +374,94 @@ assert "(fetched 2026-10-23)" in (enums.UnitId.__doc__ or "")
 PY
 )
 (cd "$dest" && uv run ruff format --check . && uv run ruff check . && git checkout -q -- . && git clean -fdq)
+
+# Offline, through the package's own client, against answers respx replays (#64): the
+# refresh sends each request once, a 503's included, and prints the requests it sent and
+# the quota left, a failed run's too; --only fetches the named list alone and keeps the
+# other's file, and refuses a name no packaged list has before any request. The tree is
+# restored after.
+echo
+echo "==> refresh_reference.py sends each request once, counts it, and --only keeps the others"
+(cd "$dest" && uv run python scripts/refresh_reference.py --help | grep -- "--only")
+(cd "$dest" && uv run python - "xippios.$import_path" <<'PY'
+import contextlib
+import importlib
+import importlib.util
+import io
+import os
+import sys
+from collections.abc import Callable, Coroutine, Sequence
+from typing import Any
+
+import httpx
+import respx
+from xippios.core import XippiosError
+
+package = importlib.import_module(f"{sys.argv[1]}._client")
+if package.API_KEY_ENV:
+    os.environ[package.API_KEY_ENV] = "placeholder"  # a stand-in that respx keeps in
+spec = importlib.util.spec_from_file_location("refresh", "scripts/refresh_reference.py")
+assert spec is not None and spec.loader is not None
+script = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(script)
+configured = package.client.config
+
+
+def values(name: str) -> Callable[[], Coroutine[Any, Any, Sequence[str]]]:
+    async def fetch() -> Sequence[str]:
+        answer = await package.client.get_json("/get_param_values", params={"param": name})
+        return [str(value) for value in answer]
+
+    return fetch
+
+
+script.LISTS = {name: ("get_param_values", values(name)) for name in ["state_alpha", "unit"]}
+script.PACKAGED_LISTS = ("state_alpha", "unit")
+files = {name: script.REFERENCE / f"{name}.json" for name in script.PACKAGED_LISTS}
+
+
+def run(*args: str) -> tuple[str, BaseException | None]:
+    """The script's main with ``args``: what it printed and what it raised, if anything."""
+    out = io.StringIO()
+    raised = None
+    try:
+        with contextlib.redirect_stdout(out):
+            script.main(list(args))
+    except (XippiosError, SystemExit) as error:
+        raised = error
+    assert package.client.config is configured, "the client's configuration restored"
+    print(out.getvalue() + ("" if raised is None else f"{type(raised).__name__}: {raised}\n"))
+    return out.getvalue(), raised
+
+
+with respx.mock(base_url=package.BASE_URL) as upstream:
+    route = upstream.get("/get_param_values")
+    route.respond(503)
+    printed, raised = run()
+    assert isinstance(raised, XippiosError), raised
+    assert route.call_count == 1, f"one request, no retry: {route.call_count}"
+    assert "requests sent: 1; quota left: not reported" in printed, printed
+    assert not any(path.exists() for path in files.values()), "nothing written"
+    route.respond(200, json=["AK", "CA"], headers={"x-ratelimit-remaining": "41"})
+    printed, raised = run()
+    assert raised is None, raised
+    assert route.call_count == 3, route.call_count
+    assert "requests sent: 2; quota left: 41 (x-ratelimit-remaining)" in printed, printed
+    kept = files["state_alpha"].read_bytes()
+    route.respond(200, json=["MT"])
+    printed, raised = run("--only", "unit")
+    assert raised is None, raised
+    assert route.call_count == 4, route.call_count
+    assert "requests sent: 1; quota left: not reported" in printed, printed
+    assert files["state_alpha"].read_bytes() == kept, "--only keeps the other list's file"
+    assert '"MT"' in files["unit"].read_text()
+    printed, raised = run("--only", "county")
+    assert isinstance(raised, SystemExit), "--only took a list no packaged list has"
+    assert route.call_count == 4, "refused before any request"
+PY
+)
+(cd "$dest" && git checkout -q -- . && git clean -fdq)
+fi
 
 echo
 echo "==> generated tree"
