@@ -346,7 +346,7 @@ def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
     }
 
 
-FILES_TABLE = "| File | Release | URL | Bytes | sha256 | Fetched |"
+FILES_TABLE = "| File | Release | URL | Bytes | sha256 | Fetched | Kept |"
 
 
 def test_has_files_renders_the_parsers_and_the_samples_table(variant: tuple[str, Path]) -> None:
