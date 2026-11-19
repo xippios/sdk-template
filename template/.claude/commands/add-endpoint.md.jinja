@@ -90,9 +90,10 @@ lists what they check in an endpoint.
    `tests/test_tasks.py`: `copier update` never touches a file the template has never
    rendered, and `tests/test_tasks.py` itself is the source's once rendered. A replay
    test that checks what was sent compares `xippios.core.testing.sent_query(route)`, the
-   scrubbed query of the last request, or `sent_urls(route)`, the URLs with credentials
-   redacted, never a request kept from `route.calls`, which a failure or `pytest -l`
-   would print. A test of a task that answers from a packaged list reads the list's
+   scrubbed query of the last request, `sent_urls(route)`, the URLs with credentials
+   redacted, or `sent_bodies(route)`, the bodies decoded, a JSON body as it parses and a
+   form as a mapping of its fields, credentials redacted, never a request kept from
+   `route.calls`, which a failure or `pytest -l` would print. A test of a task that answers from a packaged list reads the list's
    fetch date and counts from the packaged file instead of pinning them, so a refresh of
    the list breaks no test. Grep the fixture for key patterns before committing.
 
