@@ -2110,7 +2110,8 @@ def test_answers_file_records_each_answer_on_one_line(variant: tuple[str, Path])
     raw = (ROOT / "copier.yml").read_text().split("\nlive_secrets:\n", 1)[1]
     block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
     assert '\n  default: "[]"\n' in block, "one quoted scalar, a literal"
-    assert "\nlive_secrets: '[]'\n" in text
+    if not live_secrets(VARIANTS[name]):
+        assert "\nlive_secrets: '[]'\n" in text
 
 
 @pytest.mark.parametrize(

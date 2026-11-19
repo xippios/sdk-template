@@ -119,6 +119,20 @@ VARIANTS: dict[str, dict[str, object]] = {
         "rate_limit_provenance": "self-imposed",
         **keyed("CASHCTRL_API_KEY", "basic"),
     },
+    # sdk-google-mail's (#207, #209): a multi-tenant source whose tenants hold a refresh
+    # token, no key, under a prefix the slug does not give (GOOGLE, not GOOGLE_MAIL), with
+    # a write server and the live secrets of its OAuth client; its tenants named by
+    # account; nested.
+    "tenants-keyless": {
+        "source_slug": "google-mail",
+        "write_server": True,
+        "tenant_param": "account",
+        "tenant_credential_env": "GOOGLE_<NAME>_REFRESH_TOKEN",
+        "live_secrets": "[GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET]",
+        "rate_limit_burst": 10,
+        "rate_limit_provenance": "self-imposed",
+        **keyed(""),
+    },
 }
 # A source on unreleased core: the keyed nested answers with a full-SHA core pin.
 PINNED = {**VARIANTS["keyed-nested"], "core_git_ref": FAKE_CORE_SHA}
@@ -151,17 +165,35 @@ def tenant_param(answers: dict[str, object]) -> str:
     return str(answers.get("tenant_param", ""))
 
 
-def tenant_prefix(answers: dict[str, object]) -> str:
-    """The prefix of a multi-tenant variant's variables: its key's, without ``_API_KEY``."""
+def tenant_credential(answers: dict[str, object]) -> str:
+    """The pattern of a multi-tenant variant's credential variable, ``<PREFIX>_<NAME>_<FIELD>``
+    (#209): its key's, ``<PREFIX>_<NAME>_API_KEY``, where it has a key, else its answer;
+    empty for a source with one tenant."""
+    if not tenant_param(answers):
+        return ""
     key = str(key_answers(answers).get("api_key_env", ""))
-    return key.removesuffix("_API_KEY") if tenant_param(answers) else ""
+    if key:
+        return key.removesuffix("_API_KEY") + "_<NAME>_API_KEY"
+    return str(answers["tenant_credential_env"])
+
+
+def tenant_prefix(answers: dict[str, object]) -> str:
+    """The prefix of a multi-tenant variant's variables: its credential's, before ``_<NAME>_``."""
+    return tenant_credential(answers).split("_<NAME>_")[0]
+
+
+def tenant_field(answers: dict[str, object]) -> str:
+    """The field of a multi-tenant variant's credential, after ``_<NAME>_``, as core's
+    ``Tenants(fields=...)`` takes it: ``API_KEY`` where it has a key."""
+    credential = tenant_credential(answers)
+    return credential.split("_<NAME>_")[1] if credential else ""
 
 
 def key_envs(answers: dict[str, object]) -> list[str]:
     """Every key variable a render's tests and live run read: the source's own, the reserved
-    tenant's for a multi-tenant source, then its dependencies', once."""
+    tenant's credential for a multi-tenant source, then its dependencies', once."""
     if tenant_param(answers):
-        own = f"{tenant_prefix(answers)}_DEMO_API_KEY"
+        own = f"{tenant_prefix(answers)}_DEMO_{tenant_field(answers)}"
     else:
         own = str(key_answers(answers).get("api_key_env", ""))
     keys = [own] + [d["key_env"] for d in dependencies(answers)]
@@ -170,12 +202,12 @@ def key_envs(answers: dict[str, object]) -> list[str]:
 
 def env_vars(answers: dict[str, object]) -> list[tuple[str, bool, bool]]:
     """The variables a render's ``ENV_VARS`` declares, each with whether it is secret and
-    required: the key, or the tenant list and the tenants' key pattern, then the
+    required: the key, or the tenant list and the tenants' credential pattern, then the
     dependencies' keys and the live secrets, each once."""
     own = str(key_answers(answers).get("api_key_env", ""))
     if tenant_param(answers):
         prefix, param = tenant_prefix(answers), tenant_param(answers).upper()
-        listed = [(f"{prefix}_{param}S", False, False), (f"{prefix}_<NAME>_API_KEY", True, True)]
+        listed = [(f"{prefix}_{param}S", False, False), (tenant_credential(answers), True, True)]
     else:
         listed = [(own, True, True)] if own else []
     for name in [d["key_env"] for d in dependencies(answers)] + live_secrets(answers):
