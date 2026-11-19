@@ -29,8 +29,8 @@
 #                      as esmis or wasde
 #   --gateway          a nested source behind api.data.gov, sdk-example-gov
 #                      (xippios.example.gov), as psd, esr and gats: the gateway answer
-#                      derives the key answers, on the default core, 0.3.0, the first
-#                      release with xippios.core.data_gov
+#                      derives the key answers, on the default core, 0.4.0; 0.3.0 was
+#                      the first release with xippios.core.data_gov
 #   --keep             leave the generated repository in place
 #   -d key=value       one more copier answer, e.g. -d has_files=true, or
 #                      -d has_reference_data=false for a source that packages none, or
@@ -246,7 +246,7 @@ else
   echo "failed, as it must: $(tail -n 1 "$work/conflict.log")"
 
   # A sibling built here whose one release needs a core minor on PyPI that this wheel does
-  # not take (0.3 beside 0.2, else 0.2; 0.1.0 is yanked): the check leaves it out with a
+  # not take (0.2 beside 0.3, else 0.3; 0.1.0 is yanked): the check leaves it out with a
   # warning and passes.
   echo
   echo "==> a sibling on another core minor only is left out with a warning, never a failure"

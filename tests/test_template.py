@@ -333,7 +333,7 @@ def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
     """Conventions §12: one core minor, the extras likewise; a source package depended on
     bound to its minor the same way, ``~=X.Y.0`` (ADR-0021), in no extra."""
     name, dst = variant
-    assert CORE_DEFAULT == "0.3.0", "the core release the template adopts, its verbatim files'"
+    assert CORE_DEFAULT == "0.4.0", "the core release the template adopts, its verbatim files'"
     version = str(VARIANTS[name].get("core_version", CORE_DEFAULT))
     project = tomllib.loads((dst / "pyproject.toml").read_text())["project"]
     depended = [f"xippios-{d['name']}~={d['minor']}.0" for d in dependencies(VARIANTS[name])]
@@ -1217,17 +1217,18 @@ def test_generated_tests_need_no_key(keyed_nested: Path) -> None:
     assert "client.request" not in live
 
 
-# SHA-256 of sdk-core's files the template departs from, at v0.3.0, the core release the
-# template adopts: git -C <workspace root>/sdk-core show v0.3.0:<path> | sha256sum (digests,
+# SHA-256 of sdk-core's files the template departs from, at v0.4.0, the core release the
+# template adopts: git -C <workspace root>/sdk-core show v0.4.0:<path> | sha256sum (digests,
 # not secrets). A render is core's bytes once the template's own lines, named in
 # CLAUDE.md's Rules, are taken out. Core's gates.yml is no file of the template's (#99),
-# and the PR template links core's definition of done where it copied it (#129).
+# and the PR template links core's definition of done where it copied it (#129). The
+# files a render copies whole are pinned in test_core_adoption.py.
 CORE_EXTENDED = {
     # pragma: allowlist nextline secret
     ".github/workflows/ci.yml": "ebee09e20d7004a6761c1986f3bc0e16ee4a2dfa749921ac25040ebad5abacab",
     ".github/workflows/publish.yml": (
         # pragma: allowlist nextline secret
-        "dc98ee245673db75f639fa94318668078ea0242f07072b6c333716ee9ffdcf9f"
+        "61bc5786dc35acfea34cb4aa2f0f07038795bcfdb5c1593fc016eb8beda58356"
     ),
 }
 # The template's own lines: in ci.yml the full history for the two steps that read the
