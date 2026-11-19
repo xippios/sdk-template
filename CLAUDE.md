@@ -62,7 +62,7 @@ tests/                   the template's tests: conftest.py renders each of the f
                          variants once, helpers.py holds their answers and the tools a test runs on
                          a render, test_template.py checks the renders, ruff on the output, the
                          answers' rules and skip-if-exists behaviour, and a module of its own holds
-                         each later concern: test_capture, test_reference_data,
+                         each later concern: test_helpers, test_capture, test_reference_data,
                          test_client_answers, test_repository_files, test_core_adoption,
                          test_contract, test_citations
 docs/adr/                this repository's design decisions, one NNNN-<slug>.md record each, laid
@@ -159,9 +159,9 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   dependency, so only their names hold Jinja: `.github/workflows/siblings.yml` and the
   script it runs, `.github/scripts/check-siblings.sh` (executable; copier keeps the bit),
   the sibling proof of sdk-core ADR-0006, which installs and imports the declared
-  dependencies too (sdk-core ADR-0021). They stay outside `_skip_if_exists`, so `copier update` keeps a source's copy
-  equal to the render, and the name of the script's directory is the conditional one,
-  so a flat render gets no empty directory.
+  dependencies too (sdk-core ADR-0021). They stay outside `_skip_if_exists`, so
+  `copier update` keeps a source's copy equal to the render, and the name of the script's
+  directory is the conditional one, so a flat render gets no empty directory.
   `siblings` is a visible job the ruleset does not require: `ci.yml` stays core's file.
 - The files copied from sdk-core, `ci.yml`, `publish.yml`, `.pre-commit-config.yaml`,
   `.secrets.baseline`, `.python-version` and `LICENSE`, mirror sdk-core at the core release
@@ -170,11 +170,14 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   `publish.yml` to core's bytes once the template's own lines below are taken out, and
   `tests/test_core_adoption.py` pins the other four to their digests at v0.4.0. When
   sdk-core changes one of them, change it here too and bump the template; `copier update`
-  carries it into the generated repos. Two carry the exclusion of `.copier-answers.yml`, in the
-  detect-secrets hook's `exclude` in `.pre-commit-config.yaml` and in
-  `should_exclude_file` in `.secrets.baseline`, because the answers file names the key's
-  variable and trips the keyword check on commit and on a baseline rescan alike; sdk-core
-  carries the same exclusion since core 0.2.0.
+  carries it into the generated repos. The map `SUPERSEDED` of `tests/test_citations.py`
+  holds the records that sdk-core's index lists as superseded at the release the template
+  adopts, which `SUPERSEDED_AT` names, and a test fails while `core_version`'s default
+  names another, until the map follows that release's `docs/adr.md`. Two of the copies
+  carry the exclusion of `.copier-answers.yml`, in the detect-secrets hook's `exclude` in
+  `.pre-commit-config.yaml` and in `should_exclude_file` in `.secrets.baseline`, because
+  the answers file names the key's variable and trips the keyword check on commit and on a
+  baseline rescan alike; sdk-core carries the same exclusion since core 0.2.0.
   `publish.yml` deviates by one step: in its `tag` job, before the tag, it refuses a
   `pyproject.toml` that has `[tool.uv.sources]`, since a source that pins core to git
   cannot be published (conventions §12); core has no pin to guard. `ci.yml` deviates by
