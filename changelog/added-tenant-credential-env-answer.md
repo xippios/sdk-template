@@ -9,7 +9,7 @@
   tenants hold a key renders as before, with nothing more to answer.
   sdk-google-mail passes `-d write_server=true -d tenant_param=account
   -d tenant_credential_env=GOOGLE_<NAME>_REFRESH_TOKEN` and `live_secrets` without
-  `GOOGLE_DEMO_REFRESH_TOKEN`, and the update leaves two conflicts in `mcp.py`, two in
+  `GOOGLE_DEMO_REFRESH_TOKEN`, and the update leaves three conflicts in `mcp.py`, three in
   `mcp_write.py`, one in `tests/conftest.py`, the whole file, and two in `pyproject.toml`,
   its consent entry point and its placeholder list, on its `main`.
   (ADR-0036, https://github.com/xippios/sdk-template/issues/207, https://github.com/xippios/sdk-template/issues/209)

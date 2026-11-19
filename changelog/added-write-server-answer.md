@@ -5,7 +5,7 @@
   `xippios-<slug>-mcp`. A source with a write server of its own, as sdk-cashctrl and
   sdk-google-mail have, passes `-d write_server=true` to the update that takes this release,
   which keeps its `tasks_write.py` and leaves conflicts in its `mcp_write.py`, its own lines
-  against the render's around the lines both share, three on sdk-cashctrl's `main`. The generated README configures the write server in a block
+  against the render's around the lines both share, two on sdk-cashctrl's `main`. The generated README configures the write server in a block
   of its own. (https://github.com/xippios/sdk-template/issues/174, https://github.com/xippios/sdk-template/issues/81)
   - Hand-apply: `README.md` — where the answer is `true`, the MCP block runs
     `xippios-<slug>-mcp-read` and a second block runs `xippios-<slug>-mcp-write` — the
