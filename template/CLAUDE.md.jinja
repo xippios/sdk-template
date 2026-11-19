@@ -1,5 +1,5 @@
 {% set credentials = key_envs + live_secret_names %}
-{% set secrets = ([tenant_prefix ~ '_<NAME>_API_KEY'] if tenant_param else []) + credentials %}
+{% set secrets = ([tenant_credential_env] if tenant_param else []) + credentials %}
 # sdk-{{ source_slug }} — instructions for Claude Code
 
 `xippios-{{ source_slug }}` wraps {{ source_name }} as a typed Python client, an MCP server
@@ -17,6 +17,8 @@ follows, sdk-core's conventions among them, are listed under
 | Documentation | {{ upstream_docs_url }}, snapshotted in `docs/upstream/`; an OpenAPI or Swagger document a page names is kept beside it, its URL in `SPEC_URL` of `scripts/refresh_upstream.py` (`/refresh-upstream`) |
 {% if api_key_env %}
 | Credentials | {% if tenant_param %}per {{ tenant_param }}, `{{ tenant_prefix }}_<NAME>_API_KEY`{% else %}`{{ api_key_env }}`{% endif %} from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% elif api_key_location == 'basic' %}as the HTTP basic user name, with no password{% endif %}{% if gateway == 'api.data.gov' %} by `xippios.core.data_gov`'s `Gateway`; the key is api.data.gov's, shared by every package that reads it (sdk-core ADR-0009){% endif %} |
+{% elif tenant_param %}
+| Credentials | per {{ tenant_param }}, `{{ tenant_credential_env }}` from the environment, read by the source's own auth in `_client.py`, which `_build` passes to each {{ tenant_param }}'s client <!-- what the credential is, how upstream issues it and how the auth sends it --> |
 {% else %}
 | Credentials | none; the API is open |
 {% endif %}
@@ -27,7 +29,7 @@ follows, sdk-core's conventions among them, are listed under
 | Write tools | no, this package is read-only |
 {% endif %}
 {% if tenant_param %}
-| Tenants | every task takes `{{ tenant_param }}`, one of the {{ tenant_param }}s `{{ tenant_list_var }}` lists, each with a client and a key of its own, `client_for({{ tenant_param }})` in `_client.py` (core's `Tenants`); the reserved `demo`, declared by `{{ tenant_prefix }}_DEMO_API_KEY` alone, is the one fixtures and live tests use; `--{{ tenant_param | replace('_', '-') }} <name>` binds a server to one (conventions §7, §8; sdk-core ADR-0036) |
+| Tenants | every task takes `{{ tenant_param }}`, one of the {{ tenant_param }}s `{{ tenant_list_var }}` lists, each with a client and a {{ 'key' if api_key_env else 'credential' }} of its own, `client_for({{ tenant_param }})` in `_client.py` (core's `Tenants`); the reserved `demo`, declared by `{{ tenant_prefix }}_DEMO_{{ tenant_field }}` alone, is the one fixtures and live tests use; `--{{ tenant_param | replace('_', '-') }} <name>` binds a server to one (conventions §7, §8; sdk-core ADR-0036) |
 {% endif %}
 {% if has_files %}
 | Files | parsed in `parse/`, one module per file kind; the parser tests read the samples under `tests/fixtures/files/`, their provenance in its `README.md` (sdk-core ADR-0020) <!-- each file kind upstream publishes, its format and the library that reads it --> |

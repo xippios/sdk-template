@@ -8,7 +8,12 @@
       "status": "Accepted",
       "date": "2026-11-19",
       "decided_by": "https://github.com/xippios/sdk-template/issues/174",
-      "amended": [],
+      "amended": [
+        {
+          "date": "2026-11-19",
+          "by": "https://github.com/xippios/sdk-template/issues/209"
+        }
+      ],
       "amends": [],
       "supersedes": [],
       "other": [],

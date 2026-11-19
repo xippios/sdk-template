@@ -5,12 +5,11 @@
   `keep_reserved_tenants(TENANTS)` in the template's `tests/conftest.py`. The offline tests
   and `live.yml` take the reserved tenant's key, `<PREFIX>_DEMO_API_KEY`, in place of
   `api_key_env`'s, so a source that lists it in `live_secrets` drops it there in the update,
-  and the answer takes at most 20 characters and refuses a source without a key of its own
-  or behind a gateway.
+  and the answer takes at most 20 characters and refuses a source behind a gateway.
   sdk-cashctrl passes `-d tenant_param=org` and keeps its own `INSTRUCTIONS` in the
   conflicts of `mcp.py`, since the render's name the tenant list `cashctrl_list_orgs` where
   its tool is `cashctrl_list_organisations`, and sdk-google-mail, whose tenants hold refresh
-  tokens, keeps its tenant lines by hand until the row cited here renders them.
+  tokens, answers it with `tenant_credential_env`.
   (ADR-0036, https://github.com/xippios/sdk-template/issues/174, https://github.com/xippios/sdk-template/issues/207)
   - Hand-apply: `src/xippios/<package>/_client.py` — a source that answers `tenant_param`
     exports `TENANTS`, `DEMO` and `check_<param>(<param>)`, the startup check of its

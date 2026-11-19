@@ -16,7 +16,8 @@ review checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-chec
 steps 4 to 6 are what they check in a fixture.
 
 {% if key_envs %}
-1. The key comes from the environment, `{{ key_envs | join('` and `') }}`: never read, test or print {{ 'that variable' if key_envs | length == 1 else 'those variables' }}, not even to see whether {{ 'it is' if key_envs | length == 1 else 'they are' }} set. The client guards the key itself: where the variable is unset or empty, it refuses on its first request, before anything is sent, with a `ConfigError` that names the variable, never a value.
+{% set credential = 'credential' if tenant_param and not api_key_env else 'key' %}
+1. The {{ credential }} comes from the environment, `{{ key_envs | join('` and `') }}`: never read, test or print {{ 'that variable' if key_envs | length == 1 else 'those variables' }}, not even to see whether {{ 'it is' if key_envs | length == 1 else 'they are' }} set. The client guards the {{ credential }} itself: where the variable is unset or empty, it refuses on its first request, before anything is sent, with a `ConfigError` that names the variable, never a value.
 {% else %}
 1. No key is needed for this source.
 {% endif %}
@@ -81,7 +82,7 @@ steps 4 to 6 are what they check in a fixture.
 {% if tenant_param %}
    `AsyncClient(dataclasses.replace(config, retry=RetryPolicy(max_attempts=1)), auth=...)`,
    its auth the reserved {{ tenant_param }}'s as `_build` in `xippios.{{ import_path }}._client` makes it, on
-   `TENANTS.var(DEMO, "API_KEY")`, with `AsyncClient` and `RetryPolicy` from `xippios.core` and
+   `TENANTS.var(DEMO, "{{ tenant_field }}")`, with `AsyncClient` and `RetryPolicy` from `xippios.core` and
    `config` from `xippios.{{ import_path }}._client`. It builds the
 {% else %}
    `AsyncClient(dataclasses.replace(config, retry=RetryPolicy(max_attempts=1)){% if api_key_env %}, auth=auth{% endif %})`,

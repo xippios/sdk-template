@@ -1,15 +1,16 @@
 {% if tenant_param %}
+{% set credential = 'key' if api_key_env else 'credential' %}
 """One configured ``AsyncClient`` per tenant, and the error mapping (conventions §6, §7).
 
 A multi-tenant source: every task takes ``{{ tenant_param }}``, the name of one tenant the
 environment declares, and ``client_for`` returns that tenant's own client, with its own
-key and its own rate limiter. The registry is core's ``Tenants``, ``TENANTS`` below:
+{{ credential }} and its own rate limiter. The registry is core's ``Tenants``, ``TENANTS`` below:
 
 - ``{{ tenant_list_var }}`` lists the names, comma-separated,
   each matching ``^[a-z0-9_]+$``;
-- per name, ``{{ tenant_prefix }}_<NAME>_API_KEY``, the name upper-cased;
+- per name, ``{{ tenant_credential_env }}``, the name upper-cased;
 - the reserved tenant ``demo`` is never listed: it exists when
-  ``{{ tenant_prefix }}_DEMO_API_KEY`` is set. Fixtures, live tests and the fixture recorder
+  ``{{ tenant_prefix }}_DEMO_{{ tenant_field }}`` is set. Fixtures, live tests and the fixture recorder
   use it and nothing else.
 """
 {% else %}
@@ -51,7 +52,7 @@ SOURCE = "{{ source_slug }}"
 BASE_URL = "{{ api_base_url }}"
 {% if tenant_param %}
 DEMO = "demo"
-"""The reserved tenant, declared by its own key alone and never listed."""
+"""The reserved tenant, declared by its own {{ credential }} alone and never listed."""
 {% elif api_key_env %}
 API_KEY_ENV = "{{ api_key_env }}"  # pragma: allowlist secret (a variable name, not a key)
 {% else %}
@@ -103,7 +104,7 @@ TENANTS = Tenants(
 {% endif %}
     list_var="{{ tenant_list_var }}",
     param="{{ tenant_param }}",
-    fields=("API_KEY",),
+    fields=("{{ tenant_field }}",),
     reserved=(DEMO,),
 )
 """The tenants the environment declares (conventions §7; ADR-0036)."""
@@ -149,7 +150,7 @@ config = ClientConfig(
 # config (conventions §6, ADR-0015); core's README shows how.
 {% endif %}
 
-{% if tenant_param %}
+{% if tenant_param and api_key_env %}
 {% if api_key_location == 'query' %}
 {% set auth_call = 'QueryKeyAuth("' ~ api_key_name ~ '", TENANTS.var(name, "API_KEY"), source=SOURCE)' %}
 {% elif api_key_location == 'header' %}
@@ -168,6 +169,24 @@ def _build(name: str) -> AsyncClient:
     """
     auth = {{ auth_call }}
     return AsyncClient(config, auth=auth)
+{% endif %}
+{% if tenant_param and not api_key_env %}
+
+def _build(name: str) -> AsyncClient:
+    """Tenant ``name``'s own client, with the auth that reads its credential.
+
+    Every tenant's client has its own rate limiter; ``config`` holds no cache, so the
+    clients share settings alone.
+    """
+    # The source's own auth reads the tenant's credential on the first request, a subclass
+    # of core's RenewingBearerAuth where upstream exchanges it for a bearer (conventions
+    # §7), and is passed here, for example:
+    #
+    # auth = TenantAuth(TENANTS.var(name, "{{ tenant_field }}"), source=SOURCE)
+    # return AsyncClient(config, auth=auth)
+    return AsyncClient(config)
+{% endif %}
+{% if tenant_param %}
 
 
 def client_for({{ tenant_param }}: str) -> AsyncClient:
@@ -183,13 +202,13 @@ def check_{{ tenant_param }}({{ tenant_param }}: str) -> None:
     """Check a declared tenant at the startup of a server bound to it, before it is built.
 
     Core's ``serve_tenants`` calls it after ``TENANTS.require``, so a bound server whose
-    tenant has no key stops at startup rather than on its first call.
+    tenant has no {{ credential }} stops at startup rather than on its first call.
 
     Raises:
-        ConfigError: ``{{ tenant_prefix }}_<NAME>_API_KEY`` is not set; the message names the
+        ConfigError: ``{{ tenant_credential_env }}`` is not set; the message names the
             variable, never a value.
     """
-    TENANTS.field({{ tenant_param }}, "API_KEY")
+    TENANTS.field({{ tenant_param }}, "{{ tenant_field }}")
 
 {% elif api_key_env %}
 # The key is read from the environment on the first request, never at import.
