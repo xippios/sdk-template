@@ -314,19 +314,19 @@ def test_a_bound_servers_instructions_take_no_tenant(
     render: Callable[[str], Path], name: str
 ) -> None:
     """#219: the text ``build(lock)`` passes as ``bound=`` names the tenant's parameter
-    nowhere, so the instructions of a bound server say nowhere that a tool takes it, core's
-    closing sentence, that every tool takes no ``<param>``, aside; the unbound text says that
-    a tool takes it."""
+    nowhere, where the unbound text names it, so the instructions of a bound server say
+    nowhere that a tool takes it, core's closing sentence, that every tool takes no
+    ``<param>``, aside. ``scripts/prove.sh`` reads the clause itself on core."""
     answers, tenants = VARIANTS[name], render(name)
     param = tenant_param(answers)
-    takes = re.compile(rf"\btakes {param}\b")
+    named = re.compile(rf"\b{param}\b")
     for server_module, _ in servers(answers):
         tree = module(tenants, answers, server_module)
         unbound = ast.literal_eval(assigned(tree, "INSTRUCTIONS"))
         bound = ast.literal_eval(assigned(tree, "BOUND_INSTRUCTIONS"))
-        assert takes.search(unbound), (server_module, unbound)
+        assert named.search(unbound), (server_module, unbound)
         assert bound, server_module
-        assert not re.search(rf"\b{param}\b", bound), (server_module, bound)
+        assert not named.search(bound), (server_module, bound)
 
 
 @pytest.mark.parametrize("name", TENANT_VARIANTS)
