@@ -19,6 +19,377 @@ in the same adoption PR. A new file under those patterns is created by the updat
 the repository has no file of that name. The list starts with 0.1.5; earlier tags are not
 listed.
 
+## [0.4.0] - 2026-11-19
+
+A generated repository takes sdk-core 0.4.0's package contract with this release. Its
+`mcp.py` builds core's `ToolSet` and its server from that tool set, its `_client.py`
+declares the variables the package reads as `ENV_VARS`, and a host builds one server from
+several sources' tool sets. Three new answers render what two sources wrote by hand:
+`write_server` for a write server, `tenant_param` for a multi-tenant source and
+`tenant_credential_env` where its tenants hold no key. `has_reference_data: false` leaves
+out the reference scaffold, `api_key_location` offers `basic` and `rate_limit_provenance`
+offers `below-documented`. `core_version` defaults to 0.4.0, the files copied from sdk-core
+take their bytes at its tag v0.4.0, and a render cites each record of sdk-core as
+`sdk-core ADR-NNNN`, by the record that stands at core 0.4.0.
+
+A source takes this release together with xippios-core 0.4.0 in one adoption (conventions
+§15, https://github.com/xippios/sdk-template/issues/159), with
+`copier update --defaults --vcs-ref=v0.4.0 -d core_version=0.4.0` and the answers that are
+its own, each named in its entry below. It first declares `ENV_VARS` in its `_client.py`,
+since the template's `mcp.py` imports the list and the package fails to import without it.
+The update merges a hand-written `mcp.py`, `mcp_write.py` and `tests/conftest.py` three
+ways and leaves conflicts where the render rewrites the source's lines, which the entries
+count for sdk-cashctrl and sdk-google-mail. The fourteen Hand-apply notes cover the files the
+update never rewrites. An adoption fetches nothing, so `docs/upstream/FETCHED.md` follows
+at the source's next refresh, and the secret scan's hook fails once where a fixture's
+`sha256` line has an audited entry. Every record this section cites is sdk-core's and is
+named so.
+
+### Added
+
+- `tenant_credential_env` names the variable of each tenant's credential,
+  `<PREFIX>_<NAME>_<FIELD>`, for a multi-tenant source whose tenants hold no key, a refresh
+  token say, so `tenant_param` renders the tenant shape without `api_key_env`: core's
+  `Tenants` takes the prefix as `var_prefix` and the field as its one field, the reserved
+  `demo` is declared by `<PREFIX>_DEMO_<FIELD>`, which the offline tests pin and `live.yml`
+  passes, and `ENV_VARS`, the README and the CLAUDE.md name the credential's variables.
+  The template's `mcp.py`, `mcp_write.py` and `tests/conftest.py` render as for tenants with
+  a key, the scaffold of `_client.py` leaves the auth to the source, and a source whose
+  tenants hold a key renders as before, with nothing more to answer.
+  sdk-google-mail passes `-d write_server=true -d tenant_param=account
+  -d tenant_credential_env=GOOGLE_<NAME>_REFRESH_TOKEN` and `live_secrets` without
+  `GOOGLE_DEMO_REFRESH_TOKEN`, and the update leaves three conflicts in `mcp.py`, three in
+  `mcp_write.py`, one in `tests/conftest.py`, the whole file, and two in `pyproject.toml`,
+  its consent entry point and its placeholder list, on its `main`.
+  (sdk-core ADR-0036, https://github.com/xippios/sdk-template/issues/207, https://github.com/xippios/sdk-template/issues/209)
+  - Hand-apply: `src/xippios/<package>/_client.py` — where the tenants hold no key,
+    `TENANTS` takes `fields=("<FIELD>",)`, and `var_prefix="<PREFIX>"` where the slug gives
+    another, `check_<param>(<param>)` checks `TENANTS.field(<param>, "<FIELD>")`, and
+    `ENV_VARS` lists `<PREFIX>_<PARAM>S` and `<PREFIX>_<NAME>_<FIELD>` — the render derives
+    them from the answer, and the template's servers import `check_<param>` and `ENV_VARS`.
+    `README.md` — the environment line and the MCP blocks name `<PREFIX>_<NAME>_<FIELD>`,
+    `<PREFIX>_ACME_<FIELD>` and `<PREFIX>_DEMO_<FIELD>` — the render names the credential,
+    never a key.
+    `CLAUDE.md` — the `Credentials` row names `<PREFIX>_<NAME>_<FIELD>` and the source's
+    auth, and the `Tenants` row `<PREFIX>_DEMO_<FIELD>` — the render said the API is open.
+- `tenant_param` names a multi-tenant source's tenant parameter, `org` say, and renders
+  core's kit: `Tenants` in `_client.py`, a client and a key `<PREFIX>_<NAME>_API_KEY` per
+  tenant beside the reserved `demo`, the tenant list task, `build(lock)` and `serve_tenants`
+  in each server with the `check_<param>` of `_client.py`, and
+  `keep_reserved_tenants(TENANTS)` in the template's `tests/conftest.py`. The offline tests
+  and `live.yml` take the reserved tenant's key, `<PREFIX>_DEMO_API_KEY`, in place of
+  `api_key_env`'s, so a source that lists it in `live_secrets` drops it there in the update,
+  and the answer takes at most 20 characters and refuses a source behind a gateway.
+  sdk-cashctrl passes `-d tenant_param=org` and keeps its own `INSTRUCTIONS` in the
+  conflicts of `mcp.py`, since the render's name the tenant list `cashctrl_list_orgs` where
+  its tool is `cashctrl_list_organisations`, and sdk-google-mail, whose tenants hold refresh
+  tokens, answers it with `tenant_credential_env`.
+  (sdk-core ADR-0036, https://github.com/xippios/sdk-template/issues/174, https://github.com/xippios/sdk-template/issues/207)
+  - Hand-apply: `src/xippios/<package>/_client.py` — a source that answers `tenant_param`
+    exports `TENANTS`, `DEMO` and `check_<param>(<param>)`, the startup check of its
+    servers' `serve_tenants`, and lists its tenant list and its variables' patterns in
+    `ENV_VARS` — the template's `mcp.py`, `mcp_write.py` and `tests/conftest.py` import
+    them.
+    `src/xippios/<package>/tasks.py` — the tenant list, `list_task(TENANTS, name=...)`,
+    stands in `__all__` — conventions §8 serves it on the read server.
+    `scripts/refresh_reference.py` — a multi-tenant source fetches through
+    `client_for(DEMO)` — no module-level client serves every tenant.
+    `CLAUDE.md` — the `Credentials` and `Tenants` rows name the key's pattern, the tenant
+    list and `demo`, and the rule of one limiter per host says that each tenant's client,
+    `client_for(<param>)`, paces that tenant's requests — the render states them.
+- `write_server: true` renders a write server: `mcp_write.py`, the template's, serves
+  `tasks_write.__all__` as confirm-gated tools from a `build()` of its own, the
+  `tasks_write.py` scaffold is the source's once rendered, and the entry points become
+  `xippios-<slug>-mcp-read` and `xippios-<slug>-mcp-write`, with no alias for
+  `xippios-<slug>-mcp`. A source with a write server of its own, as sdk-cashctrl and
+  sdk-google-mail have, passes `-d write_server=true` to the update that takes this release,
+  which keeps its `tasks_write.py` and leaves conflicts in its `mcp_write.py`, its own lines
+  against the render's around the lines both share, two on sdk-cashctrl's `main`. The
+  generated README configures the write server in a block of its own.
+  (https://github.com/xippios/sdk-template/issues/174,
+  https://github.com/xippios/sdk-template/issues/81)
+  - Hand-apply: `README.md` — where the answer is `true`, the MCP block runs
+    `xippios-<slug>-mcp-read` and a second block runs `xippios-<slug>-mcp-write` — the
+    README named one entry point.
+    `CLAUDE.md` — where the answer is `true`, the `Write tools` row names `tasks_write.py`
+    and its entry point, and the Layout and the run command name the two servers — the
+    file said the package is read-only.
+- `api_key_location` offers `basic`: the generated `_client.py` sends the key as the HTTP
+  basic user name with no password, by core's `BasicKeyAuth`, which xippios-core 0.3 has,
+  and the `Credentials` row of the generated `CLAUDE.md` says so. No header or parameter
+  name is asked. A source whose upstream takes its key so, as sdk-cashctrl's does, passes
+  `-d api_key_location=basic` to the update that takes this release.
+  (https://github.com/xippios/sdk-template/issues/162)
+  - Hand-apply: `src/xippios/<package>/_client.py` — where the answer becomes `basic` and
+    the client sends one key, import `BasicKeyAuth` from `xippios.core` and write
+    `auth = BasicKeyAuth(API_KEY_ENV, source=SOURCE)` in place of the auth the earlier
+    answer rendered, and where the source builds its clients' auth by its own lines, keep
+    them — the update never rewrites the client.
+    `CLAUDE.md` — where the answer becomes `basic`, the `Credentials` row says that the
+    key is sent as the HTTP basic user name, with no password — the row named the earlier
+    answer's header or parameter.
+- The generated `CLAUDE.md` and `/add-endpoint` state the rule of one limiter per host
+  that sdk-core's conventions §2 and §6 set from core 0.4.0: a second base URL on the
+  host of the first goes through the one client by its absolute URL, an origin or mirror
+  that the publisher runs takes its canonical host's pace, a host that a dependency sends
+  to is reached through the dependency's tasks alone, and any other host gets a client
+  and a `RateLimit` of its own in `_client.py`, with its row in `CLAUDE.md`. No answer
+  names a second host. `copier update` brings `/add-endpoint`.
+  (https://github.com/xippios/sdk-template/issues/79)
+  - Hand-apply: `CLAUDE.md` — add the code rule that starts "One limiter paces each host
+    the package sends to" after the rule on `classify`, as a render has it, and a row for
+    each other host the source sends to beside its API base URL, with that host's pace and
+    where the pace comes from — conventions §6 paces each host by one limiter.
+- `rate_limit_provenance` offers `below-documented`, for a pace set under a limit that
+  upstream documents, on recorded refusals or from a limit stated in another unit than
+  requests: the generated `_client.py` says so above `RATE_LIMIT`, and the `Rate limit`
+  row of the generated `CLAUDE.md` leaves the source a comment for that limit beside the
+  pace, where `documented` rendered a pace within the limit and `self-imposed` no limit at
+  all. A source in that place, as sdk-comtrade and sdk-google-mail are, passes
+  `-d rate_limit_provenance=below-documented` to the update that takes this release.
+  (sdk-core ADR-0033, https://github.com/xippios/sdk-template/issues/46)
+  - Hand-apply: `src/xippios/<package>/_client.py` — where the answer becomes
+    `below-documented`, write the comment above `RATE_LIMIT` as a render has it, the
+    documented limit and the reason for the lower pace after it — the update never
+    rewrites the comment that the earlier answer rendered.
+    `CLAUDE.md` — where the answer becomes `below-documented`, the `Rate limit` row names
+    the pace, then that it is set under the limit upstream documents, with that limit in
+    upstream's own unit and why the pace is under it — the row gives both numbers.
+- A source that packages no reference data answers `has_reference_data: false`: none of
+  `params.py`, `enums.py`, `reference/`, `scripts/refresh_reference.py` and
+  `/refresh-reference-data` renders, and no update brings them back, where copier brought
+  back the deleted script. Such a source passes `-d has_reference_data=false` to the update
+  that takes this release, which deletes the files the template rendered, the source's
+  lines in them included, and leaves a file the source added under `reference/` for the
+  source to delete. Every other source keeps the default, `true`, and its scaffold.
+  (https://github.com/xippios/sdk-template/issues/40)
+  - Hand-apply: `CLAUDE.md` — where the answer is `false`, drop the Layout's rows of
+    `params.py`, `enums.py`, `reference/` and `refresh_reference.py`, the command
+    `refresh-reference-data` from the `.claude/commands/` row, and the four from the files
+    the Template updates section names — the update deletes them, and a render with the
+    answer names none of them.
+- The generated `.gitignore` ignores `.local/`, where a source keeps what is its operator's
+  alone, such as a curated list, a probe cache or a report. `copier update` brings the line,
+  so nothing is applied by hand. (https://github.com/xippios/sdk-template/issues/84)
+
+### Changed
+
+- Template-internal: the template's CI proves seven shapes, the two multi-tenant ones,
+  `scripts/prove.sh --tenants` and `--tenants-keyless`, beside the five, and its own
+  `CLAUDE.md` names the files, answers, variants and proofs of this release, the copies of
+  core at v0.4.0 and the three endings of a credential's variable. A test holds every
+  citation of sdk-core's records, in a render, in the template's files and in its own, to
+  `sdk-core ADR-NNNN` and to a record that stands, and a source takes nothing at its update.
+  (https://github.com/xippios/sdk-template/issues/201, https://github.com/xippios/sdk-template/issues/202, https://github.com/xippios/sdk-template/issues/204)
+- The generated `tests/conftest.py` of a multi-tenant source says that core removes every
+  tenant's variables but the reserved demo's, as conventions §7 words the strip of
+  sdk-core ADR-0042, decision 1, where it said every tenant's key, which a tenant's refresh
+  token is not. (https://github.com/xippios/sdk-template/issues/214)
+- A render cites each record of sdk-core as `sdk-core ADR-NNNN`, by the number of the record
+  that stands at core 0.4.0, in every file but `docs/adr/README.md` and core's own lines of
+  the files copied from sdk-core, since a bare `ADR-NNNN` names a record of the source's
+  own, and a citation of a record that core 0.4.0 restated takes the record that
+  supersedes it, as sdk-core's `docs/adr.md` lists them, with its decision as that record
+  numbers it. The fixture cap's step of `ci.yml` and its message, the template's own, cite
+  sdk-core ADR-0040, and the help of `core_version` cites sdk-core ADR-0039 decision 1 for
+  the bound `~=X.Y.Z`. Two of the citations stand in the sentences that a source's capture
+  script writes into `docs/upstream/FETCHED.md`, so its `--check` names `FETCHED.md` until
+  the next `/refresh-upstream` writes the file again.
+  (https://github.com/xippios/sdk-template/issues/155, https://github.com/xippios/sdk-template/issues/205, https://github.com/xippios/sdk-template/issues/212)
+  - Hand-apply: `src/xippios/<package>/_client.py` — search the file for `ADR-` and write
+    each citation of a record of sdk-core as `sdk-core ADR-NNNN`, by the record that stands
+    in sdk-core's `docs/adr.md` at v0.4.0, a superseded record's decision or amendment as
+    the record that supersedes it names it, and leave a citation of a record of the
+    source's own bare — a bare `ADR-NNNN` names the source's own record, as its
+    `docs/adr/README.md` lays them out, and the scaffold cited the records core restated.
+    `src/xippios/<package>/__init__.py` — the same — the same.
+    `src/xippios/<package>/errors.py` — the same — the same.
+    `src/xippios/<package>/models.py` — the same — the same.
+    `src/xippios/<package>/api/` — the same — the same.
+    `src/xippios/<package>/parse/` — the same — the same.
+    `src/xippios/<package>/tasks.py` — the same — the same.
+    `src/xippios/<package>/tasks_write.py` — the same — the same.
+    `src/xippios/<package>/params.py` — the same — the same.
+    `scripts/refresh_reference.py` — the same — the same.
+    `scripts/refresh_upstream.py` — the same, the two citations in the sentences of
+    `render_fetched` among them, and no capture run: `docs/upstream/FETCHED.md` follows
+    at the next refresh, never by hand — an adoption fetches nothing (conventions §15),
+    `render_fetched` writes those two into `FETCHED.md`, wrapped at 88 columns, so
+    `--check` names the file until the next `/refresh-upstream` writes it again, and a
+    skeleton's stub takes them at the first capture.
+    `tests/test_tasks.py` — the same — the same.
+    `tests/test_live.py` — the same — the same.
+    `tests/fixtures/files/README.md` — the same — the same.
+    `README.md` — the same — the same.
+    `CLAUDE.md` — the same — the same.
+- The generated `mcp.py` carries sdk-core 0.4.0's package contract: `build()` returns core's
+  `ToolSet`, with the caps and the option hooks that `tasks.py` defines, `MCP_CAPS`,
+  `mcp_add_options` and `mcp_apply_options`, `server` is `build_server(build())`, and
+  `ENV_VARS`, which `_client.py` declares as `EnvVar` entries from the key answers and
+  `live_secrets`, stands beside `SOURCE`. A host builds one server from several tool sets
+  with `register_tasks`, and a source with options of its own defines them in `tasks.py`
+  alone, as sdk-usda-gats and sdk-usda-nass do. An update merges a source's hand-written
+  `mcp.py` three ways, a line of its own carried where the render leaves its place alone and
+  conflicts where the render rewrites it, its imports, `build` and `run()` among them, two
+  on sdk-cashctrl's `main`, which resolve to the render's lines but those the source keeps.
+  (sdk-core ADR-0026, https://github.com/xippios/sdk-template/issues/81, https://github.com/xippios/sdk-template/issues/65)
+  - Hand-apply: `src/xippios/<package>/_client.py` — import `EnvVar` from `xippios.core`,
+    declare `ENV_VARS: tuple[EnvVar, ...]` after `API_KEY_ENV`, one
+    `EnvVar(<name or pattern>, secret=..., required=...)` per variable the package reads,
+    the key first, and name it in `__all__` — the template's `mcp.py` imports it, so the
+    package fails to import until it is there.
+    `CLAUDE.md` — the Layout's `_client.py` line names `ENV_VARS` and its `mcp.py` line
+    `build()` and `server` — the render names them.
+- The generated README's MCP block and its line on the environment name the variables of
+  `ENV_VARS`, the live secrets and a multi-tenant source's tenant list with an example
+  tenant's key among them, where they named the keys alone. It matters to new repositories
+  only, since the README is the source's once rendered.
+  (https://github.com/xippios/sdk-template/issues/81)
+- `core_version` defaults to 0.4.0, the xippios-core release the template adopts, so a new
+  render depends on `xippios-core~=0.4.0`, its extras likewise, and the files a render
+  copies from sdk-core take their bytes at its tag v0.4.0, where `publish.yml`'s comments
+  name a maintainer and no person. A source passes `-d core_version=0.4.0` to the
+  update that takes this release, which brings the copies, so nothing is applied by hand.
+  (sdk-core ADR-0039, https://github.com/xippios/sdk-template/issues/190)
+- `/add-endpoint` names core 0.4.0's `sent_bodies(route)` beside `sent_query` and
+  `sent_urls`, for a replay test that checks the bodies its requests sent: a JSON body as
+  it parses and a form as a mapping of its fields, credentials redacted. `copier update`
+  brings the command. (sdk-core ADR-0035, https://github.com/xippios/sdk-template/issues/166)
+- The generated `CLAUDE.md` names `_TOKEN` among the endings of a variable that nobody
+  reads or prints, where it named `_REFRESH_TOKEN`, as sdk-core's conventions §7 does, so
+  the rule takes in every token's variable, a refresh token's among them.
+  (sdk-core ADR-0030, https://github.com/xippios/sdk-template/issues/169)
+  - Hand-apply: `CLAUDE.md` — in the rule of `## Never` that starts "Never read or print",
+    name the endings `_API_KEY`, `_TOKEN` or `_SECRET` in place of `_API_KEY`,
+    `_REFRESH_TOKEN` or `_SECRET` — conventions §7 names `_TOKEN`, which covers a refresh
+    token's variable and every other token's.
+- `/record-fixture` says that a fixture over the 256 KiB cap that a pull request only moves
+  stays as it was recorded, and that the pull request that records it again cuts it: no
+  fixture is kept whole over the cap by exception, and the cap step of `ci.yml` keeps no
+  list of them. `copier update` brings the command.
+  (sdk-core ADR-0040, https://github.com/xippios/sdk-template/issues/176)
+- `/record-fixture` describes the recorder of core 0.4.0, which sends once and never
+  retries, keeps the client's credentials to the base URL's origin and reads at most 32 MiB
+  of a body. A recording passes the package's `client` itself, a file on another host needs
+  no `auth=None`, and a recorder step of the source's own that rewrites a fixture keeps its
+  client built for one attempt and writes the fixture with `write_fixture`. `max_bytes=`
+  keeps a JSON array's last elements with `keep="last"` and cuts a JSON object at the array
+  that `array_key=` names, and `copier update` brings the command. (sdk-core ADR-0037,
+  sdk-core ADR-0040, sdk-core ADR-0042, https://github.com/xippios/sdk-template/issues/164,
+  https://github.com/xippios/sdk-template/issues/165,
+  https://github.com/xippios/sdk-template/issues/166)
+- `/record-fixture` says that a pull request that renames or moves a fixture moves its
+  audited entries in `.secrets.baseline` to the new path in the same commit, their
+  `"is_secret": false` kept. Both the key under `results` and each entry's `"filename"`
+  take the new path, and the baseline is staged with the move, since the hook flags the
+  lines again while either names the old path or the baseline's change is unstaged. A
+  rescan keeps them under the new path with the audit dropped, and `copier update` brings
+  the command.
+  (https://github.com/xippios/sdk-template/issues/42)
+- `/release-prep`'s SemVer check says that a source's adoption of a core minor takes a
+  minor of the source, whatever else its release brings, since it moves the core bound to
+  the new minor, as sdk-core's conventions §12 sets from core 0.4.0. Added tasks or
+  parameters make a patch. `copier update` brings the command.
+  (sdk-core ADR-0039, https://github.com/xippios/sdk-template/issues/169)
+- The capture skeleton, `scripts/refresh_upstream.py`, takes the fixes the sources made to
+  their own copies and conventions §3's rules for a snapshot from core 0.4.0, which
+  `/refresh-upstream` says how to fill and the stub of `docs/upstream/FETCHED.md`, taken by
+  a new repository alone, lays out. Its attribution check reads a page's visible text,
+  checks each `Statement` on the page that prints it, a terms page by its lines and an API
+  document's `info` by what `ATTRIBUTION` records, and narrows by a `VOCABULARY` that
+  `FETCHED.md` lists, while `--check` compares content, after a `canonical` hook, and
+  prints a moved Last-Modified or sha256 as information. `linked`, `SPEC_PAGE`, `names=`,
+  `sample=True` and `NOT_FETCHED` record the pages the sources met, no redirect to another
+  host is followed, `FETCHED.md` lists `OBSERVED.md` and a table `Not fetched`, and a row
+  with an ETag ends in the secret scan's allowlist mark.
+  (https://github.com/xippios/sdk-template/issues/123,
+  https://github.com/xippios/sdk-template/issues/42)
+  - Hand-apply: `scripts/refresh_upstream.py` — where the source keeps a capture script of
+    its own, port what it lacks of the skeleton at this tag: the visible-text check per
+    page with `Statement`, `terms=True`, `VOCABULARY` and `INFO_TERMS`, `--check` by
+    content with `canonical`, `stable=False` keeping Last-Modified, `linked`, `SPEC_PAGE`
+    and `names=`, no redirect to another host with `NOT_FETCHED` and the table
+    `Not fetched`, `sample=True` under `samples/`, the row of `OBSERVED.md`, the allowlist
+    mark after a row with an ETag, whose audited `.secrets.baseline` entries go with the
+    next refresh, and the converter's own dependencies pinned in the script's block, or
+    `exclude-newer` — eight sources met these limits one at a time, conventions §3 asks
+    the table, the row and the samples of every snapshot from core 0.4.0, and `FETCHED.md`
+    follows at the next refresh, since an adoption fetches nothing.
+    `CLAUDE.md` — in Never, write the rule on `docs/upstream/` as "Never edit
+    `docs/upstream/` by hand but `docs/upstream/OBSERVED.md`, the notes on what upstream
+    does but never documents" — conventions §3 makes that file the one written by hand.
+- `scripts/refresh_reference.py` sends each request once, through the package's client with
+  `RetryPolicy(max_attempts=1)`, and after its fetches prints the requests it sent and the
+  quota left that upstream reported, a failed run's too. `--only <list> ...` fetches the
+  named lists alone and keeps every other list's file. `/refresh-reference-data` says so,
+  and the script's examples name the wrappers in snake case, as `/add-endpoint` names
+  them, which matters to new repositories only.
+  (https://github.com/xippios/sdk-template/issues/64)
+  - Hand-apply: `scripts/refresh_reference.py` — for the fetches alone, set the client's
+    configuration to `RetryPolicy(max_attempts=1)` with an `observe` hook that calls the
+    hook it replaces, counts each response and reads upstream's quota header, and print
+    the count at their end in a `finally`, as the template's `metered` does. Take
+    `--only <list> ...` beside `--render-only`, checked against the packaged lists before
+    the first request, and fetch every list before the first file is written — a 5xx or a
+    429 spends no second call of the quota, a refresh's count is exact, and a change that
+    packages a new list refreshes that list alone.
+- The generated samples table, `tests/fixtures/files/README.md` where `has_files` is true,
+  ends in the column `Kept`, which says what of the file each sample keeps, as point d of
+  sdk-core's amendment of 2026-11-18 to the record asks. The scaffold's text above it names
+  the sample a script writes from one download where the file is over the 256 KiB cap and
+  its format cannot be cut by bytes, a text that matters to new repositories only.
+  (sdk-core ADR-0020, https://github.com/xippios/sdk-template/issues/168)
+  - Hand-apply: `tests/fixtures/files/README.md` — add the column `Kept` after `Fetched`,
+    each row saying what of the file its sample keeps, such as the whole file or its first
+    rows, where the table has no column that says so under a name of its own, as `Kept` or
+    `What` — conventions §10 asks each sample's row to say what the sample keeps.
+- The scaffold's first entry in the generated `CHANGELOG.md` names each source package the
+  source depends on with its release and its bound, such as `xippios-usda-esmis` 0.1.0
+  (`~=0.1.0`), as a dependent names its dependency's release. It matters to new
+  repositories only, since a source's `CHANGELOG.md` is its own once rendered.
+  (sdk-core ADR-0021, https://github.com/xippios/sdk-template/issues/53)
+- Template-internal, the tests: the variants' answers, their renders and the helpers the
+  tests share move unchanged from `tests/test_template.py` into `tests/conftest.py` and
+  `tests/helpers.py`, so a new concern's tests take a module of their own. No rendered
+  file changes, and a generated repository takes nothing at its update.
+  (https://github.com/xippios/sdk-template/issues/181)
+
+### Fixed
+
+- The generated `.pre-commit-config.yaml` takes sdk-core's rule that the secret scan skips
+  the line on which core's recorder writes a cut body's `sha256`, 64 hex digits, so a cut
+  fixture adds no audited entry to `.secrets.baseline`. At the adoption, the hook's first
+  run over a fixture whose `sha256` line has an audited entry drops that entry, rewrites
+  the baseline and fails once, until the rewritten file is added. A body stored base64 and
+  upstream's own identifiers in a snapshot are scanned as before and keep their entries.
+  (https://github.com/xippios/sdk-template/issues/42)
+- The generated `.gitattributes` keeps `tests/fixtures/files/**` byte for byte where
+  `has_files` is true, as it keeps `docs/upstream/**`: a sample is a byte-exact cut whose
+  sha256 its provenance row states, and git under `core.autocrlf` converted a sample's line
+  endings. `copier update` brings the line, so nothing is applied by hand.
+  (sdk-core ADR-0020, https://github.com/xippios/sdk-template/issues/62)
+- The generated `.github/scripts/check-siblings.sh` leaves out a sibling that depends on the
+  source and pins its previous minor, with a warning that names the pin, as it leaves out a
+  sibling on another core minor: such a sibling takes the new minor in its own adoption, so
+  the release of a new minor no longer fails the check, and a sibling that pins another
+  minor of the source still does. `copier update` brings the script, so nothing is applied
+  by hand. (https://github.com/xippios/sdk-template/issues/74)
+
+### Removed
+
+- The generated `scripts/refresh_reference.py` passes `render_enums` no class names of its
+  own: core 0.4.0's default names an id list's class after its id field, a camelCase hump
+  kept, `unitId` making `UnitId`, as the script's own line did for every id field the
+  sources render. A class name set by hand goes to `render_enums(class_names=...)`.
+  (sdk-core ADR-0031, https://github.com/xippios/sdk-template/issues/167)
+  - Hand-apply: `scripts/refresh_reference.py` — in `render`, delete the dict
+    `class_names`, its line `class_names[id_field] = id_field[:1].upper() + id_field[1:]`
+    and the argument `class_names=class_names`, keep a name the source sets by hand, such
+    as sdk-usda-nass's `ProgressStage`, in a `class_names=` argument of its own, and see
+    `--render-only` write `enums.py` unchanged — core's default gives the line's name for
+    an id field in camelCase with no upper-case run and no separator, as `unitId` and
+    `attributeId` are, and its own for another, `countryISO` making `CountryIso`.
+
 ## [0.3.4] - 2026-11-17
 
 With this release the organization's checks of a generated repository start on no label,
