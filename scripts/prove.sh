@@ -11,14 +11,19 @@
 # refresh script renders a value list and an id list into one enums.py, as ruff leaves it,
 # and that it sends each request once, counts it and keeps the lists --only leaves out;
 # require none of the reference scaffold where has_reference_data is false; check offline
-# that a key answered basic goes as the basic user name, its password empty.
+# that a key answered basic goes as the basic user name, its password empty; and prove the
+# package contract offline: mcp.py exports build, SOURCE and ENV_VARS, and a server a host
+# builds from build()'s tool set with register_tasks serves the tools, caps and option
+# defaults of the entry point, the write server's too where there is one, and in the
+# multi-tenant shape the bound server of --<param> as well.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
 # suite tests it. The template's CI runs every shape below, and the keyless nested one
 # again with -d has_files=true, a source that parses the files it downloads (ADR-0020).
 # It generates with `copier copy` alone, as README.md says a source is generated.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF]
-#                         [--keyless | --keyless-nested | --gateway] [--keep] [-d key=value ...]
+#                         [--keyless | --keyless-nested | --gateway | --tenants] [--keep]
+#                         [-d key=value ...]
 #   --dest DIR         where to generate, a path that does not exist yet; default a new
 #                      temporary directory
 #   --core-ref REF     sdk-core commit to depend on, main or a full SHA; default "" = the
@@ -31,6 +36,10 @@
 #                      (xippios.example.gov), as psd, esr and gats: the gateway answer
 #                      derives the key answers, on the default core, 0.4.0; 0.3.0 was
 #                      the first release with xippios.core.data_gov
+#   --tenants          a nested multi-tenant source with a write server and basic auth,
+#                      sdk-example-tenants (xippios.example.tenants), its tenants' keys
+#                      EXAMPLE_<NAME>_API_KEY under a prefix other than the slug's, as
+#                      cashctrl: write_server, tenant_param=org, api_key_location=basic
 #   --keep             leave the generated repository in place
 #   -d key=value       one more copier answer, e.g. -d has_files=true, or
 #                      -d has_reference_data=false for a source that packages none, or
@@ -50,6 +59,7 @@ while [ $# -gt 0 ]; do
     --keyless) shape=keyless ;;
     --keyless-nested) shape=keyless-nested ;;
     --gateway) shape=gateway ;;
+    --tenants) shape=tenants ;;
     --keep) keep=1 ;;
     -d) extra+=(-d "$2"); shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -63,6 +73,8 @@ case "$shape" in
   keyless) slug="example"; key=() ;;
   keyless-nested) slug="example-files"; key=() ;;
   gateway) slug="example-gov"; key=(-d "gateway=api.data.gov") ;;
+  tenants) slug="example-tenants"; key=(-d "api_key_env=EXAMPLE_API_KEY"
+    -d "api_key_location=basic" -d "write_server=true" -d "tenant_param=org") ;;
   *) slug="example-api"; key=(-d "api_key_env=EXAMPLE_API_KEY" -d "api_key_location=query") ;;
 esac
 if [ -n "$dest" ] && [ -e "$dest" ]; then
@@ -206,13 +218,17 @@ import sys
 import respx
 
 client = importlib.import_module(sys.argv[1])
-os.environ[client.API_KEY_ENV] = "placeholder"  # pragma: allowlist secret (a stand-in)
+tenants = getattr(client, "TENANTS", None)
+variable = client.API_KEY_ENV if tenants is None else tenants.var(client.DEMO, "API_KEY")
+os.environ[variable] = "placeholder"  # pragma: allowlist secret (a stand-in)
+# A multi-tenant source: the reserved tenant's client, which its key alone declares.
+target = client.client if tenants is None else client.client_for(client.DEMO)
 with respx.mock(base_url=client.BASE_URL) as upstream:
     route = upstream.get("/x").respond(200, json={})
-    asyncio.run(client.client.get_json("/x"))
+    asyncio.run(target.get_json("/x"))
 expected = "Basic " + base64.b64encode(b"placeholder:").decode("ascii")
 assert route.calls.last.request.headers["Authorization"] == expected, "the key, no password"
-print(f"{sys.argv[1]}: BasicKeyAuth sends {client.API_KEY_ENV} as the basic user name")
+print(f"{sys.argv[1]}: BasicKeyAuth sends {variable} as the basic user name")
 PY
   )
 fi
@@ -327,9 +343,10 @@ else
 fi
 
 # Offline, on core's adapters as the render calls them: a task named in BULK_TASKS gets no
-# tool and no route, while mcp.py and http.py pass tasks.__all__ whole (ADR-0019).
+# tool and no route, while mcp.py passes tool_functions(tasks) and http.py tasks.__all__
+# whole (ADR-0019).
 echo
-echo "==> a bulk task gets no tool and no route; the adapters pass tasks.__all__ whole"
+echo "==> a bulk task gets no tool and no route; the adapters take tasks.__all__"
 (cd "$dest" && uv run python - "xippios.$import_path" "$slug" <<'PY'
 import asyncio
 import importlib
@@ -360,6 +377,186 @@ routes = [route.path for route in importlib.import_module(f"{package}.http").rou
 assert tools == [f"{slug.replace('-', '_')}_get_example"], tools
 assert routes == [f"/{slug}/get_example"], routes
 print(f"tools {tools}, routes {routes}: download_example, in BULK_TASKS, neither")
+PY
+)
+
+# Offline, on core's types as a host takes them (#81, #65): mcp.py exports build, SOURCE
+# and ENV_VARS; a server a host builds from build()'s tool set with register_tasks serves
+# the tools, the caps and the option defaults that the entry point serves, with a task, a
+# cap of its own and an option of the source's put into tasks.py first; the same for the
+# write server where it renders, and, for a multi-tenant source, for the server --<param>
+# binds, which stops at startup when its tenant has no key. The entry point runs with its
+# server's run() caught, so nothing is served.
+echo
+echo "==> the package contract: a host's server from build() serves what the entry point serves"
+(cd "$dest" && uv run python - "xippios.$import_path" "$slug" <<'PY'
+import argparse
+import asyncio
+import contextlib
+import importlib
+import importlib.util
+import io
+import os
+import re
+import sys
+from typing import Any
+
+from mcp.server.mcpserver import MCPServer
+from xippios.core import EnvVar, Result, ResultCap, ResultMeta, TenantLock
+from xippios.core.mcp import ToolSet, is_write_server, register_tasks
+from xippios.core.testing import mcp_call_text
+
+package, slug = sys.argv[1], sys.argv[2]
+prefix = slug.replace("-", "_")
+client = importlib.import_module(f"{package}._client")
+tenants = getattr(client, "TENANTS", None)
+param = None if tenants is None else tenants.param
+takes = f"{param}: str, " if param else ""
+
+
+def put(module_name: str, code: str, names: list[str], caps: dict[str, ResultCap]) -> None:
+    """Define the tasks of ``code`` in the module, as a source's own tasks are defined there."""
+    module = importlib.import_module(module_name)
+    namespace: dict[str, Any] = {"Result": Result, "ResultMeta": ResultMeta}
+    exec(code, namespace)  # the task's signature takes the tenant's parameter where there is one
+    for name in names:
+        namespace[name].__module__ = module.__name__
+        setattr(module, name, namespace[name])
+    module.__all__ = [*module.__all__, *names]
+    module.MCP_CAPS = caps
+
+
+put(
+    f"{package}.tasks",
+    f'''
+def get_rows({takes.rstrip(", ")}) -> Result[list[int]]:
+    """Five rows, which the tool's own cap cuts to two."""
+    return Result[list[int]](data=list(range(5)), meta=ResultMeta(source={slug!r}, endpoint="x"))
+''',
+    ["get_rows"],
+    {"get_rows": ResultCap(max_rows=2)},
+)
+tasks = importlib.import_module(f"{package}.tasks")
+if param is None:  # core's serve_tenants takes no option of the source's: sdk-core's row
+
+    def mcp_add_options(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("--example-limit", type=int, default=5)
+
+    def mcp_apply_options(namespace: argparse.Namespace, server: MCPServer) -> MCPServer:
+        return server
+
+    tasks.mcp_add_options = mcp_add_options
+    tasks.mcp_apply_options = mcp_apply_options
+
+seen: dict[str, Any] = {}
+parse_args = argparse.ArgumentParser.parse_args
+
+
+def recording(self: argparse.ArgumentParser, *args: Any, **kwargs: Any) -> argparse.Namespace:
+    parsed = parse_args(self, *args, **kwargs)
+    seen["options"] = vars(parsed)
+    return parsed
+
+
+def caught(self: MCPServer, *args: Any, **kwargs: Any) -> None:
+    seen["server"] = self
+
+
+argparse.ArgumentParser.parse_args = recording  # type: ignore[method-assign]
+MCPServer.run = caught  # type: ignore[method-assign]
+
+
+def entry(module: Any, *argv: str) -> tuple[MCPServer, dict[str, Any]]:
+    """The server the entry point runs, and the options it parsed from ``argv``."""
+    seen.clear()
+    sys.argv = [f"xippios-{slug}-mcp", *argv]
+    module.run()
+    return seen["server"], seen["options"]
+
+
+def host_of(tool_set: ToolSet) -> MCPServer:
+    """One server as a host builds it from the tool set, its hooks applied without options."""
+    host = MCPServer("host")
+    register_tasks(host, tool_set)
+    if tool_set.apply_options is not None:
+        host = tool_set.apply_options(tool_set.option_defaults(), host)
+    return host
+
+
+def tools(server: MCPServer) -> dict[str, Any]:
+    return {t.name: (t.input_schema, t.description) for t in asyncio.run(server.list_tools())}
+
+
+def answers(server: MCPServer, arguments: dict[str, Any]) -> dict[str, str]:
+    """Each tool's answer to ``arguments``, but the time each was retrieved, which differs."""
+    return {
+        name: re.sub(r'"retrieved_at":\s*"[^"]*"', "", asyncio.run(mcp_call_text(server, name, arguments)))
+        for name in tools(server)
+    }
+
+
+def same(module: Any, tool_set: ToolSet, arguments: dict[str, Any], *argv: str) -> MCPServer:
+    """The host's server and the entry point's serve the same tools, answers and options."""
+    defaults = vars(tool_set.option_defaults())
+    host = host_of(tool_set)
+    served, options = entry(module, *argv)
+    assert tools(host) == tools(served), (sorted(tools(host)), sorted(tools(served)))
+    assert answers(host, arguments) == answers(served, arguments)
+    bound = {param: argv[1] if argv else None} if param else {}
+    assert options == {**defaults, **bound}, (options, defaults)
+    return served
+
+
+mcp = importlib.import_module(f"{package}.mcp")
+assert {"ENV_VARS", "SOURCE", "build", "server"} <= set(mcp.__all__), mcp.__all__
+assert mcp.SOURCE == slug and mcp.ENV_VARS is client.ENV_VARS
+assert all(isinstance(var, EnvVar) for var in mcp.ENV_VARS), mcp.ENV_VARS
+tool_set = mcp.build()
+assert isinstance(tool_set, ToolSet) and tool_set.read_only, tool_set
+arguments = {param: "demo"} if param else {}
+served = same(mcp, tool_set, arguments)
+cut = asyncio.run(mcp_call_text(served, f"{prefix}_get_rows", arguments))
+assert "narrow the query" in cut, cut
+if param is None:
+    assert vars(tool_set.option_defaults())["example_limit"] == 5, "the source's option"
+print(f"{package}.mcp: {sorted(tools(served))} as a host serves them, the cap and options alike")
+
+if param is not None:
+    key = tenants.var(client.DEMO, "API_KEY")
+    os.environ[key] = "placeholder"  # pragma: allowlist secret (a stand-in)
+    flag = f"--{param.replace('_', '-')}"
+    bound = same(mcp, mcp.build(TenantLock(tenants, client.DEMO)), {}, flag, client.DEMO)
+    assert param not in tools(bound)[f"{prefix}_get_rows"][0].get("properties", {}), "bound"
+    del os.environ[key]
+    os.environ[tenants.list_var] = "acme"
+    refused = io.StringIO()
+    with contextlib.redirect_stderr(refused), contextlib.suppress(SystemExit):
+        entry(mcp, flag, "acme")
+    assert tenants.var("acme", "API_KEY") in refused.getvalue(), refused.getvalue()
+    assert "server" not in seen, "stopped before a server ran"
+    del os.environ[tenants.list_var]
+    print(f"{flag} demo: bound as a host binds it; {flag} acme without its key: stopped")
+
+if importlib.util.find_spec(f"{package}.mcp_write") is not None:
+    put(
+        f"{package}.tasks_write",
+        f'''
+def create_row({takes}confirm: bool = False) -> Result[dict[str, bool]]:
+    """Create a row, a preview unless confirm is true."""
+    return Result[dict[str, bool]](
+        data={{"created": confirm}}, meta=ResultMeta(source={slug!r}, endpoint="x")
+    )
+''',
+        ["create_row"],
+        {},
+    )
+    mcp_write = importlib.import_module(f"{package}.mcp_write")
+    write_set = mcp_write.build()
+    assert not write_set.read_only, "a write server's tool set"
+    served = same(mcp_write, write_set, arguments)
+    assert is_write_server(served) and is_write_server(host_of(write_set)), "both held"
+    assert list(tools(served)) == [f"{prefix}_create_row"], "write tools only"
+    print(f"{package}.mcp_write: {sorted(tools(served))}, a write server as a host builds it")
 PY
 )
 
@@ -426,18 +623,24 @@ import respx
 from xippios.core import XippiosError
 
 package = importlib.import_module(f"{sys.argv[1]}._client")
-if package.API_KEY_ENV:
-    os.environ[package.API_KEY_ENV] = "placeholder"  # pragma: allowlist secret (a stand-in)
+tenants = getattr(package, "TENANTS", None)
+if tenants is not None:  # a multi-tenant source fetches through the reserved tenant's client
+    os.environ[tenants.var(package.DEMO, "API_KEY")] = "placeholder"  # pragma: allowlist secret
+    client = package.client_for(package.DEMO)
+else:
+    if package.API_KEY_ENV:
+        os.environ[package.API_KEY_ENV] = "placeholder"  # pragma: allowlist secret (a stand-in)
+    client = package.client
 spec = importlib.util.spec_from_file_location("refresh", "scripts/refresh_reference.py")
 assert spec is not None and spec.loader is not None
 script = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(script)
-configured = package.client.config
+configured = client.config
 
 
 def values(name: str) -> Callable[[], Coroutine[Any, Any, Sequence[str]]]:
     async def fetch() -> Sequence[str]:
-        answer = await package.client.get_json("/get_param_values", params={"param": name})
+        answer = await client.get_json("/get_param_values", params={"param": name})
         return [str(value) for value in answer]
 
     return fetch
@@ -457,7 +660,7 @@ def run(*args: str) -> tuple[str, BaseException | None]:
             script.main(list(args))
     except (XippiosError, SystemExit) as error:
         raised = error
-    assert package.client.config is configured, "the client's configuration restored"
+    assert client.config is configured, "the client's configuration restored"
     print(out.getvalue() + ("" if raised is None else f"{type(raised).__name__}: {raised}\n"))
     return out.getvalue(), raised
 

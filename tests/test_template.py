@@ -35,6 +35,7 @@ from helpers import (
     VARIANTS,
     dependencies,
     detect_secrets_hook,
+    env_vars,
     gateway_of,
     generate,
     git,
@@ -46,6 +47,8 @@ from helpers import (
     package_dir,
     ruff,
     skip_matcher,
+    tenant_param,
+    write_server,
 )
 
 # Every file a render has: the package's at the import path's directories, the rest at the
@@ -118,6 +121,9 @@ REMOVED_FILES = [
     ".github/workflows/gates.yml",
     ".claude/family.md",
 ]
+# v0.4.0 renders the write server and its scaffold again, where write_server answers so
+# (#174); tests/test_contract.py tests them and the entry points.
+WRITE_SERVER_FILES = ["src/xippios/{pkg}/tasks_write.py", "src/xippios/{pkg}/mcp_write.py"]
 FAMILY_TEST = "from xippios.core.testing.family import *  # noqa: F403\n"
 
 
@@ -135,7 +141,8 @@ def test_layout(variant: tuple[str, Path]) -> None:
     for rel in [*(f"src/xippios/{pkg}/{part}" for part in PACKAGE_FILES), *REPOSITORY_FILES]:
         assert (dst / rel).is_file(), rel
     for rel in REMOVED_FILES:
-        assert not (dst / rel.format(pkg=pkg)).exists(), rel
+        if not (write_server(answers) and rel in WRITE_SERVER_FILES):
+            assert not (dst / rel.format(pkg=pkg)).exists(), rel
     fixtures = sorted(p.relative_to(dst).as_posix() for p in dst.glob("tests/fixtures/**/*"))
     expected = ["tests/fixtures/files", "tests/fixtures/files/README.md"]
     assert fixtures == (expected if has_files(answers) else []), "the rule is /record-fixture's"
@@ -146,7 +153,9 @@ def test_layout(variant: tuple[str, Path]) -> None:
         level = level.parent
     pyproject = tomllib.loads((dst / "pyproject.toml").read_text())
     slug, dotted = answers["source_slug"], pkg.replace("/", ".")
-    assert pyproject["project"]["scripts"] == {f"xippios-{slug}-mcp": f"xippios.{dotted}.mcp:run"}
+    if not write_server(answers):
+        expected_scripts = {f"xippios-{slug}-mcp": f"xippios.{dotted}.mcp:run"}
+        assert pyproject["project"]["scripts"] == expected_scripts
     assert "uv" not in pyproject["tool"], "no [tool.uv.sources] without core_git_ref"
 
 
@@ -169,7 +178,8 @@ def test_answers_file_round_trips(variant: tuple[str, Path]) -> None:
     assert answers["api_key_env"] == key["api_key_env"]
     if key["api_key_env"]:
         assert answers["api_key_location"] == key["api_key_location"]
-        assert answers["api_key_name"] == key.get("api_key_name", "key")
+        if key["api_key_location"] in ("query", "header"):
+            assert answers["api_key_name"] == key.get("api_key_name", "key")
     else:
         assert "api_key_location" not in answers, "not asked without a key"
         assert "api_key_name" not in answers
@@ -232,7 +242,10 @@ def test_the_plugin_sends_the_placeholder_unless_live(variant: tuple[str, Path])
     name, dst = variant
     keys = key_envs(VARIANTS[name])
     conftest = (dst / "tests/conftest.py").read_text()
-    code = [line for line in conftest.splitlines() if not line.startswith("#")]
+    code = [line for line in conftest.splitlines() if line and not line.startswith("#")]
+    if tenant_param(VARIANTS[name]):  # the strip of the other tenants, test_contract.py's
+        code = [line for line in code if "keep_reserved_tenants" not in line]
+        code = [line for line in code if not line.startswith("from xippios.")]
     assert code == ['pytest_plugins = ["xippios.core.testing.plugin"]']
     assert ("xippios_placeholder_key_envs" in conftest) is bool(keys)
     ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
@@ -675,8 +688,8 @@ def test_readme_mcp_snippet_is_json(variant: tuple[str, Path]) -> None:
     readme = (dst / "README.md").read_text()
     block = readme.split("```json\n", 1)[1].split("```", 1)[0]
     (server,) = json.loads(block)["mcpServers"].values()
-    keys = key_envs(VARIANTS[name])
-    assert server.get("env") == (dict.fromkeys(keys, "...") or None)
+    names = [entry[0].replace("<NAME>", "ACME") for entry in env_vars(VARIANTS[name])]
+    assert list(server.get("env", {})) == names
     for dependency in dependencies(VARIANTS[name]):
         assert f"`xippios-{dependency['name']}`" in readme
     (args,) = [line for line in block.splitlines() if '"args"' in line]
@@ -1201,9 +1214,9 @@ def test_servers_take_the_caps_kept_with_the_tasks(keyed_nested: Path) -> None:
     assert ast.unparse(bulk) == "BULK_TASKS: frozenset[str] = frozenset()"
     assert tasks.index("BULK_TASKS") < tasks.index("# MCP_CAPS"), "beside MCP_CAPS"
     whole = "[getattr(tasks, name) for name in tasks.__all__]"
-    for adapter in ["mcp.py", "http.py"]:
-        assert whole in (pkg / adapter).read_text(), adapter
+    assert whole in (pkg / "http.py").read_text()
     mcp = (pkg / "mcp.py").read_text()
+    assert "tool_functions(tasks)" in mcp, "core's, which skips BULK_TASKS too (#81)"
     assert "add_options=" in mcp, "core's hooks for a source's options (ADR-0014)"
     assert "tenant_lock" not in mcp, "core 0.3.0's build_server has none"
 

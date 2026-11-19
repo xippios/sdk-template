@@ -110,6 +110,15 @@ VARIANTS: dict[str, dict[str, object]] = {
         "rate_limit_per_minute": 60,
         "rate_limit_provenance": "self-imposed",
     },
+    # sdk-cashctrl's (#174): a multi-tenant source with a write server, each tenant's key
+    # sent as the basic user name (#173), its tenants named by org; flat.
+    "tenants": {
+        "source_slug": "cashctrl",
+        "write_server": True,
+        "tenant_param": "org",
+        "rate_limit_provenance": "self-imposed",
+        **keyed("CASHCTRL_API_KEY", "basic"),
+    },
 }
 # A source on unreleased core: the keyed nested answers with a full-SHA core pin.
 PINNED = {**VARIANTS["keyed-nested"], "core_git_ref": FAKE_CORE_SHA}
@@ -132,11 +141,47 @@ def has_files(answers: dict[str, object]) -> bool:
     return answers.get("has_files", False) is True
 
 
+def write_server(answers: dict[str, object]) -> bool:
+    """Whether a variant has a write server (#174); copier's default no."""
+    return answers.get("write_server", False) is True
+
+
+def tenant_param(answers: dict[str, object]) -> str:
+    """The parameter that names a multi-tenant variant's tenant (#174), else empty."""
+    return str(answers.get("tenant_param", ""))
+
+
+def tenant_prefix(answers: dict[str, object]) -> str:
+    """The prefix of a multi-tenant variant's variables: its key's, without ``_API_KEY``."""
+    key = str(key_answers(answers).get("api_key_env", ""))
+    return key.removesuffix("_API_KEY") if tenant_param(answers) else ""
+
+
 def key_envs(answers: dict[str, object]) -> list[str]:
-    """Every key variable a render reads: the source's own, then its dependencies', once."""
-    own = str(key_answers(answers).get("api_key_env", ""))
+    """Every key variable a render's tests and live run read: the source's own, the reserved
+    tenant's for a multi-tenant source, then its dependencies', once."""
+    if tenant_param(answers):
+        own = f"{tenant_prefix(answers)}_DEMO_API_KEY"
+    else:
+        own = str(key_answers(answers).get("api_key_env", ""))
     keys = [own] + [d["key_env"] for d in dependencies(answers)]
     return list(dict.fromkeys(key for key in keys if key))
+
+
+def env_vars(answers: dict[str, object]) -> list[tuple[str, bool, bool]]:
+    """The variables a render's ``ENV_VARS`` declares, each with whether it is secret and
+    required: the key, or the tenant list and the tenants' key pattern, then the
+    dependencies' keys and the live secrets, each once."""
+    own = str(key_answers(answers).get("api_key_env", ""))
+    if tenant_param(answers):
+        prefix, param = tenant_prefix(answers), tenant_param(answers).upper()
+        listed = [(f"{prefix}_{param}S", False, False), (f"{prefix}_<NAME>_API_KEY", True, True)]
+    else:
+        listed = [(own, True, True)] if own else []
+    for name in [d["key_env"] for d in dependencies(answers)] + live_secrets(answers):
+        if name and name not in [entry[0] for entry in listed]:
+            listed.append((name, True, True))
+    return listed
 
 
 def live_secrets(answers: dict[str, object]) -> list[str]:
