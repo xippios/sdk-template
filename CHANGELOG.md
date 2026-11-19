@@ -102,6 +102,10 @@ named so.
     stands in `__all__` — conventions §8 serves it on the read server.
     `scripts/refresh_reference.py` — a multi-tenant source fetches through
     `client_for(DEMO)` — no module-level client serves every tenant.
+    `README.md` — the MCP section says that a server serves every declared tenant, every
+    tool but the tenant list taking `<param>`, and that `--<param> <name>` binds it to
+    one, which stops at startup unless that tenant is declared with its key, and the task
+    table's first row is the tenant list — the render states them.
     `CLAUDE.md` — the `Credentials` and `Tenants` rows name the key's pattern, the tenant
     list and `demo`, and the rule of one limiter per host says that each tenant's client,
     `client_for(<param>)`, paces that tenant's requests — the render states them.
