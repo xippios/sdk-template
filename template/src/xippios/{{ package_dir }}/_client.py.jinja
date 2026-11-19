@@ -11,6 +11,8 @@ from xippios.core import AsyncClient, ClientConfig, QueryKeyAuth, RateLimit, Xip
 from xippios.core import AsyncClient, ClientConfig, HeaderKeyAuth, RateLimit, XippiosError
 {% elif api_key_location == 'bearer' %}
 from xippios.core import AsyncClient, BearerAuth, ClientConfig, RateLimit, XippiosError
+{% elif api_key_location == 'basic' %}
+from xippios.core import AsyncClient, BasicKeyAuth, ClientConfig, RateLimit, XippiosError
 {% endif %}
 {% else %}
 from xippios.core import AsyncClient, ClientConfig, RateLimit, XippiosError
@@ -27,6 +29,8 @@ API_KEY_ENV: str | None = None
 {% endif %}
 {% if rate_limit_provenance == 'self-imposed' %}
 # A self-imposed pace: upstream documents no per-second or per-minute limit (ADR-0010 decision 1).
+{% elif rate_limit_provenance == 'below-documented' %}
+# Paced under the limit upstream documents; CLAUDE.md gives both (ADR-0010 decision 1).
 {% else %}
 # Paced within the limit upstream documents (ADR-0010 decision 1).
 {% endif %}
@@ -88,6 +92,8 @@ auth = QueryKeyAuth("{{ api_key_name }}", API_KEY_ENV, source=SOURCE)
 auth = HeaderKeyAuth("{{ api_key_name }}", API_KEY_ENV, source=SOURCE)
 {% elif api_key_location == 'bearer' %}
 auth = BearerAuth(API_KEY_ENV, source=SOURCE)
+{% elif api_key_location == 'basic' %}
+auth = BasicKeyAuth(API_KEY_ENV, source=SOURCE)
 {% endif %}
 client = AsyncClient(config, auth=auth)
 {% else %}

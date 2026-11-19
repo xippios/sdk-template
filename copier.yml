@@ -117,6 +117,7 @@ api_key_location:
     query parameter: query
     request header: header
     bearer token in the Authorization header: bearer
+    HTTP basic auth, the key as the user name: basic
   default: "{{ 'header' if gateway == 'api.data.gov' else 'query' }}"
   when: "{{ api_key_env != '' }}"
   ask: "{{ gateway == 'none' }}"
@@ -140,9 +141,10 @@ rate_limit_per_minute:
   type: int
   help: >-
     The pace in requests per minute, enforced client-side: the upstream's documented
-    per-minute limit (or its per-second limit times 60), or, where upstream documents no
-    per-second or per-minute limit, a self-imposed pace, an hourly or daily quota
-    notwithstanding (ADR-0010 decision 1)
+    per-minute limit (or its per-second limit times 60), a pace set under that limit on
+    evidence, such as recorded refusals or a limit stated in another unit than requests,
+    or, where upstream documents no per-second or per-minute limit, a self-imposed pace, an
+    hourly or daily quota notwithstanding (ADR-0010 decision 1)
   default: 60
   validator: "{% if rate_limit_per_minute < 1 %}Must be at least 1{% endif %}"
 
@@ -159,6 +161,7 @@ rate_limit_provenance:
   help: Where the pace comes from; the generated CLAUDE.md names it (ADR-0010 decision 1)
   choices:
     documented by upstream: documented
+    set under a limit upstream documents, CLAUDE.md giving both: below-documented
     self-imposed, upstream documents no per-second or per-minute limit: self-imposed
   default: documented
 
