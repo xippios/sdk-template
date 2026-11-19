@@ -393,6 +393,28 @@ def test_a_statement_names_a_page_the_run_captures(
     assert run(module, out) == 0
 
 
+def test_a_statement_on_a_page_the_check_does_not_read_is_quoted_as_unchecked(
+    capture: tuple[ModuleType, Path], site: Site
+) -> None:
+    """The second review of #188: a statement recorded from a page whose text the check does
+    not read, a PDF here, is quoted with its page as one no run checks; one on a page it
+    reads is quoted as printed there."""
+    module, out = capture
+    pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n<< /Producer (Copyright 2026 Example) >>\n%%EOF\n"
+    pdf_url = site.page("layout.pdf", pdf)
+    html_url = site.page("guide.html", "<footer>&copy; 2026 Example Ltd.</footer>")
+    module.PAGES = (module.Page(html_url, "pages/guide.html"), module.Page(pdf_url, "f/l.pdf"))
+    module.ATTRIBUTION = (
+        module.Statement("\N{COPYRIGHT SIGN} 2026 Example Ltd.", html_url, "the footer"),
+        module.Statement("Copyright 2026 Example", pdf_url, "the PDF's producer"),
+    )
+    assert run(module, out) == 0
+    fetched = flat(snapshot(out))
+    unchecked = "a page this script does not read, so no run checks it"
+    assert f"printed at {pdf_url}, {unchecked}: the PDF's producer" in fetched
+    assert f"printed at {html_url}: the footer" in fetched
+
+
 def test_a_line_only_a_browser_shows_is_quoted_and_never_checked(
     capture: tuple[ModuleType, Path], site: Site
 ) -> None:
