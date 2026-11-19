@@ -39,11 +39,14 @@ its own, each named in its entry below. It first declares `ENV_VARS` in its `_cl
 since the template's `mcp.py` imports the list and the package fails to import without it.
 The update merges a hand-written `mcp.py`, `mcp_write.py` and `tests/conftest.py` three
 ways and leaves conflicts where the render rewrites the source's lines, which the entries
-count for sdk-cashctrl and sdk-google-mail. The fourteen Hand-apply notes cover the files the
-update never rewrites. An adoption fetches nothing, so `docs/upstream/FETCHED.md` follows
-at the source's next refresh, and the secret scan's hook fails once where a fixture's
-`sha256` line has an audited entry. Every record this section cites is sdk-core's and is
-named so.
+count for sdk-cashctrl and sdk-google-mail. The fourteen Hand-apply notes cover the files
+the update never rewrites. In the same adoption a source deletes its own copies of what
+core 0.4.0 provides, which sdk-core's `docs/handover.md` lists per source under "Adopting
+core 0.4.0", and the lines of its own that the render now carries, where a conflict
+resolves to the render's. An adoption fetches nothing, so `docs/upstream/FETCHED.md`
+follows at the source's next refresh, and the secret scan's hook fails once where a
+fixture's `sha256` line has an audited entry. Every record this section cites is
+sdk-core's and is named so.
 
 ### Added
 
@@ -124,8 +127,10 @@ named so.
     `xippios-<slug>-mcp-read` and a second block runs `xippios-<slug>-mcp-write` — the
     README named one entry point.
     `CLAUDE.md` — where the answer is `true`, the `Write tools` row names `tasks_write.py`
-    and its entry point, and the Layout and the run command name the two servers — the
-    file said the package is read-only.
+    and its entry point, and the Layout and the run command name the two servers, and in
+    every source the Template updates section names `tasks_write.py` after `tasks.py`
+    among the files an update never overwrites — the file said the package is read-only,
+    and the render's list names the file whatever the answer.
 - `api_key_location` offers `basic`: the generated `_client.py` sends the key as the HTTP
   basic user name with no password, by core's `BasicKeyAuth`, which xippios-core 0.3 has,
   and the `Credentials` row of the generated `CLAUDE.md` says so. No header or parameter
