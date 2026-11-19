@@ -32,6 +32,21 @@ BASE_ANSWERS: dict[str, object] = {
 TABLE_HEADER = "| File | URL | Fetched | HTTP | Bytes | sha256 | ETag | Last-Modified | Note |"
 
 
+# The template's own lines of the two workflows it copies from sdk-core and extends: in
+# ci.yml the full history for the two steps that read the pull request (core's
+# docs/handover.md, "Template v0.2.1"), in publish.yml the refusal of a git-pinned core
+# before the tag.
+FETCH_DEPTH = "          fetch-depth: 0 # both steps below diff against origin/<base>\n"
+CI_STEPS = (
+    "      # Conventions §12: every PR but Dependabot's",
+    "      - uses: astral-sh/setup-uv@",
+)
+PUBLISH_STEP = (
+    "      # sdk-template's one step beyond core's file",
+    "      - name: Tag the merge commit",
+)
+
+
 # A stand-in for a 40-character sdk-core commit, never fetched: hex of high entropy, as a
 # real SHA is, computed so that no literal in this file looks like a secret.
 FAKE_CORE_SHA = hashlib.sha1(b"a fixed stand-in for an sdk-core commit").hexdigest()

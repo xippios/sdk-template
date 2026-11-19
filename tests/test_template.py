@@ -25,10 +25,13 @@ import yaml
 from copier import run_copy, run_update
 from helpers import (
     BASE_ANSWERS,
+    CI_STEPS,
     CORE_DEFAULT,
     DATA_GOV,
     FAKE_CORE_SHA,
+    FETCH_DEPTH,
     PINNED,
+    PUBLISH_STEP,
     QUESTIONS,
     ROOT,
     TABLE_HEADER,
@@ -1245,18 +1248,6 @@ CORE_EXTENDED = {
         "61bc5786dc35acfea34cb4aa2f0f07038795bcfdb5c1593fc016eb8beda58356"
     ),
 }
-# The template's own lines: in ci.yml the full history for the two steps that read the
-# pull request (core's docs/handover.md, "Template v0.2.1"), in publish.yml the refusal
-# of a git-pinned core before the tag.
-FETCH_DEPTH = "          fetch-depth: 0 # both steps below diff against origin/<base>\n"
-CI_STEPS = (
-    "      # Conventions §12: every PR but Dependabot's",
-    "      - uses: astral-sh/setup-uv@",
-)
-PUBLISH_STEP = (
-    "      # sdk-template's one step beyond core's file",
-    "      - name: Tag the merge commit",
-)
 
 
 def without(text: str, first: str, stop: str) -> str:
@@ -1368,7 +1359,10 @@ def test_fixture_cap_judges_a_moved_fixture_by_its_content(
         (new / "big.json").write_bytes(b"1" * CAP)
 
     assert pull_request("moved", lambda new: None) == (0, ""), "a pure move passes"
-    over = "::error file=tests/fixtures/get_new/{}::{} bytes, over the 256 KiB cap (ADR-0019)\n"
+    over = (
+        "::error file=tests/fixtures/get_new/{}::{} bytes,"
+        " over the 256 KiB cap (sdk-core ADR-0040)\n"
+    )
     assert pull_request("grown", grow) == (1, over.format("all.json", len(listed) + 1))
     assert pull_request("added", add) == (1, over.format("big.json", CAP))
 
