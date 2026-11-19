@@ -137,6 +137,55 @@ api_key_name:
     Behind api.data.gov the header is X-Api-Key (ADR-0009): leave it to the gateway answer
     {% endif %}
 
+# The two answers of the package contract's variants (conventions §7 and §8; sdk-core
+# ADR-0026, amendment 2026-11-18, points c and d): a write server and a multi-tenant
+# source. Names, never switches: write_server renames the entry point, with no alias for
+# the old name. Their defaults are literals, so every source that predates them takes
+# them on update.
+write_server:
+  type: bool
+  help: >-
+    Whether this source writes to the upstream through a server of its own (conventions
+    §8): true renders mcp_write.py, which serves tasks_write.__all__ as confirm-gated
+    tools, the tasks_write.py scaffold, and the entry points xippios-<slug>-mcp-read and
+    xippios-<slug>-mcp-write in place of xippios-<slug>-mcp, with no alias for the old
+    name. false, the default, for a read-only source.
+  default: false
+
+tenant_param:
+  type: str
+  help: >-
+    The task parameter that names a tenant, for a multi-tenant source whose upstream
+    serves each tenant under a key of its own (conventions §7), e.g. org. It renders
+    core's Tenants registry in _client.py, one client per tenant with its key in
+    <PREFIX>_<NAME>_API_KEY, the prefix api_key_env's without _API_KEY, the tenants
+    listed in <PREFIX>_<PARAM>S and the reserved tenant demo, which fixtures and live
+    tests use alone; the tenant list task; build(lock) and serve_tenants in mcp.py,
+    whose --<param> binds a server to one tenant; and the strip of every other tenant's
+    variables in tests/conftest.py. Empty, the default, for a source with one tenant.
+  default: ""
+  validator: >-
+    {% if tenant_param and not (tenant_param | regex_search('^[a-z][a-z0-9_]*\\Z')) %}
+    A parameter name in lower case, letters, digits and underscores, e.g. org
+    {% elif tenant_param and not api_key_env %}
+    A multi-tenant source needs api_key_env, which names its tenants' keys: <PREFIX>_<NAME>_API_KEY
+    {% elif tenant_param and gateway != 'none' %}
+    A gateway's key serves every package behind it, never one tenant: leave tenant_param empty
+    {% endif %}
+
+# A multi-tenant source's variables (conventions §7), derived from api_key_env and
+# tenant_param, never asked: the prefix of every tenant's variables and the variable that
+# lists the tenants. Computed, never recorded.
+tenant_prefix:
+  type: str
+  default: "{{ api_key_env[:-8] if tenant_param else '' }}"
+  when: false
+
+tenant_list_var:
+  type: str
+  default: "{{ tenant_prefix ~ '_' ~ (tenant_param | upper) ~ 'S' if tenant_param else '' }}"
+  when: false
+
 rate_limit_per_minute:
   type: int
   help: >-
@@ -243,11 +292,13 @@ depends_on:
 
 # Every key variable the package's tests and live run need, the source's own first, then
 # its dependencies', each once: the placeholder in offline tests, the secrets in live.yml.
+# A multi-tenant source's own is the reserved tenant's, the one key its tests and live run
+# read.
 key_envs:
   type: yaml
   default: >-
-    {{ ((([api_key_env] if api_key_env else []) + depends_on | map(attribute='key_env')
-    | select | list) | unique | list) | tojson }}
+    {{ ((([tenant_prefix ~ '_DEMO_API_KEY'] if tenant_param else [api_key_env] if api_key_env
+    else []) + depends_on | map(attribute='key_env') | select | list) | unique | list) | tojson }}
   when: false
 
 # The variables the live tests read beyond the keys, each passed to live.yml's pytest step
@@ -290,6 +341,30 @@ live_secrets:
 live_secret_names:
   type: yaml
   default: "{{ live_secrets }}"
+  when: false
+
+# The variables the package reads, as the package contract lists them (conventions §7;
+# sdk-core ADR-0026, amendment 2026-11-18, point c): the source's key, or a multi-tenant
+# source's tenant list and the pattern of its tenants' keys, then its dependencies' keys
+# and the live secrets, each once, each secret and required but the tenant list.
+# _client.py renders ENV_VARS from it and the README its variables. Computed, never
+# recorded.
+env_vars:
+  type: yaml
+  default: >-
+    {%- set ns = namespace(vars=[]) -%}
+    {%- if tenant_param -%}
+    {%- set ns.vars = [{'name': tenant_list_var, 'secret': false, 'required': false},
+    {'name': tenant_prefix ~ '_<NAME>_API_KEY', 'secret': true, 'required': true}] -%}
+    {%- elif api_key_env -%}
+    {%- set ns.vars = [{'name': api_key_env, 'secret': true, 'required': true}] -%}
+    {%- endif -%}
+    {%- for name in (depends_on | map(attribute='key_env') | select | list) + live_secret_names -%}
+    {%- if name not in (ns.vars | map(attribute='name') | list) -%}
+    {%- set ns.vars = ns.vars + [{'name': name, 'secret': true, 'required': true}] -%}
+    {%- endif -%}
+    {%- endfor -%}
+    {{ ns.vars | tojson }}
   when: false
 
 # Whether the source parses the files it downloads (ADR-0020): parse/, the samples'
@@ -367,6 +442,7 @@ _skip_if_exists:
   - src/xippios/{{ package_dir }}/api/**
   - src/xippios/{{ package_dir }}/parse/**
   - src/xippios/{{ package_dir }}/tasks.py
+  - src/xippios/{{ package_dir }}/tasks_write.py
   - src/xippios/{{ package_dir }}/params.py
   - src/xippios/{{ package_dir }}/enums.py
   - src/xippios/{{ package_dir }}/reference/**

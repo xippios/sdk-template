@@ -77,6 +77,8 @@ organization secret whose repository access takes the new repository, never set 
 | `api_key_env` | environment variable with the key; empty for open APIs; behind a gateway, the gateway's | `NASS_API_KEY` |
 | `api_key_location` | `query`, `header`, `bearer` or `basic`, the key as the HTTP basic user name with no password, by core's `BasicKeyAuth`; behind a gateway, the gateway's | `query` |
 | `api_key_name` | query parameter or header name; behind a gateway, the gateway's | `key` |
+| `write_server` | whether the source writes to the upstream through a server of its own (conventions §8): `true` renders `mcp_write.py`, which serves `tasks_write.__all__` as confirm-gated tools, the `tasks_write.py` scaffold, the source's once rendered, and the entry points `xippios-<slug>-mcp-read` and `xippios-<slug>-mcp-write` in place of `xippios-<slug>-mcp`, with no alias for the old name; default `false` | `true` |
+| `tenant_param` | the task parameter that names a tenant, for a multi-tenant source whose upstream serves each tenant under a key of its own (conventions §7): it renders core's `Tenants` registry in `_client.py`, a client per tenant with its key in `<PREFIX>_<NAME>_API_KEY`, the prefix `api_key_env`'s without `_API_KEY`, the tenants listed in `<PREFIX>_<PARAM>S` and the reserved tenant `demo`, whose key the offline tests and `live.yml` take in place of `api_key_env`; the tenant list task, `build(lock)` and `serve_tenants` in the servers, whose `--<param>` binds a server to one tenant, and `keep_reserved_tenants` in `tests/conftest.py`. It needs a key of the source's own, never a gateway's; default empty, one tenant | `org` |
 | `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, a pace set under it on evidence, or a self-imposed pace where upstream documents neither, an hourly or daily quota notwithstanding (ADR-0010) | `30` |
 | `rate_limit_burst` | requests let through at once before the pace applies; `1` unless upstream documents a burst | `1` |
 | `rate_limit_provenance` | `documented`, `below-documented` (set under a limit upstream documents, such as after recorded refusals or from a limit stated in another unit than requests; the generated CLAUDE.md gives both numbers) or `self-imposed` (upstream documents no per-second or per-minute limit): where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
@@ -94,7 +96,8 @@ organization secret whose repository access takes the new repository, never set 
 sdk-<slug>/
   src/xippios/<import path as dirs>/   __init__, py.typed, _version, _client, errors, models,
                        tasks, api/, mcp, http; parse/ where has_files;
-                       params, enums and reference/ where has_reference_data
+                       params, enums and reference/ where has_reference_data;
+                       tasks_write and mcp_write where write_server
   tests/               conftest, test_family, test_tasks, test_live; fixtures/files/README.md,
                        the samples' provenance table, where has_files
   scripts/             refresh_upstream.py (the capture skeleton), adr_index.py (writes and
@@ -120,8 +123,13 @@ sdk-<slug>/
 The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit`
 before any endpoint is added. `tests/test_family.py`, one line, collects core's family
 check, which then keeps the layout, the adapters, the task shapes, the README status
-table, the template tag and the core bound honest as tasks are added. A generated
-package is read-only: the template renders no write tools. `ci.yml` also requires a
+table, the template tag and the core bound honest as tasks are added. `mcp.py` carries
+the package contract by which a host serves a source (conventions §8, sdk-core ADR-0026,
+amendment 2026-11-18, points c and d): `build()` returns core's `ToolSet`, with the caps
+and the option hooks `tasks.py` defines, `server` is `build_server(build())`, and
+`ENV_VARS`, which `_client.py` declares from the key answers and `live_secrets`, stands
+beside `SOURCE`. A generated package is read-only unless `write_server` answers `true`,
+and serves one tenant unless `tenant_param` names its parameter. `ci.yml` also requires a
 CHANGELOG entry on every pull request but Dependabot's, an adoption's (conventions §15
 item 9) and a release's included, which changes `CHANGELOG.md` itself, as a fragment
 under `changelog/` or a line in `CHANGELOG.md`, and fails on a fixture file over 256 KiB;
@@ -164,7 +172,7 @@ Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, 
 to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the answers
 without moving the template). Files listed under `_skip_if_exists` in `copier.yml` (the
 package `__init__.py`, the client, the package's errors, models, endpoint wrappers, the
-file parsers, the task layer, the packaged lists and enums, reference data, the two
+file parsers, the task layer and its write tasks, the packaged lists and enums, reference data, the two
 refresh scripts, the task and live tests and the fixtures, upstream snapshot, the ADR
 index, README, CHANGELOG and CLAUDE.md) are never overwritten once they exist, so a
 template fix to one of them does not reach existing repositories by itself; one the
@@ -210,7 +218,7 @@ answer's lines by hand in the same pull request, as a render with the new answer
 
 ```bash
 uv sync
-uv run pytest           # renders the family's five variants once each and checks them, ruff included
+uv run pytest           # renders the family's six variants once each and checks them, ruff included
 scripts/prove.sh        # full proof against the released core: copier copy, uv sync, ruff, mypy, pytest, pre-commit
 scripts/prove.sh --core-ref main   # against unreleased core
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one
@@ -218,6 +226,7 @@ scripts/prove.sh --keyless-nested  # a keyless nested source
 scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files
 scripts/prove.sh --gateway         # a nested source behind api.data.gov; CI runs these five proofs
 scripts/prove.sh -d has_reference_data=false   # a source that packages no reference data
+scripts/prove.sh --tenants         # a nested multi-tenant source with a write server and basic auth
 ```
 
 A pull request of the template runs `.github/workflows/ci.yml`, the tests and the five

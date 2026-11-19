@@ -1,32 +1,84 @@
+{% if tenant_param %}
+"""The package's {{ tenant_param }}s, one configured ``AsyncClient`` each, and its error mapping.
+
+A multi-tenant source (conventions §6 and §7): every task takes ``{{ tenant_param }}``, the name of
+one {{ tenant_param }} the environment declares, and ``client_for({{ tenant_param }})`` returns that {{ tenant_param }}'s
+own client, with its own key and its own rate limiter. The registry is core's ``Tenants``,
+``TENANTS`` below:
+
+- ``{{ tenant_list_var }}``: the names, comma-separated, each matching ``^[a-z0-9_]+$``;
+- per name, ``{{ tenant_prefix }}_<NAME>_API_KEY``, the name upper-cased;
+- the reserved {{ tenant_param }} ``demo`` is never listed: it exists when ``{{ tenant_prefix }}_DEMO_API_KEY`` is
+  set. Fixtures, live tests and the fixture recorder use it and nothing else.
+"""
+{% else %}
 """The package's one configured ``AsyncClient`` and its error mapping (conventions §6)."""
+{% endif %}
 
 import httpx
+{% set names = ['AsyncClient', 'ClientConfig', 'EnvVar', 'RateLimit', 'XippiosError'] %}
 {% if gateway == 'api.data.gov' %}
-from xippios.core import AsyncClient, ClientConfig, RateLimit, XippiosError
-from xippios.core.data_gov import Gateway
-{% elif api_key_env %}
-{% if api_key_location == 'query' %}
-from xippios.core import AsyncClient, ClientConfig, QueryKeyAuth, RateLimit, XippiosError
-{% elif api_key_location == 'header' %}
-from xippios.core import AsyncClient, ClientConfig, HeaderKeyAuth, RateLimit, XippiosError
-{% elif api_key_location == 'bearer' %}
-from xippios.core import AsyncClient, BearerAuth, ClientConfig, RateLimit, XippiosError
-{% elif api_key_location == 'basic' %}
-from xippios.core import AsyncClient, BasicKeyAuth, ClientConfig, RateLimit, XippiosError
+{% elif api_key_env and api_key_location == 'query' %}
+{% set names = names + ['QueryKeyAuth'] %}
+{% elif api_key_env and api_key_location == 'header' %}
+{% set names = names + ['HeaderKeyAuth'] %}
+{% elif api_key_env and api_key_location == 'bearer' %}
+{% set names = names + ['BearerAuth'] %}
+{% elif api_key_env and api_key_location == 'basic' %}
+{% set names = names + ['BasicKeyAuth'] %}
 {% endif %}
+{% if tenant_param %}
+{% set names = names + ['Tenants'] %}
+{% endif %}
+{% set line = 'from xippios.core import ' ~ (names | sort | join(', ')) %}
+{% if line | length <= 100 %}
+{{ line }}
 {% else %}
-from xippios.core import AsyncClient, ClientConfig, RateLimit, XippiosError
+from xippios.core import (
+{% for name in names | sort %}
+    {{ name }},
+{% endfor %}
+)
+{% endif %}
+{% if gateway == 'api.data.gov' %}
+from xippios.core.data_gov import Gateway
 {% endif %}
 
 from xippios.{{ import_path }}._version import __version__
 
 SOURCE = "{{ source_slug }}"
 BASE_URL = "{{ api_base_url }}"
-{% if api_key_env %}
+{% if tenant_param %}
+DEMO = "demo"
+"""The reserved {{ tenant_param }}, declared by its own key alone and never listed."""
+{% elif api_key_env %}
 API_KEY_ENV = "{{ api_key_env }}"  # pragma: allowlist secret (a variable name, not a key)
 {% else %}
 API_KEY_ENV: str | None = None
 {% endif %}
+{% set ns = namespace(entries=[]) %}
+{% for var in env_vars %}
+{% if var.name == api_key_env and not tenant_param %}
+{% set ns.entries = ns.entries + ['EnvVar(API_KEY_ENV, secret=True, required=True)'] %}
+{% else %}
+{% set ns.entries = ns.entries + ['EnvVar("' ~ var.name ~ '", secret=' ~ var.secret ~ ', required=' ~ var.required ~ ')'] %}
+{% endif %}
+{% endfor %}
+{% set one = 'ENV_VARS: tuple[EnvVar, ...] = (' ~ (ns.entries | first) ~ ',)' if ns.entries | length == 1 else '' %}
+{% if one and one | length <= 100 %}
+{{ one }}
+{% elif ns.entries %}
+ENV_VARS: tuple[EnvVar, ...] = (
+{% for entry in ns.entries %}
+    {{ entry }},
+{% endfor %}
+)
+{% else %}
+ENV_VARS: tuple[EnvVar, ...] = ()
+{% endif %}
+"""The variables the package reads, for a host (conventions §7; ADR-0026, amendment 2026-11-18,
+point c). An ``EnvVar`` names a variable and reads none; a variable the source reads beside
+these joins the list."""
 {% if rate_limit_provenance == 'self-imposed' %}
 # A self-imposed pace: upstream documents no per-second or per-minute limit (ADR-0010 decision 1).
 {% elif rate_limit_provenance == 'below-documented' %}
@@ -40,6 +92,20 @@ RATE_LIMIT = RateLimit(per_minute={{ rate_limit_per_minute }}, burst={{ rate_lim
 # api.data.gov's key, its documented answers and its hourly quota, kept by one policy per
 # process that every source behind the gateway shares (ADR-0009).
 gateway = Gateway(SOURCE)
+{% endif %}
+{% if tenant_param %}
+
+TENANTS = Tenants(
+    SOURCE,
+{% if tenant_prefix != (source_slug | upper | replace('-', '_')) %}
+    var_prefix="{{ tenant_prefix }}",
+{% endif %}
+    list_var="{{ tenant_list_var }}",
+    param="{{ tenant_param }}",
+    fields=("API_KEY",),
+    reserved=(DEMO,),
+)
+"""The {{ tenant_param }}s the environment declares (conventions §7; ADR-0036)."""
 {% endif %}
 
 
@@ -82,7 +148,49 @@ config = ClientConfig(
 # config (conventions §6, ADR-0015); core's README shows how.
 {% endif %}
 
-{% if api_key_env %}
+{% if tenant_param %}
+{% if api_key_location == 'query' %}
+{% set auth_call = 'QueryKeyAuth("' ~ api_key_name ~ '", TENANTS.var(name, "API_KEY"), source=SOURCE)' %}
+{% elif api_key_location == 'header' %}
+{% set auth_call = 'HeaderKeyAuth("' ~ api_key_name ~ '", TENANTS.var(name, "API_KEY"), source=SOURCE)' %}
+{% elif api_key_location == 'bearer' %}
+{% set auth_call = 'BearerAuth(TENANTS.var(name, "API_KEY"), source=SOURCE)' %}
+{% else %}
+{% set auth_call = 'BasicKeyAuth(TENANTS.var(name, "API_KEY"), source=SOURCE)' %}
+{% endif %}
+
+def _build(name: str) -> AsyncClient:
+    """Tenant ``name``'s own client, its key read from the environment on its first request.
+
+    Every {{ tenant_param }}'s client has its own rate limiter; ``config`` holds no cache, so the
+    clients share settings alone.
+    """
+    auth = {{ auth_call }}
+    return AsyncClient(config, auth=auth)
+
+
+def client_for({{ tenant_param }}: str) -> AsyncClient:
+    """The client of ``{{ tenant_param }}``, a declared {{ tenant_param }}, built on its first use and kept.
+
+    Raises:
+        InvalidRequestError: ``{{ tenant_param }}`` is not declared; the message names the declared ones.
+    """
+    return TENANTS.client_for({{ tenant_param }}, _build)
+
+
+def check_{{ tenant_param }}({{ tenant_param }}: str) -> None:
+    """Check a declared {{ tenant_param }} at the startup of a server bound to it, before it is built.
+
+    Core's ``serve_tenants`` calls it after ``TENANTS.require``, so a bound server whose
+    {{ tenant_param }} has no key stops at startup rather than on its first call.
+
+    Raises:
+        ConfigError: ``{{ tenant_prefix }}_<NAME>_API_KEY`` is not set; the message names the
+            variable, never a value.
+    """
+    TENANTS.field({{ tenant_param }}, "API_KEY")
+
+{% elif api_key_env %}
 # The key is read from the environment on the first request, never at import.
 {% if gateway == 'api.data.gov' %}
 auth = gateway.auth
@@ -101,15 +209,30 @@ client = AsyncClient(config)
 {% endif %}
 
 __all__ = [
+{% if not tenant_param %}
     "API_KEY_ENV",
+{% endif %}
     "BASE_URL",
+{% if tenant_param %}
+    "DEMO",
+{% endif %}
+    "ENV_VARS",
     "RATE_LIMIT",
     "SOURCE",
-{% if api_key_env %}
+{% if tenant_param %}
+    "TENANTS",
+{% elif api_key_env %}
     "auth",
 {% endif %}
+{% if tenant_param %}
+    "check_{{ tenant_param }}",
+{% endif %}
     "classify",
+{% if tenant_param %}
+    "client_for",
+{% else %}
     "client",
+{% endif %}
     "config",
 {% if gateway == 'api.data.gov' %}
     "gateway",

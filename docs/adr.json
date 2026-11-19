@@ -1,3 +1,18 @@
 {
-  "records": []
+  "records": [
+    {
+      "id": "ADR-0001",
+      "number": 1,
+      "title": "Two answers render the package contract's variants: a write server and a multi-tenant source",
+      "path": "docs/adr/0001-two-answers-render-the-package-contract-s-variants-a-write.md",
+      "status": "Accepted",
+      "date": "2026-11-19",
+      "decided_by": "https://github.com/xippios/sdk-template/issues/174",
+      "amended": [],
+      "amends": [],
+      "supersedes": [],
+      "other": [],
+      "superseded_by": null
+    }
+  ]
 }
