@@ -30,10 +30,17 @@ steps 4 to 6 are what they check in a fixture.
    from pathlib import Path
 
    from xippios.core.testing import fixture_path, record_sync
+{% if tenant_param %}
+   from xippios.{{ import_path }}._client import DEMO, client_for
+
+   fixture = record_sync(
+       client_for(DEMO),  # the reserved {{ tenant_param }}, the one a fixture records
+{% else %}
    from xippios.{{ import_path }}._client import client
 
    fixture = record_sync(
        client,
+{% endif %}
        "<request path>",  # relative to the base URL, as in the wrapper
        fixture_path(Path("tests/fixtures"), "<wrapper>", "<case>"),
        params={...},  # the parameters from the arguments
@@ -47,10 +54,10 @@ steps 4 to 6 are what they check in a fixture.
 
    Error cases (a 404 for an unknown code, for instance) are worth recording too; the
    recorder keeps them instead of raising. A recording is one request: the recorder sends
-   it once through `client`, never retried, whatever the client's `RetryPolicy` says, and
+   it once through {{ '`client_for(DEMO)`' if tenant_param else '`client`' }}, never retried, whatever the client's `RetryPolicy` says, and
    never answered from the cache, so a 429 or a 5xx is recorded as it came and spends no
-   second request on an upstream that counts a quota (conventions §10). Pass `client`
-   itself: a recording needs no client of its own.
+   second request on an upstream that counts a quota (conventions §10). Pass
+   {{ '`client_for(DEMO)`' if tenant_param else '`client`' }} itself: a recording needs no client of its own.
 
    A downloaded file's fixture is the GET exchange of the file's URL, the one the
    download task streams: pass that URL in place of the request path, absolute where
@@ -71,9 +78,16 @@ steps 4 to 6 are what they check in a fixture.
    or rewrite those values by key in a recorder step of the source's own. `record`
    writes the file itself and takes no hook, so that step sends the request itself, with
    `request(..., raise_on_error=False)` on a client built for one attempt,
+{% if tenant_param %}
+   `AsyncClient(dataclasses.replace(config, retry=RetryPolicy(max_attempts=1)), auth=...)`,
+   its auth the reserved {{ tenant_param }}'s as `_build` in `xippios.{{ import_path }}._client` makes it, on
+   `TENANTS.var(DEMO, "API_KEY")`, with `AsyncClient` and `RetryPolicy` from `xippios.core` and
+   `config` from `xippios.{{ import_path }}._client`. It builds the
+{% else %}
    `AsyncClient(dataclasses.replace(config, retry=RetryPolicy(max_attempts=1)){% if api_key_env %}, auth=auth{% endif %})`,
    with `AsyncClient` and `RetryPolicy` from `xippios.core` and
    `config`{% if api_key_env %} and `auth`{% endif %} from `xippios.{{ import_path }}._client`. It builds the
+{% endif %}
    `Fixture` in memory with `fixture_from_response(response, scrub=...)`, rewrites the
    values on it and writes it with `write_fixture(fixture, path)`, both from
    `xippios.core.testing`, which lays it out as `record` does, so nothing unscrubbed

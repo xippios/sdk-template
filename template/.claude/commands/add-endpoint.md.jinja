@@ -39,7 +39,13 @@ lists what they check in an endpoint.
    restates the path and a name taken from the path among them. The verbatim id stays in
    the first line of the wrapper's docstring and in the `endpoint=` the wrapper passes, so
    `meta.endpoint` keeps upstream's exact name. Parameters as upstream names them,
+{% if tenant_param %}
+   snake_cased; it takes `{{ tenant_param }}`, the tenant's name, and calls
+   `xippios.{{ import_path }}._client.client_for({{ tenant_param }})`, that tenant's own client, and
+   returns models via
+{% else %}
    snake_cased; it calls `xippios.{{ import_path }}._client.client` and returns models via
+{% endif %}
    `xippios.core.parse(...)`. It calls `get_json`, or `get_answer` where the answer may
    come from the cache, whose `retrieved_at` the task puts into its `ResultMeta`, or
    `get` and then `decode_json` where it needs more of the response, a header say
@@ -49,7 +55,7 @@ lists what they check in an endpoint.
 
    An operation that upstream serves from another host than `BASE_URL`'s follows the
    rule of one limiter per host (conventions §2, §6). A second base URL on the same host
-   goes through `client` by its absolute URL, and `classify`'s path checks name both
+   goes through {{ '`client_for(' ~ tenant_param ~ ')`' if tenant_param else '`client`' }} by its absolute URL, and `classify`'s path checks name both
    bases. An origin or mirror that the publisher runs itself, where its canonical host
    refuses automated requests, takes that host's pace through the same client, and
    `docs/upstream/` names both hosts; a mirror that anyone else runs is never sent to. A
@@ -64,7 +70,13 @@ lists what they check in an endpoint.
    and reference lookups, and returning `Result[T]` with full `ResultMeta` (`source`,
    `endpoint`, `request`, and `published_at` / `vintage` when upstream provides them). Then:
    `get_<thing> = sync(get_<thing>_async)`, add `"get_<thing>"` to `__all__`, and
-   re-export it from `__init__.py`. A projection the task returns leaves out documented
+   re-export it from `__init__.py`.
+{% if tenant_param %}
+   It takes `{{ tenant_param }}: str`, one tenant, required with no default, and hands it to
+   each wrapper it calls: the family check holds every task to it but the tenant list and
+   those `NO_TENANT_TASKS` names (conventions §7).
+{% endif %}
+   A projection the task returns leaves out documented
    personal identifiers (`ssn`, `iban` and their like) unless the task fetches them
    deliberately and says so in its docstring (ADR-0017). A list task whose whole list an
    agent needs, longer than the default result cap, gets a cap of its own in `MCP_CAPS`

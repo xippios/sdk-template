@@ -1,0 +1,15 @@
+"""Write tasks: the write server serves ``__all__`` as confirm-gated tools (conventions §8).
+
+Each takes ``confirm: bool = False`` as its last parameter and returns a dry-run preview
+unless it is true; core refuses a write task without it before anything is registered.
+No HTTP route serves one. ``/add-endpoint`` adds them.
+"""
+
+__all__: list[str] = []
+
+# MCP_CAPS, only where a write tool needs a result cap of its own, keyed by the task
+# function's name (conventions §8):
+#
+# from xippios.core import ResultCap
+#
+# MCP_CAPS = {"create_<thing>": ResultCap(max_bytes=100_000)}

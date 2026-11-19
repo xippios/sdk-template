@@ -1,33 +1,100 @@
 """MCP server for {{ source_name }}.
 
 Every task in ``tasks.__all__`` is a read-only tool, but those ``tasks.BULK_TASKS``
-names, which core skips: the server is passed ``tasks.__all__`` whole (ADR-0019). No
-logic lives here (ADR-0001). Entry point: ``xippios-{{ source_slug }}-mcp``.
+names (``tool_functions``, ADR-0040). No logic lives here (ADR-0001). Entry point:
+{% if tenant_param %}
+``xippios-{{ source_slug }}-mcp{{ '-read' if write_server else '' }}``.
+``--{{ tenant_param | replace('_', '-') }} <name>`` binds it to one tenant (core's ``serve_tenants``).
+{% else %}
+``xippios-{{ source_slug }}-mcp{{ '-read' if write_server else '' }}``.
+{% endif %}
+
+The package contract (conventions §8; ADR-0026, amendment 2026-11-18, points c and d):
+``build()`` returns the tool set a host serves as this entry point does, with the caps
+and the option hooks ``tasks.py`` defines, ``MCP_CAPS``, ``mcp_add_options`` and
+``mcp_apply_options``; ``server`` is built from it, and ``ENV_VARS`` beside ``SOURCE``
+names the variables the package reads.
 """
 
-from xippios.core.mcp import build_server, main
+{% if tenant_param %}
+from xippios.core import TenantLock, bind_tasks, tenant_instructions
+from xippios.core.mcp import ToolSet, build_server, serve_tenants, tool_functions
 
 from xippios.{{ import_path }} import tasks
-from xippios.{{ import_path }}._client import SOURCE
+{% set line = 'from xippios.' ~ import_path ~ '._client import ENV_VARS, SOURCE, TENANTS, check_' ~ tenant_param %}
+{% if line | length <= 100 %}
+{{ line }}
+{% else %}
+from xippios.{{ import_path }}._client import (
+    ENV_VARS,
+    SOURCE,
+    TENANTS,
+    check_{{ tenant_param }},
+)
+{% endif %}
+{% else %}
+from xippios.core.mcp import ToolSet, build_server, main, tool_functions
+
+from xippios.{{ import_path }} import tasks
+from xippios.{{ import_path }}._client import ENV_VARS, SOURCE
+{% endif %}
 from xippios.{{ import_path }}._version import __version__
+
+__all__ = ["ENV_VARS", "SOURCE", "build", "run", "server"]
 
 INSTRUCTIONS = (
     "{{ source_name }} via xippios. "
-    "Tools are read-only. Where list tools ({{ tool_prefix }}_list_*) exist, "
-    "call them first to find valid values, then query."
+{% if tenant_param %}
+    "Tools are read-only. "
+    "{{ tool_prefix }}_list_{{ tenant_param }}s lists the declared tenants; "
+    "every other tool takes {{ tenant_param }}, the name of one of them. "
+{% else %}
+    "Tools are read-only. "
+{% endif %}
+    "Where list tools ({{ tool_prefix }}_list_*) exist, call them first to find valid values, "
+    "then query."
 )
 
-server = build_server(
-    SOURCE,
-    [getattr(tasks, name) for name in tasks.__all__],
-    version=__version__,
-    instructions=INSTRUCTIONS,
-    caps=getattr(tasks, "MCP_CAPS", None),
-)
+
+{% if tenant_param %}
+def build(lock: TenantLock | None = None) -> ToolSet:
+    """The read-only tool set, bound to one tenant when ``lock`` is given."""
+    return ToolSet(
+        SOURCE,
+        bind_tasks(tool_functions(tasks), lock),
+        caps=getattr(tasks, "MCP_CAPS", None),
+        instructions=tenant_instructions(INSTRUCTIONS, lock),
+        version=__version__,
+        add_options=getattr(tasks, "mcp_add_options", None),
+        apply_options=getattr(tasks, "mcp_apply_options", None),
+    )
+{% else %}
+def build() -> ToolSet:
+    """The read-only tool set: the tasks with their caps, text, version and option hooks."""
+    return ToolSet(
+        SOURCE,
+        tool_functions(tasks),
+        caps=getattr(tasks, "MCP_CAPS", None),
+        instructions=INSTRUCTIONS,
+        version=__version__,
+        add_options=getattr(tasks, "mcp_add_options", None),
+        apply_options=getattr(tasks, "mcp_apply_options", None),
+    )
+{% endif %}
+
+
+server = build_server(build())
 
 
 def run() -> None:
-    """Run the server: stdio by default, ``--http`` for streamable HTTP."""
-    # Command-line options of the source's own reach core's parser through its hooks
-    # (ADR-0014): main(server, add_options=<adds them>, apply_options=<returns the server>).
-    main(server)
+{% if tenant_param %}
+    """Run the server: stdio by default, ``--http`` for streamable HTTP.
+
+    ``--{{ tenant_param | replace('_', '-') }} <name>`` binds it to one tenant.
+    """
+    serve_tenants(server, build, TENANTS, check=check_{{ tenant_param }})
+{% else %}
+    """Run the server: stdio by default, ``--http`` for streamable HTTP, the source's options."""
+    tools = build()
+    main(server, add_options=tools.add_options, apply_options=tools.apply_options)
+{% endif %}

@@ -1,3 +1,9 @@
+{% if tenant_param %}
+from xippios.core.testing import keep_reserved_tenants
+
+from xippios.{{ import_path }}._client import TENANTS
+
+{% endif %}
 {% if key_envs %}
 # Core's plugin keeps the default run offline and free of real keys (ADR-0013), runs anyio
 # tests on asyncio and serves the family check in tests/test_family.py; a key's variable is
@@ -7,3 +13,10 @@
 # serves the family check in tests/test_family.py.
 {% endif %}
 pytest_plugins = ["xippios.core.testing.plugin"]
+{% if tenant_param %}
+
+# Once, when pytest imports this file, before any fixture of any scope: core removes the
+# tenant list and every tenant's key but the reserved demo's, which the live tests read, so
+# no test sees another tenant (conventions §7; ADR-0042, decision 1).
+keep_reserved_tenants(TENANTS)
+{% endif %}

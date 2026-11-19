@@ -1,4 +1,5 @@
 {% set credentials = key_envs + live_secret_names %}
+{% set secrets = ([tenant_prefix ~ '_<NAME>_API_KEY'] if tenant_param else []) + credentials %}
 # sdk-{{ source_slug }} — instructions for Claude Code
 
 `xippios-{{ source_slug }}` wraps {{ source_name }} as a typed Python client, an MCP server
@@ -15,12 +16,19 @@ follows, sdk-core's conventions among them, are listed under
 | API base URL | `{{ api_base_url }}` |
 | Documentation | {{ upstream_docs_url }}, snapshotted in `docs/upstream/`; an OpenAPI or Swagger document a page names is kept beside it, its URL in `SPEC_URL` of `scripts/refresh_upstream.py` (`/refresh-upstream`) |
 {% if api_key_env %}
-| Credentials | `{{ api_key_env }}` from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% elif api_key_location == 'basic' %}as the HTTP basic user name, with no password{% endif %}{% if gateway == 'api.data.gov' %} by `xippios.core.data_gov`'s `Gateway`; the key is api.data.gov's, shared by every package that reads it (sdk-core ADR-0009){% endif %} |
+| Credentials | {% if tenant_param %}per {{ tenant_param }}, `{{ tenant_prefix }}_<NAME>_API_KEY`{% else %}`{{ api_key_env }}`{% endif %} from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% elif api_key_location == 'basic' %}as the HTTP basic user name, with no password{% endif %}{% if gateway == 'api.data.gov' %} by `xippios.core.data_gov`'s `Gateway`; the key is api.data.gov's, shared by every package that reads it (sdk-core ADR-0009){% endif %} |
 {% else %}
 | Credentials | none; the API is open |
 {% endif %}
 | Rate limit | {{ rate_limit_per_minute }} requests per minute, burst {{ rate_limit_burst }}; {% if rate_limit_provenance == 'self-imposed' %}a self-imposed pace: upstream documents no per-second or per-minute limit{% elif rate_limit_provenance == 'below-documented' %}set under the limit upstream documents <!-- name that limit, in upstream's own unit, and why the pace is set under it -->{% else %}within the limit documented by upstream{% endif %} (sdk-core ADR-0010); enforced client-side in `_client.py`{% if gateway == 'api.data.gov' %}. The hourly quota is the gateway's, shared by every package on the key: one `QuotaPolicy` per process, `Gateway.policy`, which once the quota is spent waits within the policy's cap or refuses before sending (sdk-core ADR-0009, sdk-core ADR-0015){% else %} <!-- name here an hourly or daily quota upstream documents, if any, and the QuotaPolicy that keeps it (sdk-core ADR-0015) -->{% endif %} |
+{% if write_server %}
+| Write tools | yes: `tasks_write.py`, each taking `confirm: bool = False` and previewing its change without it, served by `xippios-{{ source_slug }}-mcp-write` alone and never as a route (conventions §8) |
+{% else %}
 | Write tools | no, this package is read-only |
+{% endif %}
+{% if tenant_param %}
+| Tenants | every task takes `{{ tenant_param }}`, one of the {{ tenant_param }}s `{{ tenant_list_var }}` lists, each with a client and a key of its own, `client_for({{ tenant_param }})` in `_client.py` (core's `Tenants`); the reserved `demo`, declared by `{{ tenant_prefix }}_DEMO_API_KEY` alone, is the one fixtures and live tests use; `--{{ tenant_param | replace('_', '-') }} <name>` binds a server to one (conventions §7, §8; sdk-core ADR-0036) |
+{% endif %}
 {% if has_files %}
 | Files | parsed in `parse/`, one module per file kind; the parser tests read the samples under `tests/fixtures/files/`, their provenance in its `README.md` (sdk-core ADR-0020) <!-- each file kind upstream publishes, its format and the library that reads it --> |
 {% endif %}
@@ -38,7 +46,12 @@ src/xippios/{{ package_dir }}/
   __init__.py      public surface: __version__ and re-exported task functions
   py.typed         PEP 561 marker; consumers' mypy --strict needs it
   _version.py      __version__ from distribution metadata
-  _client.py       the one configured AsyncClient (base URL{% if api_key_env %}, key{% endif %}, rate limit) and classify,
+{% if tenant_param %}
+  _client.py       the {{ tenant_param }}s' registry TENANTS, one AsyncClient per {{ tenant_param }} (client_for), ENV_VARS
+                   and classify,
+{% else %}
+  _client.py       the one configured AsyncClient (base URL{% if api_key_env %}, key{% endif %}, rate limit), ENV_VARS and classify,
+{% endif %}
                    upstream's documented error shapes
   errors.py        the package's own error classes, where conventions §5 calls for one
   models.py        pydantic models mirroring upstream payloads (UpstreamModel); by the
@@ -50,7 +63,13 @@ src/xippios/{{ package_dir }}/
 {% endif %}
   tasks.py         task functions; __all__ is what the adapters register, but BULK_TASKS,
                    the Python-only ones; MCP_CAPS any per-tool result caps
-  mcp.py           xippios-{{ source_slug }}-mcp entry point
+{% if write_server %}
+  tasks_write.py   write task functions, each confirm-gated; __all__ is what the write server serves
+  mcp.py           xippios-{{ source_slug }}-mcp-read entry point: build() the read tool set, server
+  mcp_write.py     xippios-{{ source_slug }}-mcp-write entry point: build() the write tool set, server
+{% else %}
+  mcp.py           xippios-{{ source_slug }}-mcp entry point: build() the tool set, server
+{% endif %}
   http.py          FastAPI router
 {% if has_reference_data %}
   params.py        the packaged reference lists, read from reference/
@@ -122,7 +141,7 @@ uv run pre-commit run --all-files
 python3 scripts/adr_index.py --check   # the index matches the records in docs/adr/
 uv run pytest -m live --tb=short --assert=plain   # needs XIPPIOS_LIVE_TESTS=1{{ ', ' ~ credentials | join(', ') if credentials else '' }}
 
-uv run xippios-{{ source_slug }}-mcp   # stdio; add --http for streamable HTTP
+uv run xippios-{{ source_slug }}-mcp{{ '-read' if write_server else '' }}   # stdio; add --http for streamable HTTP
 ```
 
 `uv run pytest` is offline: core's plugin refuses the network and skips the rate limiter's
@@ -157,8 +176,16 @@ and counts, never on a raw payload.
 - Upstream's documented error shapes go into `classify` in `_client.py`, once, and an error
   class of the package's own into `errors.py`; a wrapper never inspects a status code
   (conventions §5, §6).
+{% if tenant_param %}
+- Each tenant's client, `client_for({{ tenant_param }})`, paces that tenant's requests with a rate
+  limiter of its own, since core's `Tenants.client_for` keeps a client per tenant, and one
+  limiter paces each other host the package sends to (conventions §2, §6, §7). A second
+  base URL on the host of the API base URL goes through the tenant's
+  `client_for({{ tenant_param }})` of `_client.py` by its
+{% else %}
 - One limiter paces each host the package sends to (conventions §2, §6). A second base URL
   on the host of the API base URL goes through the one `client` of `_client.py` by its
+{% endif %}
   absolute URL, and `classify`'s path checks name both bases. An origin or mirror that the
   publisher runs itself, where its canonical host refuses automated requests, takes that
   host's pace through the same client, and `docs/upstream/` names both hosts; a mirror that
@@ -181,8 +208,8 @@ and counts, never on a raw payload.
 - Never hand-write a fixture, and never commit one without grepping it for key patterns
   (conventions §10).
 {% if credentials %}
-- Never read or print `.envrc`, `.env`, the credential {{ 'variable' if credentials | length == 1 else 'variables' }} of this package,
-  `{{ credentials | join('`, `') }}`, or any variable ending in `_API_KEY`, `_TOKEN` or
+- Never read or print `.envrc`, `.env`, the credential {{ 'variable' if secrets | length == 1 else 'variables' }} of this package,
+  `{{ secrets | join('`, `') }}`, or any variable ending in `_API_KEY`, `_TOKEN` or
   `_SECRET`.
 {% else %}
 - Never read or print `.envrc`, `.env`, or any variable ending in `_API_KEY`, `_TOKEN`
@@ -208,6 +235,7 @@ template release reaches it in a pull request of its own, with
 `uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=<tag>` (conventions §15): the
 update renders the template's files again and never overwrites the files this package
 fills, `__init__.py`, `_client.py`, `errors.py`, `models.py`, `api/`, `parse/`, `tasks.py`,
+`tasks_write.py`,
 {% if has_reference_data %}
 `params.py`, `enums.py`, `reference/`, `scripts/refresh_reference.py`,
 {% endif %}

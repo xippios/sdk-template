@@ -49,7 +49,11 @@ import httpx
 from xippios.core import AsyncClient, PackagedList, RetryPolicy, UpstreamModel, sync
 from xippios.core.reference import id_name_pairs, render_enums
 
+{% if tenant_param %}
+from xippios.{{ import_path }}._client import DEMO, client_for
+{% else %}
 from xippios.{{ import_path }}._client import client
+{% endif %}
 from xippios.{{ import_path }}.params import PACKAGED_LISTS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -200,7 +204,12 @@ def refresh(only: Sequence[str] = ()) -> None:
     kept = [name for name in names if name not in chosen]
     if missing := [name for name in kept if not (REFERENCE / f"{name}.json").is_file()]:
         raise SystemExit(f"{', '.join(missing)} is not packaged yet: run without --only")
+{% if tenant_param %}
+    # Reference data is the same for every tenant: fetched through the reserved one's client.
+    with metered(client_for(DEMO)):
+{% else %}
     with metered(client):
+{% endif %}
         lists = [
             *(
                 packaged(name, endpoint, [{name: value} for value in sync(fetch)()])
