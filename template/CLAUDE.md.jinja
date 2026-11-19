@@ -182,11 +182,11 @@ and counts, never on a raw payload.
   (conventions §10).
 {% if credentials %}
 - Never read or print `.envrc`, `.env`, the credential {{ 'variable' if credentials | length == 1 else 'variables' }} of this package,
-  `{{ credentials | join('`, `') }}`, or any variable ending in `_API_KEY`, `_REFRESH_TOKEN` or
+  `{{ credentials | join('`, `') }}`, or any variable ending in `_API_KEY`, `_TOKEN` or
   `_SECRET`.
 {% else %}
-- Never read or print `.envrc`, `.env`, or any variable ending in `_API_KEY`,
-  `_REFRESH_TOKEN` or `_SECRET`.
+- Never read or print `.envrc`, `.env`, or any variable ending in `_API_KEY`, `_TOKEN`
+  or `_SECRET`.
 {% endif %}
 - Never write a key, a token or another credential into a file or a commit.
 - Never put logic in `mcp.py` or `http.py`, and never add a route or a tool by hand: the

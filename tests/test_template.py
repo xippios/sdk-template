@@ -714,7 +714,7 @@ CHANGE_LANDING = re.compile(
     r"|\breviewers?\b|\bJohannes\b|\bjdidaskalu\b|docs/handover\.md|\bUnreleased\b",
     re.I,
 )
-SECRET_SUFFIXES = ["`_API_KEY`", "`_REFRESH_TOKEN`", "`_SECRET`"]
+SECRET_SUFFIXES = ["`_API_KEY`", "`_TOKEN`", "`_SECRET`"]
 LIVE_COMMAND = "uv run pytest -m live --tb=short --assert=plain"
 
 
@@ -816,9 +816,9 @@ def test_claude_md_links_the_documents_and_repeats_none(variant: tuple[str, Path
 
 
 def test_the_secrecy_rule_names_every_credential_variable(variant: tuple[str, Path]) -> None:
-    """#82: the Never list's secrecy rule names each credential variable of the source, its
-    keys and its dependencies' (none in a keyless render), and the endings of every other
-    credential's variable that sdk-core's review checklist names."""
+    """#82, #169: the Never list's secrecy rule names each credential variable of the source,
+    its keys and its dependencies' (none in a keyless render), and the endings of every other
+    credential's variable that sdk-core's conventions §7 and review checklist name."""
     name, dst = variant
     rule = secrecy_rule((dst / "CLAUDE.md").read_text())
     for variable in [*key_envs(VARIANTS[name]), *live_secrets(VARIANTS[name])]:
