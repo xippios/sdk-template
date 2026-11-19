@@ -1965,7 +1965,8 @@ def test_key_auth_matches_location(
     template_src: Path, tmp_path: Path, keyed_nested: Path, keyless_flat: Path
 ) -> None:
     """Each key location renders its auth, exported, in a ruff-clean ``_client.py``, the one
-    Python file the location changes; a keyless client has none; ``basic`` is refused (D35)."""
+    Python file the location changes; a keyless client has none. ``basic`` is tested with
+    the other client answers, in ``test_client_answers.py``."""
     clients = {
         "query": keyed_nested / "src/xippios/usda/nass/_client.py",
         "": keyless_flat / "src/xippios/eurostat/_client.py",
@@ -1990,8 +1991,6 @@ def test_key_auth_matches_location(
     assert '"auth"' not in keyless
     assert "API_KEY_ENV: str | None = None" in keyless
     assert "client = AsyncClient(config)" in keyless
-    with pytest.raises(ValueError, match="api_key_location"):
-        generate(template_src, tmp_path / "basic", source_slug="ex", **keyed("EX_API_KEY", "basic"))
 
 
 @pytest.mark.parametrize("ref", ["main", FAKE_CORE_SHA])
