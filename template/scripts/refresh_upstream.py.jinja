@@ -131,9 +131,10 @@ class Statement:
     Attributes:
         text: The statement as the page prints it: a footer's line, a line of a terms
             page, a link's text, the name of the licence an API document's ``info`` gives.
-        source: The URL of the page that prints it, which every run checks for it; ``""``
-            for a line that only a browser shows, such as a footer a script assembles,
-            which no fetch of this script sees and so none checks.
+        source: The URL of the page that prints it, which every run checks for it where it
+            reads the page's text; a statement on a PDF, a sample or a page an anonymous
+            client cannot read is quoted as one no run checks. ``""`` for a line that only a
+            browser shows, such as a footer a script assembles, which no fetch sees.
         where: Where it stands and what it is, for ``FETCHED.md``'s Attribution; for a line
             only a browser shows, the page and the date it was read on by hand.
         link: The URL it links to, where it is a link (a footer's Terms of Service): the
@@ -488,17 +489,24 @@ def _searched(page: Page, response: Response, text: str, recorded: list[Statemen
     return _flat(json.dumps({**document, "info": rest}, ensure_ascii=False))
 
 
+def _reading(page: Page, response: Response) -> Reading | None:
+    """What the check reads of a page: none of a sample or of a page no client may read."""
+    return None if page.sample or _unread(page) else read_text(response)
+
+
 def check_attribution(page: Page, response: Response) -> None:
     """Stop when the page states a copyright, licence or terms that ``ATTRIBUTION`` lacks.
 
-    The check reads what ``read_text`` gives, so a commented-out footer, a script's strings and a
-    PDF's bytes state nothing. It stops, too, when the page no longer prints a statement
-    recorded from it, or no longer links one that is a link. A terms page must print each
-    statement recorded from it and is searched no further; an API document's ``info`` names
-    a licence, terms or a contact only as ``ATTRIBUTION`` records them from it. A sample, an
-    answer and no documentation, and a page an anonymous client cannot read are not read.
+    The check reads what ``read_text`` gives, so a commented-out footer, a script's strings
+    and a PDF's bytes state nothing. It stops, too, when the page no longer prints a
+    statement recorded from it, or no longer links one that is a link. A terms page must
+    print each statement recorded from it and is searched no further; an API document's
+    ``info`` names a licence, terms or a contact only as ``ATTRIBUTION`` records them from
+    it. A sample, an answer and no documentation, and a page an anonymous client cannot
+    read are not read, and ``FETCHED.md`` quotes a statement recorded from a page the check
+    does not read as one no run checks.
     """
-    reading = None if page.sample or _unread(page) else read_text(response)
+    reading = _reading(page, response)
     if reading is None:
         return
     text = reading.text
@@ -704,8 +712,9 @@ def _note(row: Row) -> str:
     return "; ".join(parts) or "-"
 
 
-def _attribution() -> list[str]:
+def _attribution(rows: Sequence[Row]) -> list[str]:
     """``FETCHED.md``'s Attribution: every recorded statement, as printed, and where."""
+    read = {row.page.url for row in rows if _reading(row.page, row.response) is not None}
     if not ATTRIBUTION:
         return _paragraph(
             "None stated: no page this script reads states a copyright line, a licence or",
@@ -718,6 +727,8 @@ def _attribution() -> list[str]:
             text += f", a link to {statement.link}"
         if statement.source:
             text += f", printed at {statement.source}"
+            if statement.source not in read:
+                text += ", a page this script does not read, so no run checks it"
         else:
             text += ", which only a browser shows, so no run checks it"
         if statement.where:
@@ -756,7 +767,7 @@ def render_fetched(rows: Sequence[Row], fetched: str, observed: bool = False) ->
         ),
         "## Attribution",
         "",
-        *_attribution(),
+        *_attribution(rows),
         *vocabulary,
         *_paragraph(
             "The script stops when a page it reads states one it does not record, or no",

@@ -84,7 +84,9 @@ checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.m
      reads each page's visible text, its comments and scripts left out, and a binary file
      not at all. On every run it stops, before writing, when a page no longer prints a
      statement recorded from it, or states one not recorded; an API document's `info`
-     names a licence, terms or a contact only as a statement recorded from it. A line
+     names a licence, terms or a contact only as a statement recorded from it. A
+     statement on a page whose text the script does not read, a PDF or a sample, is quoted
+     as one no run checks, and read again by hand at each refresh. A line
      that only a browser shows, a footer a script assembles, is seen by no fetch: record
      it from a browser, by hand, with `source=""` and, in `where`, the page and the date
      it was read on, so that `FETCHED.md` quotes it, and read it again at each refresh.
