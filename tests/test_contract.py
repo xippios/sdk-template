@@ -7,11 +7,13 @@ which ``_client.py`` declares. ``write_server`` renders the write server and its
 under the two entry points; ``tenant_param`` renders core's registry, ``build(lock)``,
 ``serve_tenants`` and the strip of the other tenants' variables, for tenants that hold a
 key or, named by ``tenant_credential_env``, a credential that is none (#207).
-``scripts/prove.sh`` serves them: a host's server from the tool set against the entry
-point's, on core.
+A bound server's text names no tenant argument (#219), and ``/add-endpoint`` names the test
+of a write server (#220). ``scripts/prove.sh`` serves them: a host's server from the tool
+set against the entry point's, and a bound server's instructions, on core.
 """
 
 import ast
+import re
 import shutil
 import tomllib
 from collections.abc import Callable
@@ -162,6 +164,21 @@ def test_the_write_scaffold_serves_nothing_yet(tenants: Path) -> None:
     assert "tasks_write" not in http
 
 
+def test_add_endpoint_brings_the_write_servers_test(variant: tuple[str, Path]) -> None:
+    """Conventions §8, #220: where there is a write server, ``/add-endpoint`` names the test a
+    source's first write task brings, core's ``assert_write_tools``, awaited under
+    ``@pytest.mark.anyio``, in ``tests/test_tasks_write.py``; elsewhere it names none."""
+    name, dst = variant
+    text = (dst / ".claude/commands/add-endpoint.md").read_text()
+    for named in [
+        "xippios.core.testing import assert_write_tools",
+        "await assert_write_tools(",
+        "@pytest.mark.anyio",
+        "tests/test_tasks_write.py",
+    ]:
+        assert (named in text) is write_server(VARIANTS[name]), (name, named)
+
+
 def entries(dst: Path, answers: dict[str, object]) -> list[tuple[str, bool, bool]]:
     """``ENV_VARS`` of a render's ``_client.py``: each entry's name, secret and required."""
     tree = module(dst, answers, "_client.py")
@@ -275,8 +292,9 @@ def test_a_multi_tenant_sources_commands_name_its_clients(
 @pytest.mark.parametrize("name", TENANT_VARIANTS)
 def test_a_multi_tenant_source_binds_its_servers(render: Callable[[str], Path], name: str) -> None:
     """Conventions §8: each server's ``build`` takes ``lock: TenantLock | None = None``,
-    passes its instructions through ``tenant_instructions`` and its entry point runs
-    ``serve_tenants`` with the registry and the check, so ``--org`` binds it."""
+    passes its instructions through ``tenant_instructions``, its bound text as ``bound=``
+    (#219), and its entry point runs ``serve_tenants`` with the registry and the check, so
+    ``--org`` binds it."""
     answers, tenants = VARIANTS[name], render(name)
     param = tenant_param(answers)
     for server_module, _ in servers(answers):
@@ -284,10 +302,31 @@ def test_a_multi_tenant_source_binds_its_servers(render: Callable[[str], Path], 
         build = function(tree, "build")
         assert ast.unparse(build.args) == "lock: TenantLock | None=None"
         given = keywords(toolset_call(build))
-        assert given["instructions"] == "tenant_instructions(INSTRUCTIONS, lock)"
+        expected = "tenant_instructions(INSTRUCTIONS, lock, bound=BOUND_INSTRUCTIONS)"
+        assert given["instructions"] == expected, server_module
         (call,) = [n for n in function(tree, "run").body if isinstance(n, ast.Expr)][-1:]
         expected = f"serve_tenants(server, build, TENANTS, check=check_{param})"
         assert ast.unparse(call.value) == expected, server_module
+
+
+@pytest.mark.parametrize("name", TENANT_VARIANTS)
+def test_a_bound_servers_instructions_take_no_tenant(
+    render: Callable[[str], Path], name: str
+) -> None:
+    """#219: the text ``build(lock)`` passes as ``bound=`` names the tenant's parameter
+    nowhere, so the instructions of a bound server say nowhere that a tool takes it, core's
+    closing sentence, that every tool takes no ``<param>``, aside; the unbound text says that
+    a tool takes it."""
+    answers, tenants = VARIANTS[name], render(name)
+    param = tenant_param(answers)
+    takes = re.compile(rf"\btakes {param}\b")
+    for server_module, _ in servers(answers):
+        tree = module(tenants, answers, server_module)
+        unbound = ast.literal_eval(assigned(tree, "INSTRUCTIONS"))
+        bound = ast.literal_eval(assigned(tree, "BOUND_INSTRUCTIONS"))
+        assert takes.search(unbound), (server_module, unbound)
+        assert bound, server_module
+        assert not re.search(rf"\b{param}\b", bound), (server_module, bound)
 
 
 @pytest.mark.parametrize("name", TENANT_VARIANTS)

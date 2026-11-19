@@ -14,9 +14,10 @@
 # that a key answered basic goes as the basic user name, its password empty; and prove the
 # package contract offline: mcp.py exports build, SOURCE and ENV_VARS, and a server a host
 # builds from build()'s tool set with register_tasks serves the tools, caps and option
-# defaults of the entry point, the write server's too where there is one, and in the
-# multi-tenant shapes the bound server of --<param> as well; where the tenants hold no key,
-# the registry takes the prefix and the field of tenant_credential_env.
+# defaults of the entry point, the write server's too where there is one, which passes
+# core's assert_write_tools, and in the multi-tenant shapes the bound server of --<param>
+# as well, whose instructions say that no tool takes the tenant; where the tenants hold no
+# key, the registry takes the prefix and the field of tenant_credential_env.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
 # suite tests it. The template's CI runs every shape below, and the keyless nested one
 # again with -d has_files=true, a source that parses the files it downloads
@@ -433,8 +434,10 @@ PY
 # option defaults that the entry point serves, the copy's alike under its own names, with
 # a task, a cap of its own and an option of the source's put into tasks.py first; the same
 # for the write server where it renders, and, for a multi-tenant source, for the server
-# --<param> binds, which stops at startup when its tenant has no key. The entry point runs
-# with its server's run() caught, so nothing is served.
+# --<param> binds, which stops at startup when its tenant has no key. A bound server's
+# instructions say nowhere that a tool takes the tenant's argument but in core's closing
+# sentence (#219), and the write server passes core's assert_write_tools as /add-endpoint
+# calls it (#220). The entry point runs with its server's run() caught, so nothing is served.
 echo
 echo "==> the package contract: a host's server from build() serves what the entry point serves"
 (cd "$dest" && uv run python - "xippios.$import_path" "$slug" <<'PY'
@@ -453,7 +456,7 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 from xippios.core import EnvVar, Result, ResultCap, ResultMeta, TenantLock
 from xippios.core.mcp import ToolSet, is_write_server, register_tasks
-from xippios.core.testing import mcp_call_text
+from xippios.core.testing import assert_write_tools, mcp_call_text
 
 package, slug = sys.argv[1], sys.argv[2]
 prefix = slug.replace("-", "_")
@@ -573,6 +576,20 @@ def same(module: Any, tool_set: ToolSet, arguments: dict[str, Any], *argv: str) 
     return served
 
 
+def bound_text(module: Any) -> str:
+    """The instructions of the server ``--<param> demo`` binds, ``build(lock)``'s (#219): the
+    unbound text says that a tool takes the tenant's argument, the bound one nowhere but in
+    core's closing sentence, which names the tenant and says that no tool takes it."""
+    takes = re.compile(rf"\btakes {param}\b")
+    unbound = module.build().instructions
+    assert takes.search(unbound), unbound
+    text = module.build(TenantLock(tenants, client.DEMO)).instructions
+    assert not takes.search(text), text
+    assert text.endswith(f"bound to {param} {client.DEMO}; every tool acts on that {param} "
+                         f"and takes no {param}."), text
+    return text
+
+
 mcp = importlib.import_module(f"{package}.mcp")
 assert {"ENV_VARS", "SOURCE", "build", "server"} <= set(mcp.__all__), mcp.__all__
 assert mcp.SOURCE == slug and mcp.ENV_VARS is client.ENV_VARS
@@ -594,6 +611,7 @@ if param is not None:
     flag = f"--{param.replace('_', '-')}"
     bound = same(mcp, mcp.build(TenantLock(tenants, client.DEMO)), {}, flag, client.DEMO)
     assert param not in tools(bound)[f"{prefix}_get_rows"][0].get("properties", {}), "bound"
+    print(f"{package}.mcp {flag} demo: {bound_text(mcp)!r}")
     del os.environ[key]
     os.environ[tenants.list_var] = "acme"
     refused = io.StringIO()
@@ -625,6 +643,21 @@ def create_row({takes}confirm: bool = False) -> Result[dict[str, bool]]:
     assert is_write_server(served) and is_write_server(host_of(write_set)), "both held"
     assert list(tools(served)) == [f"{prefix}_create_row"], "write tools only"
     print(f"{package}.mcp_write: {sorted(tools(served))}, a write server as a host builds it")
+    # The test /add-endpoint gives a source's first write task, as it calls it (#220).
+    tasks_write = importlib.import_module(f"{package}.tasks_write")
+    http = importlib.import_module(f"{package}.http")
+    asyncio.run(
+        assert_write_tools(
+            mcp_write.server,
+            [getattr(tasks_write, name) for name in tasks_write.__all__],
+            source=client.SOURCE,
+            read_server=mcp.server,
+            router=http.router,
+        )
+    )
+    print(f"{package}.mcp_write: assert_write_tools passed, as /add-endpoint calls it")
+    if param is not None:
+        print(f"{package}.mcp_write {flag} demo: {bound_text(mcp_write)!r}")
 PY
 )
 
