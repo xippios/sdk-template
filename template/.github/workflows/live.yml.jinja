@@ -1,6 +1,11 @@
 # Nightly live smoke tests (conventions §10): every test marked `live` against the real
 # upstream, on a schedule and on demand, never on a pull request.
-{% if key_envs == [api_key_env] and not live_secret_names %}
+{% if tenant_param and not api_key_env %}
+# Rendered by the template (the one workflow that is): the secrets it names are the reserved
+# tenant's credential, from the answer tenant_credential_env, then the keys of the answer
+# source_dependencies (ADR-0021) and the variables of the answer live_secrets, and its start
+# time derives from the slug.
+{% elif key_envs == [api_key_env] and not live_secret_names %}
 # Rendered by the template (the one workflow that is): the secret it names is the source's
 # key variable, and its start time derives from the slug.
 {% elif key_envs and not live_secret_names %}
@@ -57,7 +62,14 @@ jobs:
       # assertion prints the line and AssertionError alone, never the values it compared,
       # a record of the upstream among them, here or in the summary of -ra.
       - run: uv run pytest -m live --tb=short --assert=plain
-{% if key_envs | length == 1 and not live_secret_names %}
+{% if tenant_param and not api_key_env and key_envs | length == 1 and not live_secret_names %}
+        # The reserved tenant's credential, from the secret of the same name, for this step
+        # only: checkout, setup-uv and uv sync never see it.
+{% elif tenant_param and not api_key_env %}
+        # The reserved tenant's credential, then the other variables the answers name, each
+        # from the secret of the same name, for this step only: checkout, setup-uv and uv
+        # sync never see them.
+{% elif key_envs | length == 1 and not live_secret_names %}
         # The key, from the org secret, for this step only: checkout, setup-uv and uv sync
         # never see it.
 {% elif key_envs and not live_secret_names %}

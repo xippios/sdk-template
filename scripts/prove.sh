@@ -15,14 +15,16 @@
 # package contract offline: mcp.py exports build, SOURCE and ENV_VARS, and a server a host
 # builds from build()'s tool set with register_tasks serves the tools, caps and option
 # defaults of the entry point, the write server's too where there is one, and in the
-# multi-tenant shape the bound server of --<param> as well.
+# multi-tenant shapes the bound server of --<param> as well; where the tenants hold no key,
+# the registry takes the prefix and the field of tenant_credential_env.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
 # suite tests it. The template's CI runs every shape below, and the keyless nested one
 # again with -d has_files=true, a source that parses the files it downloads (ADR-0020).
 # It generates with `copier copy` alone, as README.md says a source is generated.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF]
-#                         [--keyless | --keyless-nested | --gateway | --tenants] [--keep]
+#                         [--keyless | --keyless-nested | --gateway | --tenants
+#                          | --tenants-keyless] [--keep]
 #                         [-d key=value ...]
 #   --dest DIR         where to generate, a path that does not exist yet; default a new
 #                      temporary directory
@@ -40,6 +42,11 @@
 #                      sdk-example-tenants (xippios.example.tenants), its tenants' keys
 #                      EXAMPLE_<NAME>_API_KEY under a prefix other than the slug's, as
 #                      cashctrl: write_server, tenant_param=org, api_key_location=basic
+#   --tenants-keyless  a nested multi-tenant source whose tenants hold a refresh token, no
+#                      key, with a write server, sdk-example-mail (xippios.example.mail),
+#                      its tenants' variables EXAMPLE_<NAME>_REFRESH_TOKEN under a prefix
+#                      other than the slug's, as google-mail: write_server,
+#                      tenant_param=account, tenant_credential_env, two live secrets
 #   --keep             leave the generated repository in place
 #   -d key=value       one more copier answer, e.g. -d has_files=true, or
 #                      -d has_reference_data=false for a source that packages none, or
@@ -60,6 +67,7 @@ while [ $# -gt 0 ]; do
     --keyless-nested) shape=keyless-nested ;;
     --gateway) shape=gateway ;;
     --tenants) shape=tenants ;;
+    --tenants-keyless) shape=tenants-keyless ;;
     --keep) keep=1 ;;
     -d) extra+=(-d "$2"); shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -75,6 +83,9 @@ case "$shape" in
   gateway) slug="example-gov"; key=(-d "gateway=api.data.gov") ;;
   tenants) slug="example-tenants"; key=(-d "api_key_env=EXAMPLE_API_KEY"
     -d "api_key_location=basic" -d "write_server=true" -d "tenant_param=org") ;;
+  tenants-keyless) slug="example-mail"; key=(-d "write_server=true" -d "tenant_param=account"
+    -d "tenant_credential_env=EXAMPLE_<NAME>_REFRESH_TOKEN"
+    -d "live_secrets=[EXAMPLE_CLIENT_ID, EXAMPLE_CLIENT_SECRET]") ;;
   *) slug="example-api"; key=(-d "api_key_env=EXAMPLE_API_KEY" -d "api_key_location=query") ;;
 esac
 if [ -n "$dest" ] && [ -e "$dest" ]; then
@@ -229,6 +240,39 @@ with respx.mock(base_url=client.BASE_URL) as upstream:
 expected = "Basic " + base64.b64encode(b"placeholder:").decode("ascii")
 assert route.calls.last.request.headers["Authorization"] == expected, "the key, no password"
 print(f"{sys.argv[1]}: BasicKeyAuth sends {variable} as the basic user name")
+PY
+  )
+fi
+# Offline: where the tenants hold no key, core's registry takes the prefix and the field of
+# tenant_credential_env, the reserved tenant is declared by its credential alone, and the
+# tenant's client carries no auth of the template's, which the source passes (#207).
+tenant_credential_env="$(sed -n "s/^tenant_credential_env: //p" "$dest/.copier-answers.yml" \
+  | tr -d "'\"")"
+if [ -n "$tenant_credential_env" ]; then
+  echo
+  echo "==> the credential answer: the registry takes $tenant_credential_env"
+  (cd "$dest" && uv run python - "xippios.$import_path._client" "$tenant_credential_env" <<'PY'
+import asyncio
+import importlib
+import os
+import sys
+
+import respx
+
+client = importlib.import_module(sys.argv[1])
+prefix, field = sys.argv[2].split("_<NAME>_")
+tenants = client.TENANTS
+assert (tenants.var_prefix, tenants.fields) == (prefix, (field,)), tenants
+assert sys.argv[2] in [var.name_or_pattern for var in client.ENV_VARS], client.ENV_VARS
+assert client.DEMO not in tenants.names()
+os.environ[tenants.var(client.DEMO, field)] = "placeholder"  # pragma: allowlist secret
+assert tenants.names() == (client.DEMO,), "declared by its credential alone"
+with respx.mock(base_url=client.BASE_URL) as upstream:
+    route = upstream.get("/x").respond(200, json={})
+    asyncio.run(client.client_for(client.DEMO).get_json("/x"))
+sent = route.calls.last.request
+assert "authorization" not in sent.headers and not sent.url.query, "the source's auth, not ours"
+print(f"{sys.argv[1]}: {tenants!r}; demo declared by {tenants.var(client.DEMO, field)} alone")
 PY
   )
 fi
@@ -541,7 +585,8 @@ if param is None:
 print(f"{package}.mcp: {sorted(tools(served))} as a host serves them, the cap and options alike")
 
 if param is not None:
-    key = tenants.var(client.DEMO, "API_KEY")
+    (field,) = tenants.fields  # API_KEY, or the field tenant_credential_env names
+    key = tenants.var(client.DEMO, field)
     os.environ[key] = "placeholder"  # pragma: allowlist secret (a stand-in)
     flag = f"--{param.replace('_', '-')}"
     bound = same(mcp, mcp.build(TenantLock(tenants, client.DEMO)), {}, flag, client.DEMO)
@@ -551,10 +596,11 @@ if param is not None:
     refused = io.StringIO()
     with contextlib.redirect_stderr(refused), contextlib.suppress(SystemExit):
         entry(mcp, flag, "acme")
-    assert tenants.var("acme", "API_KEY") in refused.getvalue(), refused.getvalue()
+    assert tenants.var("acme", field) in refused.getvalue(), refused.getvalue()
     assert "server" not in seen, "stopped before a server ran"
     del os.environ[tenants.list_var]
-    print(f"{flag} demo: bound as a host binds it; {flag} acme without its key: stopped")
+    held = "key" if field == "API_KEY" else "credential"
+    print(f"{flag} demo: bound as a host binds it; {flag} acme without its {held}: stopped")
 
 if importlib.util.find_spec(f"{package}.mcp_write") is not None:
     put(
@@ -644,7 +690,8 @@ from xippios.core import XippiosError
 package = importlib.import_module(f"{sys.argv[1]}._client")
 tenants = getattr(package, "TENANTS", None)
 if tenants is not None:  # a multi-tenant source fetches through the reserved tenant's client
-    os.environ[tenants.var(package.DEMO, "API_KEY")] = "placeholder"  # pragma: allowlist secret
+    (field,) = tenants.fields
+    os.environ[tenants.var(package.DEMO, field)] = "placeholder"  # pragma: allowlist secret
     client = package.client_for(package.DEMO)
 else:
     if package.API_KEY_ENV:

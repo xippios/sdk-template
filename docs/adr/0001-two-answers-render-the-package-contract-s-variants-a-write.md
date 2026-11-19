@@ -1,6 +1,6 @@
 # ADR-0001: Two answers render the package contract's variants: a write server and a multi-tenant source
 
-Status: Accepted · Date: 2026-11-19 · Decided by https://github.com/xippios/sdk-template/issues/174
+Status: Accepted · Date: 2026-11-19 · Decided by https://github.com/xippios/sdk-template/issues/174 · Amended 2026-11-19 by https://github.com/xippios/sdk-template/issues/209
 
 ## Context
 
@@ -30,21 +30,30 @@ sdk-google-mail has both, its tenants' credential a refresh token of its own flo
    of `-mcp`, with no alias for the old name. `tenant_param`, empty by default, names the
    tenant's parameter, `org` say, and renders core's registry, `build(lock)`,
    `serve_tenants` and the strip.
-2. **The variables derive from the key answers.** A multi-tenant source's tenants each have
-   a key of their own, `<PREFIX>_<NAME>_API_KEY`, the prefix `api_key_env`'s without
-   `_API_KEY`, passed as the registry's `var_prefix` where it is not the slug's; their names
-   are listed in `<PREFIX>_<PARAM>S`; and the reserved tenant `demo`, declared by
-   `<PREFIX>_DEMO_API_KEY` alone, is the one the offline tests pin and `live.yml` passes.
-   `ENV_VARS` lists the tenant list, not required, and the key pattern, required, both from
-   these answers, then the dependencies' keys and the live secrets, secret and required.
-3. **A key of the source's own.** `tenant_param` needs `api_key_env`, which names the
-   tenants' keys, and refuses a gateway, whose key every package behind it shares. It takes
-   at most 20 characters, so every generated Python line stays within 100 columns. As of
-   this record, a source whose tenant credential is no key answers no `tenant_param` and
-   keeps its tenant lines by hand, until
-   https://github.com/xippios/sdk-template/issues/207 renders its shape.
+2. **The variables derive from the key answers, or from one answer without a key.** A
+   multi-tenant source's tenants each have a credential of their own,
+   `<PREFIX>_<NAME>_<FIELD>`. Where they hold a key, it is `<PREFIX>_<NAME>_API_KEY`, the
+   prefix `api_key_env`'s without `_API_KEY`. Where they hold another credential, a refresh
+   token say, one more answer names its variable, `tenant_credential_env`, which a key
+   derives instead, so a source with a key answers nothing more (amended 2026-11-19). The
+   prefix is passed as the registry's `var_prefix` where it is not the slug's, and the
+   field is the registry's one field; the tenants' names are listed in
+   `<PREFIX>_<PARAM>S`; and the reserved tenant `demo`, declared by
+   `<PREFIX>_DEMO_<FIELD>` alone, is the one the offline tests pin, since that variable
+   alone declares it, and the one `live.yml` passes. `ENV_VARS` lists the tenant list, not
+   required, and the credential's pattern, required, both from these answers, then the
+   dependencies' keys and the live secrets, secret and required.
+3. **A credential of the source's own.** `tenant_param` refuses a gateway, whose key every
+   package behind it shares, and takes at most 20 characters, so every generated Python
+   line stays within 100 columns. Without `api_key_env` it needs `tenant_credential_env`,
+   one upper-case `<PREFIX>_<NAME>_<FIELD>` of at most 40 characters, for the same reason,
+   whose field is no `API_KEY`: a key is `api_key_env`'s, which renders the key's auth.
+   The scaffold of such a source's `_client.py` passes no auth to a tenant's client: the
+   source's own reads the credential, as no render of a source without a client of its own
+   is made (https://github.com/xippios/sdk-template/issues/175). The template's servers and
+   `tests/conftest.py` render as for tenants with a key (amended 2026-11-19).
 4. **What a source sets beside the render stays its own.** The render passes
-   `check=check_<param>` from `_client.py`, which checks that a bound tenant has its key,
+   `check=check_<param>` from `_client.py`, which checks that a bound tenant has its credential,
    and names no noun for a tenant, no read server held to loopback and no write server's
    name of its own: a source that wants one keeps its line, merged three ways. So does a
    source whose tenant list is not named `list_<param>s` keep its own instructions, which
@@ -62,16 +71,21 @@ sdk-google-mail has both, its tenants' credential a refresh token of its own flo
   entry points take the two names. sdk-cashctrl answers `tenant_param: org` too, keeps its
   instructions, which name `cashctrl_list_organisations`, and takes `live_secrets` without
   its demo key, which `key_envs` now names.
-- As of this record, sdk-google-mail answers `write_server: true` alone: its accounts'
-  refresh tokens are no key of the template's, so its `mcp.py`, `mcp_write.py` and
-  `tests/conftest.py` keep their tenant lines by hand until
-  https://github.com/xippios/sdk-template/issues/207 renders the tenant shape of a source
-  without a key.
-- The template's tests render a sixth variant, sdk-cashctrl's shape, and `scripts/prove.sh
-  --tenants` proves a nested multi-tenant source with a write server and basic auth: a
-  server a host builds with `register_tasks` from `build()`'s tool set and a second
-  package's serves the tools, caps and option defaults of the entry point, in every shape,
-  and of the server `--org` binds.
+- sdk-google-mail answers `write_server: true`, `tenant_param: account` and
+  `tenant_credential_env: GOOGLE_<NAME>_REFRESH_TOKEN`, and takes `live_secrets` without
+  `GOOGLE_DEMO_REFRESH_TOKEN`, which `key_envs` now names (amended 2026-11-19). Its own
+  `mcp.py` and `mcp_write.py` come as two conflicts each against the render, its
+  `tests/conftest.py` as one, the whole file, and its `pyproject.toml` as two, its consent
+  entry point and its placeholder list, on its `main`; it keeps its `BOUND_INSTRUCTIONS`
+  and the read server's loopback rule as its lines, and `_client.py` takes
+  `check_account` and `ENV_VARS` by hand.
+- The template's tests render a sixth variant, sdk-cashctrl's shape, and a seventh,
+  sdk-google-mail's, and `scripts/prove.sh --tenants` proves a nested multi-tenant source
+  with a write server and basic auth, and `--tenants-keyless` one whose tenants hold a
+  refresh token under a prefix the slug does not give: a server a host builds with
+  `register_tasks` from `build()`'s tool set and a second package's serves the tools, caps
+  and option defaults of the entry point, in every shape, and of the server `--org` or
+  `--account` binds.
 - Core's `serve_tenants` takes no option hook of the source's, so a multi-tenant source's
   options reach a host through its tool set but not its own entry point, until sdk-core
   decides https://github.com/xippios/sdk-core/issues/311.

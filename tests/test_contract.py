@@ -5,13 +5,16 @@ server and a multi-tenant source (#174).
 by default, serves ``build_server(build())`` and exports ``ENV_VARS`` beside ``SOURCE``,
 which ``_client.py`` declares. ``write_server`` renders the write server and its scaffold
 under the two entry points; ``tenant_param`` renders core's registry, ``build(lock)``,
-``serve_tenants`` and the strip of the other tenants' variables. ``scripts/prove.sh``
-serves them: a host's server from the tool set against the entry point's, on core.
+``serve_tenants`` and the strip of the other tenants' variables, for tenants that hold a
+key or, named by ``tenant_credential_env``, a credential that is none (#207).
+``scripts/prove.sh`` serves them: a host's server from the tool set against the entry
+point's, on core.
 """
 
 import ast
 import shutil
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -30,6 +33,8 @@ from helpers import (
     package_dir,
     ruff,
     skip_matcher,
+    tenant_credential,
+    tenant_field,
     tenant_param,
     tenant_prefix,
     write_server,
@@ -82,6 +87,11 @@ def imported(tree: ast.Module, origin: str) -> set[str]:
         if isinstance(node, ast.ImportFrom) and node.module == origin
         for alias in node.names
     }
+
+
+# The multi-tenant variants: tenants that hold a key, and tenants that hold a credential
+# that is none (#207).
+TENANT_VARIANTS = ["tenants", "tenants-keyless"]
 
 
 def servers(answers: dict[str, object]) -> list[tuple[str, str]]:
@@ -240,11 +250,14 @@ def test_a_multi_tenant_source_renders_cores_registry(tenants: Path) -> None:
     assert listed == f"list_task(TENANTS, name='list_{param}s')"
 
 
-def test_a_multi_tenant_sources_commands_name_its_clients(tenants: Path) -> None:
+@pytest.mark.parametrize("name", TENANT_VARIANTS)
+def test_a_multi_tenant_sources_commands_name_its_clients(
+    render: Callable[[str], Path], name: str
+) -> None:
     """``/add-endpoint``, ``/record-fixture`` and the generated ``CLAUDE.md`` name the client a
     multi-tenant render has, ``client_for``, and never the module-level ``client`` it does
     not define."""
-    answers = VARIANTS["tenants"]
+    answers, tenants = VARIANTS[name], render(name)
     param = tenant_param(answers)
     for command in ["add-endpoint", "record-fixture"]:
         text = (tenants / f".claude/commands/{command}.md").read_text()
@@ -259,11 +272,12 @@ def test_a_multi_tenant_sources_commands_name_its_clients(tenants: Path) -> None
     assert "`client`" not in claude
 
 
-def test_a_multi_tenant_source_binds_its_servers(tenants: Path) -> None:
+@pytest.mark.parametrize("name", TENANT_VARIANTS)
+def test_a_multi_tenant_source_binds_its_servers(render: Callable[[str], Path], name: str) -> None:
     """Conventions §8: each server's ``build`` takes ``lock: TenantLock | None = None``,
     passes its instructions through ``tenant_instructions`` and its entry point runs
     ``serve_tenants`` with the registry and the check, so ``--org`` binds it."""
-    answers = VARIANTS["tenants"]
+    answers, tenants = VARIANTS[name], render(name)
     param = tenant_param(answers)
     for server_module, _ in servers(answers):
         tree = module(tenants, answers, server_module)
@@ -276,18 +290,23 @@ def test_a_multi_tenant_source_binds_its_servers(tenants: Path) -> None:
         assert ast.unparse(call.value) == expected, server_module
 
 
-def test_a_multi_tenant_source_strips_the_other_tenants(tenants: Path) -> None:
+@pytest.mark.parametrize("name", TENANT_VARIANTS)
+def test_a_multi_tenant_source_strips_the_other_tenants(
+    render: Callable[[str], Path], name: str
+) -> None:
     """ADR-0042, decision 1: the template's ``tests/conftest.py`` calls core's
     ``keep_reserved_tenants(TENANTS)`` at import, before any fixture; the plugin pins the
-    reserved tenant's key, which ``live.yml`` passes, and no other."""
-    answers = VARIANTS["tenants"]
+    reserved tenant's credential, its key or the field ``tenant_credential_env`` names,
+    which alone declares that tenant offline and which ``live.yml`` passes, and no other."""
+    answers, tenants = VARIANTS[name], render(name)
     tree = ast.parse((tenants / "tests/conftest.py").read_text())
     calls = [ast.unparse(n.value) for n in tree.body if isinstance(n, ast.Expr)]
     assert calls == ["keep_reserved_tenants(TENANTS)"]
     assert "keep_reserved_tenants" in imported(tree, "xippios.core.testing")
     ini = tomllib.loads((tenants / "pyproject.toml").read_text())["tool"]["pytest"]
     keys = ini["ini_options"]["xippios_placeholder_key_envs"]
-    assert keys == key_envs(answers) == [f"{tenant_prefix(answers)}_DEMO_API_KEY"]
+    reserved = f"{tenant_prefix(answers)}_DEMO_{tenant_field(answers)}"
+    assert keys == key_envs(answers) == [reserved]
 
 
 def test_the_tenants_prefix_is_the_keys(template_src: Path, tmp_path: Path) -> None:
@@ -346,15 +365,14 @@ def test_tenant_param_is_bounded_by_the_longest_python_line(
         ("Org", keyed("EX_API_KEY")),
         ("org-id", keyed("EX_API_KEY")),
         ("1org", keyed("EX_API_KEY")),
-        ("org", keyed("")),
         ("org", {"gateway": "api.data.gov"}),
     ],
 )
-def test_tenant_param_needs_a_name_and_a_key_of_the_sources(
+def test_tenant_param_needs_a_name_and_no_gateway(
     template_src: Path, tmp_path: Path, value: str, answers: dict[str, object]
 ) -> None:
-    """A parameter name; a key of the source's own, which names each tenant's key, never a
-    gateway's, which every package behind it shares."""
+    """A parameter name, and no gateway's key, which every package behind it shares; a
+    source without a key of its own answers ``tenant_credential_env`` instead (#209)."""
     with pytest.raises(ValueError, match="tenant_param"):
         generate(template_src, tmp_path / "repo", source_slug="ex", tenant_param=value, **answers)
 
@@ -367,6 +385,205 @@ def test_the_contracts_answers_are_recorded_and_its_derivations_not(tenants: Pat
     assert recorded["tenant_param"] == "org"
     for derived in ["tenant_prefix", "tenant_list_var", "env_vars"]:
         assert derived not in recorded, derived
+
+
+# The auths of core's that a key answer renders: a source whose tenants hold no key passes
+# its own in _build (#175, #209).
+KEY_AUTHS = {"QueryKeyAuth", "HeaderKeyAuth", "BearerAuth", "BasicKeyAuth"}
+
+
+def test_a_keyless_multi_tenant_source_renders_the_tenant_shape(
+    template_src: Path, tmp_path: Path, tenants_keyless: Path
+) -> None:
+    """#207, #209: a source whose tenants hold a credential that is no key answers
+    ``tenant_param``, and the template's two servers and ``tests/conftest.py`` render byte
+    for byte as for a source whose tenants hold a key, with the same slug, parameter and
+    write server."""
+    answers = VARIANTS["tenants-keyless"]
+    with_key = {k: v for k, v in answers.items() if k != "tenant_credential_env"}
+    with_key.update(keyed(f"{tenant_prefix(answers)}_API_KEY", "bearer"))
+    dst = generate(template_src, tmp_path / "keyed", **with_key)
+    pkg = package_dir(answers)
+    for rel in [
+        f"src/xippios/{pkg}/mcp.py",
+        f"src/xippios/{pkg}/mcp_write.py",
+        "tests/conftest.py",
+    ]:
+        assert (tenants_keyless / rel).read_text() == (dst / rel).read_text(), rel
+
+
+def test_a_keyless_multi_tenant_registry_takes_the_credential(tenants_keyless: Path) -> None:
+    """Conventions §7: the registry's prefix and field are those of ``tenant_credential_env``,
+    ``var_prefix`` given where the slug's is another, and ``check_<param>`` checks that
+    field; each tenant's client takes no auth of the template's, the source's own being
+    passed in ``_build``, and the module defines what the keyed shape's does."""
+    answers = VARIANTS["tenants-keyless"]
+    param, prefix, field = tenant_param(answers), tenant_prefix(answers), tenant_field(answers)
+    assert (prefix, field) == ("GOOGLE", "REFRESH_TOKEN"), "the slug would give GOOGLE_MAIL"
+    tree = module(tenants_keyless, answers, "_client.py")
+    registry = assigned(tree, "TENANTS")
+    assert isinstance(registry, ast.Call)
+    assert keywords(registry) == {
+        "var_prefix": repr(prefix),
+        "list_var": repr(f"{prefix}_{param.upper()}S"),
+        "param": repr(param),
+        "fields": repr((field,)),
+        "reserved": "(DEMO,)",
+    }
+    check = function(tree, f"check_{param}")
+    assert ast.unparse(check.body[-1]) == f"TENANTS.field({param}, {field!r})"
+    assert not KEY_AUTHS & imported(tree, "xippios.core"), "the source's auth, none of core's"
+    (returned,) = [n for n in ast.walk(function(tree, "_build")) if isinstance(n, ast.Return)]
+    assert returned.value is not None
+    assert ast.unparse(returned.value) == "AsyncClient(config)"
+    assert ast.literal_eval(assigned(tree, "__all__")) == [
+        "BASE_URL",
+        "DEMO",
+        "ENV_VARS",
+        "RATE_LIMIT",
+        "SOURCE",
+        "TENANTS",
+        f"check_{param}",
+        "classify",
+        "client_for",
+        "config",
+    ]
+
+
+def test_a_keyless_multi_tenant_sources_variables_follow_the_credential(
+    tenants_keyless: Path,
+) -> None:
+    """``ENV_VARS`` lists the tenant list and the credential's pattern, then the live secrets;
+    the plugin pins the reserved tenant's credential offline, the variable that alone
+    declares that tenant, and ``live.yml`` passes it first."""
+    answers = VARIANTS["tenants-keyless"]
+    assert tenant_credential(answers) == "GOOGLE_<NAME>_REFRESH_TOKEN"
+    assert (
+        entries(tenants_keyless, answers)
+        == env_vars(answers)
+        == [
+            ("GOOGLE_ACCOUNTS", False, False),
+            ("GOOGLE_<NAME>_REFRESH_TOKEN", True, True),
+            ("GOOGLE_CLIENT_ID", True, True),
+            ("GOOGLE_CLIENT_SECRET", True, True),
+        ]
+    )
+    ini = tomllib.loads((tenants_keyless / "pyproject.toml").read_text())["tool"]["pytest"]
+    keys = ini["ini_options"]["xippios_placeholder_key_envs"]
+    assert keys == key_envs(answers) == ["GOOGLE_DEMO_REFRESH_TOKEN"]
+    workflow = yaml.safe_load((tenants_keyless / ".github/workflows/live.yml").read_text())
+    (step,) = [step for step in workflow["jobs"]["live"]["steps"] if "env" in step]
+    assert list(step["env"]) == [
+        "XIPPIOS_LIVE_TESTS",
+        *keys,
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+    ]
+
+
+def test_a_keyless_multi_tenant_render_names_no_key_of_its_tenants(tenants_keyless: Path) -> None:
+    """No file of the render names a key the tenants do not hold: the client, the README,
+    the CLAUDE.md and ``/record-fixture`` name the credential's variables, the reserved
+    tenant's among them."""
+    answers = VARIANTS["tenants-keyless"]
+    prefix, field = tenant_prefix(answers), tenant_field(answers)
+    keys = [f"{prefix}_{name}_API_KEY" for name in ["<NAME>", "DEMO", "ACME"]]
+    for path in sorted(tenants_keyless.rglob("*")):
+        if path.is_file() and path.suffix in {".py", ".md", ".toml", ".yml"}:
+            text = path.read_text()
+            named = [key for key in [*keys, '"API_KEY"', "'API_KEY'"] if key in text]
+            assert not named, (path, named)
+    record = (tenants_keyless / ".claude/commands/record-fixture.md").read_text()
+    assert f'TENANTS.var(DEMO, "{field}")' in record
+    claude = (tenants_keyless / "CLAUDE.md").read_text().splitlines()
+    (credentials,) = [line for line in claude if line.startswith("| Credentials | ")]
+    assert f"`{tenant_credential(answers)}`" in credentials
+    (row,) = [line for line in claude if line.startswith("| Tenants | ")]
+    assert f"`{prefix}_DEMO_{field}`" in row
+    readme = (tenants_keyless / "README.md").read_text()
+    for name in [tenant_credential(answers), f"{prefix}_DEMO_{field}"]:
+        assert f"`{name}`" in readme, name
+
+
+def test_the_credential_is_recorded_where_it_is_asked(render: Callable[[str], Path]) -> None:
+    """``tenant_credential_env`` is asked of a multi-tenant source without a key alone, and
+    recorded there; a key derives it, and the prefix and the field it gives are computed on
+    each render."""
+    for name, answers in VARIANTS.items():
+        recorded = yaml.safe_load((render(name) / ".copier-answers.yml").read_text())
+        assert recorded.get("tenant_credential_env") == answers.get("tenant_credential_env"), name
+        for derived in ["tenant_prefix", "tenant_field", "tenant_list_var"]:
+            assert derived not in recorded, (name, derived)
+
+
+@pytest.mark.parametrize(
+    ("param", "value", "answers"),
+    [
+        ("account", None, keyed("")),
+        ("account", "", keyed("")),
+        ("account", "EX_REFRESH_TOKEN", keyed("")),
+        ("account", "ex_<NAME>_REFRESH_TOKEN", keyed("")),
+        ("account", "<NAME>_REFRESH_TOKEN", keyed("")),
+        ("account", "EX_<NAME>_", keyed("")),
+        ("account", "EX_<NAME>_<NAME>_TOKEN", keyed("")),
+        ("account", "EX_<NAME>_API_KEY", keyed("")),
+        ("account", "EX_<NAME>_REFRESH_TOKEN", keyed("EX_API_KEY")),
+        ("", "EX_<NAME>_REFRESH_TOKEN", keyed("")),
+    ],
+)
+def test_tenant_credential_env_is_one_variable_pattern_of_tenants_without_a_key(
+    template_src: Path, tmp_path: Path, param: str, value: str | None, answers: dict[str, object]
+) -> None:
+    """A multi-tenant source without a key names its tenants' credential, once, as
+    ``<PREFIX>_<NAME>_<FIELD>`` in upper case; a key is ``api_key_env``'s, which renders its
+    auth and derives the pattern, and a source with one tenant names none."""
+    data: dict[str, object] = {"tenant_param": param, **answers}
+    if value is not None:
+        data["tenant_credential_env"] = value
+    with pytest.raises(ValueError, match="tenant_credential_env"):
+        generate(template_src, tmp_path / "repo", source_slug="ex", **data)
+
+
+# The bound copier.yml states for tenant_credential_env.
+TENANT_CREDENTIAL_BOUND = 40
+
+
+@pytest.mark.parametrize(
+    "credential",
+    [
+        "EX_<NAME>_" + "A" * (TENANT_CREDENTIAL_BOUND - 16) + "_TOKEN",
+        "E" * (TENANT_CREDENTIAL_BOUND - 13) + "_<NAME>_TOKEN",
+    ],
+)
+def test_tenant_credential_env_is_bounded_by_the_longest_python_line(
+    template_src: Path, tmp_path: Path, credential: str
+) -> None:
+    """A pattern up to the bound the help states, its field or its prefix at the longest,
+    renders ruff-clean (E501 at 100 columns) with a parameter at its own bound, a write
+    server and a long import path; one more character is refused."""
+    help_text = str(QUESTIONS["tenant_credential_env"]["help"])
+    assert f"At most {TENANT_CREDENTIAL_BOUND} characters" in help_text
+    assert len(credential) == TENANT_CREDENTIAL_BOUND
+    answers = {"tenant_param": "tenant_of_the_ledger", "write_server": True, **keyed("")}
+    slug = "example-ledger-books"
+    dst = generate(
+        template_src,
+        tmp_path / "bound",
+        source_slug=slug,
+        tenant_credential_env=credential,
+        **answers,
+    )
+    for args in [("check", "."), ("format", "--check", ".")]:
+        run = ruff(dst, *args)
+        assert run.returncode == 0, run.stdout + run.stderr
+    with pytest.raises(ValueError, match="tenant_credential_env"):
+        generate(
+            template_src,
+            tmp_path / "refused",
+            source_slug=slug,
+            tenant_credential_env="X" + credential,
+            **answers,
+        )
 
 
 def test_the_readme_configures_each_server(variant: tuple[str, Path]) -> None:

@@ -124,8 +124,9 @@ testpaths = ["tests"]
 # record_property, in a live test say, warns under xunit2 when a run writes --junitxml.
 junit_family = "xunit1"
 {% if tenant_param %}
+{% set credential = 'key' if api_key_env else 'credential' %}
 # Core's plugin sets them to the placeholder key in every test not marked live (ADR-0013),
-# the reserved {{ tenant_param }}'s key first, the one key of this package's own that a test reads.
+# the reserved {{ tenant_param }}'s {{ credential }} first, the one {{ credential }} of this package's own that a test reads.
 xippios_placeholder_key_envs = {{ key_envs | tojson }}
 {% elif key_envs == [api_key_env] %}
 # Core's plugin sets it to the placeholder key in every test not marked live (ADR-0013).
