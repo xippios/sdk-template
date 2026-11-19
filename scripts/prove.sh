@@ -263,7 +263,7 @@ client = importlib.import_module(sys.argv[1])
 prefix, field = sys.argv[2].split("_<NAME>_")
 tenants = client.TENANTS
 assert (tenants.var_prefix, tenants.fields) == (prefix, (field,)), tenants
-assert sys.argv[2] in [var.name for var in client.ENV_VARS], client.ENV_VARS
+assert sys.argv[2] in [var.name_or_pattern for var in client.ENV_VARS], client.ENV_VARS
 assert client.DEMO not in tenants.names()
 os.environ[tenants.var(client.DEMO, field)] = "placeholder"  # pragma: allowlist secret
 assert tenants.names() == (client.DEMO,), "declared by its credential alone"
