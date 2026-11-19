@@ -1,6 +1,6 @@
 # Upstream documentation snapshot — {{ source_name }}
 
-Source of truth for every endpoint wrapper (ADR-0003). Files in this directory are
+Source of truth for every endpoint wrapper (sdk-core ADR-0028). Files in this directory are
 fetched from {{ upstream_docs_url }} by `/refresh-upstream`, never edited by hand but
 `OBSERVED.md`, where it exists: what upstream does but never documents, each note with
 its evidence. They are refreshed deliberately by PR so that changes show up as diffs.
@@ -13,8 +13,8 @@ whole.
 the page that prints it, or "none stated"; where `scripts/refresh_upstream.py` captures
 the documentation, it checks this on every run and stops when the documentation starts
 to state one or stops printing one.) The documentation's text is reproduced here as this
-package's reference (ADR-0003); the publisher's objection is met by replacing it with a
-summary that keeps the names and semantics the wrappers rely on.
+package's reference (sdk-core ADR-0028); the publisher's objection is met by replacing it
+with a summary that keeps the names and semantics the wrappers rely on.
 
 ## Files and pages
 

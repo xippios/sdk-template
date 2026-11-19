@@ -3,20 +3,21 @@
 {% if tenant_param and not api_key_env %}
 # Rendered by the template (the one workflow that is): the secrets it names are the reserved
 # tenant's credential, from the answer tenant_credential_env, then the keys of the answer
-# source_dependencies (ADR-0021) and the variables of the answer live_secrets, and its start
-# time derives from the slug.
+# source_dependencies (sdk-core ADR-0021) and the variables of the answer live_secrets, and
+# its start time derives from the slug.
 {% elif key_envs == [api_key_env] and not live_secret_names %}
 # Rendered by the template (the one workflow that is): the secret it names is the source's
 # key variable, and its start time derives from the slug.
 {% elif key_envs and not live_secret_names %}
 # Rendered by the template (the one workflow that is): each secret it names is a key
 # variable from the answers api_key_env and source_dependencies, the latter those of the
-# source packages it depends on (ADR-0021), and its start time derives from the slug.
+# source packages it depends on (sdk-core ADR-0021), and its start time derives from the
+# slug.
 {% elif key_envs %}
 # Rendered by the template (the one workflow that is): the secrets it names are the key
-# variables of the answers api_key_env and source_dependencies (ADR-0021), then the other
-# variables its live tests read, from the answer live_secrets, and its start time derives
-# from the slug.
+# variables of the answers api_key_env and source_dependencies (sdk-core ADR-0021), then the
+# other variables its live tests read, from the answer live_secrets, and its start time
+# derives from the slug.
 {% elif live_secret_names %}
 # Rendered by the template (the one workflow that is): each secret it names is a variable
 # its live tests read, from the answer live_secrets, and its start time derives from the
@@ -32,7 +33,8 @@ on:
     # {{ live_schedule.time }} UTC, staggered from the slug (live_schedule in sdk-template's copier.yml)
     # so that sources sharing a key do not start together.
 {% if gateway == 'api.data.gov' %}
-    # The key is api.data.gov's, shared by every source behind the gateway (ADR-0009).
+    # The key is api.data.gov's, shared by every source behind the gateway
+    # (sdk-core ADR-0032).
 {% endif %}
 {% else %}
     # {{ live_schedule.time }} UTC, derived from the slug (live_schedule in sdk-template's copier.yml).

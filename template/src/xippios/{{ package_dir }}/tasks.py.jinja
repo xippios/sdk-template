@@ -14,18 +14,20 @@ __all__: list[str] = ["list_{{ tenant_param }}s"]
 __all__: list[str] = []
 {% endif %}
 
-# A task named here is Python-only: no tool, no route; the adapters skip it (ADR-0019 decision 4).
+# A task named here is Python-only: no tool, no route; the adapters skip it (sdk-core ADR-0040
+# decision 4).
 BULK_TASKS: frozenset[str] = frozenset()
 {% if tenant_param %}
 
 # Every task takes {{ tenant_param }}, one tenant, required, but the tenant list and the tasks
-# named here, which touch no tenant and are the same for every one (conventions §7, ADR-0036):
+# named here, which touch no tenant and are the same for every one (conventions §7,
+# sdk-core ADR-0036):
 #
 # NO_TENANT_TASKS: frozenset[str] = frozenset({"list_<thing>"})
 {% endif %}
 
 # MCP_CAPS, only where a tool needs a result cap of its own, keyed by the task function's
-# name (conventions §8, ADR-0016):
+# name (conventions §8, sdk-core ADR-0038):
 #
 # from xippios.core import ResultCap
 #

@@ -101,7 +101,7 @@ def servers(answers: dict[str, object]) -> list[tuple[str, str]]:
 
 
 def test_mcp_builds_the_tool_set_and_serves_it(variant: tuple[str, Path]) -> None:
-    """ADR-0026, amendment 2026-11-18, points c and d: ``build()`` returns core's tool set,
+    """sdk-core ADR-0026, amendment 2026-11-18, points c and d: ``build()`` returns core's tool set,
     the caps and the option hooks of the tasks module by default (#65), ``server`` is
     ``build_server(build())``, and the module exports ``build``, ``SOURCE`` and
     ``ENV_VARS``, which it takes from ``_client.py``."""
@@ -181,7 +181,7 @@ def entries(dst: Path, answers: dict[str, object]) -> list[tuple[str, bool, bool
 
 
 def test_client_declares_the_variables_it_reads(variant: tuple[str, Path]) -> None:
-    """ADR-0026, amendment 2026-11-18, point c: ``_client.py`` declares ``ENV_VARS``, an
+    """sdk-core ADR-0026, amendment 2026-11-18, point c: ``_client.py`` declares ``ENV_VARS``, an
     ``EnvVar`` per variable, from the key answers and ``live_secrets``: the key, or a
     multi-tenant source's list and its tenants' key pattern, then the dependencies' keys."""
     name, dst = variant
@@ -222,8 +222,8 @@ def test_the_variables_take_the_live_secrets(
 
 
 def test_a_multi_tenant_source_renders_cores_registry(tenants: Path) -> None:
-    """ADR-0036, decision 13, and ADR-0042, decision 1: ``tenant_param`` renders core's
-    ``Tenants`` with the parameter once, a key per tenant under the key's prefix and the
+    """sdk-core ADR-0036, decision 13, and sdk-core ADR-0042, decision 1: ``tenant_param`` renders
+    core's ``Tenants`` with the parameter once, a key per tenant under the key's prefix and the
     reserved ``demo``; a client per tenant and the startup check ``serve_tenants`` calls;
     the tenant list as a task; and no module-level client or key, which no tenant owns."""
     answers = VARIANTS["tenants"]
@@ -294,7 +294,7 @@ def test_a_multi_tenant_source_binds_its_servers(render: Callable[[str], Path], 
 def test_a_multi_tenant_source_strips_the_other_tenants(
     render: Callable[[str], Path], name: str
 ) -> None:
-    """ADR-0042, decision 1: the template's ``tests/conftest.py`` calls core's
+    """sdk-core ADR-0042, decision 1: the template's ``tests/conftest.py`` calls core's
     ``keep_reserved_tenants(TENANTS)`` at import, before any fixture; the plugin pins the
     reserved tenant's credential, its key or the field ``tenant_credential_env`` names,
     which alone declares that tenant offline and which ``live.yml`` passes, and no other."""

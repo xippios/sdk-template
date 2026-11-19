@@ -75,10 +75,11 @@ steps 4 to 6 are what they check in a fixture.
    If a credential slipped through, delete the file and stop: report which field leaked
    so the scrubber in `xippios-core` can learn it. Where the response carries a documented
    personal identifier the source keeps out of its projections (`ssn`, `iban` and their
-   like, ADR-0017), record with `scrub=Scrub(secrets=[...])` from `xippios.core.testing`,
-   or rewrite those values by key in a recorder step of the source's own. `record`
-   writes the file itself and takes no hook, so that step sends the request itself, with
-   `request(..., raise_on_error=False)` on a client built for one attempt,
+   like, sdk-core ADR-0017), record with `scrub=Scrub(secrets=[...])` from
+   `xippios.core.testing`, or rewrite those values by key in a recorder step of the
+   source's own. `record` writes the file itself and takes no hook, so that step sends the
+   request itself, with `request(..., raise_on_error=False)` on a client built for one
+   attempt,
 {% if tenant_param %}
    `AsyncClient(dataclasses.replace(config, retry=RetryPolicy(max_attempts=1)), auth=...)`,
    its auth the reserved {{ tenant_param }}'s as `_build` in `xippios.{{ import_path }}._client` makes it, on
@@ -118,8 +119,8 @@ steps 4 to 6 are what they check in a fixture.
    anything. A downloaded file is recorded whole when it is small, else with
    `max_bytes=` where it is text. The sample file a parser test reads is no recorded
    exchange: it lives under `tests/fixtures/files/<file_kind>/`, its provenance one row
-   in `tests/fixtures/files/README.md` (ADR-0020). A test on a cut fixture or a sample
-   asserts the shape, never a size.
+   in `tests/fixtures/files/README.md` (sdk-core ADR-0020). A test on a cut fixture or a
+   sample asserts the shape, never a size.
 
 6. Reference it from a test with the `replay_fixture("<wrapper>", "<case>")` fixture.
    Stage it (`git add tests/fixtures`) before `uv run pre-commit run --all-files`, which
