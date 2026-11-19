@@ -20,7 +20,7 @@ can reach from any machine. Every answer of the [Questions](#questions) comes fr
 upstream documentation or from the person who asks for the source, never from memory: no
 URL and no rate limit is guessed, and the pace, the burst and whether the pace is
 documented, set under a documented limit or self-imposed come from the documentation or
-from that person (ADR-0010).
+from that person (sdk-core ADR-0033).
 Each answer that rests on upstream has its evidence, the page and section that states the
 base URL, the key and the pace, or the person's word, and the status a status-only probe of
 the host returned; it goes under the Assumptions of the repository's first pull request.
@@ -59,7 +59,7 @@ its first release, PyPI needs a pending trusted publisher for the project, owner
 repository needs the environment `pypi` with a required reviewer, who approves each
 publishing run of `publish.yml`. Its nightly `live.yml` reads the key, or the bearer
 token, from the secret that `api_key_env` names, and each variable `live_secrets` lists
-from the secret of the same name. A key several sources share (ADR-0009) is one
+from the secret of the same name. A key several sources share (sdk-core ADR-0032) is one
 organization secret whose repository access takes the new repository, never set with
 `gh secret set --repos`, which replaces the list.
 
@@ -69,25 +69,25 @@ organization secret whose repository access takes the new repository, never set 
 | --- | --- | --- |
 | `source_slug` | provider, plus API when one provider has several; names the repo, the distribution and the import | `usda-nass` |
 | `source_name` | human name; at most 77 characters, so every generated Python line stays within 100 columns, and no `"` or `\`, which the generated Python quotes | `USDA NASS Quick Stats` |
-| `import_path` | import path under `xippios`; defaults to the slug with dots, so multi-API providers nest (ADR-0006); override for a hyphenated single-API provider | `usda.nass` |
+| `import_path` | import path under `xippios`; defaults to the slug with dots, so multi-API providers nest (sdk-core ADR-0006); override for a hyphenated single-API provider | `usda.nass` |
 | `upstream_url` | provider page, linked from the README | `https://quickstats.nass.usda.gov` |
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
 | `api_base_url` | base URL request paths join onto; required, usually not the provider page. The one answer for a host: a second host's client, pace and row are the source's own, in `_client.py` and its CLAUDE.md, as the generated CLAUDE.md and `/add-endpoint` say (conventions §6) | `https://quickstats.nass.usda.gov/api` |
-| `gateway` | the shared gateway the API sits behind: `api.data.gov` for an API it fronts, whose key, documented error answers and hourly quota the generated client takes from `xippios.core.data_gov`'s `Gateway` (ADR-0009), so `core_version` is 0.3.0 or later; then the three key answers below are derived, `DATA_GOV_API_KEY` in the `X-Api-Key` header, never asked, and recorded as if answered; default `none` | `none` |
+| `gateway` | the shared gateway the API sits behind: `api.data.gov` for an API it fronts, whose key, documented error answers and hourly quota the generated client takes from `xippios.core.data_gov`'s `Gateway` (sdk-core ADR-0032), so `core_version` is 0.3.0 or later; then the three key answers below are derived, `DATA_GOV_API_KEY` in the `X-Api-Key` header, never asked, and recorded as if answered; default `none` | `none` |
 | `api_key_env` | environment variable with the key; empty for open APIs; behind a gateway, the gateway's | `NASS_API_KEY` |
 | `api_key_location` | `query`, `header`, `bearer` or `basic`, the key as the HTTP basic user name with no password, by core's `BasicKeyAuth`; behind a gateway, the gateway's | `query` |
 | `api_key_name` | query parameter or header name; behind a gateway, the gateway's | `key` |
 | `write_server` | whether the source writes to the upstream through a server of its own (conventions §8): `true` renders `mcp_write.py`, which serves `tasks_write.__all__` as confirm-gated tools, the `tasks_write.py` scaffold, the source's once rendered, and the entry points `xippios-<slug>-mcp-read` and `xippios-<slug>-mcp-write` in place of `xippios-<slug>-mcp`, with no alias for the old name; default `false` | `true` |
 | `tenant_param` | the task parameter that names a tenant, for a multi-tenant source whose upstream serves each tenant under a credential of its own (conventions §7): it renders core's `Tenants` registry in `_client.py`, a client per tenant with its credential in `<PREFIX>_<NAME>_<FIELD>`, a key in `<PREFIX>_<NAME>_API_KEY`, the prefix `api_key_env`'s without `_API_KEY`, or the variable `tenant_credential_env` names, the tenants listed in `<PREFIX>_<PARAM>S` and the reserved tenant `demo`, whose credential the offline tests and `live.yml` take in place of `api_key_env`; the tenant list task, `build(lock)` and `serve_tenants` in the servers, whose `--<param>` binds a server to one tenant, and `keep_reserved_tenants` in `tests/conftest.py`. It refuses a gateway's key, which every package behind it shares, and takes at most 20 characters, so every generated Python line stays within 100 columns; default empty, one tenant | `org` |
 | `tenant_credential_env` | asked of a multi-tenant source without `api_key_env` alone, whose tenants hold another credential, a refresh token say: the variable of each tenant's credential, `<PREFIX>_<NAME>_<FIELD>` in upper case with `<NAME>` as written, its field no `API_KEY`, which is `api_key_env`'s. `Tenants` takes the prefix as its `var_prefix` and the field as its one field, `demo` is declared by `<PREFIX>_DEMO_<FIELD>` alone, and the source's own auth in `_client.py` reads it, where the scaffold passes none. A key derives it, `<PREFIX>_<NAME>_API_KEY`, never recorded; at most 40 characters, so every generated Python line stays within 100 columns | `GOOGLE_<NAME>_REFRESH_TOKEN` |
-| `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, a pace set under it on evidence, or a self-imposed pace where upstream documents neither, an hourly or daily quota notwithstanding (ADR-0010) | `30` |
+| `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, a pace set under it on evidence, or a self-imposed pace where upstream documents neither, an hourly or daily quota notwithstanding (sdk-core ADR-0033) | `30` |
 | `rate_limit_burst` | requests let through at once before the pace applies; `1` unless upstream documents a burst | `1` |
 | `rate_limit_provenance` | `documented`, `below-documented` (set under a limit upstream documents, such as after recorded refusals or from a limit stated in another unit than requests; the generated CLAUDE.md gives both numbers) or `self-imposed` (upstream documents no per-second or per-minute limit): where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
-| `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, ADR-0018 amendment (c)); default `0.4.0`, the release the template adopts, rendered `~=0.4.0` | `0.4.0` |
+| `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, sdk-core ADR-0039 decision 1); default `0.4.0`, the release the template adopts, rendered `~=0.4.0` | `0.4.0` |
 | `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); empty, the default, for no pin; a release carries none, since `/release-prep` removes it first, in a PR of its own | `main` |
-| `source_dependencies` | the source packages this one uses the task layer of (ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |
+| `source_dependencies` | the source packages this one uses the task layer of (sdk-core ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |
 | `live_secrets` | the variables the live tests read beyond the keys, such as a username and a password, a YAML flow list of UPPER_SNAKE_CASE names in a string: `live.yml` passes each one to its pytest step from the secret of the same name, after the keys; each name once, never a key (`api_key_env`'s or a dependency's `key_env`), `XIPPIOS_LIVE_TESTS` or a name with GitHub's `GITHUB_` prefix; default `[]`, none, recorded on one line | `[FAOSTAT_USERNAME, FAOSTAT_PASSWORD]` |
-| `has_files` | whether the source parses the files it downloads (ADR-0020): `true` renders `parse/`, one module per file kind, and `tests/fixtures/files/README.md`, one provenance row per sample file its parser tests read, both the source's once rendered, and a line of `.gitattributes` that keeps the samples byte for byte; a retrieval-only source, which lists releases and downloads files without parsing them, answers `false`, its download fixture the recorded exchange of the file's URL (ADR-0019 decision 5); default `false` | `true` |
+| `has_files` | whether the source parses the files it downloads (sdk-core ADR-0020): `true` renders `parse/`, one module per file kind, and `tests/fixtures/files/README.md`, one provenance row per sample file its parser tests read, both the source's once rendered, and a line of `.gitattributes` that keeps the samples byte for byte; a retrieval-only source, which lists releases and downloads files without parsing them, answers `false`, its download fixture the recorded exchange of the file's URL (sdk-core ADR-0040 decision 5); default `false` | `true` |
 | `has_reference_data` | whether the source packages reference data, the code lists and tables upstream publishes for every caller alike (conventions §3): `true` renders the scaffold, `params.py`, `enums.py`, `reference/`, `scripts/refresh_reference.py` and `/refresh-reference-data`, whether or not a list is packaged yet; a source that packages none answers `false`, which renders none of it: an update with that answer deletes the files the template rendered, the source's lines in them included, leaves a file the source added under `reference/` for the source to delete, and brings none of the scaffold back; default `true`, which a source that predates the question takes on update | `false` |
 | `human` | the GitHub login of the human, without the `@`. `.github/CODEOWNERS` names it as the owner of the paths that steer the repository, `.github/`, `CLAUDE.md`, `.claude/`, `pyproject.toml` and `.copier-answers.yml`, so a change to one waits for that human's review. Default `jdidaskalu`, a literal, which a source that predates the question takes on update | `jdidaskalu` |
 
@@ -147,18 +147,18 @@ path nests or the source declares a dependency, `siblings.yml` runs
 `.github/scripts/check-siblings.sh` on every pull request and push to `main`: it installs
 the wheel beside every sibling on PyPI under the same provider namespace that shares its
 core minor and beside the source packages it depends on, at their bound, and proves the
-namespace levels stay portions (ADR-0006, ADR-0021), a visible check the ruleset does not
-require; a declared dependency on another core minor fails it. A sibling that depends on
-the source and pins its previous minor is left out with a warning that names the pin, since
-it takes the new minor in its own adoption (conventions §12), so the release of a minor
-stays green; one that pins another minor of the source fails it.
+namespace levels stay portions (sdk-core ADR-0006, sdk-core ADR-0021), a visible check the
+ruleset does not require; a declared dependency on another core minor fails it. A sibling
+that depends on the source and pins its previous minor is left out with a warning that
+names the pin, since it takes the new minor in its own adoption (conventions §12), so the
+release of a minor stays green; one that pins another minor of the source fails it.
 `scripts/refresh_upstream.py` is the skeleton of the capture script `/refresh-upstream`
 runs; it refuses to run until the source fills it.
 
 ## Updating generated repositories
 
 A template release, and the xippios-core minor it carries, reach a generated repository
-in one adoption PR before its next release (conventions §15, ADR-0018), taken with
+in one adoption PR before its next release (conventions §15, sdk-core ADR-0039), taken with
 `copier update` run inside the generated repository:
 
 ```bash
@@ -219,19 +219,19 @@ answer's lines by hand in the same pull request, as a render with the new answer
 
 ```bash
 uv sync
-uv run pytest           # renders the family's six variants once each and checks them, ruff included
+uv run pytest           # renders the family's seven variants once each and checks them, ruff included
 scripts/prove.sh        # full proof against the released core: copier copy, uv sync, ruff, mypy, pytest, pre-commit
 scripts/prove.sh --core-ref main   # against unreleased core
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one
 scripts/prove.sh --keyless-nested  # a keyless nested source
 scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files
-scripts/prove.sh --gateway         # a nested source behind api.data.gov; CI runs these five proofs
-scripts/prove.sh -d has_reference_data=false   # a source that packages no reference data
+scripts/prove.sh --gateway         # a nested source behind api.data.gov
 scripts/prove.sh --tenants         # a nested multi-tenant source with a write server and basic auth
-scripts/prove.sh --tenants-keyless # one whose tenants hold a refresh token, no key
+scripts/prove.sh --tenants-keyless # one whose tenants hold a refresh token, no key; CI runs these seven proofs
+scripts/prove.sh -d has_reference_data=false   # a source that packages no reference data
 ```
 
-A pull request of the template runs `.github/workflows/ci.yml`, the tests and the five
+A pull request of the template runs `.github/workflows/ci.yml`, the tests and the seven
 proofs, and `.github/workflows/organization.yml`, byte for byte the file it renders into a
 source: the organization's conventions review, which reads a release pull request against
 the documents listed under [Documents](#documents), and the check of the ADR index.
