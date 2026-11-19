@@ -54,10 +54,10 @@ steps 4 to 6 are what they check in a fixture.
 
    Error cases (a 404 for an unknown code, for instance) are worth recording too; the
    recorder keeps them instead of raising. A recording is one request: the recorder sends
-   it once through `client`, never retried, whatever the client's `RetryPolicy` says, and
+   it once through {{ '`client_for(DEMO)`' if tenant_param else '`client`' }}, never retried, whatever the client's `RetryPolicy` says, and
    never answered from the cache, so a 429 or a 5xx is recorded as it came and spends no
-   second request on an upstream that counts a quota (conventions §10). Pass `client`
-   itself: a recording needs no client of its own.
+   second request on an upstream that counts a quota (conventions §10). Pass
+   {{ '`client_for(DEMO)`' if tenant_param else '`client`' }} itself: a recording needs no client of its own.
 
    A downloaded file's fixture is the GET exchange of the file's URL, the one the
    download task streams: pass that URL in place of the request path, absolute where

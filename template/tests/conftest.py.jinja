@@ -15,8 +15,8 @@ from xippios.{{ import_path }}._client import TENANTS
 pytest_plugins = ["xippios.core.testing.plugin"]
 {% if tenant_param %}
 
-# Once, when pytest imports this file, before any fixture of any scope: core removes
-# {{ tenant_list_var }} and every {{ tenant_param }}'s key but the reserved demo's, which the live tests
-# read, so no test sees another {{ tenant_param }} (conventions §7; ADR-0042, decision 1).
+# Once, when pytest imports this file, before any fixture of any scope: core removes the
+# tenant list and every tenant's key but the reserved demo's, which the live tests read, so
+# no test sees another tenant (conventions §7; ADR-0042, decision 1).
 keep_reserved_tenants(TENANTS)
 {% endif %}

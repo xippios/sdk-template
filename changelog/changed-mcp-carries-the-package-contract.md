@@ -6,8 +6,8 @@
   with `register_tasks`, and a source with options of its own defines them in `tasks.py`
   alone, as sdk-usda-gats and sdk-usda-nass do. An update merges a source's hand-written
   `mcp.py` three ways, a line of its own carried where the render leaves its place alone and
-  a conflict where the render rewrites it, in `build_server(...)` and `run()`, whose
-  hand-passed hooks resolve to the render's.
+  conflicts where the render rewrites it, its imports, `build` and `run()` among them, two
+  on sdk-cashctrl's `main`, which resolve to the render's lines but those the source keeps.
   (ADR-0026, https://github.com/xippios/sdk-template/issues/81, https://github.com/xippios/sdk-template/issues/65)
   - Hand-apply: `src/xippios/<package>/_client.py` — import `EnvVar` from `xippios.core`,
     declare `ENV_VARS: tuple[EnvVar, ...]` after `API_KEY_ENV`, one

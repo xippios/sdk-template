@@ -1,15 +1,16 @@
 {% if tenant_param %}
-"""The package's {{ tenant_param }}s, one configured ``AsyncClient`` each, and its error mapping.
+"""One configured ``AsyncClient`` per tenant, and the error mapping (conventions §6, §7).
 
-A multi-tenant source (conventions §6 and §7): every task takes ``{{ tenant_param }}``, the name of
-one {{ tenant_param }} the environment declares, and ``client_for({{ tenant_param }})`` returns that {{ tenant_param }}'s
-own client, with its own key and its own rate limiter. The registry is core's ``Tenants``,
-``TENANTS`` below:
+A multi-tenant source: every task takes ``{{ tenant_param }}``, the name of one tenant the
+environment declares, and ``client_for`` returns that tenant's own client, with its own
+key and its own rate limiter. The registry is core's ``Tenants``, ``TENANTS`` below:
 
-- ``{{ tenant_list_var }}``: the names, comma-separated, each matching ``^[a-z0-9_]+$``;
+- ``{{ tenant_list_var }}`` lists the names, comma-separated,
+  each matching ``^[a-z0-9_]+$``;
 - per name, ``{{ tenant_prefix }}_<NAME>_API_KEY``, the name upper-cased;
-- the reserved {{ tenant_param }} ``demo`` is never listed: it exists when ``{{ tenant_prefix }}_DEMO_API_KEY`` is
-  set. Fixtures, live tests and the fixture recorder use it and nothing else.
+- the reserved tenant ``demo`` is never listed: it exists when
+  ``{{ tenant_prefix }}_DEMO_API_KEY`` is set. Fixtures, live tests and the fixture recorder
+  use it and nothing else.
 """
 {% else %}
 """The package's one configured ``AsyncClient`` and its error mapping (conventions §6)."""
@@ -50,7 +51,7 @@ SOURCE = "{{ source_slug }}"
 BASE_URL = "{{ api_base_url }}"
 {% if tenant_param %}
 DEMO = "demo"
-"""The reserved {{ tenant_param }}, declared by its own key alone and never listed."""
+"""The reserved tenant, declared by its own key alone and never listed."""
 {% elif api_key_env %}
 API_KEY_ENV = "{{ api_key_env }}"  # pragma: allowlist secret (a variable name, not a key)
 {% else %}
@@ -105,7 +106,7 @@ TENANTS = Tenants(
     fields=("API_KEY",),
     reserved=(DEMO,),
 )
-"""The {{ tenant_param }}s the environment declares (conventions §7; ADR-0036)."""
+"""The tenants the environment declares (conventions §7; ADR-0036)."""
 {% endif %}
 
 
@@ -162,7 +163,7 @@ config = ClientConfig(
 def _build(name: str) -> AsyncClient:
     """Tenant ``name``'s own client, its key read from the environment on its first request.
 
-    Every {{ tenant_param }}'s client has its own rate limiter; ``config`` holds no cache, so the
+    Every tenant's client has its own rate limiter; ``config`` holds no cache, so the
     clients share settings alone.
     """
     auth = {{ auth_call }}
@@ -170,19 +171,19 @@ def _build(name: str) -> AsyncClient:
 
 
 def client_for({{ tenant_param }}: str) -> AsyncClient:
-    """The client of ``{{ tenant_param }}``, a declared {{ tenant_param }}, built on its first use and kept.
+    """The client of a declared tenant, built on its first use and kept.
 
     Raises:
-        InvalidRequestError: ``{{ tenant_param }}`` is not declared; the message names the declared ones.
+        InvalidRequestError: The tenant is not declared; the message names the declared ones.
     """
     return TENANTS.client_for({{ tenant_param }}, _build)
 
 
 def check_{{ tenant_param }}({{ tenant_param }}: str) -> None:
-    """Check a declared {{ tenant_param }} at the startup of a server bound to it, before it is built.
+    """Check a declared tenant at the startup of a server bound to it, before it is built.
 
     Core's ``serve_tenants`` calls it after ``TENANTS.require``, so a bound server whose
-    {{ tenant_param }} has no key stops at startup rather than on its first call.
+    tenant has no key stops at startup rather than on its first call.
 
     Raises:
         ConfigError: ``{{ tenant_prefix }}_<NAME>_API_KEY`` is not set; the message names the

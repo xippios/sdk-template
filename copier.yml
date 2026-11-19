@@ -162,11 +162,14 @@ tenant_param:
     listed in <PREFIX>_<PARAM>S and the reserved tenant demo, which fixtures and live
     tests use alone; the tenant list task; build(lock) and serve_tenants in mcp.py,
     whose --<param> binds a server to one tenant; and the strip of every other tenant's
-    variables in tests/conftest.py. Empty, the default, for a source with one tenant.
+    variables in tests/conftest.py. At most 20 characters, so every generated Python line
+    stays within 100 columns. Empty, the default, for a source with one tenant.
   default: ""
   validator: >-
     {% if tenant_param and not (tenant_param | regex_search('^[a-z][a-z0-9_]*\\Z')) %}
     A parameter name in lower case, letters, digits and underscores, e.g. org
+    {% elif tenant_param | length > 20 %}
+    At most 20 characters, so every generated Python line stays within 100 columns
     {% elif tenant_param and not api_key_env %}
     A multi-tenant source needs api_key_env, which names its tenants' keys: <PREFIX>_<NAME>_API_KEY
     {% elif tenant_param and gateway != 'none' %}

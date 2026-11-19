@@ -1,13 +1,13 @@
 """Write server for {{ source_name }}.
 
 ``tasks_write.__all__`` as confirm-gated tools, behind an entry point of their own,
-``xippios-{{ source_slug }}-mcp-write``, so a client of the read server never sees a write tool
-(conventions §8). Core registers them as a write server (``read_only=False``): every task
+``xippios-{{ source_slug }}-mcp-write``, so a client of the read server never sees a write
+tool (conventions §8). Core registers them as a write server (``read_only=False``): every task
 takes ``confirm: bool = False``, checked before anything is registered, and ``--http``
 serves on a loopback ``--host`` only, unless ``--allow-remote`` is passed, since it
 carries no authentication. No logic lives here (ADR-0001).
 {% if tenant_param %}
-``--{{ tenant_param | replace('_', '-') }} <name>`` binds it to one {{ tenant_param }} (core's ``serve_tenants``).
+``--{{ tenant_param | replace('_', '-') }} <name>`` binds it to one tenant (core's ``serve_tenants``).
 {% endif %}
 
 The package contract (conventions §8; ADR-0026, amendment 2026-11-18, points c and d):
@@ -20,7 +20,17 @@ from xippios.core import TenantLock, bind_tasks, tenant_instructions
 from xippios.core.mcp import ToolSet, build_server, serve_tenants, tool_functions
 
 from xippios.{{ import_path }} import tasks_write
-from xippios.{{ import_path }}._client import ENV_VARS, SOURCE, TENANTS, check_{{ tenant_param }}
+{% set line = 'from xippios.' ~ import_path ~ '._client import ENV_VARS, SOURCE, TENANTS, check_' ~ tenant_param %}
+{% if line | length <= 100 %}
+{{ line }}
+{% else %}
+from xippios.{{ import_path }}._client import (
+    ENV_VARS,
+    SOURCE,
+    TENANTS,
+    check_{{ tenant_param }},
+)
+{% endif %}
 {% else %}
 from xippios.core.mcp import ToolSet, build_server, main, tool_functions
 
@@ -34,7 +44,7 @@ __all__ = ["ENV_VARS", "SOURCE", "build", "run", "server"]
 INSTRUCTIONS = (
     "{{ source_name }} write tools via xippios. "
 {% if tenant_param %}
-    "Every tool takes {{ tenant_param }}, the name of a declared {{ tenant_param }}. "
+    "Every tool takes {{ tenant_param }}, the name of a declared tenant. "
 {% endif %}
     "Every tool returns a preview and changes nothing unless confirm=true is passed. "
     "Call it once without confirm, show the preview, then confirm."
@@ -43,7 +53,7 @@ INSTRUCTIONS = (
 
 {% if tenant_param %}
 def build(lock: TenantLock | None = None) -> ToolSet:
-    """The write tool set, bound to one {{ tenant_param }} when ``lock`` is given."""
+    """The write tool set, bound to one tenant when ``lock`` is given."""
     return ToolSet(
         SOURCE,
         bind_tasks(tool_functions(tasks_write), lock),
@@ -75,7 +85,10 @@ server = build_server(build())
 
 def run() -> None:
 {% if tenant_param %}
-    """Run the write server: stdio by default, ``--http`` on loopback, ``--{{ tenant_param | replace('_', '-') }}`` binds it."""
+    """Run the write server: stdio by default, ``--http`` on loopback.
+
+    ``--{{ tenant_param | replace('_', '-') }} <name>`` binds it to one tenant.
+    """
     serve_tenants(server, build, TENANTS, check=check_{{ tenant_param }})
 {% else %}
     """Run the write server: stdio by default, ``--http`` on loopback, the source's options."""

@@ -381,18 +381,20 @@ PY
 )
 
 # Offline, on core's types as a host takes them (#81, #65): mcp.py exports build, SOURCE
-# and ENV_VARS; a server a host builds from build()'s tool set with register_tasks serves
-# the tools, the caps and the option defaults that the entry point serves, with a task, a
-# cap of its own and an option of the source's put into tasks.py first; the same for the
-# write server where it renders, and, for a multi-tenant source, for the server --<param>
-# binds, which stops at startup when its tenant has no key. The entry point runs with its
-# server's run() caught, so nothing is served.
+# and ENV_VARS; a server a host builds with register_tasks from build()'s tool set and a
+# second package's, a copy under another source, serves the tools, the caps and the
+# option defaults that the entry point serves, the copy's alike under its own names, with
+# a task, a cap of its own and an option of the source's put into tasks.py first; the same
+# for the write server where it renders, and, for a multi-tenant source, for the server
+# --<param> binds, which stops at startup when its tenant has no key. The entry point runs
+# with its server's run() caught, so nothing is served.
 echo
 echo "==> the package contract: a host's server from build() serves what the entry point serves"
 (cd "$dest" && uv run python - "xippios.$import_path" "$slug" <<'PY'
 import argparse
 import asyncio
 import contextlib
+import dataclasses
 import importlib
 import importlib.util
 import io
@@ -474,12 +476,13 @@ def entry(module: Any, *argv: str) -> tuple[MCPServer, dict[str, Any]]:
     return seen["server"], seen["options"]
 
 
-def host_of(tool_set: ToolSet) -> MCPServer:
-    """One server as a host builds it from the tool set, its hooks applied without options."""
+def host_of(*tool_sets: ToolSet) -> MCPServer:
+    """One server as a host builds it from tool sets, each one's hooks applied without options."""
     host = MCPServer("host")
-    register_tasks(host, tool_set)
-    if tool_set.apply_options is not None:
-        host = tool_set.apply_options(tool_set.option_defaults(), host)
+    for tool_set in tool_sets:
+        register_tasks(host, tool_set)
+        if tool_set.apply_options is not None:
+            host = tool_set.apply_options(tool_set.option_defaults(), host)
     return host
 
 
@@ -496,12 +499,28 @@ def answers(server: MCPServer, arguments: dict[str, Any]) -> dict[str, str]:
 
 
 def same(module: Any, tool_set: ToolSet, arguments: dict[str, Any], *argv: str) -> MCPServer:
-    """The host's server and the entry point's serve the same tools, answers and options."""
+    """A host's server of two packages, this one and a copy under another source (#81), and
+    the entry point's serve the same tools, answers and options, the copy's under its own
+    names with its own caps."""
     defaults = vars(tool_set.option_defaults())
-    host = host_of(tool_set)
+    other = f"{prefix}_other_"
+    host = host_of(tool_set, dataclasses.replace(tool_set, source=f"{slug}-other"))
     served, options = entry(module, *argv)
-    assert tools(host) == tools(served), (sorted(tools(host)), sorted(tools(served)))
-    assert answers(host, arguments) == answers(served, arguments)
+
+    def apart(found: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        """This package's entries, and the copy's under this package's names."""
+        mine = {name: value for name, value in found.items() if not name.startswith(other)}
+        copy = {
+            f"{prefix}_" + name.removeprefix(other): value
+            for name, value in found.items()
+            if name.startswith(other)
+        }
+        return mine, copy
+
+    mine, copy = apart(tools(host))
+    assert mine == copy == tools(served), (sorted(tools(host)), sorted(tools(served)))
+    mine, copy = apart(answers(host, arguments))
+    assert mine == copy == answers(served, arguments)
     bound = {param: argv[1] if argv else None} if param else {}
     assert options == {**defaults, **bound}, (options, defaults)
     return served

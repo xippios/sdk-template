@@ -205,7 +205,7 @@ def refresh(only: Sequence[str] = ()) -> None:
     if missing := [name for name in kept if not (REFERENCE / f"{name}.json").is_file()]:
         raise SystemExit(f"{', '.join(missing)} is not packaged yet: run without --only")
 {% if tenant_param %}
-    # Reference data is the same for every {{ tenant_param }}: fetched through the reserved one's client.
+    # Reference data is the same for every tenant: fetched through the reserved one's client.
     with metered(client_for(DEMO)):
 {% else %}
     with metered(client):

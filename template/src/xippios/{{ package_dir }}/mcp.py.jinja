@@ -3,8 +3,8 @@
 Every task in ``tasks.__all__`` is a read-only tool, but those ``tasks.BULK_TASKS``
 names (``tool_functions``, ADR-0040). No logic lives here (ADR-0001). Entry point:
 {% if tenant_param %}
-``xippios-{{ source_slug }}-mcp{{ '-read' if write_server else '' }}``; ``--{{ tenant_param | replace('_', '-') }} <name>`` binds it to one {{ tenant_param }}
-(core's ``serve_tenants``).
+``xippios-{{ source_slug }}-mcp{{ '-read' if write_server else '' }}``.
+``--{{ tenant_param | replace('_', '-') }} <name>`` binds it to one tenant (core's ``serve_tenants``).
 {% else %}
 ``xippios-{{ source_slug }}-mcp{{ '-read' if write_server else '' }}``.
 {% endif %}
@@ -21,7 +21,17 @@ from xippios.core import TenantLock, bind_tasks, tenant_instructions
 from xippios.core.mcp import ToolSet, build_server, serve_tenants, tool_functions
 
 from xippios.{{ import_path }} import tasks
-from xippios.{{ import_path }}._client import ENV_VARS, SOURCE, TENANTS, check_{{ tenant_param }}
+{% set line = 'from xippios.' ~ import_path ~ '._client import ENV_VARS, SOURCE, TENANTS, check_' ~ tenant_param %}
+{% if line | length <= 100 %}
+{{ line }}
+{% else %}
+from xippios.{{ import_path }}._client import (
+    ENV_VARS,
+    SOURCE,
+    TENANTS,
+    check_{{ tenant_param }},
+)
+{% endif %}
 {% else %}
 from xippios.core.mcp import ToolSet, build_server, main, tool_functions
 
@@ -35,8 +45,9 @@ __all__ = ["ENV_VARS", "SOURCE", "build", "run", "server"]
 INSTRUCTIONS = (
     "{{ source_name }} via xippios. "
 {% if tenant_param %}
-    "Tools are read-only. {{ tool_prefix }}_list_{{ tenant_param }}s lists the declared {{ tenant_param }}s; every other "
-    "tool takes {{ tenant_param }}, the name of one of them. "
+    "Tools are read-only. "
+    "{{ tool_prefix }}_list_{{ tenant_param }}s lists the declared tenants; "
+    "every other tool takes {{ tenant_param }}, the name of one of them. "
 {% else %}
     "Tools are read-only. "
 {% endif %}
@@ -47,7 +58,7 @@ INSTRUCTIONS = (
 
 {% if tenant_param %}
 def build(lock: TenantLock | None = None) -> ToolSet:
-    """The read-only tool set, bound to one {{ tenant_param }} when ``lock`` is given."""
+    """The read-only tool set, bound to one tenant when ``lock`` is given."""
     return ToolSet(
         SOURCE,
         bind_tasks(tool_functions(tasks), lock),
@@ -77,7 +88,10 @@ server = build_server(build())
 
 def run() -> None:
 {% if tenant_param %}
-    """Run the server: stdio by default, ``--http`` for HTTP, ``--{{ tenant_param | replace('_', '-') }}`` binds it."""
+    """Run the server: stdio by default, ``--http`` for streamable HTTP.
+
+    ``--{{ tenant_param | replace('_', '-') }} <name>`` binds it to one tenant.
+    """
     serve_tenants(server, build, TENANTS, check=check_{{ tenant_param }})
 {% else %}
     """Run the server: stdio by default, ``--http`` for streamable HTTP, the source's options."""

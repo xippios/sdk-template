@@ -38,14 +38,17 @@ sdk-google-mail has both, its tenants' credential a refresh token of its own flo
    `ENV_VARS` lists the tenant list, not required, and the key pattern, required, both from
    these answers, then the dependencies' keys and the live secrets, secret and required.
 3. **A key of the source's own.** `tenant_param` needs `api_key_env`, which names the
-   tenants' keys, and refuses a gateway, whose key every package behind it shares. A
-   source whose tenant credential is no key answers no `tenant_param` and keeps its tenant
-   lines by hand, as no answer renders a client of a source's own
-   (https://github.com/xippios/sdk-template/issues/175).
+   tenants' keys, and refuses a gateway, whose key every package behind it shares. It takes
+   at most 20 characters, so every generated Python line stays within 100 columns. As of
+   this record, a source whose tenant credential is no key answers no `tenant_param` and
+   keeps its tenant lines by hand, until
+   https://github.com/xippios/sdk-template/issues/207 renders its shape.
 4. **What a source sets beside the render stays its own.** The render passes
    `check=check_<param>` from `_client.py`, which checks that a bound tenant has its key,
    and names no noun for a tenant, no read server held to loopback and no write server's
-   name of its own: a source that wants one keeps its line, merged three ways.
+   name of its own: a source that wants one keeps its line, merged three ways. So does a
+   source whose tenant list is not named `list_<param>s` keep its own instructions, which
+   name that tool.
 5. **The option hooks by default.** Every server's `build()` passes the caps and the option
    hooks its tasks module defines, `MCP_CAPS`, `mcp_add_options` and `mcp_apply_options`,
    or `None`, so a source with options defines them in `tasks.py` alone
@@ -54,18 +57,21 @@ sdk-google-mail has both, its tenants' credential a refresh token of its own flo
 ## Consequences
 
 - A source with a write server answers `write_server: true` at its adoption: its own
-  `mcp_write.py` comes as one conflict against the render, its `tasks_write.py` stays, and
-  its entry points take the two names. sdk-cashctrl answers `tenant_param: org` too, and
-  takes `live_secrets` without its demo key, which `key_envs` now names.
-- sdk-google-mail answers `write_server: true` alone: its accounts' refresh tokens are no
-  key of the template's, so its `mcp.py`, `mcp_write.py` and `tests/conftest.py` keep their
-  tenant lines by hand until an answer names such a credential
-  (https://github.com/xippios/sdk-template/issues/207).
+  `mcp.py` and `mcp_write.py` come as conflicts against the render, merged around the lines
+  both share, two and three on sdk-cashctrl's `main`, its `tasks_write.py` stays, and its
+  entry points take the two names. sdk-cashctrl answers `tenant_param: org` too, keeps its
+  instructions, which name `cashctrl_list_organisations`, and takes `live_secrets` without
+  its demo key, which `key_envs` now names.
+- As of this record, sdk-google-mail answers `write_server: true` alone: its accounts'
+  refresh tokens are no key of the template's, so its `mcp.py`, `mcp_write.py` and
+  `tests/conftest.py` keep their tenant lines by hand until
+  https://github.com/xippios/sdk-template/issues/207 renders the tenant shape of a source
+  without a key.
 - The template's tests render a sixth variant, sdk-cashctrl's shape, and `scripts/prove.sh
   --tenants` proves a nested multi-tenant source with a write server and basic auth: a
-  server a host builds from `build()`'s tool set with `register_tasks` serves the tools,
-  caps and option defaults of the entry point, in every shape, and of the server `--org`
-  binds.
+  server a host builds with `register_tasks` from `build()`'s tool set and a second
+  package's serves the tools, caps and option defaults of the entry point, in every shape,
+  and of the server `--org` binds.
 - Core's `serve_tenants` takes no option hook of the source's, so a multi-tenant source's
   options reach a host through its tool set but not its own entry point, until sdk-core
   decides https://github.com/xippios/sdk-core/issues/311.

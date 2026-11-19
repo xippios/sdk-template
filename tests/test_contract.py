@@ -19,6 +19,7 @@ import yaml
 from copier import run_copy, run_update
 from helpers import (
     BASE_ANSWERS,
+    QUESTIONS,
     VARIANTS,
     env_vars,
     generate,
@@ -239,6 +240,25 @@ def test_a_multi_tenant_source_renders_cores_registry(tenants: Path) -> None:
     assert listed == f"list_task(TENANTS, name='list_{param}s')"
 
 
+def test_a_multi_tenant_sources_commands_name_its_clients(tenants: Path) -> None:
+    """``/add-endpoint``, ``/record-fixture`` and the generated ``CLAUDE.md`` name the client a
+    multi-tenant render has, ``client_for``, and never the module-level ``client`` it does
+    not define."""
+    answers = VARIANTS["tenants"]
+    param = tenant_param(answers)
+    for command in ["add-endpoint", "record-fixture"]:
+        text = (tenants / f".claude/commands/{command}.md").read_text()
+        assert "client_for(" in text, command
+        assert "._client.client`" not in text, command
+        assert "`client`" not in text, command
+        assert "import client\n" not in text, command
+    add_endpoint = (tenants / ".claude/commands/add-endpoint.md").read_text()
+    assert f"client_for({param})" in add_endpoint
+    claude = (tenants / "CLAUDE.md").read_text()
+    assert f"`client_for({param})`" in claude
+    assert "`client`" not in claude
+
+
 def test_a_multi_tenant_source_binds_its_servers(tenants: Path) -> None:
     """Conventions §8: each server's ``build`` takes ``lock: TenantLock | None = None``,
     passes its instructions through ``tenant_instructions`` and its entry point runs
@@ -283,6 +303,41 @@ def test_the_tenants_prefix_is_the_keys(template_src: Path, tmp_path: Path) -> N
     for check in [("check", "."), ("format", "--check", ".")]:
         run = ruff(dst, *check)
         assert run.returncode == 0, run.stdout + run.stderr
+
+
+# The bound copier.yml states for tenant_param, as source_name's is stated.
+TENANT_PARAM_BOUND = 20
+
+
+@pytest.mark.parametrize(
+    ("slug", "name"),
+    [
+        ("example-ledger", "workspace"),
+        ("acme-books", "organisation"),
+        ("example-ledger-books", "tenant_of_the_ledger"),
+    ],
+)
+def test_tenant_param_is_bounded_by_the_longest_python_line(
+    template_src: Path, tmp_path: Path, slug: str, name: str
+) -> None:
+    """A parameter up to the bound the help states renders ruff-clean (E501 at 100 columns)
+    with a write server, the reference scaffold and a key prefix of its own, the import of
+    the servers wrapped where a long import path needs it; one more is refused."""
+    assert f"At most {TENANT_PARAM_BOUND} characters" in str(QUESTIONS["tenant_param"]["help"])
+    assert len(name) <= TENANT_PARAM_BOUND
+    answers = {"tenant_param": name, "write_server": True, **keyed("EX_BOOKS_API_KEY", "basic")}
+    dst = generate(template_src, tmp_path / "bound", source_slug=slug, **answers)
+    for args in [("check", "."), ("format", "--check", ".")]:
+        run = ruff(dst, *args)
+        assert run.returncode == 0, run.stdout + run.stderr
+    longer = name + "x" * (TENANT_PARAM_BOUND + 1 - len(name))
+    with pytest.raises(ValueError, match="tenant_param"):
+        generate(
+            template_src,
+            tmp_path / "refused",
+            source_slug=slug,
+            **{**answers, "tenant_param": longer},
+        )
 
 
 @pytest.mark.parametrize(
@@ -335,9 +390,10 @@ def test_the_readme_configures_each_server(variant: tuple[str, Path]) -> None:
 
 def test_an_update_merges_a_sources_own_write_server(template_src: Path, tmp_path: Path) -> None:
     """What the fragment says an update does: a source that wrote its write server by hand
-    and answers ``write_server`` at its update gets the render's ``mcp_write.py`` as one
-    conflict against its own, keeps its ``tasks_write.py``, takes the two entry points,
-    and keeps a line of its own in ``mcp.py`` where the render leaves its place alone."""
+    and answers ``write_server`` at its update gets the render's ``mcp_write.py`` as
+    conflicts against its own, here one hunk since the two share no line, keeps its
+    ``tasks_write.py``, takes the two entry points, and keeps a line of its own in
+    ``mcp.py`` where the render leaves its place alone."""
     template = tmp_path / "template"
     shutil.copytree(template_src, template)
     git(template, "init", "-q", "-b", "main")
