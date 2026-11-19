@@ -28,6 +28,10 @@ BASE_ANSWERS: dict[str, object] = {
 }
 
 
+# The table of the files and pages that FETCHED.md lists, as the capture skeleton writes it.
+TABLE_HEADER = "| File | URL | Fetched | HTTP | Bytes | sha256 | ETag | Last-Modified | Note |"
+
+
 # A stand-in for a 40-character sdk-core commit, never fetched: hex of high entropy, as a
 # real SHA is, computed so that no literal in this file looks like a secret.
 FAKE_CORE_SHA = hashlib.sha1(b"a fixed stand-in for an sdk-core commit").hexdigest()
@@ -171,6 +175,18 @@ def skip_matcher(pkg: str) -> Callable[[str], bool]:
     the patterns rendered, read as gitignore lines by pathspec."""
     rendered = [p.replace("{{ package_dir }}", pkg) for p in QUESTIONS["_skip_if_exists"]]
     return PathSpec.from_lines("gitignore", rendered).match_file
+
+
+def detect_secrets_hook(directory: Path, *files: str) -> subprocess.CompletedProcess[str]:
+    """The generated repository's detect-secrets hook, on ``files`` in ``directory``."""
+    hook = [sys.executable, "-m", "detect_secrets.pre_commit_hook"]
+    return subprocess.run(
+        [*hook, "--baseline", ".secrets.baseline", *files],
+        cwd=directory,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def git(cwd: Path, *args: str) -> str:
