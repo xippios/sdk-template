@@ -19,7 +19,8 @@ checks out at its latest tag, so `.copier-answers.yml` records a tag that `copie
 can reach from any machine. Every answer of the [Questions](#questions) comes from the
 upstream documentation or from the person who asks for the source, never from memory: no
 URL and no rate limit is guessed, and the pace, the burst and whether the pace is
-documented or self-imposed come from the documentation or from that person (ADR-0010).
+documented, set under a documented limit or self-imposed come from the documentation or
+from that person (ADR-0010).
 Each answer that rests on upstream has its evidence, the page and section that states the
 base URL, the key and the pace, or the person's word, and the status a status-only probe of
 the host returned; it goes under the Assumptions of the repository's first pull request.
@@ -71,14 +72,14 @@ organization secret whose repository access takes the new repository, never set 
 | `import_path` | import path under `xippios`; defaults to the slug with dots, so multi-API providers nest (ADR-0006); override for a hyphenated single-API provider | `usda.nass` |
 | `upstream_url` | provider page, linked from the README | `https://quickstats.nass.usda.gov` |
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
-| `api_base_url` | base URL request paths join onto; required, usually not the provider page | `https://quickstats.nass.usda.gov/api` |
+| `api_base_url` | base URL request paths join onto; required, usually not the provider page. The one answer for a host: a second host's client, pace and row are the source's own, in `_client.py` and its CLAUDE.md, as the generated CLAUDE.md and `/add-endpoint` say (conventions §6) | `https://quickstats.nass.usda.gov/api` |
 | `gateway` | the shared gateway the API sits behind: `api.data.gov` for an API it fronts, whose key, documented error answers and hourly quota the generated client takes from `xippios.core.data_gov`'s `Gateway` (ADR-0009), so `core_version` is 0.3.0 or later; then the three key answers below are derived, `DATA_GOV_API_KEY` in the `X-Api-Key` header, never asked, and recorded as if answered; default `none` | `none` |
 | `api_key_env` | environment variable with the key; empty for open APIs; behind a gateway, the gateway's | `NASS_API_KEY` |
-| `api_key_location` | `query`, `header` or `bearer`; behind a gateway, the gateway's | `query` |
+| `api_key_location` | `query`, `header`, `bearer` or `basic`, the key as the HTTP basic user name with no password, by core's `BasicKeyAuth`; behind a gateway, the gateway's | `query` |
 | `api_key_name` | query parameter or header name; behind a gateway, the gateway's | `key` |
-| `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, or a self-imposed pace where upstream documents neither, an hourly or daily quota notwithstanding (ADR-0010) | `30` |
+| `rate_limit_per_minute` | the pace, enforced client-side: upstream's documented per-minute (or per-second × 60) limit, a pace set under it on evidence, or a self-imposed pace where upstream documents neither, an hourly or daily quota notwithstanding (ADR-0010) | `30` |
 | `rate_limit_burst` | requests let through at once before the pace applies; `1` unless upstream documents a burst | `1` |
-| `rate_limit_provenance` | `documented` or `self-imposed` (upstream documents no per-second or per-minute limit): where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
+| `rate_limit_provenance` | `documented`, `below-documented` (set under a limit upstream documents, such as after recorded refusals or from a limit stated in another unit than requests; the generated CLAUDE.md gives both numbers) or `self-imposed` (upstream documents no per-second or per-minute limit): where the pace comes from, named in the generated CLAUDE.md | `self-imposed` |
 | `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, ADR-0018 amendment (c)); default `0.3.0`, the release the template adopts, rendered `~=0.3.0` | `0.3.0` |
 | `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); empty, the default, for no pin; a release carries none, since `/release-prep` removes it first, in a PR of its own | `main` |
 | `source_dependencies` | the source packages this one uses the task layer of (ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |

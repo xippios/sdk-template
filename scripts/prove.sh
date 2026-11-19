@@ -10,7 +10,8 @@
 # check offline that a task named in BULK_TASKS gets no tool and no route, that the
 # refresh script renders a value list and an id list into one enums.py, as ruff leaves it,
 # and that it sends each request once, counts it and keeps the lists --only leaves out;
-# require none of the reference scaffold where has_reference_data is false.
+# require none of the reference scaffold where has_reference_data is false; check offline
+# that a key answered basic goes as the basic user name, its password empty.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
 # suite tests it. The template's CI runs every shape below, and the keyless nested one
 # again with -d has_files=true, a source that parses the files it downloads (ADR-0020).
@@ -32,7 +33,8 @@
 #                      release with xippios.core.data_gov
 #   --keep             leave the generated repository in place
 #   -d key=value       one more copier answer, e.g. -d has_files=true, or
-#                      -d has_reference_data=false for a source that packages none
+#                      -d has_reference_data=false for a source that packages none, or
+#                      -d api_key_location=basic for a key sent as the basic user name
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -185,6 +187,32 @@ refused = httpx.Response(
 )
 assert isinstance(client.classify(refused), AuthError)
 print(f"{sys.argv[1]}: Gateway({client.SOURCE!r}): auth, policy hooks and classify wired")
+PY
+  )
+fi
+# Offline, against an answer respx replays: core's BasicKeyAuth sends the key as the basic
+# user name with an empty password, where the key answer is basic (#173).
+api_key_location="$(sed -n 's/^api_key_location: //p' "$dest/.copier-answers.yml")"
+if [ "$api_key_location" = basic ]; then
+  echo
+  echo "==> the basic answer: the client sends the key as the basic user name, no password"
+  (cd "$dest" && uv run python - "xippios.$import_path._client" <<'PY'
+import asyncio
+import base64
+import importlib
+import os
+import sys
+
+import respx
+
+client = importlib.import_module(sys.argv[1])
+os.environ[client.API_KEY_ENV] = "placeholder"  # pragma: allowlist secret (a stand-in)
+with respx.mock(base_url=client.BASE_URL) as upstream:
+    route = upstream.get("/x").respond(200, json={})
+    asyncio.run(client.client.get_json("/x"))
+expected = "Basic " + base64.b64encode(b"placeholder:").decode("ascii")
+assert route.calls.last.request.headers["Authorization"] == expected, "the key, no password"
+print(f"{sys.argv[1]}: BasicKeyAuth sends {client.API_KEY_ENV} as the basic user name")
 PY
   )
 fi

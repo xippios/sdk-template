@@ -15,11 +15,11 @@ follows, sdk-core's conventions among them, are listed under
 | API base URL | `{{ api_base_url }}` |
 | Documentation | {{ upstream_docs_url }}, snapshotted in `docs/upstream/`; an OpenAPI or Swagger document a page names is kept beside it, its URL in `SPEC_URL` of `scripts/refresh_upstream.py` (`/refresh-upstream`) |
 {% if api_key_env %}
-| Credentials | `{{ api_key_env }}` from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% endif %}{% if gateway == 'api.data.gov' %} by `xippios.core.data_gov`'s `Gateway`; the key is api.data.gov's, shared by every package that reads it (sdk-core ADR-0009){% endif %} |
+| Credentials | `{{ api_key_env }}` from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% elif api_key_location == 'basic' %}as the HTTP basic user name, with no password{% endif %}{% if gateway == 'api.data.gov' %} by `xippios.core.data_gov`'s `Gateway`; the key is api.data.gov's, shared by every package that reads it (sdk-core ADR-0009){% endif %} |
 {% else %}
 | Credentials | none; the API is open |
 {% endif %}
-| Rate limit | {{ rate_limit_per_minute }} requests per minute, burst {{ rate_limit_burst }}; {% if rate_limit_provenance == 'self-imposed' %}a self-imposed pace: upstream documents no per-second or per-minute limit{% else %}within the limit documented by upstream{% endif %} (sdk-core ADR-0010); enforced client-side in `_client.py`{% if gateway == 'api.data.gov' %}. The hourly quota is the gateway's, shared by every package on the key: one `QuotaPolicy` per process, `Gateway.policy`, which once the quota is spent waits within the policy's cap or refuses before sending (sdk-core ADR-0009, sdk-core ADR-0015){% else %} <!-- name here an hourly or daily quota upstream documents, if any, and the QuotaPolicy that keeps it (sdk-core ADR-0015) -->{% endif %} |
+| Rate limit | {{ rate_limit_per_minute }} requests per minute, burst {{ rate_limit_burst }}; {% if rate_limit_provenance == 'self-imposed' %}a self-imposed pace: upstream documents no per-second or per-minute limit{% elif rate_limit_provenance == 'below-documented' %}set under the limit upstream documents <!-- name that limit, in upstream's own unit, and why the pace is set under it -->{% else %}within the limit documented by upstream{% endif %} (sdk-core ADR-0010); enforced client-side in `_client.py`{% if gateway == 'api.data.gov' %}. The hourly quota is the gateway's, shared by every package on the key: one `QuotaPolicy` per process, `Gateway.policy`, which once the quota is spent waits within the policy's cap or refuses before sending (sdk-core ADR-0009, sdk-core ADR-0015){% else %} <!-- name here an hourly or daily quota upstream documents, if any, and the QuotaPolicy that keeps it (sdk-core ADR-0015) -->{% endif %} |
 | Write tools | no, this package is read-only |
 {% if has_files %}
 | Files | parsed in `parse/`, one module per file kind; the parser tests read the samples under `tests/fixtures/files/`, their provenance in its `README.md` (sdk-core ADR-0020) <!-- each file kind upstream publishes, its format and the library that reads it --> |
@@ -157,6 +157,15 @@ and counts, never on a raw payload.
 - Upstream's documented error shapes go into `classify` in `_client.py`, once, and an error
   class of the package's own into `errors.py`; a wrapper never inspects a status code
   (conventions §5, §6).
+- One limiter paces each host the package sends to (conventions §2, §6). A second base URL
+  on the host of the API base URL goes through the one `client` of `_client.py` by its
+  absolute URL, and `classify`'s path checks name both bases. An origin or mirror that the
+  publisher runs itself, where its canonical host refuses automated requests, takes that
+  host's pace through the same client, and `docs/upstream/` names both hosts; a mirror that
+  anyone else runs is never sent to. A host that a dependency sends to is reached through
+  the dependency's tasks alone. Any other host gets a client of its own in `_client.py`,
+  its base URL and its `RateLimit` beside the first's, and a row of its own in the table
+  under What this package wraps, with its pace and where the pace comes from.
 - A change brings its tests, written before the code, and passes the offline checks above;
   its changelog entry is a fragment under `changelog/`, one file holding its bullet, as
   `changelog/README.md` lays it out (conventions §12). Commit subjects follow Conventional

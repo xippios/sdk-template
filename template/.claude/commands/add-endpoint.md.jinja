@@ -47,6 +47,17 @@ lists what they check in an endpoint.
    checks: upstream's documented error shapes go into `classify` in `_client.py`, an
    error class of the package's own into `errors.py` (conventions §5, §6).
 
+   An operation that upstream serves from another host than `BASE_URL`'s follows the
+   rule of one limiter per host (conventions §2, §6). A second base URL on the same host
+   goes through `client` by its absolute URL, and `classify`'s path checks name both
+   bases. An origin or mirror that the publisher runs itself, where its canonical host
+   refuses automated requests, takes that host's pace through the same client, and
+   `docs/upstream/` names both hosts; a mirror that anyone else runs is never sent to. A
+   host that a dependency sends to is reached through the dependency's tasks alone, never
+   by a wrapper here. Any other host gets a client of its own in `_client.py`, its base
+   URL and its `RateLimit` beside the first's, and its row in the table of `CLAUDE.md`,
+   with its pace and where the pace comes from, in the same pull request.
+
 4. **Task function** in `src/xippios/{{ package_dir }}/tasks.py`: an async function shaped
    like what a person or agent wants (`get_<thing>(...)`, with the parameters a caller
    thinks in), composing wrappers, resolving pagination with `xippios.core.paginate_*`
