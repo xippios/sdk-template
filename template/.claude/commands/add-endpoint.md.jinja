@@ -109,6 +109,35 @@ lists what they check in an endpoint.
    `route.calls`, which a failure or `pytest -l` would print. A test of a task that answers from a packaged list reads the list's
    fetch date and counts from the packaged file instead of pinning them, so a refresh of
    the list breaks no test. Grep the fixture for key patterns before committing.
+{% if write_server %}
+
+   A task that writes upstream goes into `src/xippios/{{ package_dir }}/tasks_write.py`
+   and its `__all__`, with `confirm: bool = False` as its last parameter. The source's
+   first write task brings the test of the write server, in `tests/test_tasks_write.py`:
+   core's `assert_write_tools` holds that the write server serves exactly the write
+   tasks, each taking `confirm` last, and that none of them is a tool of the read server
+   or a route of the router (conventions §8). It lists the tools on the test's own loop,
+   so the test awaits it under `@pytest.mark.anyio`:
+
+   ```python
+   import pytest
+   from xippios.core.testing import assert_write_tools
+
+   from xippios.{{ import_path }} import http, mcp, mcp_write, tasks_write
+   from xippios.{{ import_path }}._client import SOURCE
+
+
+   @pytest.mark.anyio
+   async def test_the_write_server_serves_write_tasks_only() -> None:
+       await assert_write_tools(
+           mcp_write.server,
+           [getattr(tasks_write, name) for name in tasks_write.__all__],
+           source=SOURCE,
+           read_server=mcp.server,
+           router=http.router,
+       )
+   ```
+{% endif %}
 
 7. **Docs.** A changelog fragment under `changelog/`, one file holding the change's
    bullet, as `changelog/README.md` lays it out. The README status table under
