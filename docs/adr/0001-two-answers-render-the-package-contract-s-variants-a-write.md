@@ -1,6 +1,6 @@
 # ADR-0001: Two answers render the package contract's variants: a write server and a multi-tenant source
 
-Status: Accepted · Date: 2026-11-19 · Decided by https://github.com/xippios/sdk-template/issues/174 · Amended 2026-11-19 by https://github.com/xippios/sdk-template/issues/209
+Status: Accepted · Date: 2026-11-19 · Decided by https://github.com/xippios/sdk-template/issues/174 · Amended 2026-11-19 by https://github.com/xippios/sdk-template/issues/209 · Amended 2026-11-19 by https://github.com/xippios/sdk-template/issues/221
 
 ## Context
 
@@ -67,25 +67,33 @@ sdk-google-mail has both, its tenants' credential a refresh token of its own flo
 
 - A source with a write server answers `write_server: true` at its adoption: its own
   `mcp.py` and `mcp_write.py` come as conflicts against the render, merged around the lines
-  both share, two and three on sdk-cashctrl's `main`, its `tasks_write.py` stays, and its
-  entry points take the two names. sdk-cashctrl answers `tenant_param: org` too, keeps its
-  instructions, which name `cashctrl_list_organisations`, and takes `live_secrets` without
-  its demo key, which `key_envs` now names.
+  both share, two in each on sdk-cashctrl's `main` (amended 2026-11-19), its
+  `tasks_write.py` stays, and its entry points take the two names. sdk-cashctrl answers
+  `tenant_param: org` too, keeps its instructions, which name
+  `cashctrl_list_organisations`, and takes `live_secrets` without its demo key, which
+  `key_envs` now names.
+- A render with `tenant_param` gives `mcp.py` and `mcp_write.py` a bound text,
+  `BOUND_INSTRUCTIONS`, each server's instructions without the clause that a tool takes the
+  tenant's argument, and passes it as `bound=` to core's `tenant_instructions`, so the
+  instructions of a server that `--<param>` binds say that no tool takes the tenant in
+  core's closing sentence alone (amended 2026-11-19).
 - sdk-google-mail answers `write_server: true`, `tenant_param: account` and
   `tenant_credential_env: GOOGLE_<NAME>_REFRESH_TOKEN`, and takes `live_secrets` without
   `GOOGLE_DEMO_REFRESH_TOKEN`, which `key_envs` now names (amended 2026-11-19). Its own
-  `mcp.py` and `mcp_write.py` come as two conflicts each against the render, its
+  `mcp.py` and `mcp_write.py` come as three conflicts each against the render, its
   `tests/conftest.py` as one, the whole file, and its `pyproject.toml` as two, its consent
-  entry point and its placeholder list, on its `main`; it keeps its `BOUND_INSTRUCTIONS`
-  and the read server's loopback rule as its lines, and `_client.py` takes
-  `check_account` and `ENV_VARS` by hand.
+  entry point and its placeholder list, on its `main`. Its `BOUND_INSTRUCTIONS` merge with
+  the render's, so it no longer keeps them as its own lines (amended 2026-11-19). It keeps
+  the read server's loopback rule as its lines, and `_client.py` takes `check_account` and
+  `ENV_VARS` by hand.
 - The template's tests render a sixth variant, sdk-cashctrl's shape, and a seventh,
   sdk-google-mail's, and `scripts/prove.sh --tenants` proves a nested multi-tenant source
   with a write server and basic auth, and `--tenants-keyless` one whose tenants hold a
   refresh token under a prefix the slug does not give: a server a host builds with
   `register_tasks` from `build()`'s tool set and a second package's serves the tools, caps
   and option defaults of the entry point, in every shape, and of the server `--org` or
-  `--account` binds.
+  `--account` binds, whose instructions say that no tool takes the tenant in core's closing
+  sentence alone (amended 2026-11-19).
 - Core's `serve_tenants` takes no option hook of the source's, so a multi-tenant source's
   options reach a host through its tool set but not its own entry point, until sdk-core
   decides https://github.com/xippios/sdk-core/issues/311.
