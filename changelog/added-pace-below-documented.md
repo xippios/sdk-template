@@ -5,7 +5,7 @@
   pace, where `documented` rendered a pace within the limit and `self-imposed` no limit at
   all. A source in that place, as sdk-comtrade and sdk-google-mail are, passes
   `-d rate_limit_provenance=below-documented` to the update that takes this release.
-  (ADR-0010, https://github.com/xippios/sdk-template/issues/46)
+  (ADR-0033, https://github.com/xippios/sdk-template/issues/46)
   - Hand-apply: `src/xippios/<package>/_client.py` — where the answer becomes
     `below-documented`, write the comment above `RATE_LIMIT` as a render has it, the
     documented limit and the reason for the lower pace after it — the update never
