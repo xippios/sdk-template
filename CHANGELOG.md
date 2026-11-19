@@ -47,6 +47,14 @@ named so.
 
 ### Added
 
+- A multi-tenant render's `mcp.py` and `mcp_write.py` define `BOUND_INSTRUCTIONS`, each
+  server's text without the clause that a tool takes the tenant's argument, and `build(lock)`
+  passes it to core's `tenant_instructions` as `bound=`, as sdk-core ADR-0036 decision 7
+  has it. A server that `--<param>` binds no longer says that a tool takes the tenant's
+  argument, and core's closing sentence names the tenant. At its update sdk-google-mail's
+  own `BOUND_INSTRUCTIONS` merge with the render's, the write server's whole and the read
+  server's but for its last line, where a conflict opens that runs through `run()`.
+  (https://github.com/xippios/sdk-template/issues/219)
 - `tenant_credential_env` names the variable of each tenant's credential,
   `<PREFIX>_<NAME>_<FIELD>`, for a multi-tenant source whose tenants hold no key, a refresh
   token say, so `tenant_param` renders the tenant shape without `api_key_env`: core's
@@ -174,6 +182,11 @@ named so.
 
 ### Changed
 
+- Where `write_server` is true, `/add-endpoint` says that a write task goes into
+  `tasks_write.py` and that a source's first one brings `tests/test_tasks_write.py`, which
+  awaits core's `xippios.core.testing.assert_write_tools` under `@pytest.mark.anyio`, as
+  conventions §8 and sdk-core ADR-0042 decision 1 ask. The command gives the test's code,
+  and `copier update` brings it. (https://github.com/xippios/sdk-template/issues/220)
 - Template-internal: the template's CI proves seven shapes, the two multi-tenant ones,
   `scripts/prove.sh --tenants` and `--tenants-keyless`, beside the five, and its own
   `CLAUDE.md` names the files, answers, variants and proofs of this release, the copies of
