@@ -22,5 +22,5 @@
     `scripts/refresh_reference.py` — a multi-tenant source fetches through
     `client_for(DEMO)` — no module-level client serves every tenant.
     `CLAUDE.md` — the `Credentials` and `Tenants` rows name the key's pattern, the tenant
-    list and `demo`, and the rule of one limiter per host names `client_for(<param>)` — the
-    render states them.
+    list and `demo`, and the rule of one limiter per host says that each tenant's client,
+    `client_for(<param>)`, paces that tenant's requests — the render states them.

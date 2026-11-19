@@ -176,8 +176,16 @@ and counts, never on a raw payload.
 - Upstream's documented error shapes go into `classify` in `_client.py`, once, and an error
   class of the package's own into `errors.py`; a wrapper never inspects a status code
   (conventions §5, §6).
+{% if tenant_param %}
+- Each tenant's client, `client_for({{ tenant_param }})`, paces that tenant's requests with a rate
+  limiter of its own, since core's `Tenants.client_for` keeps a client per tenant, and one
+  limiter paces each other host the package sends to (conventions §2, §6, §7). A second
+  base URL on the host of the API base URL goes through the tenant's
+  `client_for({{ tenant_param }})` of `_client.py` by its
+{% else %}
 - One limiter paces each host the package sends to (conventions §2, §6). A second base URL
-  on the host of the API base URL goes through {{ 'the tenant\'s `client_for(' ~ tenant_param ~ ')`' if tenant_param else 'the one `client`' }} of `_client.py` by its
+  on the host of the API base URL goes through the one `client` of `_client.py` by its
+{% endif %}
   absolute URL, and `classify`'s path checks name both bases. An origin or mirror that the
   publisher runs itself, where its canonical host refuses automated requests, takes that
   host's pace through the same client, and `docs/upstream/` names both hosts; a mirror that
