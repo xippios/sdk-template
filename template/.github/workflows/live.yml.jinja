@@ -62,7 +62,14 @@ jobs:
       # assertion prints the line and AssertionError alone, never the values it compared,
       # a record of the upstream among them, here or in the summary of -ra.
       - run: uv run pytest -m live --tb=short --assert=plain
-{% if key_envs | length == 1 and not live_secret_names %}
+{% if tenant_param and not api_key_env and key_envs | length == 1 and not live_secret_names %}
+        # The reserved tenant's credential, from the secret of the same name, for this step
+        # only: checkout, setup-uv and uv sync never see it.
+{% elif tenant_param and not api_key_env %}
+        # The reserved tenant's credential, then the other variables the answers name, each
+        # from the secret of the same name, for this step only: checkout, setup-uv and uv
+        # sync never see them.
+{% elif key_envs | length == 1 and not live_secret_names %}
         # The key, from the org secret, for this step only: checkout, setup-uv and uv sync
         # never see it.
 {% elif key_envs and not live_secret_names %}
