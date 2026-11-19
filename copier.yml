@@ -305,6 +305,23 @@ has_files:
     false, the default, for an API that answers with records.
   default: false
 
+# Whether the source packages reference data (conventions §3): params.py, enums.py,
+# reference/, scripts/refresh_reference.py and /refresh-reference-data render only then,
+# so an update brings none of them back to a source that packages none. Its default, true,
+# is a literal, so every source that predates the question takes it on update.
+has_reference_data:
+  type: bool
+  help: >-
+    Whether this source packages reference data (conventions §3): code lists or tables
+    that upstream publishes for every caller alike, fetched by
+    scripts/refresh_reference.py into reference/ and rendered into enums.py. true, the
+    default, renders that scaffold, params.py, enums.py, reference/,
+    scripts/refresh_reference.py and /refresh-reference-data, whether or not a list is
+    packaged yet. A source that packages none answers false: none of it renders, and an
+    update deletes the files the template rendered, the source's lines in them included,
+    and leaves a file the source added under reference/ for the source to delete.
+  default: true
+
 # The human's GitHub login, which the rendered .github/CODEOWNERS names as the owner of the
 # paths that steer the repository. Its default is a literal, so every source that predates
 # the question takes it on update.
