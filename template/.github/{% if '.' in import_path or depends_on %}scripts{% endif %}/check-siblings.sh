@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Sibling proof for ADR-0006: this package's wheel installs beside its siblings, the
-# packages under the same provider namespace (xippios.usda.nass beside xippios.usda.psd),
-# as portions of the PEP 420 namespaces between xippios and the package.
+# Sibling proof for sdk-core ADR-0006: this package's wheel installs beside its siblings,
+# the packages under the same provider namespace (xippios.usda.nass beside
+# xippios.usda.psd), as portions of the PEP 420 namespaces between xippios and the package.
 #
 # sdk-template renders this file, and .github/workflows/siblings.yml that runs it, where
 # the import path nests or the source declares a source package it depends on; copier
@@ -18,8 +18,8 @@
 # nothing upstream. Needs the network, no key. Run from anywhere:
 # .github/scripts/check-siblings.sh
 #
-# The source packages this one depends on (ADR-0021), as pyproject.toml declares them
-# (xippios-<slug>~=X.Y.0), install with the wheel from PyPI at their bound and import
+# The source packages this one depends on (sdk-core ADR-0021), as pyproject.toml declares
+# them (xippios-<slug>~=X.Y.0), install with the wheel from PyPI at their bound and import
 # beside it, each namespace level above them a portion too. A declared dependency is never
 # left out as a sibling on another core minor is: a conflict, another xippios-core minor
 # included, fails the check, since both share one core minor. A flat source that declares
@@ -45,7 +45,7 @@ trap 'rm -rf "$work"' EXIT
 unset VIRTUAL_ENV  # never install into whatever environment the shell has active
 cd "$root"
 
-# The distribution and the import path as copier recorded them (ADR-0006).
+# The distribution and the import path as copier recorded them (sdk-core ADR-0006).
 answer() { sed -n "s/^$1: //p" .copier-answers.yml; }
 slug="$(answer source_slug)"
 import_path="$(answer import_path)"
@@ -64,7 +64,7 @@ uv venv --quiet --python "${PYTHON:-3.12}" "$work/venv"
 python="$work/venv/bin/python"
 
 # The source packages this one depends on, by distribution name: every xippios-* but core
-# in [project] dependencies (ADR-0021). The wheel requires them at their bound.
+# in [project] dependencies (sdk-core ADR-0021). The wheel requires them at their bound.
 declared=()
 names="$("$python" - <<'PY'
 import re
@@ -241,7 +241,7 @@ fi
 
 "$python" - "$package" "${declared[@]}" <<'PY'
 """Every level above the package stays a namespace portion; every package under it imports,
-and so does every source package it depends on, beside it (ADR-0021)."""
+and so does every source package it depends on, beside it (sdk-core ADR-0021)."""
 import importlib
 import pkgutil
 import sys

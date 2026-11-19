@@ -19,8 +19,9 @@
 # the registry takes the prefix and the field of tenant_credential_env.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
 # suite tests it. The template's CI runs every shape below, and the keyless nested one
-# again with -d has_files=true, a source that parses the files it downloads (ADR-0020).
-# It generates with `copier copy` alone, as README.md says a source is generated.
+# again with -d has_files=true, a source that parses the files it downloads
+# (sdk-core ADR-0020). It generates with `copier copy` alone, as README.md says a source
+# is generated.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF]
 #                         [--keyless | --keyless-nested | --gateway | --tenants
@@ -74,9 +75,10 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-# The keyed slug nests (example-api → xippios.example.api) so the proof covers ADR-0006;
-# the keyless ones start as the family's keyless sources did, flat as eurostat and nested
-# as esmis or wasde; the gateway one as psd, esr and gats, with no key answer of its own.
+# The keyed slug nests (example-api → xippios.example.api) so the proof covers
+# sdk-core ADR-0006; the keyless ones start as the family's keyless sources did, flat as
+# eurostat and nested as esmis or wasde; the gateway one as psd, esr and gats, with no key
+# answer of its own.
 case "$shape" in
   keyless) slug="example"; key=() ;;
   keyless-nested) slug="example-files"; key=() ;;
@@ -167,8 +169,9 @@ refusal="$(grep "Nothing to fetch: fill PAGES" "$work/refresh.err")" \
   || { cat "$work/refresh.err" >&2; exit 1; }
 echo "refused: $refusal"
 
-# The parsers' package and the samples' table, as copier recorded has_files (ADR-0020):
-# the suite above passed on the render, with an empty parse/ where they are rendered.
+# The parsers' package and the samples' table, as copier recorded has_files
+# (sdk-core ADR-0020): the suite above passed on the render, with an empty parse/ where
+# they are rendered.
 has_files="$(sed -n 's/^has_files: //p' "$dest/.copier-answers.yml")"
 parse_dir="$package_dir/parse"
 echo
@@ -388,7 +391,7 @@ fi
 
 # Offline, on core's adapters as the render calls them: a task named in BULK_TASKS gets no
 # tool and no route, while mcp.py passes tool_functions(tasks) and http.py tasks.__all__
-# whole (ADR-0019).
+# whole (sdk-core ADR-0040).
 echo
 echo "==> a bulk task gets no tool and no route; the adapters take tasks.__all__"
 (cd "$dest" && uv run python - "xippios.$import_path" "$slug" <<'PY'
@@ -628,7 +631,8 @@ PY
 if [ "$has_reference_data" = true ]; then
 # The refresh script's render on two packaged lists fetched on different days, a value
 # list and an id list whose names repeat: one enums.py of a StrEnum and an IntEnum, each
-# with its date, as ruff leaves it (conventions §3, ADR-0008). The tree is restored after.
+# with its date, as ruff leaves it (conventions §3, sdk-core ADR-0031). The tree is
+# restored after.
 echo
 echo "==> refresh_reference.py renders a value list and an id list into one enums.py"
 (cd "$dest" && uv run python - "xippios.$import_path" <<'PY'

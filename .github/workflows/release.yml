@@ -1,4 +1,4 @@
-# The template's release train (conventions §12, ADR-0018 amendment b): sdk-template
+# The template's release train (conventions §12, sdk-core ADR-0039 decision 6): sdk-template
 # publishes nothing to PyPI, so its release is the tag. The release PR turns Unreleased
 # into `## [X.Y.Z] - <date>`; its merge on main runs this workflow, which
 # reads the top `## [X.Y.Z] - ` heading of CHANGELOG.md and, when `vX.Y.Z` has no tag yet,

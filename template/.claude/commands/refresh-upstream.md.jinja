@@ -1,9 +1,9 @@
 Refresh the upstream documentation snapshot for {{ source_name }}: $ARGUMENTS
 
 The snapshot in `docs/upstream/` is the reference for every endpoint wrapper
-(ADR-0003). It is refreshed deliberately, by pull request, so changes are visible as
-diffs (conventions §3), and captured by `scripts/refresh_upstream.py`, so that a refresh
-is reproducible. The change meets sdk-core's definition of done,
+(sdk-core ADR-0028). It is refreshed deliberately, by pull request, so changes are visible
+as diffs (conventions §3), and captured by `scripts/refresh_upstream.py`, so that a
+refresh is reproducible. The change meets sdk-core's definition of done,
 https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md, and its review
 checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md.
 
@@ -97,11 +97,11 @@ checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.m
      module docstring, which says what the script captures.
 3. **Capture.** `uv run scripts/refresh_upstream.py` fetches every page before it writes
    anything, then writes the files and regenerates `docs/upstream/FETCHED.md` (conventions
-   §3, ADR-0003): `Fetched`, the UTC time of the run in ISO 8601 with an explicit `Z`;
-   under Attribution the statements as recorded, or that the documentation states none;
-   one row per file and per page recorded without a file, with its HTTP status, the size
-   and sha256 of the body as fetched, and ETag and Last-Modified where sent; a row for
-   `docs/upstream/OBSERVED.md` where it exists; and the table `Not fetched`. Read the
+   §3, sdk-core ADR-0028): `Fetched`, the UTC time of the run in ISO 8601 with an explicit
+   `Z`; under Attribution the statements as recorded, or that the documentation states
+   none; one row per file and per page recorded without a file, with its HTTP status, the
+   size and sha256 of the body as fetched, and ETag and Last-Modified where sent; a row
+   for `docs/upstream/OBSERVED.md` where it exists; and the table `Not fetched`. Read the
    result.
 4. Diff against the previous snapshot: `git diff --stat docs/upstream/` and read the
    changes. Summarise in the pull request what changed upstream: new or removed

@@ -32,6 +32,21 @@ BASE_ANSWERS: dict[str, object] = {
 TABLE_HEADER = "| File | URL | Fetched | HTTP | Bytes | sha256 | ETag | Last-Modified | Note |"
 
 
+# The template's own lines of the two workflows it copies from sdk-core and extends: in
+# ci.yml the full history for the two steps that read the pull request (core's
+# docs/handover.md, "Template v0.2.1"), in publish.yml the refusal of a git-pinned core
+# before the tag.
+FETCH_DEPTH = "          fetch-depth: 0 # both steps below diff against origin/<base>\n"
+CI_STEPS = (
+    "      # Conventions §12: every PR but Dependabot's",
+    "      - uses: astral-sh/setup-uv@",
+)
+PUBLISH_STEP = (
+    "      # sdk-template's one step beyond core's file",
+    "      - name: Tag the merge commit",
+)
+
+
 # A stand-in for a 40-character sdk-core commit, never fetched: hex of high entropy, as a
 # real SHA is, computed so that no literal in this file looks like a secret.
 FAKE_CORE_SHA = hashlib.sha1(b"a fixed stand-in for an sdk-core commit").hexdigest()
@@ -45,7 +60,7 @@ def keyed(env: str, location: str = "query", name: str | None = None) -> dict[st
     return answers
 
 
-# What the api.data.gov gateway answer derives (ADR-0009): the key's variable, its
+# What the api.data.gov gateway answer derives (sdk-core ADR-0032): the key's variable, its
 # location and its header, recorded as if answered.
 DATA_GOV = "api.data.gov"
 GATEWAY_KEY = keyed("DATA_GOV_API_KEY", "header", "X-Api-Key")
@@ -67,7 +82,7 @@ def key_answers(answers: dict[str, object]) -> dict[str, object]:
 # name at its bound are answers of their own, each tested by its rule in test_template.py.
 VARIANTS: dict[str, dict[str, object]] = {
     # sdk-usda-nass's shape: a key of its own, sent as a query parameter, and a nested
-    # import path (ADR-0006); no gateway, answered as such.
+    # import path (sdk-core ADR-0006); no gateway, answered as such.
     "keyed-nested": {
         "source_slug": "usda-nass",
         "gateway": "none",
@@ -89,10 +104,10 @@ VARIANTS: dict[str, dict[str, object]] = {
         "rate_limit_provenance": "self-imposed",
         **keyed(""),
     },
-    # sdk-usda-wasde's, as it will start (ADR-0021): no key, a nested import path, and the
+    # sdk-usda-wasde's, as it will start (sdk-core ADR-0021): no key, a nested import path, and the
     # source packages it depends on, one open and one keyed, whose variable then reaches
     # the offline placeholder and live.yml (D47); the first parser package, it parses the
-    # files it downloads (ADR-0020), so has_files renders parse/ and the samples' table.
+    # files it downloads (sdk-core ADR-0020), so has_files renders parse/ and the samples' table.
     "dependency": {
         "source_slug": "usda-wasde",
         "source_dependencies": (
@@ -103,7 +118,7 @@ VARIANTS: dict[str, dict[str, object]] = {
         **keyed(""),
     },
     # sdk-usda-psd's (and sdk-usda-esr's and sdk-usda-gats's): behind the api.data.gov
-    # gateway (T9, ADR-0009), which derives the key answers, so none is passed; nested.
+    # gateway (T9, sdk-core ADR-0032), which derives the key answers, so none is passed; nested.
     "gateway": {
         "source_slug": "usda-psd",
         "gateway": DATA_GOV,
@@ -144,14 +159,14 @@ def package_dir(answers: dict[str, object]) -> str:
 
 
 def dependencies(answers: dict[str, object]) -> list[dict[str, str]]:
-    """The source packages a variant depends on, parsed from its answer (ADR-0021)."""
+    """The source packages a variant depends on, parsed from its answer (sdk-core ADR-0021)."""
     parsed = yaml.safe_load(str(answers.get("source_dependencies", "[]")))
     assert isinstance(parsed, list)
     return parsed
 
 
 def has_files(answers: dict[str, object]) -> bool:
-    """Whether a variant parses the files it downloads (ADR-0020); copier's default no."""
+    """Whether a variant parses the files it downloads (sdk-core ADR-0020); copier's default no."""
     return answers.get("has_files", False) is True
 
 

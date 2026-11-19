@@ -12,10 +12,14 @@ source is generated.
 ```
 copier.yml               questions and copier settings (subdirectory, skip-if-exists, envops)
 template/                what gets generated; *.jinja files are rendered, others copied verbatim
-  src/xippios/{{ package_dir }}/  the package (import_path as directories, ADR-0006): _client, errors, models, tasks, api/, mcp, http, reference/
-  tests/                 conftest (plugin), test_family (core's family check, one line), task replay
-                         tests, live smoke
-  .claude/commands/      add-endpoint, record-fixture, refresh-upstream, refresh-reference-data, release-prep
+  src/xippios/{{ package_dir }}/  the package (import_path as directories, sdk-core ADR-0006):
+                         _client, errors, models, tasks, api/, mcp, http; params, enums and
+                         reference/ where has_reference_data, tasks_write and mcp_write where
+                         write_server, only their names conditional
+  tests/                 conftest (plugin; the strip of every tenant but demo where tenant_param),
+                         test_family (core's family check, one line), task replay tests, live smoke
+  .claude/commands/      add-endpoint, record-fixture, refresh-upstream, release-prep,
+                         refresh-reference-data where has_reference_data
   .claude/settings.json  what Claude Code may run in a source: its checks and local git
   CLAUDE.md.jinja        the facts and code rules of a generated repo; the source's once rendered
   README.md.jinja        a generated repo's README with its `## Documents`; the source's once rendered
@@ -29,37 +33,48 @@ template/                what gets generated; *.jinja files are rendered, others
   .github/CODEOWNERS.jinja  the paths that steer a generated repo, each owned by the human answer
   .github/workflows/{% if '.' in import_path or depends_on %}siblings.yml{% endif %},
   .github/{% if '.' in import_path or depends_on %}scripts{% endif %}/check-siblings.sh
-                         the sibling proof of ADR-0006 and ADR-0021, verbatim, only their names
-                         rendered (Rules)
+                         the sibling proof of sdk-core ADR-0006 and sdk-core ADR-0021,
+                         verbatim, only their names rendered (Rules)
   src/xippios/{{ package_dir }}/{% if has_files %}parse{% endif %}/__init__.py,
   tests/{% if has_files %}fixtures{% endif %}/files/README.md
                          the parsers' package and the samples' provenance table of a source
-                         that parses files (ADR-0020), skip-listed, only their names conditional
+                         that parses files (sdk-core ADR-0020), skip-listed, only their names
+                         conditional
   scripts/refresh_upstream.py.jinja  the capture skeleton a source fills (/refresh-upstream)
+  scripts/{% if has_reference_data %}refresh_reference.py{% endif %}.jinja  the reference
+                         refresh a source fills (/refresh-reference-data)
   scripts/adr_index.py   writes and checks a source's ADR index; verbatim, this repository's file
   docs/adr/README.md, docs/reports/README.md   a generated repo's decisions and reports, laid
                          out; verbatim, this repository's files
   docs/adr.md, docs/adr.json  the index of a render with no record yet; the source's once rendered
   tests/test_family.py   one line collecting xippios.core.testing.family
   changelog/README.md    a generated repo's changelog fragments; verbatim, the same in every source
-  .gitattributes         docs/upstream/** -text: the snapshot stays byte for byte (CRLF, mixed endings)
-scripts/prove.sh         generate sdk-example-api (--keyless: sdk-example; --keyless-nested: sdk-example-files;
-                         --gateway: sdk-example-gov) from the working tree with copier copy and run
-                         every check on it; -d key=value passes one more answer (-d has_files=true)
+  .gitattributes.jinja   docs/upstream/** -text, and tests/fixtures/files/** -text where has_files:
+                         the snapshot and the samples stay byte for byte (CRLF, mixed endings)
+scripts/prove.sh         generate sdk-example-api (--keyless: sdk-example; --keyless-nested:
+                         sdk-example-files; --gateway: sdk-example-gov; --tenants:
+                         sdk-example-tenants; --tenants-keyless: sdk-example-mail) from the working
+                         tree with copier copy and run every check on it; -d key=value passes one
+                         more answer (-d has_files=true)
 scripts/adr_index.py     writes docs/adr.md and docs/adr.json from the records in docs/adr/; --check
                          fails while either is stale
-tests/                   the template's tests: conftest.py renders each of the family's variants once,
-                         helpers.py holds their answers and the tools a test runs on a render, and
-                         test_template.py checks the renders, ruff on the output, the answers' rules,
-                         skip-if-exists behaviour; a new concern's tests take a module of their own
+tests/                   the template's tests: conftest.py renders each of the family's seven
+                         variants once, helpers.py holds their answers and the tools a test runs on
+                         a render, test_template.py checks the renders, ruff on the output, the
+                         answers' rules and skip-if-exists behaviour, and a module of its own holds
+                         each later concern: test_helpers, test_capture, test_reference_data,
+                         test_client_answers, test_repository_files, test_core_adoption,
+                         test_contract, test_citations
 docs/adr/                this repository's design decisions, one NNNN-<slug>.md record each, laid
-                         out in its README.md
+                         out in its README.md and cited as ADR-NNNN, sdk-core's as
+                         `sdk-core ADR-NNNN`; ADR-0001 holds the answers of the package
+                         contract's variants, write_server and tenant_param
 docs/adr.md, docs/adr.json  their index, written by scripts/adr_index.py, never by hand
 docs/reports/            dated reports, the evidence a decision cites, laid out in its README.md
 CHANGELOG.md             template releases, each section assembled from changelog/ (Rules)
 changelog/               the next release's entries, one fragment per change; README.md lays them out
 pyproject.toml, uv.lock  the development tooling; version names the latest release (Releases)
-.github/workflows/ci.yml       the template's own CI: tests and five proofs
+.github/workflows/ci.yml       the template's own CI: tests and seven proofs
 .github/workflows/organization.yml  the organization's checks on this repository's own pull
                          requests, conventions and adr-index; byte for byte the render's (Rules)
 .github/workflows/release.yml  tags vX.Y.Z from the top CHANGELOG heading (Releases)
@@ -69,30 +84,40 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
 ## Rules
 
 - Generated code must pass `ruff check`, `ruff format --check`, `mypy --strict`, `pytest`
-  and `pre-commit` out of the box. `scripts/prove.sh` is the proof, in the family's
+  and `pre-commit` out of the box. `scripts/prove.sh` is the proof, in the family's seven
   shapes: keyed and nested (no flag), keyless and flat (`--keyless`), keyless and nested
   (`--keyless-nested`), keyless and nested parsing files, with an empty `parse/`
-  (`--keyless-nested -d has_files=true`), and nested behind the api.data.gov gateway
-  (`--gateway`, on core 0.3.0, the first release with `xippios.core.data_gov`); CI runs
-  all five. Run them before every pull request and paste their tails into its description.
+  (`--keyless-nested -d has_files=true`), nested behind the api.data.gov gateway
+  (`--gateway`), nested and multi-tenant with a write server, its tenants' keys sent as the
+  basic user name (`--tenants`), and nested and multi-tenant with tenants that hold a
+  refresh token, no key (`--tenants-keyless`). Every proof runs on core 0.4.0, the release
+  `core_version` defaults to; 0.3.0 stays the first release with `xippios.core.data_gov`.
+  CI runs all seven. Run them before every pull request and paste their tails into its
+  description. `-d` adds an answer to a shape: `-d has_reference_data=false` proves a
+  render without the reference scaffold, `-d api_key_location=basic
+  -d rate_limit_provenance=below-documented` the client's answers.
   A dependent (`source_dependencies`) has no proof of its own, since a dependency that is
   not on PyPI cannot be installed; the template tests cover its render.
-- The tests render each of the family's variants once per test run, by the fixtures of
-  `tests/conftest.py` from the answers in `tests/helpers.py`: keyed nested, keyless flat,
-  keyless nested, a dependent that parses files (keyless nested with
-  `source_dependencies`, one open and one keyed, and `has_files`) and one behind the
-  api.data.gov gateway (`gateway`, which derives the key answers); a check no answer
-  changes reads one render, and an answer outside the variants (a key location, a core
-  pin, a name at its bound, an `import_path` override, a flat source with a dependency)
-  is tested by its own rule. The tests assert mechanics, never rendered prose: a file
+- The tests render each of the family's seven variants once per test run, by the fixtures
+  of `tests/conftest.py` from the answers in `tests/helpers.py`: keyed nested, keyless
+  flat, keyless nested, a dependent that parses files (keyless nested with
+  `source_dependencies`, one open and one keyed, and `has_files`), one behind the
+  api.data.gov gateway (`gateway`, which derives the key answers), a multi-tenant source
+  with a write server whose tenants' keys go as the basic user name (`tenants`:
+  `write_server`, `tenant_param`, `api_key_location: basic`) and one whose tenants hold a
+  refresh token, no key (`tenants-keyless`: `tenant_credential_env`, `live_secrets`); a
+  check no answer changes reads one render, and an answer outside the variants (a key
+  location, a pace set under a documented limit, `has_reference_data: false`, a core pin,
+  a name at its bound, an `import_path` override, a flat source with a dependency) is
+  tested by its own rule. The tests assert mechanics, never rendered prose: a file
   rendered or not, a name present, no Jinja left, a digest equal, a script's behaviour.
   A new concern's tests take a module of their own beside `tests/test_template.py` and
   import what the modules share from `tests/helpers.py`.
 - Files a source fills with its own content (`__init__.py`, `_client.py`, `errors.py`,
-  `models.py`, `api/`, `parse/`, `tasks.py`, `params.py`, `enums.py`, `reference/`,
-  `scripts/refresh_reference.py`, `scripts/refresh_upstream.py`, `tests/test_tasks.py`,
-  `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`, `docs/adr.md`,
-  `docs/adr.json`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`) are listed in
+  `models.py`, `api/`, `parse/`, `tasks.py`, `tasks_write.py`, `params.py`, `enums.py`,
+  `reference/`, `scripts/refresh_reference.py`, `scripts/refresh_upstream.py`,
+  `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
+  `docs/adr.md`, `docs/adr.json`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`) are listed in
   `_skip_if_exists` so `copier update` never overwrites them; copier renders the
   patterns, so those inside the package name `{{ package_dir }}`, never `**`, which would
   match a whole package named like a protected directory (`example-api`'s
@@ -112,7 +137,8 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   earlier render had it, `_skip_if_exists` notwithstanding (copier 9.19.1).
 - Workflow files are copied verbatim (no `.jinja`) so GitHub's `${{ }}` never meets Jinja,
   with one exception: `live.yml.jinja` is rendered, because the secrets its pytest step
-  reads are named by the answers, the keys first, `api_key_env` and the `key_env` of each
+  reads are named by the answers, the keys first, `api_key_env`, or a multi-tenant
+  source's reserved tenant's credential in its place, and the `key_env` of each
   `source_dependencies` entry (`key_envs`, a hidden answer), then each variable that
   `live_secrets` lists (`live_secret_names`, a hidden answer), and its start time comes
   from `live_schedule`, a hidden answer `copier.yml` computes from the slug. It writes
@@ -131,24 +157,27 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   as `.github/workflows/organization.yml`, and the tests hold the two equal.
   Two verbatim files render only where the import path nests or the source declares a
   dependency, so only their names hold Jinja: `.github/workflows/siblings.yml` and the
-  script it runs,
-  `.github/scripts/check-siblings.sh` (executable; copier keeps the bit), the sibling
-  proof of ADR-0006, which installs and imports the declared dependencies too (ADR-0021).
-  They stay outside `_skip_if_exists`, so `copier update` keeps a source's copy
-  equal to the render, and the name of the script's directory is the conditional one,
-  so a flat render gets no empty directory.
+  script it runs, `.github/scripts/check-siblings.sh` (executable; copier keeps the bit),
+  the sibling proof of sdk-core ADR-0006, which installs and imports the declared
+  dependencies too (sdk-core ADR-0021). They stay outside `_skip_if_exists`, so
+  `copier update` keeps a source's copy equal to the render, and the name of the script's
+  directory is the conditional one, so a flat render gets no empty directory.
   `siblings` is a visible job the ruleset does not require: `ci.yml` stays core's file.
 - The files copied from sdk-core, `ci.yml`, `publish.yml`, `.pre-commit-config.yaml`,
   `.secrets.baseline`, `.python-version` and `LICENSE`, mirror sdk-core at the core release
-  the template adopts (v0.3.0). The template carries neither core's caller of the retired
+  the template adopts, v0.4.0. The template carries neither core's caller of the retired
   gates nor core's pull-request template. `tests/test_template.py` pins `ci.yml` and
-  `publish.yml` to core's bytes once the template's own lines below are taken out. When
+  `publish.yml` to core's bytes once the template's own lines below are taken out, and
+  `tests/test_core_adoption.py` pins the other four to their digests at v0.4.0. When
   sdk-core changes one of them, change it here too and bump the template; `copier update`
-  carries it into the generated repos. Two carry the exclusion of `.copier-answers.yml`, in the
-  detect-secrets hook's `exclude` in `.pre-commit-config.yaml` and in
-  `should_exclude_file` in `.secrets.baseline`, because the answers file names the key's
-  variable and trips the keyword check on commit and on a baseline rescan alike; sdk-core
-  carries the same exclusion since core 0.2.0.
+  carries it into the generated repos. The map `SUPERSEDED` of `tests/test_citations.py`
+  holds the records that sdk-core's index lists as superseded at the release the template
+  adopts, which `SUPERSEDED_AT` names, and a test fails while `core_version`'s default
+  names another, until the map follows that release's `docs/adr.md`. Two of the copies
+  carry the exclusion of `.copier-answers.yml`, in the detect-secrets hook's `exclude` in
+  `.pre-commit-config.yaml` and in `should_exclude_file` in `.secrets.baseline`, because
+  the answers file names the key's variable and trips the keyword check on commit and on a
+  baseline rescan alike; sdk-core carries the same exclusion since core 0.2.0.
   `publish.yml` deviates by one step: in its `tag` job, before the tag, it refuses a
   `pyproject.toml` that has `[tool.uv.sources]`, since a source that pins core to git
   cannot be published (conventions §12); core has no pin to guard. `ci.yml` deviates by
@@ -193,8 +222,11 @@ uv run pytest                   # template tests (fast: generation + ruff on the
 scripts/prove.sh                  # full proof against the xippios-core release on PyPI
 scripts/prove.sh --keyless        # the same for a keyless flat source
 scripts/prove.sh --keyless-nested # the same for a keyless nested source
-scripts/prove.sh --gateway        # the same for a nested source behind api.data.gov (core 0.3.0)
 scripts/prove.sh --keyless-nested -d has_files=true   # a keyless nested source that parses files
+scripts/prove.sh --gateway        # the same for a nested source behind api.data.gov
+scripts/prove.sh --tenants        # a multi-tenant source with a write server and basic auth
+scripts/prove.sh --tenants-keyless  # one whose tenants hold a refresh token, no key
+scripts/prove.sh -d has_reference_data=false   # a source that packages no reference data
 scripts/prove.sh --core-ref main  # against sdk-core's main, before a core change is released
 uv run ruff check . && uv run ruff format --check .
 python3 scripts/adr_index.py --check   # this repository's ADR index matches its records
@@ -205,15 +237,16 @@ python3 scripts/adr_index.py --check   # this repository's ADR index matches its
 - A generated repository records the template tag it was made from in
   `.copier-answers.yml`: `copier copy` takes the latest tag where no `--vcs-ref` names
   one, and core's family check fails a repository whose answers name no tag.
-- Releases follow the release train (conventions §12, ADR-0018 amendment (b)): a release
-  assembles the fragments under `changelog/` into `## [X.Y.Z] - <date>` of `CHANGELOG.md`,
-  as `changelog/README.md` lays it out, and deletes them. It sets `version` in
-  `pyproject.toml` to `X.Y.Z`, locks again with `uv lock` and sets the README's
-  `--vcs-ref` to `vX.Y.Z`, and changes no other file outside conventions §12's release
-  subset: `CHANGELOG.md`, `pyproject.toml`, `uv.lock`, and `README.md` or `CLAUDE.md`
-  where a sentence names the release. The section may gain a lead paragraph and says
-  internal labels (decisions, rows, plan steps) in plain words, since it becomes the
-  tag's message. `.github/workflows/release.yml` tags `vX.Y.Z` on the release's commit
+- Releases follow the release train (conventions §12, sdk-core ADR-0039 decision 6): a
+  release assembles the fragments under `changelog/` into `## [X.Y.Z] - <date>` of
+  `CHANGELOG.md`, as `changelog/README.md` lays it out, and deletes them. It sets
+  `version` in `pyproject.toml` to `X.Y.Z`, locks again with `uv lock` and sets the
+  README's `--vcs-ref` to `vX.Y.Z`, and changes no other file outside conventions §12's
+  release subset: `CHANGELOG.md`, `pyproject.toml`, `uv.lock`, and `README.md` or
+  `CLAUDE.md` where a sentence names the release. The section may gain a lead paragraph
+  and says internal labels (decisions, rows, plan steps) in plain words, since it becomes
+  the tag's message. `.github/workflows/release.yml` tags `vX.Y.Z` on the release's commit
   with that section as the message.
 - Never push a tag by hand, and never touch a secret.
-- Never read or print `.envrc`, `.env`, or any variable ending in `_API_KEY`.
+- Never read or print `.envrc`, `.env`, or any variable ending in `_API_KEY`, `_TOKEN` or
+  `_SECRET` (conventions §7).

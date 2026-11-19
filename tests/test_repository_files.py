@@ -25,8 +25,8 @@ def test_the_scaffold_entry_names_each_dependencys_release_and_bound(
     variant: tuple[str, Path],
 ) -> None:
     """#53: a dependent's CHANGELOG names the release of each source package it depends on
-    (ADR-0021 decision 4), so the scaffold's entry under Added names each with its bound, in
-    the order of the answer, as ``pyproject.toml`` declares it; a source with no dependency
+    (sdk-core ADR-0021 decision 4), so the scaffold's entry under Added names each with its bound,
+    in the order of the answer, as ``pyproject.toml`` declares it; a source with no dependency
     names none."""
     name, dst = variant
     changelog = (dst / "CHANGELOG.md").read_text()
@@ -49,7 +49,7 @@ def test_git_keeps_the_samples_byte_for_byte_where_the_source_parses_files(
     variant: tuple[str, Path], tmp_path: Path
 ) -> None:
     """#62: a sample under ``tests/fixtures/files/`` is cut byte for byte, its sha256 in its
-    provenance row (ADR-0020 decision 6), so ``.gitattributes`` unsets ``text`` for the
+    provenance row (sdk-core ADR-0020 decision 6), so ``.gitattributes`` unsets ``text`` for the
     samples where ``has_files`` is true, as for the snapshot: a CRLF sample added under
     ``core.autocrlf`` keeps its CRLF in the index. A render without ``has_files`` keeps the
     snapshot's line alone."""
@@ -94,7 +94,7 @@ def pipe_rows(text: str) -> list[list[str]]:
 
 def test_the_samples_table_says_what_each_sample_keeps(render: Callable[[str], Path]) -> None:
     """#168: a sample's row says what of the file the sample keeps, a sample a script wrote
-    from a file over the cap among them (ADR-0020, amendment 2026-11-18, point d): the
+    from a file over the cap among them (sdk-core ADR-0020, amendment 2026-11-18, point d): the
     skeleton's table ends in that column, ``Kept``, and each of its lines has the header's
     cells."""
     dst = render("dependency")

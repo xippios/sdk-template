@@ -3,11 +3,11 @@
 A sample of each file kind the parsers read, `<file_kind>/<case>.<ext>`: a small real
 file, the first rows of one as conventions §10 allows, or, where the file is over the
 256 KiB cap and its format cannot be cut by bytes, one that a script writes from one
-download in the file's own form; never typed in by hand (ADR-0020). A binary file carries
-no comment, so each sample's provenance is one row here: the release id, the URL, the
-bytes and sha256 of the full file as upstream serves it, the UTC time it was fetched, with
-`Z`, and under Kept what of the file the sample keeps, such as the whole file, its first
-rows, or the sheets and cells the tests read.
+download in the file's own form; never typed in by hand (sdk-core ADR-0020). A binary file
+carries no comment, so each sample's provenance is one row here: the release id, the URL,
+the bytes and sha256 of the full file as upstream serves it, the UTC time it was fetched,
+with `Z`, and under Kept what of the file the sample keeps, such as the whole file, its
+first rows, or the sheets and cells the tests read.
 
 | File | Release | URL | Bytes | sha256 | Fetched | Kept |
 | --- | --- | --- | --- | --- | --- | --- |

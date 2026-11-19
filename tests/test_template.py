@@ -25,10 +25,13 @@ import yaml
 from copier import run_copy, run_update
 from helpers import (
     BASE_ANSWERS,
+    CI_STEPS,
     CORE_DEFAULT,
     DATA_GOV,
     FAKE_CORE_SHA,
+    FETCH_DEPTH,
     PINNED,
+    PUBLISH_STEP,
     QUESTIONS,
     ROOT,
     TABLE_HEADER,
@@ -134,7 +137,7 @@ TEXT_SUFFIXES = {".py", ".md", ".toml", ".yml", ".yaml", ".json"}
 
 def test_layout(variant: tuple[str, Path]) -> None:
     """Every file at the import path's directories, no ``__init__.py`` at a namespace level
-    (ADR-0006), none of the removed files, one read server and no core pin."""
+    (sdk-core ADR-0006), none of the removed files, one read server and no core pin."""
     name, dst = variant
     answers = VARIANTS[name]
     pkg = package_dir(answers)
@@ -235,8 +238,8 @@ def test_tool_prefix_is_the_underscored_slug_everywhere(variant: tuple[str, Path
 
 
 def test_the_plugin_sends_the_placeholder_unless_live(variant: tuple[str, Path]) -> None:
-    """ADR-0013: core's plugin pins the key; a keyed source only names its variable, and
-    the keys of the source packages it depends on beside it (ADR-0021), and only a source
+    """sdk-core ADR-0035: core's plugin pins the key; a keyed source only names its variable, and
+    the keys of the source packages it depends on beside it (sdk-core ADR-0021), and only a source
     with a key to name has the option in its conftest (row 61 d). No placeholder fixture,
     constant or test of the source's own."""
     name, dst = variant
@@ -254,9 +257,9 @@ def test_the_plugin_sends_the_placeholder_unless_live(variant: tuple[str, Path])
 
 
 def test_rate_limit_renders_pace_burst_and_provenance(variant: tuple[str, Path]) -> None:
-    """ADR-0010 decision 1: the pace and the burst in the client and in the facts, and where
-    the pace comes from; a quota's policy pointed at (ADR-0015), but behind the gateway,
-    whose policy is core's (ADR-0009)."""
+    """sdk-core ADR-0033 decision 1: the pace and the burst in the client and in the facts, and
+    where the pace comes from; a quota's policy pointed at (sdk-core ADR-0037), but behind the
+    gateway, whose policy is core's (sdk-core ADR-0032)."""
     name, dst = variant
     answers = {**BASE_ANSWERS, **VARIANTS[name]}
     per_minute, burst = answers["rate_limit_per_minute"], answers.get("rate_limit_burst", 1)
@@ -291,7 +294,7 @@ def test_client_exports_one_sorted_name_per_line(variant: tuple[str, Path]) -> N
 
 
 def test_the_gateway_answer_renders_cores_gateway(variant: tuple[str, Path]) -> None:
-    """T9, ADR-0009: behind api.data.gov the client takes ``xippios.core.data_gov``'s
+    """T9, sdk-core ADR-0032: behind api.data.gov the client takes ``xippios.core.data_gov``'s
     ``Gateway``, its auth, its policy's hooks through ``install`` and its ``classify``
     asked first; the facts name ``Gateway`` and its shared policy, and ``live.yml`` the
     shared key. Any other answer renders none of it."""
@@ -344,7 +347,7 @@ def test_the_gateway_answer_renders_cores_gateway(variant: tuple[str, Path]) -> 
 
 def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
     """Conventions §12: one core minor, the extras likewise; a source package depended on
-    bound to its minor the same way, ``~=X.Y.0`` (ADR-0021), in no extra."""
+    bound to its minor the same way, ``~=X.Y.0`` (sdk-core ADR-0021), in no extra."""
     name, dst = variant
     assert CORE_DEFAULT == "0.4.0", "the core release the template adopts, its verbatim files'"
     version = str(VARIANTS[name].get("core_version", CORE_DEFAULT))
@@ -360,7 +363,7 @@ FILES_TABLE = "| File | Release | URL | Bytes | sha256 | Fetched | Kept |"
 
 
 def test_has_files_renders_the_parsers_and_the_samples_table(variant: tuple[str, Path]) -> None:
-    """ADR-0020: a source that parses the files it downloads gets ``parse/``, a package of
+    """sdk-core ADR-0020: a source that parses the files it downloads gets ``parse/``, a package of
     one docstring, and ``tests/fixtures/files/README.md``, the samples' provenance table,
     both skip-listed, and its CLAUDE.md names them in a Files row and in the Layout; every
     other source renders none of it, a retrieval-only one included (row 57)."""
@@ -432,9 +435,9 @@ SIBLINGS_SCRIPT = (
 
 
 def test_siblings_check_renders_where_the_import_path_nests(variant: tuple[str, Path]) -> None:
-    """ADR-0006's sibling proof is the template's (T10): siblings.yml and the script it runs
-    render, byte for byte and executable, only where the import path nests or the source
-    declares a source package it depends on (ADR-0021), outside the skip-listed paths so
+    """sdk-core ADR-0006's sibling proof is the template's (T10): siblings.yml and the script it
+    runs render, byte for byte and executable, only where the import path nests or the source
+    declares a source package it depends on (sdk-core ADR-0021), outside the skip-listed paths so
     that a source's copy is trusted when identical to the render; a visible job, `ci` never
     aggregates it (ci.yml stays core's)."""
     name, dst = variant
@@ -450,8 +453,8 @@ def test_siblings_check_renders_where_the_import_path_nests(variant: tuple[str, 
 def test_a_flat_source_with_a_dependency_has_the_sibling_check(
     template_src: Path, tmp_path: Path
 ) -> None:
-    """ADR-0021: the check installs a declared dependency beside the wheel, so a flat source
-    that declares one renders it too (sdk-eurostat's shape with a dependency)."""
+    """sdk-core ADR-0021: the check installs a declared dependency beside the wheel, so a flat
+    source that declares one renders it too (sdk-eurostat's shape with a dependency)."""
     answers = {**VARIANTS["keyless-flat"], "source_dependencies": DEPENDS_ON_BASE}
     dst = generate(template_src, tmp_path / "repo", **answers)
     assert_the_sibling_check(dst, package_dir(answers))
@@ -596,12 +599,12 @@ def test_live_secrets_are_names_the_step_sets_once(
 
 
 def test_release_prep_waits_for_the_dependencies(variant: tuple[str, Path]) -> None:
-    """ADR-0021 decision 5: a dependent releases after the packages it depends on, which
+    """sdk-core ADR-0021 decision 5: a dependent releases after the packages it depends on, which
     /release-prep names in step 1 only where a dependency is declared."""
     name, dst = variant
     text = (dst / ".claude/commands/release-prep.md").read_text()
     depended = dependencies(VARIANTS[name])
-    assert ("ADR-0021 decision 5" in text) is bool(depended)
+    assert ("sdk-core ADR-0021 decision 5" in text) is bool(depended)
     for dependency in depended:
         assert f"`xippios-{dependency['name']}`" in text, dependency
 
@@ -645,7 +648,7 @@ def test_claude_md_holds_the_facts_and_imports_nothing(variant: tuple[str, Path]
     """The source's CLAUDE.md links the README's documents in its intro and imports no
     file (#128), and names its own import path, the provider level where it nests, the key's
     ini option only where there is a key (row 61), and a "Depends on" row naming each bound
-    only where it declares a dependency (ADR-0021)."""
+    only where it declares a dependency (sdk-core ADR-0021)."""
     name, dst = variant
     answers = VARIANTS[name]
     slug, pkg = answers["source_slug"], package_dir(answers)
@@ -669,7 +672,8 @@ def test_claude_md_holds_the_facts_and_imports_nothing(variant: tuple[str, Path]
 
 
 def test_generated_tree_names_no_source_and_no_workspace_file(variant: tuple[str, Path]) -> None:
-    """Nothing source-specific is scaffolded (ADR-0008), nor a workspace-local reference."""
+    """Nothing source-specific is scaffolded (sdk-core ADR-0031), nor a workspace-local
+    reference."""
     _, dst = variant
     caches = {".ruff_cache", "__pycache__"}
     for path in dst.rglob("*"):
@@ -683,7 +687,7 @@ def test_generated_tree_names_no_source_and_no_workspace_file(variant: tuple[str
 def test_readme_mcp_snippet_is_json(variant: tuple[str, Path]) -> None:
     """The MCP client snippet parses, an env only with a key to name, a dependency's too
     (its tasks run in this server), and no line carries a closing brace after the args (the
-    keyless render's trailing brace). The packages depended on are named (ADR-0021)."""
+    keyless render's trailing brace). The packages depended on are named (sdk-core ADR-0021)."""
     name, dst = variant
     readme = (dst / "README.md").read_text()
     block = readme.split("```json\n", 1)[1].split("```", 1)[0]
@@ -1197,8 +1201,8 @@ def test_models_use_validation_alias(keyed_nested: Path) -> None:
 
 
 def test_servers_take_the_caps_kept_with_the_tasks(keyed_nested: Path) -> None:
-    """ADR-0016: per-tool caps live next to the tasks as MCP_CAPS; the server reads them.
-    ADR-0019 decision 4: beside them ``BULK_TASKS``, empty in the scaffold, names the
+    """sdk-core ADR-0038: per-tool caps live next to the tasks as MCP_CAPS; the server reads them.
+    sdk-core ADR-0040 decision 4: beside them ``BULK_TASKS``, empty in the scaffold, names the
     Python-only tasks; the adapters pass ``tasks.__all__`` whole, since core's
     ``register_tasks`` and ``router_from_tasks`` skip those names themselves (row 64)."""
     pkg = keyed_nested / "src/xippios" / package_dir(VARIANTS["keyed-nested"])
@@ -1217,7 +1221,7 @@ def test_servers_take_the_caps_kept_with_the_tasks(keyed_nested: Path) -> None:
     assert whole in (pkg / "http.py").read_text()
     mcp = (pkg / "mcp.py").read_text()
     assert "tool_functions(tasks)" in mcp, "core's, which skips BULK_TASKS too (#81)"
-    assert "add_options=" in mcp, "core's hooks for a source's options (ADR-0014)"
+    assert "add_options=" in mcp, "core's hooks for a source's options (sdk-core ADR-0036)"
     assert "tenant_lock" not in mcp, "core 0.3.0's build_server has none"
 
 
@@ -1244,18 +1248,6 @@ CORE_EXTENDED = {
         "61bc5786dc35acfea34cb4aa2f0f07038795bcfdb5c1593fc016eb8beda58356"
     ),
 }
-# The template's own lines: in ci.yml the full history for the two steps that read the
-# pull request (core's docs/handover.md, "Template v0.2.1"), in publish.yml the refusal
-# of a git-pinned core before the tag.
-FETCH_DEPTH = "          fetch-depth: 0 # both steps below diff against origin/<base>\n"
-CI_STEPS = (
-    "      # Conventions §12: every PR but Dependabot's",
-    "      - uses: astral-sh/setup-uv@",
-)
-PUBLISH_STEP = (
-    "      # sdk-template's one step beyond core's file",
-    "      - name: Tag the merge commit",
-)
 
 
 def without(text: str, first: str, stop: str) -> str:
@@ -1304,13 +1296,13 @@ def test_ci_reads_the_pull_request_and_runs_once_on_main(keyed_nested: Path) -> 
     assert changelog["name"] == "The changelog has an entry"
     assert changelog["if"] == CHANGELOG_STEP_RUNS, "Dependabot's branch alone (#136)"
     assert cap["name"] == "Fixture files under 256 KiB"
-    assert cap["env"]["LEVEL"] == "error", "the cap binds a source from v0.3.0 (ADR-0019)"
+    assert cap["env"]["LEVEL"] == "error", "the cap binds a source from v0.3.0 (sdk-core ADR-0040)"
     assert "git diff -z --name-only --find-renames=100% --diff-filter=AM" in cap["run"]
     assert "--no-renames" not in cap["run"], "a pure move adds and changes no fixture"
     assert "262144" in cap["run"]
 
 
-CAP = 262144  # 256 KiB, ADR-0019
+CAP = 262144  # 256 KiB, sdk-core ADR-0040
 
 
 def pull_request_step(repo: Path, step: dict[str, object]) -> subprocess.CompletedProcess[str]:
@@ -1332,7 +1324,7 @@ def pull_request_step(repo: Path, step: dict[str, object]) -> subprocess.Complet
 def test_fixture_cap_judges_a_moved_fixture_by_its_content(
     keyed_nested: Path, tmp_path: Path
 ) -> None:
-    """ADR-0019 caps the fixture files a pull request adds or changes. A pure ``git mv`` of
+    """sdk-core ADR-0040 caps the fixture files a pull request adds or changes. A pure ``git mv`` of
     a fixture over the cap adds and changes no content, so the step passes it (conventions
     §10 keeps such a fixture until a PR re-records it); one moved and grown, or a new one
     over the cap, fails under its new path."""
@@ -1367,7 +1359,10 @@ def test_fixture_cap_judges_a_moved_fixture_by_its_content(
         (new / "big.json").write_bytes(b"1" * CAP)
 
     assert pull_request("moved", lambda new: None) == (0, ""), "a pure move passes"
-    over = "::error file=tests/fixtures/get_new/{}::{} bytes, over the 256 KiB cap (ADR-0019)\n"
+    over = (
+        "::error file=tests/fixtures/get_new/{}::{} bytes,"
+        " over the 256 KiB cap (sdk-core ADR-0040)\n"
+    )
     assert pull_request("grown", grow) == (1, over.format("all.json", len(listed) + 1))
     assert pull_request("added", add) == (1, over.format("big.json", CAP))
 
@@ -1548,7 +1543,7 @@ def assigned(tree: ast.Module) -> set[str]:
 
 
 def test_reference_data_is_packaged_lists_and_one_renderer(keyless_flat: Path) -> None:
-    """Conventions §3, ADR-0022 and ADR-0008 as amended: value lists, id lists and tables
+    """Conventions §3, sdk-core ADR-0041 and sdk-core ADR-0031: value lists, id lists and tables
     are fetched into core's ``PackagedList`` and written by it, records under upstream's
     names (``dump_upstream``); ``enums.py`` is one ``render_enums`` call, then ``ruff
     format`` and ``ruff check --fix``; ``--render-only`` re-renders from the packaged
@@ -1738,7 +1733,7 @@ def test_the_commands_name_wrappers_and_fixtures_as_the_conventions_do(
 def test_add_endpoint_checks_the_samples_where_the_source_parses_files(
     variant: tuple[str, Path],
 ) -> None:
-    """ADR-0020, conventions §10: the definition of done's checks of an endpoint hold its
+    """sdk-core ADR-0020, conventions §10: the definition of done's checks of an endpoint hold its
     item for a source that parses files, a sample per file kind under
     ``tests/fixtures/files/<file_kind>/`` with its row in ``tests/fixtures/files/README.md``
     and one live parser test, exactly where ``has_files`` renders ``parse/``."""
@@ -1765,7 +1760,7 @@ def test_record_fixture_leaves_the_key_to_the_clients_refusal(variant: tuple[str
 
 def test_the_commands_on_a_source_name_what_their_rows_add(keyed_nested: Path) -> None:
     """The names each row's sentence brings: the second case of a cap above the default,
-    whose page keeps its ``next_token`` (#89, ADR-0016 as amended 2026-10-30), a module of
+    whose page keeps its ``next_token`` (#89, sdk-core ADR-0038, decision 4), a module of
     the source's own beside the rendered tests that ``copier update`` leaves alone (#78), a
     second base's absolute URL (#59), and the fixtures a reference refresh records again,
     with ``fetched`` read from the packaged file (#70)."""
@@ -2134,7 +2129,7 @@ def test_answers_file_records_each_answer_on_one_line(variant: tuple[str, Path])
 def test_source_dependencies_are_slugs_minors_and_key_variables(
     template_src: Path, tmp_path: Path, value: str
 ) -> None:
-    """ADR-0021: each entry names another source by its slug, neither this one nor core and
+    """sdk-core ADR-0021: each entry names another source by its slug, neither this one nor core and
     each once, its minor as ``X.Y`` in quotes (YAML reads 0.10 as a number), and its key's
     variable or ``""``; nothing else, and nothing that is not a YAML flow list."""
     with pytest.raises(ValueError, match="source_dependencies"):
@@ -2191,7 +2186,7 @@ def test_the_human_is_a_github_login(template_src: Path, tmp_path: Path, login: 
 
 def test_the_sibling_check_names_the_declared_dependencies(render: Callable[[str], Path]) -> None:
     """The script reads the source packages a render depends on from ``pyproject.toml``,
-    every ``xippios-*`` but core in ``[project] dependencies`` (ADR-0021), to install and
+    every ``xippios-*`` but core in ``[project] dependencies`` (sdk-core ADR-0021), to install and
     import them beside the wheel; run here offline on the dependency render."""
     dst = render("dependency")
     script = (dst / ".github/scripts/check-siblings.sh").read_text()
@@ -2292,7 +2287,7 @@ def test_answers_file_is_copiers_canonical_form(
 def test_import_path_overrides_the_slug_for_every_package_path(
     template_src: Path, tmp_path: Path
 ) -> None:
-    """ADR-0006 and ``import_path``'s help: a single-API provider whose slug carries a
+    """sdk-core ADR-0006 and ``import_path``'s help: a single-API provider whose slug carries a
     hyphen overrides the import path (world-bank, world_bank). Every package path and the
     entry point follow ``import_path``; a line that derived one from the slug instead
     would render world.bank or world/bank."""
@@ -2319,7 +2314,7 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
 
     The slug ends in -api, so the package itself is .../api/: the patterns name the package
     directory, and its mcp.py is the template's while its api/ is the source's, as are the
-    parsers' package and the samples' table that has_files renders (ADR-0020).
+    parsers' package and the samples' table that has_files renders (sdk-core ADR-0020).
     """
     answers = {"source_slug": "ex-api", "has_files": True, **keyed("")}
     dst = generate(template_src, tmp_path / "repo", **answers)
@@ -2391,8 +2386,8 @@ def test_an_update_brings_the_index_and_keeps_a_sources_scripts(
 def test_sources_sharing_a_key_start_at_stable_different_times(
     template_src: Path, tmp_path: Path, render: Callable[[str], Path]
 ) -> None:
-    """ADR-0009: usda-psd, usda-esr and usda-gats share one key and one gateway quota; their
-    nightly runs never start together, and a render keeps a repository's time."""
+    """sdk-core ADR-0032: usda-psd, usda-esr and usda-gats share one key and one gateway quota;
+    their nightly runs never start together, and a render keeps a repository's time."""
     shared = VARIANTS["gateway"]
     starts = {"usda-psd": live_start(render("gateway"))}
     for slug in ["usda-esr", "usda-gats"]:
@@ -2479,7 +2474,9 @@ def test_the_templates_own_workflows_are_hardened() -> None:
 def test_ci_proves_the_familys_variants() -> None:
     """T11: the required ``ci`` job runs scripts/prove.sh on the keyed nested, the keyless
     flat, the keyless nested, the keyless nested shape that parses files (``has_files``,
-    ADR-0020) and the gateway shape (T9), so a proof that fails blocks the merge."""
+    sdk-core ADR-0020), the gateway shape (T9) and the two multi-tenant shapes, a write
+    server with basic auth and tenants that hold no key (#174, #207), so a proof that fails
+    blocks the merge."""
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     (job,) = workflow["jobs"].values()
     assert job["name"] == "ci", "the check the org ruleset requires"
@@ -2491,6 +2488,8 @@ def test_ci_proves_the_familys_variants() -> None:
         "scripts/prove.sh --keyless-nested",
         "scripts/prove.sh --keyless-nested -d has_files=true",
         "scripts/prove.sh --gateway",
+        "scripts/prove.sh --tenants",
+        "scripts/prove.sh --tenants-keyless",
     ]
 
 

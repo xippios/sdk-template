@@ -1,7 +1,7 @@
 """MCP server for {{ source_name }}.
 
 Every task in ``tasks.__all__`` is a read-only tool, but those ``tasks.BULK_TASKS``
-names (``tool_functions``, ADR-0040). No logic lives here (ADR-0001). Entry point:
+names (``tool_functions``, sdk-core ADR-0040). No logic lives here (sdk-core ADR-0001). Entry point:
 {% if tenant_param %}
 ``xippios-{{ source_slug }}-mcp{{ '-read' if write_server else '' }}``.
 ``--{{ tenant_param | replace('_', '-') }} <name>`` binds it to one tenant (core's ``serve_tenants``).
@@ -9,7 +9,7 @@ names (``tool_functions``, ADR-0040). No logic lives here (ADR-0001). Entry poin
 ``xippios-{{ source_slug }}-mcp{{ '-read' if write_server else '' }}``.
 {% endif %}
 
-The package contract (conventions §8; ADR-0026, amendment 2026-11-18, points c and d):
+The package contract (conventions §8; sdk-core ADR-0026, amendment 2026-11-18, points c and d):
 ``build()`` returns the tool set a host serves as this entry point does, with the caps
 and the option hooks ``tasks.py`` defines, ``MCP_CAPS``, ``mcp_add_options`` and
 ``mcp_apply_options``; ``server`` is built from it, and ``ENV_VARS`` beside ``SOURCE``

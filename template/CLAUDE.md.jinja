@@ -16,13 +16,13 @@ follows, sdk-core's conventions among them, are listed under
 | API base URL | `{{ api_base_url }}` |
 | Documentation | {{ upstream_docs_url }}, snapshotted in `docs/upstream/`; an OpenAPI or Swagger document a page names is kept beside it, its URL in `SPEC_URL` of `scripts/refresh_upstream.py` (`/refresh-upstream`) |
 {% if api_key_env %}
-| Credentials | {% if tenant_param %}per {{ tenant_param }}, `{{ tenant_prefix }}_<NAME>_API_KEY`{% else %}`{{ api_key_env }}`{% endif %} from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% elif api_key_location == 'basic' %}as the HTTP basic user name, with no password{% endif %}{% if gateway == 'api.data.gov' %} by `xippios.core.data_gov`'s `Gateway`; the key is api.data.gov's, shared by every package that reads it (sdk-core ADR-0009){% endif %} |
+| Credentials | {% if tenant_param %}per {{ tenant_param }}, `{{ tenant_prefix }}_<NAME>_API_KEY`{% else %}`{{ api_key_env }}`{% endif %} from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% elif api_key_location == 'basic' %}as the HTTP basic user name, with no password{% endif %}{% if gateway == 'api.data.gov' %} by `xippios.core.data_gov`'s `Gateway`; the key is api.data.gov's, shared by every package that reads it (sdk-core ADR-0032){% endif %} |
 {% elif tenant_param %}
 | Credentials | per {{ tenant_param }}, `{{ tenant_credential_env }}` from the environment, read by the source's own auth in `_client.py`, which `_build` passes to each {{ tenant_param }}'s client <!-- what the credential is, how upstream issues it and how the auth sends it --> |
 {% else %}
 | Credentials | none; the API is open |
 {% endif %}
-| Rate limit | {{ rate_limit_per_minute }} requests per minute, burst {{ rate_limit_burst }}; {% if rate_limit_provenance == 'self-imposed' %}a self-imposed pace: upstream documents no per-second or per-minute limit{% elif rate_limit_provenance == 'below-documented' %}set under the limit upstream documents <!-- name that limit, in upstream's own unit, and why the pace is set under it -->{% else %}within the limit documented by upstream{% endif %} (sdk-core ADR-0010); enforced client-side in `_client.py`{% if gateway == 'api.data.gov' %}. The hourly quota is the gateway's, shared by every package on the key: one `QuotaPolicy` per process, `Gateway.policy`, which once the quota is spent waits within the policy's cap or refuses before sending (sdk-core ADR-0009, sdk-core ADR-0015){% else %} <!-- name here an hourly or daily quota upstream documents, if any, and the QuotaPolicy that keeps it (sdk-core ADR-0015) -->{% endif %} |
+| Rate limit | {{ rate_limit_per_minute }} requests per minute, burst {{ rate_limit_burst }}; {% if rate_limit_provenance == 'self-imposed' %}a self-imposed pace: upstream documents no per-second or per-minute limit{% elif rate_limit_provenance == 'below-documented' %}set under the limit upstream documents <!-- name that limit, in upstream's own unit, and why the pace is set under it -->{% else %}within the limit documented by upstream{% endif %} (sdk-core ADR-0033); enforced client-side in `_client.py`{% if gateway == 'api.data.gov' %}. The hourly quota is the gateway's, shared by every package on the key: one `QuotaPolicy` per process, `Gateway.policy`, which once the quota is spent waits within the policy's cap or refuses before sending (sdk-core ADR-0032, sdk-core ADR-0037){% else %} <!-- name here an hourly or daily quota upstream documents, if any, and the QuotaPolicy that keeps it (sdk-core ADR-0037) -->{% endif %} |
 {% if write_server %}
 | Write tools | yes: `tasks_write.py`, each taking `confirm: bool = False` and previewing its change without it, served by `xippios-{{ source_slug }}-mcp-write` alone and never as a route (conventions §8) |
 {% else %}
@@ -147,7 +147,7 @@ uv run xippios-{{ source_slug }}-mcp{{ '-read' if write_server else '' }}   # st
 ```
 
 `uv run pytest` is offline: core's plugin refuses the network and skips the rate limiter's
-waits in every test not marked `live` (conventions §10, sdk-core ADR-0013). A test that
+waits in every test not marked `live` (conventions §10, sdk-core ADR-0035). A test that
 asserts a limiter wait or a quota pause is marked `rate_limited`, one that must reach the
 network `network`.
 {% if key_envs %}
@@ -220,7 +220,7 @@ and counts, never on a raw payload.
 - Never write a key, a token or another credential into a file or a commit.
 - Never put logic in `mcp.py` or `http.py`, and never add a route or a tool by hand: the
   adapters register `tasks.__all__` (sdk-core ADR-0001).
-- Never rename or re-map an upstream concept to another source's (sdk-core ADR-0003).
+- Never rename or re-map an upstream concept to another source's (sdk-core ADR-0028).
 - Never return a documented personal identifier in a task's projection, echo one in
   `meta.request`, or commit one in a fixture (sdk-core ADR-0017).
 - Never edit `docs/upstream/` by hand but `docs/upstream/OBSERVED.md`, the notes on what

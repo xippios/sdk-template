@@ -17,7 +17,7 @@ import_path:
   help: >-
     Import path under xippios. A provider with several APIs nests (usda-nass → usda.nass);
     a single-API provider stays flat. Override only when a single-API provider's name
-    carries a hyphen (world-bank → world_bank). See conventions §1 and ADR-0006.
+    carries a hyphen (world-bank → world_bank). See conventions §1 and sdk-core ADR-0006.
   default: "{{ source_slug | replace('-', '.') }}"
   validator: >-
     {% if not (import_path | regex_search('^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$')) %}
@@ -35,8 +35,8 @@ tool_prefix:
   when: false
 
 # When the nightly live.yml starts: a fold of the slug's characters onto the 300 minutes
-# from 01:00 to 05:59 UTC, so sources that share a key (ADR-0009) do not start together
-# and each repository keeps its time across updates. Computed, never recorded; the
+# from 01:00 to 05:59 UTC, so sources that share a key (sdk-core ADR-0032) do not start
+# together and each repository keeps its time across updates. Computed, never recorded; the
 # generated live.yml and CLAUDE.md read .cron and .time.
 live_schedule:
   type: yaml
@@ -90,8 +90,8 @@ gateway:
   help: >-
     The shared gateway the API sits behind: api.data.gov for an agency API it fronts
     (USDA FAS's PSD, ESR and GATS), whose key, documented error answers and hourly quota
-    come from xippios.core.data_gov, core 0.3.0 on (ADR-0009); the key answers then follow
-    from it, DATA_GOV_API_KEY in the X-Api-Key header, and are not asked. none, the
+    come from xippios.core.data_gov, core 0.3.0 on (sdk-core ADR-0032); the key answers then
+    follow from it, DATA_GOV_API_KEY in the X-Api-Key header, and are not asked. none, the
     default, for every other API.
   choices:
     - none
@@ -107,7 +107,8 @@ api_key_env:
     {% if api_key_env and not (api_key_env | regex_search('^[A-Z][A-Z0-9_]*_API_KEY$')) %}
     Use UPPER_SNAKE_CASE ending in _API_KEY, e.g. NASS_API_KEY
     {% elif gateway == 'api.data.gov' and api_key_env != 'DATA_GOV_API_KEY' %}
-    Behind api.data.gov the key is DATA_GOV_API_KEY (ADR-0009): leave it to the gateway answer
+    Behind api.data.gov the key is DATA_GOV_API_KEY (sdk-core ADR-0032): leave it to the
+    gateway answer
     {% endif %}
 
 api_key_location:
@@ -123,7 +124,8 @@ api_key_location:
   ask: "{{ gateway == 'none' }}"
   validator: >-
     {% if gateway == 'api.data.gov' and api_key_location != 'header' %}
-    Behind api.data.gov the key goes in a header (ADR-0009): leave it to the gateway answer
+    Behind api.data.gov the key goes in a header (sdk-core ADR-0032): leave it to the
+    gateway answer
     {% endif %}
 
 api_key_name:
@@ -134,14 +136,15 @@ api_key_name:
   ask: "{{ gateway == 'none' }}"
   validator: >-
     {% if gateway == 'api.data.gov' and api_key_name != 'X-Api-Key' %}
-    Behind api.data.gov the header is X-Api-Key (ADR-0009): leave it to the gateway answer
+    Behind api.data.gov the header is X-Api-Key (sdk-core ADR-0032): leave it to the gateway
+    answer
     {% endif %}
 
-# The two answers of the package contract's variants (conventions §7 and §8; sdk-core
-# ADR-0026, amendment 2026-11-18, points c and d): a write server and a multi-tenant
-# source. Names, never switches: write_server renames the entry point, with no alias for
-# the old name. Their defaults are literals, so every source that predates them takes
-# them on update.
+# The two answers of the package contract's variants (conventions §7 and §8;
+# sdk-core ADR-0026, amendment 2026-11-18, points c and d): a write server and a
+# multi-tenant source. Names, never switches: write_server renames the entry point, with no
+# alias for the old name. Their defaults are literals, so every source that predates them
+# takes them on update.
 write_server:
   type: bool
   help: >-
@@ -236,7 +239,7 @@ rate_limit_per_minute:
     per-minute limit (or its per-second limit times 60), a pace set under that limit on
     evidence, such as recorded refusals or a limit stated in another unit than requests,
     or, where upstream documents no per-second or per-minute limit, a self-imposed pace, an
-    hourly or daily quota notwithstanding (ADR-0010 decision 1)
+    hourly or daily quota notwithstanding (sdk-core ADR-0033 decision 1)
   default: 60
   validator: "{% if rate_limit_per_minute < 1 %}Must be at least 1{% endif %}"
 
@@ -244,13 +247,13 @@ rate_limit_burst:
   type: int
   help: >-
     Requests the limiter lets through at once before it paces them. 1 unless the
-    upstream documents a burst (ADR-0010 decision 1)
+    upstream documents a burst (sdk-core ADR-0033 decision 1)
   default: 1
   validator: "{% if rate_limit_burst < 1 %}Must be at least 1{% endif %}"
 
 rate_limit_provenance:
   type: str
-  help: Where the pace comes from; the generated CLAUDE.md names it (ADR-0010 decision 1)
+  help: Where the pace comes from; the generated CLAUDE.md names it (sdk-core ADR-0033 decision 1)
   choices:
     documented by upstream: documented
     set under a limit upstream documents, CLAUDE.md giving both: below-documented
@@ -261,11 +264,11 @@ core_version:
   type: str
   help: >-
     The xippios-core release the package depends on, X.Y.Z, rendered as the bound
-    xippios-core~=X.Y.Z, the extras likewise: one core minor, from that release on
-    (conventions §12, ADR-0018). Z is 0 unless patch Z shipped what the source adopts
-    (ADR-0018 amendment (c)): the default 0.4.0, the core release the template adopts,
-    renders xippios-core~=0.4.0. A source raises it in the adoption PR of a new core
-    minor (conventions §15).
+    xippios-core~=X.Y.Z, the extras likewise: one core minor, from that release on, Z 0
+    unless patch Z shipped what the source adopts (conventions §12, sdk-core ADR-0039
+    decision 1). The default 0.4.0, the core release the template adopts, renders
+    xippios-core~=0.4.0. A source raises it in the adoption PR of a new core minor
+    (conventions §15).
   default: "0.4.0"
   validator: >-
     {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+\\Z')) %}
@@ -293,14 +296,15 @@ core_git_ref:
 source_dependencies:
   type: str
   help: >-
-    The source packages this one depends on, using their task layer only (ADR-0021): a
-    YAML flow list of {name: <slug>, minor: "X.Y", key_env: <VAR or "">} entries, e.g.
-    [{name: usda-esmis, minor: "0.1", key_env: ""}]. name is the dependency's slug, its
-    package xippios-<slug>, imported under xippios as that package's import path; minor,
-    in quotes, is the minor depended on, rendered as the bound xippios-<slug>~=X.Y.0
-    (conventions §12); key_env is the dependency's key variable, empty for an open API,
-    which the offline tests set to the placeholder and live.yml passes from its org secret.
-    One level, no cycles: a dependency depends on no other source. The default [] for none.
+    The source packages this one depends on, using their task layer only
+    (sdk-core ADR-0021): a YAML flow list of {name: <slug>, minor: "X.Y", key_env: <VAR or
+    "">} entries, e.g. [{name: usda-esmis, minor: "0.1", key_env: ""}]. name is the
+    dependency's slug, its package xippios-<slug>, imported under xippios as that package's
+    import path; minor, in quotes, is the minor depended on, rendered as the bound
+    xippios-<slug>~=X.Y.0 (conventions §12); key_env is the dependency's key variable, empty
+    for an open API, which the offline tests set to the placeholder and live.yml passes from
+    its org secret. One level, no cycles: a dependency depends on no other source. The
+    default [] for none.
   default: "[]"
   validator: >-
     {% set deps = source_dependencies | from_yaml %}
@@ -411,20 +415,20 @@ env_vars:
     {{ ns.vars | tojson }}
   when: false
 
-# Whether the source parses the files it downloads (ADR-0020): parse/, the samples'
+# Whether the source parses the files it downloads (sdk-core ADR-0020): parse/, the samples'
 # provenance table and the .gitattributes line that keeps the samples render only then.
 # Its default, false, is a literal, so every source that predates the question takes it on
 # update.
 has_files:
   type: bool
   help: >-
-    Whether this source parses files it downloads (ADR-0020). A source that parses
+    Whether this source parses files it downloads (sdk-core ADR-0020). A source that parses
     files answers true: parse/ renders, one module per file kind, and
     tests/fixtures/files/README.md, one provenance row per sample file its parser tests
     read, and .gitattributes keeps tests/fixtures/files/ byte for byte. A retrieval-only
     source, which lists releases and downloads files without parsing them, answers false:
-    its download fixture is the recorded exchange of the file's URL (ADR-0019 decision 5).
-    false, the default, for an API that answers with records.
+    its download fixture is the recorded exchange of the file's URL (sdk-core ADR-0040
+    decision 5). false, the default, for an API that answers with records.
   default: false
 
 # Whether the source packages reference data (conventions §3): params.py, enums.py,
