@@ -37,3 +37,7 @@ jobs:
         run: scripts/prove.sh --keyless-nested -d has_files=true
       - name: Prove the template, behind api.data.gov (sdk-example-gov, as psd, esr and gats)
         run: scripts/prove.sh --gateway
+      - name: Prove the template, multi-tenant with a write server and basic auth (as cashctrl)
+        run: scripts/prove.sh --tenants
+      - name: Prove the template, multi-tenant, tenants holding a refresh token (as google-mail)
+        run: scripts/prove.sh --tenants-keyless
