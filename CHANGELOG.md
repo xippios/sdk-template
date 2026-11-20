@@ -19,7 +19,7 @@ in the same adoption PR. A new file under those patterns is created by the updat
 the repository has no file of that name. The list starts with 0.1.5; earlier tags are not
 listed.
 
-## [0.4.0] - 2026-11-19
+## [0.4.0] - 2026-11-20
 
 A generated repository takes sdk-core 0.4.0's package contract with this release. Its
 `mcp.py` builds core's `ToolSet` and its server from that tool set, its `_client.py`
