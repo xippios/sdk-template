@@ -28,7 +28,7 @@ BASE_ANSWERS: dict[str, object] = {
 }
 
 
-# The table of the files and pages that FETCHED.md lists, as the capture skeleton writes it.
+# The table of the files and pages that FETCHED.md lists, as core's snapshot frame writes it.
 TABLE_HEADER = "| File | URL | Fetched | HTTP | Bytes | sha256 | ETag | Last-Modified | Note |"
 
 
