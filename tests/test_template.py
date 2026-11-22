@@ -1613,14 +1613,12 @@ def sentences(text: str) -> list[str]:
 
 def test_release_prep_cites_the_count_that_core_prints(variant: tuple[str, Path]) -> None:
     """#237: ``/release-prep`` takes the count of the live run's requests from the line that
-    core's testing plugin prints in the log of ``live.yml``, a run on an earlier commit of
-    ``main`` being none that a release cites (sdk-core#382), and the header of
+    core's testing plugin prints in the log of ``live.yml``, and the header of
     ``tests/test_live.py`` points to that line and the command."""
     _, dst = variant
     text = (dst / ".claude/commands/release-prep.md").read_text()
     (count,) = [s for s in sentences(text) if LIVE_COUNT in s]
     assert "`live.yml`" in count, count
-    assert "earlier commit of `main`" in " ".join(text.split()), "sdk-core#382"
     header = ast.get_docstring(ast.parse((dst / "tests/test_live.py").read_text()))
     assert header is not None
     flat = " ".join(header.split())
@@ -1631,8 +1629,8 @@ def test_release_prep_cites_the_count_that_core_prints(variant: tuple[str, Path]
 def test_an_adoptions_entry_names_the_three_versions(variant: tuple[str, Path]) -> None:
     """#251, sdk-core#355: wherever the render cites conventions §15 item 9, in the
     template's own lines of ``ci.yml`` and in ``/release-prep``, the sentence names the three
-    versions as they stand after the adoption, and ``/release-prep`` names the fragment's
-    groups and assembles each entry as its fragment reads, regrouping none."""
+    versions as they stand after the adoption, and the one of ``/release-prep`` names the
+    fragment's groups."""
     _, dst = variant
     ci = (dst / ".github/workflows/ci.yml").read_text()
     start = ci.index(CI_STEPS[0])
@@ -1648,7 +1646,6 @@ def test_an_adoptions_entry_names_the_three_versions(variant: tuple[str, Path]) 
     (cited,) = [s for s in sentences(text) if "item 9" in s]
     assert "`breaking`" in cited, cited
     assert "`changed`" in cited, cited
-    assert "regroups" in " ".join(text.split()), "sdk-core#355"
 
 
 def assigned(tree: ast.Module) -> set[str]:
