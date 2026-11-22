@@ -527,6 +527,32 @@ def test_a_keyless_multi_tenant_sources_variables_follow_the_credential(
     assert list(step["env"]) == ["XIPPIOS_LIVE_TESTS", *keys]
 
 
+def test_a_keyless_multi_tenant_sources_dependency_key_stands_between(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """Finding 1 of #269: a keyed dependency's key stands between the reserved tenant's
+    credential and the live secrets, as ``key_envs`` orders them (sdk-core ADR-0021); an
+    open dependency adds none."""
+    dependencies = (
+        '[{name: example-base, minor: "0.3", key_env: ""},'
+        ' {name: example-keyed, minor: "0.1", key_env: EXAMPLE_KEYED_API_KEY}]'
+    )
+    answers = {**VARIANTS["tenants-keyless"], "source_dependencies": dependencies}
+    dst = generate(template_src, tmp_path / "repo", **answers)
+    ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]
+    keys = ini["ini_options"]["xippios_placeholder_key_envs"]
+    assert (
+        keys
+        == placeholder_envs(answers)
+        == [
+            "GOOGLE_DEMO_REFRESH_TOKEN",
+            "EXAMPLE_KEYED_API_KEY",
+            "GOOGLE_CLIENT_ID",
+            "GOOGLE_CLIENT_SECRET",
+        ]
+    )
+
+
 def test_a_keyless_multi_tenant_render_names_no_key_of_its_tenants(tenants_keyless: Path) -> None:
     """No file of the render names a key the tenants do not hold: the client, the README,
     the CLAUDE.md and ``/record-fixture`` name the credential's variables, the reserved
