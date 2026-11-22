@@ -25,7 +25,9 @@ package = false
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["template"]
+# The ADR index script is the organization's one version, carried byte for byte, so ruff
+# leaves it alone (https://github.com/xippios/sdk-core/issues/357).
+extend-exclude = ["template", "scripts/adr_index.py"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF", "PTH", "PT", "C4"]

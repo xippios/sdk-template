@@ -132,6 +132,10 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   among them: keep in those only what every source shares. A line that depends on an
   answer, or that a source keeps its facts in, belongs in a file the source owns once
   rendered, `CLAUDE.md.jinja` or `README.md.jinja`.
+  `scripts/adr_index.py` is the one version that the organization's repositories share, the
+  same bytes here and in `template/scripts/`: it changes by that version's next one, never by
+  an edit of a copy, the tests pin its digest, and the ruff of this repository and of a render
+  leaves it alone while a render's mypy checks it. Every command runs it as `python3 -I`.
   What every source shares and can be tested belongs in core's family check, not in a
   rendered test. A template-owned file the template removes is deleted by `copier update`,
   a source's own lines in it included: the CHANGELOG says where they move first. So is a
@@ -246,7 +250,7 @@ scripts/prove.sh --tenants-keyless  # one whose tenants hold a refresh token, no
 scripts/prove.sh -d has_reference_data=false   # a source that packages no reference data
 scripts/prove.sh --core-ref main  # against sdk-core's main, before a core change is released
 uv run ruff check . && uv run ruff format --check .
-python3 scripts/adr_index.py --check   # this repository's ADR index matches its records
+python3 -I scripts/adr_index.py --check   # this repository's ADR index matches its records
 ```
 
 ## Releases
