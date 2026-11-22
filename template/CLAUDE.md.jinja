@@ -87,6 +87,11 @@ scripts/
                          template's skeleton until the source fills it
   adr_index.py           writes docs/adr.md and docs/adr.json from the records in docs/adr/;
                          --check fails while either is stale
+  release_prepare.py     prepares a release (/release-prep): the CHANGELOG section, by
+                         changelog_assemble.py beside it, and the version in pyproject.toml
+                         and uv.lock
+  changelog_assemble.py  writes a release's CHANGELOG section from changelog/ and removes the
+                         fragments; --notes prints the next section and writes nothing
 tests/
   conftest.py      enables xippios.core.testing.plugin, which keeps the run offline
   fixtures/        recorded responses, <wrapper>/<case>.json, never hand-written
@@ -253,7 +258,8 @@ The update writes every other file it renders again, since they are the template
 {% if write_server %}
 `mcp_write.py`,
 {% endif %}
-`http.py`, `scripts/adr_index.py`, `tests/conftest.py`, `tests/test_family.py`,
+`http.py`, `scripts/adr_index.py`, `scripts/changelog_assemble.py`,
+`scripts/release_prepare.py`, `tests/conftest.py`, `tests/test_family.py`,
 `docs/adr/README.md`, `docs/reports/README.md`, `changelog/README.md`, `.github/`,
 `.claude/`, `pyproject.toml`, `.copier-answers.yml`,
 `.gitattributes`, `.gitignore`, `.pre-commit-config.yaml`, `.python-version`,

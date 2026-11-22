@@ -45,6 +45,8 @@ template/                what gets generated; *.jinja files are rendered, others
   scripts/{% if has_reference_data %}refresh_reference.py{% endif %}.jinja  the reference
                          refresh a source fills (/refresh-reference-data)
   scripts/adr_index.py   writes and checks a source's ADR index; verbatim, this repository's file
+  scripts/release_prepare.py, scripts/changelog_assemble.py  prepare a release (/release-prep)
+                         and write its CHANGELOG section; verbatim, the organization's (Rules)
   docs/adr/README.md, docs/reports/README.md   a generated repo's decisions and reports, laid
                          out; verbatim, this repository's files
   docs/adr.md, docs/adr.json  the index of a render with no record yet; the source's once rendered
@@ -65,7 +67,7 @@ tests/                   the template's tests: conftest.py renders each of the f
                          answers' rules and skip-if-exists behaviour, and a module of its own holds
                          each later concern: test_helpers, test_capture, test_reference_data,
                          test_client_answers, test_repository_files, test_core_adoption,
-                         test_contract, test_citations
+                         test_contract, test_citations, test_release_script
 docs/adr/                this repository's design decisions, one NNNN-<slug>.md record each, laid
                          out in its README.md and cited as ADR-NNNN, sdk-core's as
                          `sdk-core ADR-NNNN`; ADR-0001 holds the answers of the package
@@ -125,8 +127,8 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   match a whole package named like a protected directory (`example-api`'s
   `xippios/example/api/`). They read as gitignore lines: `/README.md` is the root's alone,
   since `changelog/README.md` is every source's, and the two refresh scripts stand where
-  `scripts/` would also protect `scripts/adr_index.py`, the template's; a script of the
-  source's own is never rendered, so no update touches it.
+  `scripts/` would also protect `scripts/adr_index.py` and the two release scripts, the
+  template's; a script of the source's own is never rendered, so no update touches it.
   Every other rendered file is the template's and updates with it, the commands under
   `.claude/commands/`, `scripts/adr_index.py`, `tests/conftest.py` and `tests/test_family.py`
   among them: keep in those only what every source shares. A line that depends on an
@@ -136,6 +138,14 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   same bytes here and in `template/scripts/`: it changes by that version's next one, never by
   an edit of a copy, the tests pin its digest, and the ruff of this repository and of a render
   leaves it alone while a render's mypy checks it. Every command runs it as `python3 -I`.
+  `scripts/release_prepare.py` and the assembler it loads by its path,
+  `scripts/changelog_assemble.py`, are the organization's one version too, rendered alone,
+  with no copy at this repository's root: they change by that version's next one, never by
+  an edit of a copy. The tests pin their blob ids and run the script on a render, the
+  render's ruff leaves them alone, and its mypy checks them, taking a generic without
+  arguments in `scripts/changelog_assemble.py` alone, where those bytes hold one.
+  `/release-prep` runs `python3 -I scripts/release_prepare.py`, which sets the version in
+  `uv.lock` with no `uv lock`.
   What every source shares and can be tested belongs in core's family check, not in a
   rendered test. A template-owned file the template removes is deleted by `copier update`,
   a source's own lines in it included: the CHANGELOG says where they move first. So is a
