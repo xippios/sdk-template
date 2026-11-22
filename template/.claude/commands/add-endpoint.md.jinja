@@ -165,6 +165,15 @@ lists what they check in an endpoint.
    redacted, or `sent_bodies(route)`, the bodies decoded, a JSON body as it parses and a
    form as a mapping of its fields, credentials redacted, never a request kept from
    `route.calls`, which a failure or `pytest -l` would print.
+   A test that builds an answer or changes a recorded one, rather than replaying it as
+   recorded, says where the body comes from and names its kind in a docstring or a block of
+   comments that reaches it, `NOT RECORDED: <where it comes from> (conventions §10, kind 2)`,
+   a replay for another request than its recording names `kind 3`, and a value handed to
+   the code that no route serves says so in the sentence
+   `<the value> is an input of the test, not an answer from <upstream>.` in place of a
+   kind. `tests/test_built_answers.py` collects core's check of that mark, which fails
+   an unmarked place by its file and line, and names in `READERS` the source's own functions
+   that take a body written in a test (conventions §10, sdk-core ADR-0049).
 {% if has_reference_data %}
    A test of a task that answers from a packaged list reads the list's
    fetch date and counts from the packaged file instead of pinning them, so a refresh of
@@ -174,11 +183,18 @@ lists what they check in an endpoint.
 {% if write_server %}
 
    A task that writes upstream goes into `src/xippios/{{ package_dir }}/tasks_write.py`
-   and its `__all__`, with `confirm: bool = False` as its last parameter. The source's
+   and its `__all__`, with `confirm: bool = False` as its last parameter. Without
+   `confirm` it sends no write and returns its preview, a model tagged
+   `performed: Literal[False]`, as the scaffold's `WritePreview` is, with the fields that
+   show what the confirmed call would send by upstream's names, so it returns
+   `Result[<preview> | <answer>]`. The preview's `reads` names each operation it read
+   first, `[]` when it read none, and the task's docstring says whether its preview reads
+   and what that read costs (conventions §8, sdk-core ADR-0050). The source's
    first write task brings the test of the write server, in `tests/test_tasks_write.py`:
    core's `assert_write_tools` holds that the write server serves exactly the write
-   tasks, each taking `confirm` last, and that none of them is a tool of the read server
-   or a route of the router (conventions §8). It lists the tools on the test's own loop,
+   tasks, each taking `confirm` last, that none of them is a tool of the read server
+   or a route of the router (conventions §8), and with `preview_reads=True` that each
+   returns one preview that declares `reads`. It lists the tools on the test's own loop,
    so the test awaits it under `@pytest.mark.anyio`:
 
    ```python
@@ -197,6 +213,7 @@ lists what they check in an endpoint.
            source=SOURCE,
            read_server=mcp.server,
            router=http.router,
+           preview_reads=True,
        )
    ```
 {% endif %}

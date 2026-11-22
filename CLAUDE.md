@@ -17,7 +17,9 @@ template/                what gets generated; *.jinja files are rendered, others
                          reference/ where has_reference_data, tasks_write and mcp_write where
                          write_server, only their names conditional
   tests/                 conftest (plugin; the strip of every tenant but demo where tenant_param),
-                         test_family (core's family check, one line), task replay tests, live smoke
+                         test_family (core's family check, one line), task replay tests, live smoke,
+                         test_built_answers (core's check of a built answer's mark, one line,
+                         then the source's READERS and ALLOWED; the source's once rendered)
   .claude/commands/      add-endpoint, record-fixture, refresh-upstream, release-prep,
                          refresh-reference-data where has_reference_data
   .claude/settings.json  what Claude Code may run in a source: its checks and local git
@@ -121,8 +123,9 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
 - Files a source fills with its own content (`__init__.py`, `_client.py`, `errors.py`,
   `models.py`, `api/`, `parse/`, `tasks.py`, `tasks_write.py`, `params.py`, `enums.py`,
   `reference/`, `scripts/refresh_reference.py`, `scripts/refresh_upstream.py`,
-  `tests/test_tasks.py`, `tests/test_live.py`, `tests/fixtures/`, `docs/upstream/`,
-  `docs/adr.md`, `docs/adr.json`, `README.md`, `CHANGELOG.md`, `CLAUDE.md`) are listed in
+  `tests/test_tasks.py`, `tests/test_live.py`, `tests/test_built_answers.py`,
+  `tests/fixtures/`, `docs/upstream/`, `docs/adr.md`, `docs/adr.json`, `README.md`,
+  `CHANGELOG.md`, `CLAUDE.md`) are listed in
   `_skip_if_exists` so `copier update` never overwrites them; copier renders the
   patterns, so those inside the package name `{{ package_dir }}`, never `**`, which would
   match a whole package named like a protected directory (`example-api`'s

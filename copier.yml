@@ -501,6 +501,7 @@ _skip_if_exists:
   - scripts/refresh_upstream.py
   - tests/test_tasks.py
   - tests/test_live.py
+  - tests/test_built_answers.py
   - tests/fixtures/**
   - docs/upstream/**
   - docs/adr.md

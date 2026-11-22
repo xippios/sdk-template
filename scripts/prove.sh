@@ -17,7 +17,8 @@
 # package contract offline: mcp.py exports build, SOURCE and ENV_VARS, and a server a host
 # builds from build()'s tool set with register_tasks serves the tools, caps and option
 # defaults of the entry point, the write server's too where there is one, which passes
-# core's assert_write_tools, and in the multi-tenant shapes the bound server of --<param>
+# core's assert_write_tools with preview_reads=True on a task that returns the scaffold's
+# WritePreview, and in the multi-tenant shapes the bound server of --<param>
 # as well, whose instructions say that no tool takes the tenant; where the tenants hold no
 # key, the registry takes the prefix and the field of tenant_credential_env.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
@@ -448,7 +449,8 @@ PY
 # --<param> binds, which stops at startup when its tenant has no key. A bound server's
 # instructions say nowhere that a tool takes the tenant's argument but in core's closing
 # sentence (#219), and the write server passes core's assert_write_tools as /add-endpoint
-# calls it (#220). The entry point runs with its server's run() caught, so nothing is served.
+# calls it (#220), preview_reads=True holding the scaffold's WritePreview (#271). The entry
+# point runs with its server's run() caught, so nothing is served.
 echo
 echo "==> the package contract: a host's server from build() serves what the entry point serves"
 (cd "$dest" && uv run python - "xippios.$import_path" "$slug" <<'PY'
@@ -638,11 +640,16 @@ if importlib.util.find_spec(f"{package}.mcp_write") is not None:
     put(
         f"{package}.tasks_write",
         f'''
-def create_row({takes}confirm: bool = False) -> Result[dict[str, bool]]:
-    """Create a row, a preview unless confirm is true."""
-    return Result[dict[str, bool]](
-        data={{"created": confirm}}, meta=ResultMeta(source={slug!r}, endpoint="x")
-    )
+from {package}.tasks_write import WritePreview
+
+
+def create_row({takes}confirm: bool = False) -> Result[WritePreview | dict[str, bool]]:
+    """Create a row, a preview unless confirm is true; the preview reads nothing."""
+    meta = ResultMeta(source={slug!r}, endpoint="x")
+    if confirm is not True:
+        preview = WritePreview(endpoint="x", reads=[])
+        return Result[WritePreview | dict[str, bool]](data=preview, meta=meta)
+    return Result[WritePreview | dict[str, bool]](data={{"created": True}}, meta=meta)
 ''',
         ["create_row"],
         {},
@@ -654,7 +661,8 @@ def create_row({takes}confirm: bool = False) -> Result[dict[str, bool]]:
     assert is_write_server(served) and is_write_server(host_of(write_set)), "both held"
     assert list(tools(served)) == [f"{prefix}_create_row"], "write tools only"
     print(f"{package}.mcp_write: {sorted(tools(served))}, a write server as a host builds it")
-    # The test /add-endpoint gives a source's first write task, as it calls it (#220).
+    # The test /add-endpoint gives a source's first write task, as it calls it (#220), which
+    # holds the preview's reads on the scaffold's WritePreview (#271).
     tasks_write = importlib.import_module(f"{package}.tasks_write")
     http = importlib.import_module(f"{package}.http")
     asyncio.run(
@@ -664,9 +672,10 @@ def create_row({takes}confirm: bool = False) -> Result[dict[str, bool]]:
             source=client.SOURCE,
             read_server=mcp.server,
             router=http.router,
+            preview_reads=True,
         )
     )
-    print(f"{package}.mcp_write: assert_write_tools passed, as /add-endpoint calls it")
+    print(f"{package}.mcp_write: assert_write_tools(..., preview_reads=True) passed")
     if param is not None:
         print(f"{package}.mcp_write {flag} demo: {bound_text(mcp_write)!r}")
 PY

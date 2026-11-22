@@ -101,12 +101,16 @@ steps 4 to 6 are what they check in a fixture.
    personal identifier the source keeps out of its projections (`ssn`, `iban` and their
    like, sdk-core ADR-0017), record with `scrub=Scrub(secrets=[...])` from
    `xippios.core.testing`, or rewrite those values by key in a step of the source's own,
-   passed as `rewrite=` to `record_sync` or `record_task_sync`: a function of the scrubbed
-   `Fixture` that returns it rewritten with the values it replaced,
-   `(fixture, [value, ...])`, and raises `ValueError` to refuse. The recorder runs the
-   scrub, the step and a check that none of the values the step returned survives in the
-   URL, a header value, a body or a string of a JSON body, then writes once, so nothing
-   unscrubbed touches disk (conventions §10, sdk-core ADR-0048). A source that needs the
+   passed as `rewrite=` to `record_sync` or `record_task_sync`: a `Rewrite`, the type that
+   `xippios.core.testing` exports, a function of the scrubbed `Fixture` that returns it
+   rewritten with the values it replaced, `(fixture, [value, ...])`, and raises
+   `ValueError` to refuse. The recorder runs the scrub, the step and a check that none of
+   the values the step returned survives in the URL, a header value, a body or a string of
+   a JSON body, then writes once, so nothing unscrubbed touches disk (conventions §10,
+   sdk-core ADR-0048). For each field of the request that the fixture must not keep, the
+   step writes `REDACTED` in place of its value and drops no such field, so that core's
+   census of built answers compares a replay with its recording key by key
+   (conventions §10, sdk-core ADR-0048, decision 7). A source that needs the
    answer itself, the bytes it cuts a sample from say, sends the one request with
    `send_once_sync`, through {{ '`client_for(DEMO)`' if tenant_param else '`client`' }} itself, which sends it as `record` does and
    writes nothing, then builds the `Fixture` with
