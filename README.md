@@ -108,7 +108,7 @@ sdk-<slug>/
   docs/reports/        README.md: the dated reports a decision cites
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, release-prep,
                        refresh-reference-data where has_reference_data
-  .claude/settings.json  .github/workflows/{ci,publish,live,organization}.yml
+  .claude/settings.json  .github/workflows/{ci,publish,live,conventions,adr-index}.yml
   .github/PULL_REQUEST_TEMPLATE.md
   .github/CODEOWNERS   the paths that steer the repository, each owned by the human answer
   CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
@@ -134,12 +134,14 @@ and serves one tenant unless `tenant_param` names its parameter. `ci.yml` also r
 CHANGELOG entry on every pull request but Dependabot's, an adoption's (conventions §15
 item 9) and a release's included, which changes `CHANGELOG.md` itself, as a fragment
 under `changelog/` or a line in `CHANGELOG.md`, and fails on a fixture file over 256 KiB;
-`publish.yml` is the release train. `organization.yml` calls the organization's checks of
-a pull request: `conventions`, a review against the documents the README lists, and
-`adr-index`, which runs the render's `scripts/adr_index.py --check`. `live.yml` runs every
-`live` test every night and on demand with `--tb=short --assert=plain`, so its public log
-holds neither a failing test's frame arguments nor the values a failed assertion
-compared. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources that
+`publish.yml` is the release train. The organization's checks start from one trigger
+file each, named as the workflow of xippios/.github it calls: `conventions.yml` runs the
+review of a pull request against the documents the README lists, the check
+`conventions / conventions`, and on a push to `main` the review of a range,
+`range / range`, and `adr-index.yml` the check `adr-index / adr-index`, which runs the
+render's `scripts/adr_index.py --check`. `live.yml` runs every `live` test every night
+and on demand with `--tb=short --assert=plain`, so its public log holds neither a failing
+test's frame arguments nor the values a failed assertion compared. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources that
 share a key do not start together; only its pytest step sees the keys, from the org
 secrets named by `api_key_env` and by `source_dependencies`' `key_env`, and the other
 variables `live_secrets` names, each from the secret of the same name. Where the import
@@ -152,6 +154,10 @@ ruleset does not require; a declared dependency on another core minor fails it. 
 that depends on the source and pins its previous minor is left out with a warning that
 names the pin, since it takes the new minor in its own adoption (conventions §12), so the
 release of a minor stays green; one that pins another minor of the source fails it.
+A variable `WORKFLOW_<NAME>` of `off`, the repository's over the organization's, switches
+off `live.yml` by `WORKFLOW_LIVE`, `siblings.yml` by `WORKFLOW_SIBLINGS` and the two
+checks by `WORKFLOW_CONVENTIONS` and `WORKFLOW_ADR_INDEX`, and a workflow runs where
+neither sets one; `ci.yml` and `publish.yml` take no switch and always run.
 `scripts/refresh_upstream.py` is the skeleton of the capture script `/refresh-upstream`
 runs; it refuses to run until the source fills it.
 
@@ -232,9 +238,10 @@ scripts/prove.sh -d has_reference_data=false   # a source that packages no refer
 ```
 
 A pull request of the template runs `.github/workflows/ci.yml`, the tests and the seven
-proofs, and `.github/workflows/organization.yml`, byte for byte the file it renders into a
-source: the organization's conventions review, which reads a release pull request against
-the documents listed under [Documents](#documents), and the check of the ADR index.
+proofs, and `.github/workflows/conventions.yml` and `.github/workflows/adr-index.yml`,
+byte for byte the files it renders into a source: the organization's conventions review,
+which reads a release pull request against the documents listed under
+[Documents](#documents), and the check of the ADR index.
 
 ## Releasing the template
 

@@ -25,7 +25,7 @@
 {% else %}
 # Rendered by the template (the one workflow that is): its start time derives from the slug.
 {% endif %}
-name: Live
+name: Live tests
 
 on:
   schedule:
@@ -50,6 +50,7 @@ permissions:
 jobs:
   live:
     name: live
+    if: vars.WORKFLOW_LIVE != 'off'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

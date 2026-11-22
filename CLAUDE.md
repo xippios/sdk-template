@@ -27,8 +27,9 @@ template/                what gets generated; *.jinja files are rendered, others
   LICENSE                copied from sdk-core, verbatim but for the deviations in Rules
   .github/workflows/live.yml.jinja   the nightly live workflow with --assert=plain, the one rendered
                          workflow (Rules)
-  .github/workflows/organization.yml  the caller of the organization's checks, conventions and
-                         adr-index; verbatim, the template's own (Rules)
+  .github/workflows/conventions.yml, .github/workflows/adr-index.yml  the trigger files of
+                         the organization's checks, one per check; verbatim, the template's
+                         own (Rules)
   .github/PULL_REQUEST_TEMPLATE.md  the template's own, which links sdk-core's definition of done
   .github/CODEOWNERS.jinja  the paths that steer a generated repo, each owned by the human answer
   .github/workflows/{% if '.' in import_path or depends_on %}siblings.yml{% endif %},
@@ -75,8 +76,9 @@ CHANGELOG.md             template releases, each section assembled from changelo
 changelog/               the next release's entries, one fragment per change; README.md lays them out
 pyproject.toml, uv.lock  the development tooling; version names the latest release (Releases)
 .github/workflows/ci.yml       the template's own CI: tests and seven proofs
-.github/workflows/organization.yml  the organization's checks on this repository's own pull
-                         requests, conventions and adr-index; byte for byte the render's (Rules)
+.github/workflows/conventions.yml, .github/workflows/adr-index.yml  the organization's
+                         checks on this repository's own pull requests; byte for byte the
+                         render's (Rules)
 .github/workflows/release.yml  tags vX.Y.Z from the top CHANGELOG heading (Releases)
 .claude/settings.json    what Claude Code may run here: the checks, the proofs and local git
 ```
@@ -147,14 +149,29 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   that order, that one with no key names no key, and that the step runs
   `uv run pytest -m live --tb=short --assert=plain`, so a failed assertion prints no value
   it compared, an upstream record among them, into a public log.
-  `.github/workflows/organization.yml` is verbatim too and the template's own: it calls
-  the organization's checks of a pull request, the conventions review against the
-  documents the README lists and the check of the ADR index, which runs the render's
-  `scripts/adr_index.py --check`. It runs on the opening, a push, a reopening and an edit,
-  never on `labeled`, and neither job has a condition of its own, since GitHub reports a
-  head's checks from its newest run and the callee tells a release pull request by its own
-  condition. This repository runs the same file, byte for byte, on its own pull requests,
-  as `.github/workflows/organization.yml`, and the tests hold the two equal.
+  `.github/workflows/conventions.yml` and `.github/workflows/adr-index.yml` are verbatim
+  too and the template's own: the trigger files of the organization's checks, one per
+  check, each named as the workflow of xippios/.github it calls at `@main` and written in
+  the form that repository's README shows, with no comment. `conventions.yml` runs on a
+  pull request's opening, push, reopening and edit, never on `labeled`, since GitHub
+  reports a head's checks from its newest run, and on a push to `main` and a dispatch: its
+  job `conventions` calls the review against the documents the README lists, which tells a
+  release pull request by its own condition, and its job `range` the review of a range of
+  commits. Each job's condition holds the event and the switch `WORKFLOW_CONVENTIONS`.
+  `adr-index.yml` runs on the opening, a push and a reopening, and its one job, with no
+  condition, calls the check of the ADR index, which reads its switch `WORKFLOW_ADR_INDEX`
+  itself and runs the render's `scripts/adr_index.py --check`. The job ids name the checks
+  the rulesets match, `conventions / conventions`, `adr-index / adr-index` and, on `main`,
+  `range / range`. This repository runs the same two files, byte for byte, on its own pull
+  requests, and the tests hold them equal.
+  A variable `WORKFLOW_<NAME>`, `on` or `off`, switches a workflow: GitHub reads the
+  repository's over the organization's and compares without case, so the workflow runs
+  where neither is set. `live.yml` and `siblings.yml` hold theirs, `WORKFLOW_LIVE` and
+  `WORKFLOW_SIBLINGS`, in their one job's condition, so on `off` the check reports as
+  skipped and passes, as the ADR index does; the review on `off` reports no check, which a
+  ruleset that requires it waits for. `ci.yml` and `publish.yml` hold none and always run. Every workflow takes
+  its title by the organization's rule, `Live tests` and `Siblings` among them, but
+  `publish.yml`, which keeps core's bytes and so its title until core's file changes.
   Two verbatim files render only where the import path nests or the source declares a
   dependency, so only their names hold Jinja: `.github/workflows/siblings.yml` and the
   script it runs, `.github/scripts/check-siblings.sh` (executable; copier keeps the bit),
