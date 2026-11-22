@@ -103,7 +103,7 @@ def run(repo: Path, env: dict[str, str], *args: str) -> subprocess.CompletedProc
     )
 
 
-def test_the_release_scripts_are_core_s_bytes(keyed_nested: Path) -> None:
+def test_the_release_scripts_are_the_organizations_bytes(keyed_nested: Path) -> None:
     """Each script the template renders holds the organization's bytes, executable as its
     first line says, and the render carries them unchanged as the template's files, which
     ``_skip_if_exists`` leaves to the update."""
