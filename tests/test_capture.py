@@ -573,6 +573,19 @@ def test_observed_md_is_listed_and_left_as_written(
         run(module, out)
 
 
+def test_no_rendered_test_reads_observed_md(variant: tuple[str, Path]) -> None:
+    """#236: core 0.4.1's family check holds the row of OBSERVED.md in FETCHED.md in every
+    source that keeps the file (sdk-core ADR-0044), so the render's own tests read neither,
+    ``tests/test_family.py`` collecting that check in one line."""
+    _, dst = variant
+    tests = sorted((dst / "tests").rglob("*.py"))
+    assert dst / "tests/test_family.py" in tests
+    for path in tests:
+        text = path.read_text()
+        assert "OBSERVED" not in text, path.name
+        assert "FETCHED" not in text, path.name
+
+
 def test_not_fetched_lists_the_pages_left_out_and_those_no_anonymous_client_reads(
     capture: tuple[ModuleType, Path], site: Site
 ) -> None:
