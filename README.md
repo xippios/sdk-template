@@ -102,7 +102,9 @@ sdk-<slug>/
   tests/               conftest, test_family, test_tasks, test_live; fixtures/files/README.md,
                        the samples' provenance table, where has_files
   scripts/             refresh_upstream.py (the capture skeleton), adr_index.py (writes and
-                       checks the ADR index); refresh_reference.py where has_reference_data
+                       checks the ADR index), release_prepare.py and changelog_assemble.py
+                       (prepare a release, /release-prep);
+                       refresh_reference.py where has_reference_data
   docs/upstream/       FETCHED.md
   docs/adr/            README.md: the decision records; docs/adr.md and docs/adr.json, their index
   docs/reports/        README.md: the dated reports a decision cites

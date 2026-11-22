@@ -47,6 +47,12 @@ PUBLISH_STEP = (
 )
 
 
+# The release script and the assembler it loads, the organization's one version of each,
+# which a render carries byte for byte (#247): the template's files, outside the render's
+# ruff as the index script is.
+RELEASE_SCRIPTS = ["scripts/changelog_assemble.py", "scripts/release_prepare.py"]
+
+
 # A stand-in for a 40-character sdk-core commit, never fetched: hex of high entropy, as a
 # real SHA is, computed so that no literal in this file looks like a secret.
 FAKE_CORE_SHA = hashlib.sha1(b"a fixed stand-in for an sdk-core commit").hexdigest()
