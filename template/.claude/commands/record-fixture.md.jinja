@@ -74,9 +74,12 @@ steps 4 to 6 are what they check in a fixture.
    reaches, none answered from the cache, passes each answer through the frame of
    `record`, the refusal of a 1xx or a 3xx, the scrub and `rewrite=` (step 4), and writes
    them under the task's name in the order they arrived, `<case>.json`, `<case>_2.json`
-   and on, all of them or none. It records no token request inside an auth flow, which
-   keeps a fixture of its own, and refuses a task that downloads, whose file is recorded
-   as below (conventions §10, sdk-core ADR-0057).
+   and on, all of them or none. It keeps each answer whole, as the task's client reads
+   it: `record_task` takes neither `max_bytes=` nor `max_read_bytes=` and hands a keyword
+   it does not take to the task, so a task whose answer is over the cap of step 5
+   narrows its query. It records no token request inside an auth flow, which keeps a
+   fixture of its own, and refuses a task that downloads, whose file is recorded as
+   below (conventions §10, sdk-core ADR-0057).
 
    A downloaded file's fixture is the GET exchange of the file's URL, the one the
    download task streams: pass that URL in place of the request path, absolute where
@@ -88,7 +91,10 @@ steps 4 to 6 are what they check in a fixture.
    the whole file's `original_bytes` and `sha256` (step 5).
 
 4. Check the file: `grep -niE 'api[_-]?key|token|secret|authorization' tests/fixtures/<wrapper>/<case>.json`
-   must print nothing but `REDACTED` values. A match in upstream's own text (a word such
+   must print nothing but `REDACTED` values, and for a task's recording the same over
+   each file it wrote,
+   `grep -niE 'api[_-]?key|token|secret|authorization' tests/fixtures/<task>/<case>.json tests/fixtures/<task>/<case>_*.json`.
+   A match in upstream's own text (a word such
    as `SECRETARY` in a name or a description) is no credential: read every match by eye.
    If a credential slipped through, delete the file and stop: report which field leaked
    so the scrubber in `xippios-core` can learn it. Where the response carries a documented
@@ -107,7 +113,7 @@ steps 4 to 6 are what they check in a fixture.
    `fixture_from_response(response, scrub=..., rewrite=...)` and writes it with
    `write_fixture(fixture, path)`, all from `xippios.core.testing`, laid out as `record`
    lays it out: no recorder builds a client of its own for one attempt.
-   Grep the file for those fields too
+   Grep each file for those fields too
    (`grep -nE '"(ssn|iban)"' <file>`, with the fields the source declares): every match
    must show a scrubbed value. A real value found means the file is deleted, never
    committed.
