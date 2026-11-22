@@ -6,7 +6,9 @@ which keep records of their own under ``docs/adr/``.
 
 The files a render copies from sdk-core cite sdk-core's records inside sdk-core and stay
 core's bytes, but the lines the template adds to ``ci.yml`` and ``publish.yml``, and
-``docs/adr/README.md`` defines the form. Each test reads the files or the renders of
+``docs/adr/README.md`` defines the form. ``scripts/adr_index.py`` holds the bytes that the
+organization's repositories share, whose docstring gives ``ADR-0014`` as the example of an
+anchor and cites no record (#246). Each test reads the files or the renders of
 ``conftest.py`` and asserts the mechanic: a number, the name before it.
 """
 
@@ -29,6 +31,10 @@ CORE_BYTES = {
     ".python-version",
     "LICENSE",
 }
+
+# The files that the tests of bare citations leave out: docs/adr/README.md, which defines the
+# form of a citation, and the organization's one index script, whose bytes no repository edits.
+NO_CITATIONS = {"docs/adr/README.md", "scripts/adr_index.py"}
 
 # The records that sdk-core's index, docs/adr.md at its tag v0.4.0, the core release the
 # template adopts, lists as superseded, each with the record that stands in its place. The
@@ -107,13 +113,13 @@ def files(root: Path, *names: str) -> list[str]:
 
 def test_a_render_cites_sdk_cores_records_by_name(variant: tuple[str, Path]) -> None:
     """Plan proof 5 of 0.4.0: no file of a render but core's bytes and
-    ``docs/adr/README.md`` holds a bare ``ADR-NNNN``, the template's own lines of ``ci.yml``
+    ``NO_CITATIONS`` holds a bare ``ADR-NNNN``, the template's own lines of ``ci.yml``
     and ``publish.yml`` included, in each of the family's variants."""
     _, render = variant
     bare = [
         f"{where}: ADR-{number}"
         for rel in files(render)
-        if rel != "docs/adr/README.md"
+        if rel not in NO_CITATIONS
         for where, named, number in citations(render, rel)
         if not named
     ]
@@ -123,12 +129,12 @@ def test_a_render_cites_sdk_cores_records_by_name(variant: tuple[str, Path]) -> 
 def test_every_branch_of_the_template_cites_sdk_cores_records_by_name() -> None:
     """The template's files, the branches that no variant renders among them, a pace set
     under a documented limit or a key sent in a header, hold no bare ``ADR-NNNN`` but in
-    core's bytes and ``docs/adr/README.md``."""
+    core's bytes and ``NO_CITATIONS``."""
     template = ROOT / "template"
     bare = [
         f"{where}: ADR-{number}"
         for rel in files(template)
-        if rel != "docs/adr/README.md"
+        if rel not in NO_CITATIONS
         for where, named, number in citations(template, rel)
         if not named
     ]
@@ -142,6 +148,7 @@ def test_this_repositorys_bare_citations_name_its_own_records() -> None:
     foreign = [
         f"{where}: ADR-{number}"
         for rel in files(ROOT, *OWN)
+        if rel not in NO_CITATIONS
         for where, named, number in citations(ROOT, rel, rendered=False)
         if not named and number not in own
     ]
