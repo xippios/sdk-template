@@ -215,6 +215,17 @@ def key_envs(answers: dict[str, object]) -> list[str]:
     return list(dict.fromkeys(key for key in keys if key))
 
 
+def placeholder_envs(answers: dict[str, object]) -> list[str]:
+    """The variables core's plugin sets to the placeholder in every test not marked live
+    (sdk-core ADR-0035), ``xippios_placeholder_key_envs``: the keys, and after them the live
+    secrets of a multi-tenant source without a key, which its own auth reads beside the
+    reserved tenant's credential (#241)."""
+    keys = key_envs(answers)
+    if tenant_param(answers) and not key_answers(answers).get("api_key_env"):
+        return keys + live_secrets(answers)
+    return keys
+
+
 def env_vars(answers: dict[str, object]) -> list[tuple[str, bool, bool]]:
     """The variables a render's ``ENV_VARS`` declares, each with whether it is secret and
     required: the key, or the tenant list and the tenants' credential pattern, then the

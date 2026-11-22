@@ -49,6 +49,7 @@ from helpers import (
     keyed,
     live_secrets,
     package_dir,
+    placeholder_envs,
     ruff,
     skip_matcher,
     tenant_param,
@@ -244,8 +245,9 @@ def test_tool_prefix_is_the_underscored_slug_everywhere(variant: tuple[str, Path
 def test_the_plugin_sends_the_placeholder_unless_live(variant: tuple[str, Path]) -> None:
     """sdk-core ADR-0035: core's plugin pins the key; a keyed source only names its variable, and
     the keys of the source packages it depends on beside it (sdk-core ADR-0021), and only a source
-    with a key to name has the option in its conftest (row 61 d). No placeholder fixture,
-    constant or test of the source's own."""
+    with a key to name has the option in its conftest (row 61 d). A multi-tenant source without
+    a key names its live secrets after them (#241). No placeholder fixture, constant or test of
+    the source's own."""
     name, dst = variant
     keys = key_envs(VARIANTS[name])
     conftest = (dst / "tests/conftest.py").read_text()
@@ -256,7 +258,7 @@ def test_the_plugin_sends_the_placeholder_unless_live(variant: tuple[str, Path])
     assert code == ['pytest_plugins = ["xippios.core.testing.plugin"]']
     assert ("xippios_placeholder_key_envs" in conftest) is bool(keys)
     ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
-    assert ini.get("xippios_placeholder_key_envs") == (keys or None)
+    assert ini.get("xippios_placeholder_key_envs") == (placeholder_envs(VARIANTS[name]) or None)
     assert "placeholder" not in (dst / "tests/test_tasks.py").read_text()
 
 
