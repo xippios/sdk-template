@@ -1596,6 +1596,61 @@ def test_release_prep_names_what_its_rows_add(variant: tuple[str, Path]) -> None
     assert "copier update --defaults --vcs-ref=<tag>`" in text, "#120"
 
 
+# The line that xippios-core's testing plugin prints after a run of the live tests, from core
+# 0.4.1 on (sdk-core#335, `_LiveRequests.line` in xippios/core/testing/plugin.py): the count
+# of the requests the run sent, which a release cites (#237).
+LIVE_COUNT = "`requests sent by the live run: <n>`"
+
+# What an adoption's changelog entry names as it stands after the adoption, changed or not
+# (conventions §15 item 9, sdk-core#355).
+ITEM_9 = ["core bound", "template's tag", "conventions' version"]
+
+
+def sentences(text: str) -> list[str]:
+    """``text``, its whitespace joined, cut after each full stop that ends a sentence."""
+    return re.split(r"(?<=\.)\s", " ".join(text.split()))
+
+
+def test_release_prep_cites_the_count_that_core_prints(variant: tuple[str, Path]) -> None:
+    """#237: ``/release-prep`` takes the count of the live run's requests from the line that
+    core's testing plugin prints in the log of ``live.yml``, a run on an earlier commit of
+    ``main`` being none that a release cites (sdk-core#382), and the header of
+    ``tests/test_live.py`` points to that line and the command."""
+    _, dst = variant
+    text = (dst / ".claude/commands/release-prep.md").read_text()
+    (count,) = [s for s in sentences(text) if LIVE_COUNT in s]
+    assert "`live.yml`" in count, count
+    assert "earlier commit of `main`" in " ".join(text.split()), "sdk-core#382"
+    header = ast.get_docstring(ast.parse((dst / "tests/test_live.py").read_text()))
+    assert header is not None
+    flat = " ".join(header.split())
+    assert LIVE_COUNT.replace("`", "``") in flat
+    assert "``/release-prep``" in flat
+
+
+def test_an_adoptions_entry_names_the_three_versions(variant: tuple[str, Path]) -> None:
+    """#251, sdk-core#355: wherever the render cites conventions §15 item 9, in the
+    template's own lines of ``ci.yml`` and in ``/release-prep``, the sentence names the three
+    versions as they stand after the adoption, and ``/release-prep`` names the fragment's
+    groups and assembles each entry as its fragment reads, regrouping none."""
+    _, dst = variant
+    ci = (dst / ".github/workflows/ci.yml").read_text()
+    start = ci.index(CI_STEPS[0])
+    own = [line.strip() for line in ci[start : ci.index(CI_STEPS[1], start)].splitlines()]
+    comment = " ".join(line.removeprefix("#") for line in own if line.startswith("#"))
+    text = (dst / ".claude/commands/release-prep.md").read_text()
+    for where, read in [("ci.yml", comment), ("release-prep.md", text)]:
+        cited = [s for s in sentences(read) if "item 9" in s]
+        assert cited, where
+        for sentence in cited:
+            for name in ITEM_9:
+                assert name in sentence, (where, name, sentence)
+    (cited,) = [s for s in sentences(text) if "item 9" in s]
+    assert "`breaking`" in cited, cited
+    assert "`changed`" in cited, cited
+    assert "regroups" in " ".join(text.split()), "sdk-core#355"
+
+
 def assigned(tree: ast.Module) -> set[str]:
     """The names a module assigns at its top level, annotated or not."""
     return {
