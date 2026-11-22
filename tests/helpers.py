@@ -52,6 +52,30 @@ PUBLISH_STEP = (
 FAKE_CORE_SHA = hashlib.sha1(b"a fixed stand-in for an sdk-core commit").hexdigest()
 
 
+# The names of xippios-core 0.4.1 that /add-endpoint gives a new task where it meets them
+# (#270), each as the command writes its call or its name, as sdk-core's main exports them
+# from xippios.core, and UNNAMED_CODES, the exemption that core's family check reads from a
+# tasks module (sdk-core#406). The two of LIST_HELPERS read a packaged list (sdk-core#384,
+# sdk-core#406), so a render without reference data names neither.
+LIST_HELPERS = ["`PackagedList.codes(", "`names_codes`"]
+TASK_HELPERS = [
+    "`UNNAMED_CODES`",
+    "`ResultCap(paged=True)`",  # sdk-core#388
+    '`ResultCap(keep="last")`',
+    "`newer_than(",  # sdk-core#392
+    "`naive_time`",
+    "`fetch_counted(",  # sdk-core#403
+    "`QueryTooLarge`",
+    "`Ceiling(",  # sdk-core#404
+    "`fetch_periods(",
+]
+# The names of core 0.4.1's recorder that /record-fixture gives a recording (#270), as
+# sdk-core's main exports them from xippios.core.testing: the source's rewrite step and the
+# one send that writes nothing (sdk-core#390), and the recording of every exchange of a
+# task (sdk-core#401).
+RECORDER = ["`rewrite=`", "`send_once_sync`", "`record_task`", "`record_task_sync("]
+
+
 def keyed(env: str, location: str = "query", name: str | None = None) -> dict[str, object]:
     """Answers for how the key is sent; values are variables so no line looks like a secret."""
     answers: dict[str, object] = {"api_key_env": env, "api_key_location": location}

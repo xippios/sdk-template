@@ -31,11 +31,14 @@ from helpers import (
     DATA_GOV,
     FAKE_CORE_SHA,
     FETCH_DEPTH,
+    LIST_HELPERS,
     PINNED,
     PUBLISH_STEP,
     QUESTIONS,
+    RECORDER,
     ROOT,
     TABLE_HEADER,
+    TASK_HELPERS,
     VARIANTS,
     dependencies,
     detect_secrets_hook,
@@ -1890,6 +1893,38 @@ def test_the_commands_on_a_source_name_what_their_rows_add(keyed_nested: Path) -
     assert "absolute URL" in record
     for name in ["`/record-fixture`", "`fetched`"]:
         assert name in refresh, name
+
+
+def test_add_endpoint_names_cores_helpers_where_a_task_meets_them(
+    variant: tuple[str, Path],
+) -> None:
+    """#270, #250: ``/add-endpoint`` names each helper of core 0.4.1 that a new task meets,
+    and every sentence that names ``UnknownCode`` hands the refusal to the ``check`` of the
+    list's declaration, ``PackagedList.codes(...)``, so no step tells a task to raise it by
+    hand. Every variant packages reference data; ``tests/test_reference_data.py`` reads the
+    render that packages none."""
+    name, dst = variant
+    add = (dst / ".claude/commands/add-endpoint.md").read_text()
+    flat = " ".join(add.split())
+    assert [helper for helper in LIST_HELPERS + TASK_HELPERS if helper not in flat] == [], name
+    cited = [sentence for sentence in sentences(add) if "`UnknownCode`" in sentence]
+    assert cited, name
+    for sentence in cited:
+        assert "`PackagedList.codes(" in sentence, sentence
+        assert "check(" in sentence, sentence
+
+
+def test_record_fixture_takes_cores_recorder(variant: tuple[str, Path]) -> None:
+    """#270: ``/record-fixture`` names the source's rewrite step and the one send that
+    writes nothing (sdk-core ADR-0048), and the recording of every exchange of a task
+    (sdk-core ADR-0057); it builds no client for one attempt, since core's send is one
+    whatever the client's retry, and names the recorder's refusal of a 1xx or a 3xx."""
+    name, dst = variant
+    record = " ".join((dst / ".claude/commands/record-fixture.md").read_text().split())
+    assert [helper for helper in RECORDER if helper not in record] == [], name
+    assert "max_attempts" not in record, name
+    assert "1xx" in record, name
+    assert "3xx" in record, name
 
 
 def test_readme_status_table_has_the_columns_the_family_check_reads(keyless_flat: Path) -> None:
