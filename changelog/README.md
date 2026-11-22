@@ -23,6 +23,15 @@ A generated repository gets the same folder, its rule in `template/changelog/REA
   each after the first on a line of its own indented by four spaces, as every line the note
   continues is. A change that matters to new repositories only, such as a scaffold's
   starting text, says so in its bullet instead.
+- **The entries of a core release.** The fragment that carries the entries a source's
+  changelog takes for the changes of a core release that its callers see, which `CLAUDE.md`
+  asks of a release that brings one, writes them in its Hand-apply note, since a source
+  writes them by hand: one item per entry,
+  `` `changelog/<group>-<slug>.md` — <entry> — <where>. ``, the path the source's fragment
+  in the entry's group, the entry its bullet as the source's own `changelog/README.md` lays
+  it out, its citations closing it, and the last part where it holds, the code that takes
+  the change or the sources it reaches. An entry continues on lines indented by four
+  spaces, as the note does, and no line of the note opens a list.
 - **When.** Every pull request that changes more than the documentation adds one. A pull
   request that changes an entry not yet released edits its fragment.
 
