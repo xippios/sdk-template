@@ -32,7 +32,9 @@ from helpers import (
     key_answers,
     key_envs,
     keyed,
+    live_secrets,
     package_dir,
+    placeholder_envs,
     ruff,
     skip_matcher,
     tenant_credential,
@@ -335,8 +337,9 @@ def test_a_multi_tenant_source_strips_the_other_tenants(
 ) -> None:
     """sdk-core ADR-0042, decision 1: the template's ``tests/conftest.py`` calls core's
     ``keep_reserved_tenants(TENANTS)`` at import, before any fixture; the plugin pins the
-    reserved tenant's credential, its key or the field ``tenant_credential_env`` names,
-    which alone declares that tenant offline and which ``live.yml`` passes, and no other."""
+    reserved tenant's credential first, its key or the field ``tenant_credential_env`` names,
+    which alone declares that tenant offline and which ``live.yml`` passes, and no other
+    tenant's variable: a source without a key adds its live secrets alone (#241)."""
     answers, tenants = VARIANTS[name], render(name)
     tree = ast.parse((tenants / "tests/conftest.py").read_text())
     calls = [ast.unparse(n.value) for n in tree.body if isinstance(n, ast.Expr)]
@@ -345,7 +348,10 @@ def test_a_multi_tenant_source_strips_the_other_tenants(
     ini = tomllib.loads((tenants / "pyproject.toml").read_text())["tool"]["pytest"]
     keys = ini["ini_options"]["xippios_placeholder_key_envs"]
     reserved = f"{tenant_prefix(answers)}_DEMO_{tenant_field(answers)}"
-    assert keys == key_envs(answers) == [reserved]
+    assert key_envs(answers) == [reserved]
+    assert keys == placeholder_envs(answers)
+    assert keys[0] == reserved
+    assert keys[1:] == ([] if key_answers(answers).get("api_key_env") else live_secrets(answers))
 
 
 def test_the_tenants_prefix_is_the_keys(template_src: Path, tmp_path: Path) -> None:
@@ -494,7 +500,8 @@ def test_a_keyless_multi_tenant_sources_variables_follow_the_credential(
 ) -> None:
     """``ENV_VARS`` lists the tenant list and the credential's pattern, then the live secrets;
     the plugin pins the reserved tenant's credential offline, the variable that alone
-    declares that tenant, and ``live.yml`` passes it first."""
+    declares that tenant, then the live secrets that the source's own auth reads beside it
+    (#241), and ``live.yml`` passes them in that order."""
     answers = VARIANTS["tenants-keyless"]
     assert tenant_credential(answers) == "GOOGLE_<NAME>_REFRESH_TOKEN"
     assert (
@@ -509,15 +516,41 @@ def test_a_keyless_multi_tenant_sources_variables_follow_the_credential(
     )
     ini = tomllib.loads((tenants_keyless / "pyproject.toml").read_text())["tool"]["pytest"]
     keys = ini["ini_options"]["xippios_placeholder_key_envs"]
-    assert keys == key_envs(answers) == ["GOOGLE_DEMO_REFRESH_TOKEN"]
+    assert key_envs(answers) == ["GOOGLE_DEMO_REFRESH_TOKEN"]
+    assert (
+        keys
+        == placeholder_envs(answers)
+        == ["GOOGLE_DEMO_REFRESH_TOKEN", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
+    )
     workflow = yaml.safe_load((tenants_keyless / ".github/workflows/live.yml").read_text())
     (step,) = [step for step in workflow["jobs"]["live"]["steps"] if "env" in step]
-    assert list(step["env"]) == [
-        "XIPPIOS_LIVE_TESTS",
-        *keys,
-        "GOOGLE_CLIENT_ID",
-        "GOOGLE_CLIENT_SECRET",
-    ]
+    assert list(step["env"]) == ["XIPPIOS_LIVE_TESTS", *keys]
+
+
+def test_a_keyless_multi_tenant_sources_dependency_key_stands_between(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """Finding 1 of #269: a keyed dependency's key stands between the reserved tenant's
+    credential and the live secrets, as ``key_envs`` orders them (sdk-core ADR-0021); an
+    open dependency adds none."""
+    dependencies = (
+        '[{name: example-base, minor: "0.3", key_env: ""},'
+        ' {name: example-keyed, minor: "0.1", key_env: EXAMPLE_KEYED_API_KEY}]'
+    )
+    answers = {**VARIANTS["tenants-keyless"], "source_dependencies": dependencies}
+    dst = generate(template_src, tmp_path / "repo", **answers)
+    ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]
+    keys = ini["ini_options"]["xippios_placeholder_key_envs"]
+    assert (
+        keys
+        == placeholder_envs(answers)
+        == [
+            "GOOGLE_DEMO_REFRESH_TOKEN",
+            "EXAMPLE_KEYED_API_KEY",
+            "GOOGLE_CLIENT_ID",
+            "GOOGLE_CLIENT_SECRET",
+        ]
+    )
 
 
 def test_a_keyless_multi_tenant_render_names_no_key_of_its_tenants(tenants_keyless: Path) -> None:
@@ -690,3 +723,60 @@ def test_an_update_merges_a_sources_own_write_server(template_src: Path, tmp_pat
     assert "the source says" in (pkg / "mcp.py").read_text(), "its own line, merged"
     scripts = tomllib.loads((dst / "pyproject.toml").read_text())["project"]["scripts"]
     assert sorted(scripts) == ["xippios-ex-mcp-read", "xippios-ex-mcp-write"]
+
+
+def test_an_update_keeps_a_sources_script_and_takes_the_live_secrets(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """#241: a keyless multi-tenant source made by the template before it, which named the
+    reserved tenant's credential alone under ``xippios_placeholder_key_envs`` and said
+    nothing under ``[project.scripts]``, adds a script of its own after the servers' entry
+    points, as sdk-google-mail adds its consent command. The update to the working tree's
+    render brings the live secrets into the list and keeps the script, with no conflict:
+    the file is the render with the source's line."""
+    template = tmp_path / "template"
+    shutil.copytree(template_src, template)
+    jinja = template / "template/pyproject.toml.jinja"
+    current = jinja.read_text()
+    # The template before #241: no comment under [project.scripts], no live secret in the
+    # list.
+    head, rest = current.split("[project.scripts]\n", 1)
+    lines = rest.splitlines(keepends=True)
+    while lines[0].startswith("#"):
+        lines.pop(0)
+    before = head + "[project.scripts]\n" + "".join(lines)
+    git(template, "init", "-q", "-b", "main")
+    for tag, text in [("v0.0.1", before.replace("live_secret_names", "[]")), ("v0.0.2", current)]:
+        jinja.write_text(text)
+        (template / "RELEASE").write_text(f"{tag}\n")
+        git(template, "add", "-A")
+        git(template, "commit", "-q", "--no-verify", "-m", tag)
+        git(template, "tag", tag)
+    answers = VARIANTS["tenants-keyless"]
+    dst = tmp_path / "repo"
+    data = {**BASE_ANSWERS, **answers}
+    run_copy(str(template), str(dst), data=data, defaults=True, vcs_ref="v0.0.1", quiet=True)
+    pyproject = dst / "pyproject.toml"
+    ini = tomllib.loads(pyproject.read_text())["tool"]["pytest"]["ini_options"]
+    assert ini["xippios_placeholder_key_envs"] == key_envs(answers), "the list before"
+    slug, dotted = answers["source_slug"], package_dir(answers).replace("/", ".")
+    own = f"xippios-{slug}-auth"
+    last = f'xippios-{slug}-mcp-write = "xippios.{dotted}.mcp_write:run"\n'
+    line = f'{own} = "xippios.{dotted}._consent:run"\n'
+    text = pyproject.read_text()
+    assert text.count(last) == 1, "the servers' last entry point"
+    pyproject.write_text(text.replace(last, last + line))
+    git(dst, "init", "-q", "-b", "main")
+    git(dst, "add", "-A")
+    git(dst, "commit", "-q", "--no-verify", "-m", "a source with a script of its own")
+    run_update(str(dst), defaults=True, overwrite=True, vcs_ref="v0.0.2", quiet=True)
+    after = pyproject.read_text()
+    assert "<<<<<<< before updating" not in after, after
+    assert not list(dst.rglob("*.rej"))
+    parsed = tomllib.loads(after)
+    keys = parsed["tool"]["pytest"]["ini_options"]["xippios_placeholder_key_envs"]
+    assert keys == placeholder_envs(answers), "the live secrets, from the answers"
+    servers = [f"xippios-{slug}-mcp-read", f"xippios-{slug}-mcp-write"]
+    assert list(parsed["project"]["scripts"]) == [*servers, own], "the source's, kept"
+    rendered = generate(template_src, tmp_path / "render", **answers)
+    assert after == (rendered / "pyproject.toml").read_text().replace(last, last + line)

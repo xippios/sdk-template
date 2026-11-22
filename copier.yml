@@ -359,8 +359,10 @@ live_secrets:
     The variables the live tests read beyond the keys, such as a username and a password
     or an OAuth client's pair: a YAML flow list of UPPER_SNAKE_CASE names, e.g.
     [FAOSTAT_USERNAME, FAOSTAT_PASSWORD]. live.yml passes each one to its pytest step
-    from the secret of the same name, after the keys. A key is api_key_env's or a
-    dependency's key_env, never one of these. The default [] for none.
+    from the secret of the same name, after the keys. A multi-tenant source without a
+    key names each under xippios_placeholder_key_envs too, after the reserved tenant's
+    credential, since its own auth reads them. A key is api_key_env's or a dependency's
+    key_env, never one of these. The default [] for none.
   default: "[]"
   validator: >-
     {% set names = live_secrets | from_yaml %}
