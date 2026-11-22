@@ -7,9 +7,10 @@ which ``_client.py`` declares. ``write_server`` renders the write server and its
 under the two entry points; ``tenant_param`` renders core's registry, ``build(lock)``,
 ``serve_tenants`` and the strip of the other tenants' variables, for tenants that hold a
 key or, named by ``tenant_credential_env``, a credential that is none (#207).
-A bound server's text names no tenant argument (#219), and ``/add-endpoint`` names the test
-of a write server (#220). ``scripts/prove.sh`` serves them: a host's server from the tool
-set against the entry point's, and a bound server's instructions, on core.
+A bound server's text names no tenant argument (#219), ``/add-endpoint`` names the test
+of a write server (#220), and the write scaffold declares a preview's ``reads``, which that
+test holds (#271). ``scripts/prove.sh`` serves them: a host's server from the tool set
+against the entry point's, and a bound server's instructions, on core.
 """
 
 import ast
@@ -169,16 +170,48 @@ def test_the_write_scaffold_serves_nothing_yet(tenants: Path) -> None:
 def test_add_endpoint_brings_the_write_servers_test(variant: tuple[str, Path]) -> None:
     """Conventions §8, #220: where there is a write server, ``/add-endpoint`` names the test a
     source's first write task brings, core's ``assert_write_tools``, awaited under
-    ``@pytest.mark.anyio``, in ``tests/test_tasks_write.py``; elsewhere it names none."""
+    ``@pytest.mark.anyio``, in ``tests/test_tasks_write.py``, which holds each preview's
+    ``reads`` with ``preview_reads=True`` (sdk-core ADR-0050, #271); elsewhere it names none."""
     name, dst = variant
     text = (dst / ".claude/commands/add-endpoint.md").read_text()
     for named in [
         "xippios.core.testing import assert_write_tools",
         "await assert_write_tools(",
+        "preview_reads=True",
         "@pytest.mark.anyio",
         "tests/test_tasks_write.py",
     ]:
         assert (named in text) is write_server(VARIANTS[name]), (name, named)
+
+
+WRITE_VARIANTS = [name for name, answers in VARIANTS.items() if write_server(answers)]
+
+
+@pytest.mark.parametrize("name", WRITE_VARIANTS)
+def test_the_write_scaffold_declares_its_previews_reads(
+    name: str, render: Callable[[str], Path]
+) -> None:
+    """Conventions §8, sdk-core ADR-0050, #271: the write scaffold declares one preview, a
+    model whose ``performed`` is ``Literal[False]`` and which declares ``reads: list[str]``,
+    the operations a preview read, so a write task that returns it passes
+    ``assert_write_tools(..., preview_reads=True)``, which ``scripts/prove.sh`` runs on core.
+    The scaffold still serves no task."""
+    answers = VARIANTS[name]
+    tree = module(render(name), answers, "tasks_write.py")
+    previews = []
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            fields = {
+                ast.unparse(statement.target): ast.unparse(statement.annotation)
+                for statement in node.body
+                if isinstance(statement, ast.AnnAssign)
+            }
+            if fields.get("performed") == "Literal[False]":
+                previews.append((node.name, fields))
+    assert len(previews) == 1, (name, previews)
+    ((preview, fields),) = previews
+    assert fields.get("reads") == "list[str]", (name, preview, fields)
+    assert ast.literal_eval(assigned(tree, "__all__")) == [], "no write task yet"
 
 
 def entries(dst: Path, answers: dict[str, object]) -> list[tuple[str, bool, bool]]:

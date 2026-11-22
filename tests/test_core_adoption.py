@@ -1,10 +1,12 @@
 """The adoption of core 0.4.1: the files a render copies whole from sdk-core, at its tag
 v0.4.1, the secret scan's rule for the line on which core's recorder writes a cut body's
-sha256, and the reference refresh on core's default class name (#42, #167, #190).
+sha256, the reference refresh on core's default class name (#42, #167, #190), and the
+collecting line of core's check of a built answer's mark (#271).
 
 Each test reads the renders of ``conftest.py`` and asserts mechanics: a digest equal, what
-the render's own detect-secrets hook does with a file, the arguments of a call.
-``scripts/prove.sh`` runs the rendered refresh script itself, on the core release.
+the render's own detect-secrets hook does with a file, the arguments of a call, a line and
+the names a module declares. ``scripts/prove.sh`` runs the rendered refresh script itself,
+on the core release, and the render's suite, which the built-answer check then joins.
 """
 
 import ast
@@ -17,7 +19,7 @@ import sys
 from pathlib import Path
 
 import yaml
-from helpers import CORE_DEFAULT
+from helpers import CORE_DEFAULT, VARIANTS, generate, package_dir, skip_matcher
 
 # SHA-256 of sdk-core's files that a render copies byte for byte, at v0.4.1, the core
 # release the template adopts: git -C <workspace root>/sdk-core show v0.4.1:<path> |
@@ -116,3 +118,53 @@ def test_the_reference_refresh_takes_cores_default_class_name(keyless_flat: Path
     assert not {"class_name", "class_names"} & keywords
     names = {node.id for node in ast.walk(script) if isinstance(node, ast.Name)}
     assert "class_names" not in names
+
+
+# Core 0.4.1's check of a built answer's mark (sdk-core ADR-0049): the module that core's
+# handover names for it, and its collecting line as core's docstring gives it.
+BUILT_ANSWERS = "tests/test_built_answers.py"
+BUILT_ANSWERS_LINE = "from xippios.core.testing.built_answers import *  # noqa: F403"
+
+
+def test_the_render_collects_the_built_answer_check(variant: tuple[str, Path]) -> None:
+    """#271: a render collects core's check of a built answer's mark by its one line, first in
+    ``tests/test_built_answers.py``, and below it the source's ``READERS`` and ``ALLOWED``,
+    empty, which the check reads from that module. The module is the source's once rendered,
+    and the generated ``CLAUDE.md`` and ``/add-endpoint`` name it."""
+    name, dst = variant
+    text = (dst / BUILT_ANSWERS).read_text()
+    assert text.splitlines()[0] == BUILT_ANSWERS_LINE, name
+    first, *rest = ast.parse(text).body
+    assert isinstance(first, ast.ImportFrom), ast.unparse(first)
+    assert first.module == "xippios.core.testing.built_answers", first.module
+    assert [alias.name for alias in first.names] == ["*"]
+    declared: dict[str, str] = {}
+    for node in rest:
+        assert isinstance(node, (ast.Assign, ast.AnnAssign)), ast.unparse(node)
+        target = node.targets[0] if isinstance(node, ast.Assign) else node.target
+        assert node.value is not None, ast.unparse(node)
+        declared[ast.unparse(target)] = ast.unparse(node.value)
+    assert declared == {"READERS": "frozenset()", "ALLOWED": "{}"}, name
+    assert skip_matcher(package_dir(VARIANTS[name]))(BUILT_ANSWERS), "the source's declarations"
+    claude = (dst / "CLAUDE.md").read_text().splitlines()
+    layout = [line.split()[0] for line in claude if line.startswith("  ") and line.strip()]
+    assert "test_built_answers.py" in layout, name
+    assert f"`{BUILT_ANSWERS}`" in (dst / ".claude/commands/add-endpoint.md").read_text(), name
+
+
+def test_an_update_creates_the_built_answer_module_and_keeps_a_sources(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """#271: a source rendered before the module gets it at its next render, since copier
+    creates a file under ``_skip_if_exists`` where the repository has none, and a source that
+    holds a module of that name of its own, sdk-cashctrl's check, keeps it for its adoption
+    to replace by hand."""
+    answers = VARIANTS["keyed-nested"]
+    dst = generate(template_src, tmp_path / "repo", **answers)
+    (dst / BUILT_ANSWERS).unlink()
+    generate(template_src, dst, **answers)
+    assert (dst / BUILT_ANSWERS).read_text().splitlines()[0] == BUILT_ANSWERS_LINE
+    own = '"""The source\'s own check of a built answer\'s mark."""\n'
+    (dst / BUILT_ANSWERS).write_text(own)
+    generate(template_src, dst, **answers)
+    assert (dst / BUILT_ANSWERS).read_text() == own, "the source's, skip-listed"
