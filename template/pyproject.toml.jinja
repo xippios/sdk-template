@@ -30,6 +30,7 @@ http = ["xippios-core[http]~={{ core_version }}"]
 testing = ["xippios-core[testing]~={{ core_version }}"]
 
 [project.scripts]
+# The servers' entry points, the template's; a script of the package's own goes after them.
 {% if write_server %}
 xippios-{{ source_slug }}-mcp-read = "xippios.{{ import_path }}.mcp:run"
 xippios-{{ source_slug }}-mcp-write = "xippios.{{ import_path }}.mcp_write:run"
@@ -123,7 +124,12 @@ addopts = "-ra --strict-markers --import-mode=importlib"
 testpaths = ["tests"]
 # record_property, in a live test say, warns under xunit2 when a run writes --junitxml.
 junit_family = "xunit1"
-{% if tenant_param %}
+{% if tenant_param and not api_key_env and live_secret_names %}
+# Core's plugin sets them to the placeholder key in every test not marked live
+# (sdk-core ADR-0035), the reserved {{ tenant_param }}'s credential first and the live secrets
+# last, each a variable that the package's own auth reads, so each holds a value offline.
+xippios_placeholder_key_envs = {{ (key_envs + live_secret_names) | tojson }}
+{% elif tenant_param %}
 {% set credential = 'key' if api_key_env else 'credential' %}
 # Core's plugin sets them to the placeholder key in every test not marked live
 # (sdk-core ADR-0035), the reserved {{ tenant_param }}'s {{ credential }} first, the one
