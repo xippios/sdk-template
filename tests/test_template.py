@@ -1927,6 +1927,20 @@ def test_record_fixture_takes_cores_recorder(variant: tuple[str, Path]) -> None:
     assert "3xx" in record, name
 
 
+def test_record_fixture_checks_every_file_of_a_tasks_recording(variant: tuple[str, Path]) -> None:
+    """Findings 1 and 2 of #278, sdk-core ADR-0057, decision 6: the credential grep of
+    ``/record-fixture`` names each file that a task's recording writes, ``<case>.json`` and
+    ``<case>_<k>.json`` under the task's name, and the sentence on ``record_task`` names
+    the two bounds of ``record`` it does not take, ``max_bytes=`` and ``max_read_bytes=``."""
+    name, dst = variant
+    record = (dst / ".claude/commands/record-fixture.md").read_text()
+    spans = re.findall(r"`(grep -niE [^`]*)`", " ".join(record.split()))
+    task_files = ["tests/fixtures/<task>/<case>.json", "tests/fixtures/<task>/<case>_*.json"]
+    assert [span for span in spans if all(path in span for path in task_files)], (name, spans)
+    bounds = ["`record_task`", "`max_bytes=`", "`max_read_bytes=`"]
+    assert [s for s in sentences(record) if all(bound in s for bound in bounds)], name
+
+
 def test_readme_status_table_has_the_columns_the_family_check_reads(keyless_flat: Path) -> None:
     """Core's family check reads the tables under ``## Status`` by their Task function column."""
     readme = (keyless_flat / "README.md").read_text()
