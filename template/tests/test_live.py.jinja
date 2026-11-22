@@ -3,14 +3,43 @@
 ``/add-endpoint`` adds them. After a run, xippios-core's testing plugin prints the requests
 they sent in one line, ``requests sent by the live run: <n>``: in the log of ``live.yml``,
 that line is the count a release cites (``/release-prep``), so this header states none.
+{% if has_reference_data %}
+
+The star import collects core's nightly comparison of each packaged list with the list
+upstream serves now, ``test_packaged_list_is_current``, once per entry of ``LIVE_LISTS``
+(sdk-core ADR-0055). Every packaged list stands in ``LIVE_LISTS`` or, with the reason it is
+not compared, in ``NO_LIVE_LIST``, as core's family check holds, which imports this module
+offline: a test that needs a key or an optional dependency skips in itself or its fixture,
+never at the module's top level.
+{% endif %}
 """
 
+{% if has_reference_data %}
+from collections.abc import Callable
+
+{% endif %}
 import httpx
 import pytest
+{% if has_reference_data %}
+from xippios.core.reference import PackagedCodes
+from xippios.core.testing.live import *  # noqa: F403
+{% endif %}
 
 from xippios.{{ import_path }}._client import BASE_URL, config
 
 pytestmark = [pytest.mark.live, pytest.mark.anyio]
+{% if has_reference_data %}
+
+LIVE_LISTS: dict[str, tuple[PackagedCodes, Callable[[], object]]] = {
+    # each packaged list compared, by its file reference/<name>.json, to its codes as the
+    # package declares them, PackagedList.codes(...), and the api/ wrapper that fetches it
+    # now, e.g. "commodities": (COMMODITIES, api.get_commodities),
+}
+NO_LIVE_LIST: dict[str, str] = {
+    # each packaged list not compared, to the reason, e.g.
+    # "units": "No endpoint serves the list: it is rebuilt from docs/upstream/.",
+}
+{% endif %}
 
 
 async def test_upstream_answers() -> None:
