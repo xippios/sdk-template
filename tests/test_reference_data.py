@@ -30,10 +30,11 @@ FILLED = [
     "src/xippios/{pkg}/reference/README.md",
     "scripts/refresh_reference.py",
 ]
-# How a render names the scaffold: a file, the folder, the script, the command, an import.
+# How a render names the scaffold: a file, the folder, the script, the command, an import,
+# or the words, as the code rule on what the tasks call did (#243).
 NAMED = re.compile(
     r"params\.py|enums\.py|\breference/|refresh_reference|refresh-reference-data"
-    r"|\bxippios\.[\w.]+\.(?:params|enums)\b"
+    r"|\bxippios\.[\w.]+\.(?:params|enums)\b|\breference data\b"
 )
 
 
@@ -65,7 +66,8 @@ def test_the_answer_is_true_unless_a_source_says_otherwise(variant: tuple[str, P
 
 def test_a_source_without_reference_data_renders_none_of_it(without_reference: Path) -> None:
     """#40: ``has_reference_data: false`` renders none of the scaffold, no file of the render
-    names it, and the generated code stays lint and format clean."""
+    names it, its CLAUDE.md's code rules among them (#243), and the generated code stays
+    lint and format clean."""
     dst = without_reference
     rendered = [rel for rel in paths(SCAFFOLD, VARIANTS["keyed-nested"]) if (dst / rel).exists()]
     assert rendered == []

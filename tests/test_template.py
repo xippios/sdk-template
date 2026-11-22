@@ -1783,6 +1783,48 @@ def test_readme_status_table_has_the_columns_the_family_check_reads(keyless_flat
     assert "| Upstream operation | Task function | MCP tool | Status |" in status
 
 
+def written_again(claude: str) -> list[str]:
+    """What the CLAUDE.md's ``## Template updates`` names as the files an update writes
+    again: the code spans of its second paragraph's first sentence after the colon, written
+    as one list, ``a``, ``b`` and ``c``."""
+    section = claude.split("\n## Template updates\n", 1)[1].split("\n## ", 1)[0]
+    paragraph = " ".join(section.strip().split("\n\n")[1].split())
+    listed = paragraph.split(". ", 1)[0].split(": ", 1)[1]
+    names = re.findall(r"`([^`]+)`", listed)
+    assert listed == ", ".join(f"`{n}`" for n in names[:-1]) + f" and `{names[-1]}`", listed
+    return names
+
+
+def test_the_files_an_update_writes_again_are_one_list(variant: tuple[str, Path]) -> None:
+    """#244: beside the files a source fills, the CLAUDE.md names the files an update writes
+    again, and they are every file of the render outside ``_skip_if_exists``, by path. A name
+    stands at the root or in the package, never both, and one that ends in a slash is a
+    directory whose every file is the template's, so a file the template adds there or
+    renames keeps the list true."""
+    name, dst = variant
+    pkg = package_dir(VARIANTS[name])
+    skipped = skip_matcher(pkg)
+    caches = {".ruff_cache", "__pycache__"}
+    rendered = {
+        path.relative_to(dst).as_posix()
+        for path in dst.rglob("*")
+        if path.is_file() and not caches & set(path.relative_to(dst).parts)
+    }
+    owned = {rel for rel in rendered if not skipped(rel)}
+    covered: set[str] = set()
+    for entry in written_again((dst / "CLAUDE.md").read_text()):
+        places = [rel for rel in [entry, f"src/xippios/{pkg}/{entry}"] if (dst / rel).exists()]
+        assert len(places) == 1, f"{entry}: {places}"
+        (place,) = places
+        directory = place.endswith("/")
+        under = {rel for rel in rendered if rel.startswith(place)} if directory else {place}
+        assert under, f"{entry}: no file of the render"
+        assert under <= owned, f"{entry}: {sorted(under - owned)} the source fills"
+        assert not under & covered, f"{entry}: named twice"
+        covered |= under
+    assert sorted(owned - covered) == [], "rendered outside _skip_if_exists, not named"
+
+
 def test_the_files_a_source_fills_are_one_list(keyless_flat: Path) -> None:
     """The CLAUDE.md names every protected path, in skip order, where it says what a
     template release re-renders; a pattern anchored at the root by its slash is named
