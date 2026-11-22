@@ -19,6 +19,7 @@ import sys
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -99,7 +100,8 @@ REPOSITORY_FILES = [
     ".github/workflows/ci.yml",
     ".github/workflows/publish.yml",
     ".github/workflows/live.yml",
-    ".github/workflows/organization.yml",
+    ".github/workflows/conventions.yml",
+    ".github/workflows/adr-index.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/CODEOWNERS",
     ".claude/settings.json",
@@ -114,7 +116,8 @@ REPOSITORY_FILES = [
 # tests/test_family.py collects, makes their checks (conventions §10). v0.3.0 renders
 # read-only packages (D35). v0.3.3 renders no caller of the retired merge gates, whose
 # reusable workflows are gone (#99), and no family rules beside CLAUDE.md, whose rules the
-# CLAUDE.md, the commands and sdk-core's documents state (#128).
+# CLAUDE.md, the commands and sdk-core's documents state (#128). v0.4.1 renders a trigger file
+# per check of the organization in place of the one caller of them all (#249).
 REMOVED_FILES = [
     "tests/test_layout.py",
     "tests/test_adapters.py",
@@ -122,6 +125,7 @@ REMOVED_FILES = [
     "src/xippios/{pkg}/tasks_write.py",
     "src/xippios/{pkg}/mcp_write.py",
     ".github/workflows/gates.yml",
+    ".github/workflows/organization.yml",
     ".claude/family.md",
 ]
 # v0.4.0 renders the write server and its scaffold again, where write_server answers so
@@ -397,21 +401,21 @@ def workflow_uses(path: Path) -> list[tuple[str, str]]:
 
 
 CORE_WORKFLOWS = ["ci.yml", "live.yml", "publish.yml"]
-# The caller of the organization's checks (#129): its jobs call reusable workflows of
-# xippios/.github at `@main`, the one reference to another repository that is not pinned
-# (conventions §13).
-ORG_CALLER = "organization.yml"
+# The trigger files of the organization's checks (#249), each named as the workflow of
+# xippios/.github it calls: their jobs call those at `@main`, the one reference to another
+# repository that is not pinned (conventions §13).
+TRIGGER_FILES = ["conventions.yml", "adr-index.yml"]
 ORG_WORKFLOW = "xippios/.github/.github/workflows/{}.yml@main"
 
 
 def test_workflow_actions_are_pinned_by_sha(variant: tuple[str, Path]) -> None:
     """ci.yml, publish.yml, live.yml and, where rendered, siblings.yml pin every action to a
     commit, its version in a comment (conventions §13); live.yml and siblings.yml take
-    ci.yml's pins. The caller of the organization's checks calls them at ``@main``."""
+    ci.yml's pins. The trigger files of the organization's checks call them at ``@main``."""
     _, dst = variant
     workflows = dst / ".github/workflows"
     rendered = sorted(path.name for path in workflows.glob("*.yml"))
-    always = [*CORE_WORKFLOWS, ORG_CALLER]
+    always = [*CORE_WORKFLOWS, *TRIGGER_FILES]
     assert rendered in [sorted(always), sorted([*always, "siblings.yml"])]
     for rel in rendered:
         uses = workflow_uses(workflows / rel)
@@ -419,7 +423,7 @@ def test_workflow_actions_are_pinned_by_sha(variant: tuple[str, Path]) -> None:
         for action, comment in uses:
             if action.startswith("./"):
                 continue
-            if rel == ORG_CALLER:
+            if rel in TRIGGER_FILES:
                 assert re.fullmatch(r"xippios/\.github/\.github/workflows/[\w-]+\.yml@main", action)
                 assert not comment, f"{rel}: {action}{comment}"
                 continue
@@ -884,7 +888,7 @@ def test_claude_md_lays_out_the_decisions_and_the_fragments(variant: tuple[str, 
 
 def test_claude_md_lays_out_every_workflow(variant: tuple[str, Path]) -> None:
     """#145: the Layout's ``.github/workflows/`` entry names each workflow the render has,
-    the caller of the organization's checks among them, and none it lacks."""
+    the trigger files of the organization's checks among them, and none it lacks."""
     _, dst = variant
     claude = (dst / "CLAUDE.md").read_text()
     block = claude.split("\n## Layout\n", 1)[1].split("```\n", 2)[1].splitlines()
@@ -1840,7 +1844,7 @@ def test_the_files_a_source_fills_are_one_list(keyless_flat: Path) -> None:
 
 
 # The render's .github/ (#129): a pull-request template that links sdk-core's definition of
-# done where it copied it, the organization's checks called from a workflow of their own,
+# done where it copied it, the organization's checks called from a trigger file each (#249),
 # and a changelog step that tells a release by no branch name. The live run's
 # --assert=plain is pinned with its environment, the owners file's header with its rules.
 
@@ -1873,66 +1877,145 @@ def test_the_pr_template_links_the_definition_of_done(keyed_nested: Path) -> Non
     assert "Unreleased" not in flat
 
 
-# GitHub starts a caller on these: `edited` because the review reads the title and the
-# description and a change of the base arrives as `edited`. Never `labeled`: GitHub reports
-# a head's checks from its newest run, and a label set at the opening started a run that
-# skipped both jobs at the caller (#152).
-ORG_TRIGGERS = {"pull_request": {"types": ["opened", "synchronize", "reopened", "edited"]}}
+# GitHub starts the review's trigger file on these: `edited` because the review reads the
+# title and the description and a change of the base arrives as `edited`, a push to `main`
+# and a dispatch for the review of a range. Never `labeled`: GitHub reports a head's checks
+# from its newest run, and a label set at the opening started a run that skipped the review
+# (#152). The check of the ADR index reads no title, so an edit does not start it.
+CONVENTIONS_EVENTS = {
+    "pull_request": {"types": ["opened", "synchronize", "reopened", "edited"]},
+    "push": {"branches": ["main"]},
+    "workflow_dispatch": None,
+}
+ADR_INDEX_EVENTS = {"pull_request": {"types": ["opened", "synchronize", "reopened"]}}
+# What the review asks of its caller, its one comment and the head's checks, and the review
+# of a range the issues beside them.
+REVIEW_PERMISSIONS = {"contents": "read", "pull-requests": "write", "checks": "read"}
+RANGE_PERMISSIONS = {**REVIEW_PERMISSIONS, "issues": "read"}
+# Both secrets by name, never inherited: the read token is the empty string where the
+# repository has none, which the review reads as none.
+REVIEW_SECRETS = {
+    "ANTHROPIC_API_KEY": "${{ secrets.ANTHROPIC_API_KEY }}",
+    "DOCUMENTS_READ_TOKEN": "${{ secrets.DOCUMENTS_READ_TOKEN }}",
+}
+# The review's switch, in each job's condition beside the event, as the README of
+# xippios/.github lays out the trigger files: on `off` neither job calls its workflow.
+CONVENTIONS_SWITCH = "vars.WORKFLOW_CONVENTIONS != 'off'"
 # The title form of a release pull request, which the callee's own condition knows and the
-# README of xippios/.github lays out: the caller names none (#152).
+# README of xippios/.github lays out: the trigger file names none (#152).
 RELEASE_TITLE_FORM = re.compile(r"<version>|\btitled\b", re.I)
 
 
-def test_the_organizations_checks_are_called_from_a_workflow_of_their_own(
-    keyed_nested: Path,
-) -> None:
-    """#129: one workflow, the template's and copied as it stands, calls the organization's
-    conventions review and its check of the ADR index as the jobs ``conventions`` and
-    ``adr-index``. It reads by default, grants the review what it asks and passes it one
-    secret by name; the index check takes no input and no secret and runs the repository's
-    own script. #152: it starts on no label, neither job has a condition of its own, since
-    the callee tells a release pull request by its own, and it names no title form. It
-    names nothing around the repository."""
-    text = (keyed_nested / ".github/workflows" / ORG_CALLER).read_text()
-    assert text == (ROOT / "template/.github/workflows" / ORG_CALLER).read_text()
+def assert_a_trigger_file(dst: Path, name: str) -> Any:
+    """A trigger file of the render, which it returns parsed: the template's bytes, outside
+    the skip-listed paths, free of comments, reading by default, its jobs giving the
+    workflows they call no input, and naming no title form and nothing around the
+    repository."""
+    text = (dst / ".github/workflows" / name).read_text()
+    assert text == (ROOT / "template/.github/workflows" / name).read_text()
     protected = skip_matcher(package_dir(VARIANTS["keyed-nested"]))
-    assert not protected(f".github/workflows/{ORG_CALLER}"), "the template's, updated with it"
-    workflow = yaml.safe_load(text)
-    assert workflow[True] == ORG_TRIGGERS
-    assert workflow["permissions"] == {"contents": "read"}
-    jobs = workflow["jobs"]
-    assert list(jobs) == ["conventions", "adr-index"]
-    review, index = jobs["conventions"], jobs["adr-index"]
-    assert review["uses"] == ORG_WORKFLOW.format("conventions")
-    asked = {"contents": "read", "pull-requests": "write", "checks": "read"}
-    assert review["permissions"] == asked, "its one comment and the head's checks"
-    assert review["secrets"] == {"ANTHROPIC_API_KEY": "${{ secrets.ANTHROPIC_API_KEY }}"}
-    assert index["uses"] == ORG_WORKFLOW.format("adr-index")
-    assert index["permissions"] == {"contents": "read"}
-    for job in [review, index]:
-        assert "if" not in job, "the newest run of a head reports both checks"
-        assert "with" not in job, "the callees take no input"
-    assert "secrets" not in index
-    assert text.count("secrets.") == 1, "one secret, by name, never inherited"
-    assert (keyed_nested / ADR_SCRIPT).is_file(), "the script the index check runs"
+    assert not protected(f".github/workflows/{name}"), "the template's, updated with it"
+    assert [line for line in text.splitlines() if line.lstrip().startswith("#")] == []
     assert not RELEASE_TITLE_FORM.search(text), RELEASE_TITLE_FORM.search(text)
     assert not AROUND_THE_REPOSITORY.search(text), AROUND_THE_REPOSITORY.search(text)
+    workflow = yaml.safe_load(text)
+    assert workflow["permissions"] == {"contents": "read"}
+    for job in workflow["jobs"].values():
+        assert "with" not in job, "the callees take no input"
+    return workflow
 
 
-def test_the_templates_own_pull_requests_call_the_organizations_checks() -> None:
-    """#151: this repository calls the organization's checks on its own pull requests from
-    the file it renders into a source, byte for byte, so its triggers and its two jobs are
-    the render's and a pull request of the template reports ``conventions / conventions``
-    and ``adr-index / adr-index`` beside ``ci``; the index check runs its own script."""
-    own = ROOT / ".github/workflows" / ORG_CALLER
-    assert own.is_file(), "the template's own caller"
-    assert own.read_bytes() == (ROOT / "template/.github/workflows" / ORG_CALLER).read_bytes()
+def test_the_review_has_a_trigger_file_of_its_own(keyed_nested: Path) -> None:
+    """#249: ``conventions.yml``, titled ``Conventions``, in the form the README of
+    xippios/.github shows. On a pull request its job ``conventions`` calls the review against
+    the documents the README lists, and on a push to ``main`` or a dispatch its job ``range``
+    calls the review of a range, so the checks keep the names the rulesets match,
+    ``conventions / conventions`` and ``range / range``. Each job's condition holds the event
+    and the switch ``WORKFLOW_CONVENTIONS``, and each passes both secrets by name."""
+    workflow = assert_a_trigger_file(keyed_nested, "conventions.yml")
+    assert workflow["name"] == "Conventions"
+    assert workflow[True] == CONVENTIONS_EVENTS  # YAML 1.1 reads the key `on` as a boolean
+    jobs = workflow["jobs"]
+    assert list(jobs) == ["conventions", "range"], "the job ids name the checks"
+    review, span = jobs["conventions"], jobs["range"]
+    assert review["if"] == f"github.event_name == 'pull_request' && {CONVENTIONS_SWITCH}"
+    assert span["if"] == f"github.event_name != 'pull_request' && {CONVENTIONS_SWITCH}"
+    assert review["uses"] == ORG_WORKFLOW.format("conventions")
+    assert span["uses"] == ORG_WORKFLOW.format("conventions-range")
+    assert review["permissions"] == REVIEW_PERMISSIONS
+    assert span["permissions"] == RANGE_PERMISSIONS
+    for job in [review, span]:
+        assert job["secrets"] == REVIEW_SECRETS, "by name, never inherited"
+
+
+def test_the_adr_index_has_a_trigger_file_of_its_own(keyed_nested: Path) -> None:
+    """#249: ``adr-index.yml``, titled ``ADR index``, calls the check of the ADR index as the
+    job ``adr-index``, so the check stays ``adr-index / adr-index``, on a pull request's
+    opening, push and reopening. Its job holds no condition, since the workflow it calls
+    reads the switch ``WORKFLOW_ADR_INDEX`` itself, and passes no secret; the check runs the
+    render's own script."""
+    workflow = assert_a_trigger_file(keyed_nested, "adr-index.yml")
+    assert workflow["name"] == "ADR index"
+    assert workflow[True] == ADR_INDEX_EVENTS
+    assert workflow["jobs"] == {"adr-index": {"uses": ORG_WORKFLOW.format("adr-index")}}
+    assert (keyed_nested / ADR_SCRIPT).is_file(), "the script the check runs"
+
+
+# Each workflow's title, by the organization's one rule: the same for a trigger file and the
+# workflow it calls (https://github.com/xippios/.github/issues/111). publish.yml keeps
+# sdk-core's bytes, its title among them, until core's file takes `Publish`.
+WORKFLOW_TITLES = {
+    "ci.yml": "CI",
+    "publish.yml": "Publish to PyPI",
+    "live.yml": "Live tests",
+    "siblings.yml": "Siblings",
+    "conventions.yml": "Conventions",
+    "adr-index.yml": "ADR index",
+}
+# The workflows a variable switches on their one job, on unless it is `off`, the
+# repository's value over the organization's; CI and the release train carry none.
+SWITCHED = {"live.yml": "WORKFLOW_LIVE", "siblings.yml": "WORKFLOW_SIBLINGS"}
+
+
+def test_each_workflow_has_its_title_and_its_switch(variant: tuple[str, Path]) -> None:
+    """#249: every workflow of a render takes its title by the organization's rule, and
+    ``live.yml`` and ``siblings.yml`` hold their switch in their one job's condition, so a
+    variable ``WORKFLOW_LIVE`` of ``off`` skips the live tests and the check reports as
+    skipped; ``ci.yml`` and ``publish.yml`` hold none and always run."""
+    _, dst = variant
+    for path in sorted((dst / ".github/workflows").glob("*.yml")):
+        text = path.read_text()
+        workflow = yaml.safe_load(text)
+        assert workflow["name"] == WORKFLOW_TITLES[path.name], path.name
+        if path.name in SWITCHED:
+            (job,) = workflow["jobs"].values()
+            assert job["if"] == f"vars.{SWITCHED[path.name]} != 'off'", path.name
+            assert text.count("WORKFLOW_") == 1, path.name
+        elif path.name not in TRIGGER_FILES:
+            assert "WORKFLOW_" not in text, f"{path.name} always runs"
+
+
+def test_the_templates_own_pull_requests_trigger_the_organizations_checks() -> None:
+    """#151, #249: this repository triggers the organization's checks on its own pull
+    requests from the files it renders into a source, byte for byte, so a pull request of
+    the template reports ``conventions / conventions`` and ``adr-index / adr-index`` beside
+    ``ci``, and the index check runs its own script. The caller of them all is gone from
+    both, or each check would run twice."""
+    workflows = ROOT / ".github/workflows"
+    for name in TRIGGER_FILES:
+        own = workflows / name
+        assert own.is_file(), f"the template's own {name}"
+        assert own.read_bytes() == (ROOT / "template/.github/workflows" / name).read_bytes()
+    for folder in [workflows, ROOT / "template/.github/workflows"]:
+        assert not (folder / "organization.yml").exists(), folder
     assert os.access(ROOT / ADR_SCRIPT, os.X_OK), "the script the index check runs"
 
 
-# The caller of the retired merge gates as the template rendered it up to v0.3.2, in its
-# shape: one workflow of that name with two jobs.
-RETIRED_CALLER = """name: gates
+# The callers of the organization's checks that the template rendered before, in their
+# shape: the retired merge gates' up to v0.3.2, one workflow of that name with two jobs, and
+# the one caller of the organization's checks up to v0.4.0.
+RETIRED_CALLERS = {
+    "gates.yml": """name: gates
 
 on:
   pull_request:
@@ -1945,39 +2028,61 @@ jobs:
     uses: ./.github/workflows/merge-class.yml
   family-review:
     uses: ./.github/workflows/family-review.yml
-"""
+""",
+    "organization.yml": """name: Organization
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  conventions:
+    uses: xippios/.github/.github/workflows/conventions.yml@main
+  adr-index:
+    uses: xippios/.github/.github/workflows/adr-index.yml@main
+""",
+}
 
 
-def test_an_update_replaces_the_retired_caller(template_src: Path, tmp_path: Path) -> None:
-    """A source made while the template rendered ``.github/workflows/gates.yml`` loses it at
-    ``copier update``, since the template renders it no longer, and gets the caller of the
-    organization's checks under a name of its own: GitHub keeps a workflow's state by its
-    path, and the sources disabled the old one by hand, so the new one starts enabled."""
+@pytest.mark.parametrize("retired", list(RETIRED_CALLERS))
+def test_an_update_replaces_the_retired_caller(
+    template_src: Path, tmp_path: Path, retired: str
+) -> None:
+    """A source made while the template rendered a caller it renders no longer loses it at
+    ``copier update`` and gets the trigger files in its place, so each check runs once: the
+    merge gates' ``gates.yml``, which the sources disabled by hand, and ``organization.yml``,
+    the caller of the organization's checks up to v0.4.0 (#249). GitHub keeps a workflow's
+    state by its path, so the trigger files start enabled."""
     template = tmp_path / "template"
     shutil.copytree(template_src, template)
     workflows = template / "template/.github/workflows"
-    (workflows / ORG_CALLER).unlink(missing_ok=True)
-    (workflows / "gates.yml").write_text(RETIRED_CALLER)
+    for name in TRIGGER_FILES:
+        (workflows / name).unlink()
+    (workflows / retired).write_text(RETIRED_CALLERS[retired])
     git(template, "init", "-q", "-b", "main")
     git(template, "add", "-A")
     git(template, "commit", "-q", "--no-verify", "-m", "the retired caller")
     git(template, "tag", "v0.0.1")
-    (workflows / "gates.yml").unlink()
+    (workflows / retired).unlink()
     shutil.copytree(template_src, template, dirs_exist_ok=True)
     git(template, "add", "-A")
-    git(template, "commit", "-q", "--no-verify", "-m", "the organization's checks")
+    git(template, "commit", "-q", "--no-verify", "-m", "the trigger files")
     git(template, "tag", "v0.0.2")
     dst = tmp_path / "repo"
     answers = {**BASE_ANSWERS, **VARIANTS["keyless-flat"]}
     run_copy(str(template), str(dst), data=answers, defaults=True, vcs_ref="v0.0.1", quiet=True)
-    assert (dst / ".github/workflows/gates.yml").read_text() == RETIRED_CALLER
+    assert (dst / ".github/workflows" / retired).read_text() == RETIRED_CALLERS[retired]
     git(dst, "init", "-q", "-b", "main")
     git(dst, "add", "-A")
     git(dst, "commit", "-q", "--no-verify", "-m", "a source")
     run_update(str(dst), defaults=True, overwrite=True, vcs_ref="v0.0.2", quiet=True)
-    assert not (dst / ".github/workflows/gates.yml").exists()
-    rendered = dst / ".github/workflows" / ORG_CALLER
-    assert rendered.read_bytes() == (workflows / ORG_CALLER).read_bytes()
+    assert not (dst / ".github/workflows" / retired).exists()
+    for name in TRIGGER_FILES:
+        rendered = dst / ".github/workflows" / name
+        assert rendered.read_bytes() == (workflows / name).read_bytes()
 
 
 def test_a_release_passes_the_changelog_step_by_its_changelog(
@@ -2493,7 +2598,7 @@ def test_the_templates_own_workflows_are_hardened() -> None:
     which says so."""
     for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
         for action, comment in workflow_uses(path):
-            if path.name == ORG_CALLER:
+            if path.name in TRIGGER_FILES:
                 assert re.fullmatch(r"xippios/\.github/\.github/workflows/[\w-]+\.yml@main", action)
                 assert not comment, f"{path.name}: {action}{comment}"
                 continue
