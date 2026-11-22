@@ -1,6 +1,8 @@
 """Live smoke tests, one per task, skipped unless XIPPIOS_LIVE_TESTS=1 (conventions §10).
 
-``/add-endpoint`` adds them.
+``/add-endpoint`` adds them. After a run, xippios-core's testing plugin prints the requests
+they sent in one line, ``requests sent by the live run: <n>``: in the log of ``live.yml``,
+that line is the count a release cites (``/release-prep``), so this header states none.
 """
 
 import httpx
