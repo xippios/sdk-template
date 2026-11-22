@@ -101,8 +101,9 @@ sdk-<slug>/
                        tasks_write and mcp_write where write_server
   tests/               conftest, test_family, test_tasks, test_live; fixtures/files/README.md,
                        the samples' provenance table, where has_files
-  scripts/             refresh_upstream.py (the capture skeleton), adr_index.py (writes and
-                       checks the ADR index), release_prepare.py and changelog_assemble.py
+  scripts/             refresh_upstream.py (the snapshot, on core's frame), adr_index.py
+                       (writes and checks the ADR index), release_prepare.py and
+                       changelog_assemble.py
                        (prepare a release, /release-prep);
                        refresh_reference.py where has_reference_data
   docs/upstream/       FETCHED.md
@@ -160,8 +161,10 @@ A variable `WORKFLOW_<NAME>` of `off`, the repository's over the organization's,
 off `live.yml` by `WORKFLOW_LIVE`, `siblings.yml` by `WORKFLOW_SIBLINGS` and the two
 checks by `WORKFLOW_CONVENTIONS` and `WORKFLOW_ADR_INDEX`, and a workflow runs where
 neither sets one; `ci.yml` and `publish.yml` take no switch and always run.
-`scripts/refresh_upstream.py` is the skeleton of the capture script `/refresh-upstream`
-runs; it refuses to run until the source fills it.
+`scripts/refresh_upstream.py`, the capture script `/refresh-upstream` runs, declares the
+source's `Snapshot` as `SNAPSHOT`, which xippios-core's frame `xippios.core.refresh` runs and
+core's family check reads (sdk-core ADR-0046); the frame refuses to run it until the source
+names its pages.
 
 ## Updating generated repositories
 

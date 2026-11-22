@@ -2,7 +2,7 @@
 # Prove the template: generate a throwaway source repository from the WORKING TREE and
 # run the full check suite on it (uv sync, ruff, mypy, pytest with core's family check,
 # pre-commit), then re-render enums.py from the (empty) packaged lists and require it
-# unchanged, require the unfilled refresh_upstream.py skeleton to refuse to run, and run
+# unchanged, require core's frame to refuse refresh_upstream.py while it has no pages, and run
 # the sibling check where the import path nests (none renders where it is flat): with the
 # wheel alone, failing on a conflicting requirement, warning on a sibling on another core
 # minor and on one that pins this package's previous minor, and failing on one that pins a
@@ -161,12 +161,12 @@ else
 fi
 
 echo
-echo "==> refresh_upstream.py, the skeleton, refuses to run until a source fills it"
-if (cd "$dest" && uv run python scripts/refresh_upstream.py --check) 2> "$work/refresh.err"; then
-  echo "error: the unfilled skeleton ran" >&2
+echo "==> refresh_upstream.py runs on core's frame, which refuses its SNAPSHOT until it has pages"
+if (cd "$dest" && uv run scripts/refresh_upstream.py --check) 2> "$work/refresh.err"; then
+  echo "error: the declaration without pages ran" >&2
   exit 1
 fi
-refusal="$(grep "Nothing to fetch: fill PAGES" "$work/refresh.err")" \
+refusal="$(grep "Nothing to fetch: declare the snapshot's pages" "$work/refresh.err")" \
   || { cat "$work/refresh.err" >&2; exit 1; }
 echo "refused: $refusal"
 
