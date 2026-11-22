@@ -275,7 +275,8 @@ def test_a_multi_tenant_sources_commands_name_its_clients(
 ) -> None:
     """``/add-endpoint``, ``/record-fixture`` and the generated ``CLAUDE.md`` name the client a
     multi-tenant render has, ``client_for``, and never the module-level ``client`` it does
-    not define."""
+    not define; ``/record-fixture`` records a task's exchanges for the reserved tenant
+    (#270)."""
     answers, tenants = VARIANTS[name], render(name)
     param = tenant_param(answers)
     for command in ["add-endpoint", "record-fixture"]:
@@ -286,6 +287,8 @@ def test_a_multi_tenant_sources_commands_name_its_clients(
         assert "import client\n" not in text, command
     add_endpoint = (tenants / ".claude/commands/add-endpoint.md").read_text()
     assert f"client_for({param})" in add_endpoint
+    record = (tenants / ".claude/commands/record-fixture.md").read_text()
+    assert f"`{param}=DEMO`" in record
     claude = (tenants / "CLAUDE.md").read_text()
     assert f"`client_for({param})`" in claude
     assert "`client`" not in claude
@@ -566,7 +569,7 @@ def test_a_keyless_multi_tenant_render_names_no_key_of_its_tenants(tenants_keyle
             named = [key for key in [*keys, '"API_KEY"', "'API_KEY'"] if key in text]
             assert not named, (path, named)
     record = (tenants_keyless / ".claude/commands/record-fixture.md").read_text()
-    assert f'TENANTS.var(DEMO, "{field}")' in record
+    assert f"`{prefix}_DEMO_{field}`" in record
     claude = (tenants_keyless / "CLAUDE.md").read_text().splitlines()
     (credentials,) = [line for line in claude if line.startswith("| Credentials | ")]
     assert f"`{tenant_credential(answers)}`" in credentials

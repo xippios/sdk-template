@@ -11,7 +11,18 @@ from pathlib import Path
 
 import pytest
 from copier import run_copy, run_update
-from helpers import BASE_ANSWERS, QUESTIONS, ROOT, VARIANTS, generate, git, package_dir, ruff
+from helpers import (
+    BASE_ANSWERS,
+    LIST_HELPERS,
+    QUESTIONS,
+    ROOT,
+    TASK_HELPERS,
+    VARIANTS,
+    generate,
+    git,
+    package_dir,
+    ruff,
+)
 
 # The scaffold of a source that packages reference data, ``{pkg}`` its package directory:
 # the lists, their enums, the packaged files, the script that fetches them and its command.
@@ -31,10 +42,13 @@ FILLED = [
     "scripts/refresh_reference.py",
 ]
 # How a render names the scaffold: a file, the folder, the script, the command, an import,
-# or the words, as the code rule on what the tasks call did (#243).
+# or the words, as the code rule on what the tasks call did (#243) and /add-endpoint's
+# lookups did, and core's names that read a packaged list or refuse a code it lacks, which
+# /add-endpoint gives a task only where there is a list (#250, #270).
 NAMED = re.compile(
     r"params\.py|enums\.py|\breference/|refresh_reference|refresh-reference-data"
-    r"|\bxippios\.[\w.]+\.(?:params|enums)\b|\breference data\b"
+    r"|\bxippios\.[\w.]+\.(?:params|enums)\b|\breference data\b|\breference lookups?\b"
+    r"|\bPackaged(?:List|Codes)\b|\bnames_codes\b|\bUnknownCode\b"
 )
 
 
@@ -82,6 +96,19 @@ def test_a_source_without_reference_data_renders_none_of_it(without_reference: P
     for args in [("check", "."), ("format", "--check", ".")]:
         run = ruff(dst, *args)
         assert run.returncode == 0, run.stdout + run.stderr
+
+
+def test_add_endpoint_without_reference_data_exempts_a_countrys_codes(
+    without_reference: Path,
+) -> None:
+    """#270, sdk-core ADR-0056: with no packaged list to name a country's codes by,
+    ``/add-endpoint`` hands such a parameter to ``UNNAMED_CODES``, the exemption that core's
+    family check reads, and names core's other helpers as every render does; the test
+    above holds that it names none of ``LIST_HELPERS``."""
+    add = (without_reference / ".claude/commands/add-endpoint.md").read_text()
+    flat = " ".join(add.split())
+    assert [helper for helper in TASK_HELPERS if helper not in flat] == []
+    assert [helper for helper in LIST_HELPERS if helper in flat] == []
 
 
 def test_an_update_brings_no_reference_scaffold_back(template_src: Path, tmp_path: Path) -> None:

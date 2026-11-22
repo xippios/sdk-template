@@ -68,7 +68,11 @@ lists what they check in an endpoint.
 4. **Task function** in `src/xippios/{{ package_dir }}/tasks.py`: an async function shaped
    like what a person or agent wants (`get_<thing>(...)`, with the parameters a caller
    thinks in), composing wrappers, resolving pagination with `xippios.core.paginate_*`
+{% if has_reference_data %}
    and reference lookups, and returning `Result[T]` with full `ResultMeta` (`source`,
+{% else %}
+   and returning `Result[T]` with full `ResultMeta` (`source`,
+{% endif %}
    `endpoint`, `request`, and `published_at` / `vintage` when upstream provides them). Then:
    `get_<thing> = sync(get_<thing>_async)`, add `"get_<thing>"` to `__all__`, and
    re-export it from `__init__.py`.
@@ -85,20 +89,74 @@ lists what they check in an endpoint.
    must return whole, a cursor-paged page with the `next_token` the caller needs for the
    next page or a bounded lookup: a byte bound of its own, the row bound unchanged, and
    where the upstream bills per result, the docstring states the price per result
-   (conventions §8; sdk-core ADR-0038, decision 4). A bulk task, one that returns a file
-   or a list read from one, is named in `BULK_TASKS` beside it: Python-only, no tool and
-   no route (sdk-core ADR-0040 decision 4).
+   (conventions §8; sdk-core ADR-0038, decision 4). A tool whose cut answer a caller can
+   continue, where a second run of its task costs little, takes a paged cap,
+   `ResultCap(paged=True)`, which gives the tool the adapter's own `offset` and ends the
+   note of a cut answer with the call for the next rows; a tool whose second run is dear,
+   many upstream requests or a billed page, stays unpaged, and registration refuses a
+   paged cap to a write task and to a task that takes a parameter named `offset`. A tool
+   whose answer is a series ordered oldest first keeps its newest rows with
+   `ResultCap(keep="last")` (conventions §8, sdk-core ADR-0047). A bulk task, one that
+   returns a file or a list read from one, is named in `BULK_TASKS` beside it:
+   Python-only, no tool and no route (sdk-core ADR-0040 decision 4).
+
+   Where a task meets one of these, it takes core's helper and writes none by hand:
+{% if has_reference_data %}
+   - a parameter whose name holds `country`, `countries`, `area`, `reporter` or
+     `partner`: core's decorator `names_codes` names the codes of each call in
+     `meta.names`, `@names_codes(country_code=COUNTRIES)` with the declaration of the
+     list that step 5 makes, `PackagedList.codes(...)`, and a parameter whose codes no
+     packaged list names, or that takes no code, stands in `UNNAMED_CODES` of its tasks
+     module, the task's name to the parameter and the reason; core's family check fails
+     a parameter that is neither named nor exempt (conventions §4, sdk-core ADR-0056);
+{% else %}
+   - a parameter whose name holds `country`, `countries`, `area`, `reporter` or
+     `partner`: it stands in `UNNAMED_CODES` of its tasks module, the task's name to the
+     parameter and the reason, since the source packages no list that names its codes;
+     core's family check fails a parameter that no entry exempts (conventions §4,
+     sdk-core ADR-0056);
+{% endif %}
+   - a `since` that takes back the `meta.vintage` of an earlier call: core's
+     `newer_than(since, items, released=..., read=...)` keeps what was released strictly
+     later, `read` the reader of the vintage's text, core's `naive_time` for a release
+     time printed without a zone, which the task also calls on `since` before its
+     request, so an unreadable text is refused before the call; the task sets
+     `meta.vintage` and `meta.published_at` from the whole answer (conventions §4,
+     sdk-core ADR-0052);
+   - an upstream that counts a query's records on request and serves at most a limit per
+     call: core's `fetch_counted(count, fetch, limit=..., empty=..., narrow=...)` counts
+     first, refuses a count over the limit with `QueryTooLarge` before the data request
+     and returns the count, which the task sets as `meta.total`, and `classify` maps
+     upstream's own refusal of a query as too large to `QueryTooLarge` (conventions §5,
+     sdk-core ADR-0053);
+   - a series assembled from one request per period: a ceiling declared once,
+     `Ceiling(most, unit=...)`, whose `check` refuses a range over it before the first
+     request, and `fetch_periods(periods, fetch, skip=...)`, which sends the requests one
+     after another and returns each period with its answer for the task to assemble, the
+     vintage included. A lower ceiling on the MCP server takes `mcp=` and `option=`, and
+     `tasks.py` gives the tool set the ceiling's `add_options` and `apply_options` as
+     `mcp_add_options` and `mcp_apply_options` (conventions §4, sdk-core ADR-0054).
 
 5. **Docstring for agents** on the task: first line one sentence; then an `Args:` block
    explaining every parameter with examples of valid values. The MCP tool description and
    the OpenAPI summary are generated from it. Errors must come from the taxonomy in
-   `xippios.core.errors`; raise `NotFoundError` where upstream signals absence, and
-   core's `UnknownCode` for a code the packaged list lacks where upstream answers one
-   with an empty result (conventions §5).
+   `xippios.core.errors`; raise `NotFoundError` where upstream signals absence
+   (conventions §5).
+{% if has_reference_data %}
+   A code the packaged list lacks, where upstream answers one with an empty result, is
+   refused before the call by the list's declaration,
+   `PackagedList.codes(code, name, fold_case=...)`, called once on the loaded list and
+   kept as a constant of the module, whose `check(param, value)` returns the value as the
+   caller gave it or raises core's `UnknownCode`, naming the list, its fetch date and the
+   closest codes, so no task raises `UnknownCode` itself (conventions §5,
+   sdk-core ADR-0045).
+{% endif %}
 
 6. **Tests.** Run `/record-fixture <wrapper> <case> <parameters>` for at least one
-   realistic case, add a replay test in `tests/test_tasks.py` using the `replay_fixture`
-   fixture, and a `@pytest.mark.live` smoke test in `tests/test_live.py`. The replay
+   realistic case, or `/record-fixture <task> <case> <parameters>` for a task that sends
+   more than one request, which records each of its exchanges under the task's name with
+   core's `record_task`, add a replay test in `tests/test_tasks.py` using the
+   `replay_fixture` fixture, and a `@pytest.mark.live` smoke test in `tests/test_live.py`. The replay
    tests of a family of tasks may live in a module of the source's own beside
    `tests/test_tasks.py`: `copier update` never touches a file the template has never
    rendered, and `tests/test_tasks.py` itself is the source's once rendered. A replay
@@ -106,9 +164,13 @@ lists what they check in an endpoint.
    scrubbed query of the last request, `sent_urls(route)`, the URLs with credentials
    redacted, or `sent_bodies(route)`, the bodies decoded, a JSON body as it parses and a
    form as a mapping of its fields, credentials redacted, never a request kept from
-   `route.calls`, which a failure or `pytest -l` would print. A test of a task that answers from a packaged list reads the list's
+   `route.calls`, which a failure or `pytest -l` would print.
+{% if has_reference_data %}
+   A test of a task that answers from a packaged list reads the list's
    fetch date and counts from the packaged file instead of pinning them, so a refresh of
-   the list breaks no test. Grep the fixture for key patterns before committing.
+   the list breaks no test.
+{% endif %}
+   Grep the fixture for key patterns before committing.
 {% if write_server %}
 
    A task that writes upstream goes into `src/xippios/{{ package_dir }}/tasks_write.py`

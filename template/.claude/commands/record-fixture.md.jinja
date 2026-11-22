@@ -1,8 +1,8 @@
 Record a fixture for {{ source_name }}: $ARGUMENTS
 
 Expected arguments: `<wrapper> <case> [key=value ...]`: the endpoint wrapper the fixture
-serves, a short name for the case, and the request parameters, for example
-`get_example by_year year=2024`.
+serves, or the task whose every exchange it records (step 3), a short name for the case,
+and the request parameters, for example `get_example by_year year=2024`.
 
 Fixtures are recorded through the real client, never typed in by hand (conventions §10).
 The file lands at `tests/fixtures/<wrapper>/<case>.json` with credentials scrubbed: the
@@ -54,11 +54,32 @@ steps 4 to 6 are what they check in a fixture.
    the wrapper's.
 
    Error cases (a 404 for an unknown code, for instance) are worth recording too; the
-   recorder keeps them instead of raising. A recording is one request: the recorder sends
+   recorder keeps a final answer whatever its status, a 4xx or a 5xx included, instead of
+   raising. It refuses an answer of a 1xx or a 3xx status, which is no final answer of its
+   operation, before anything is written, in `send_once`, `record` and
+   `fixture_from_response` alike: record the request that upstream answers itself, at the
+   URL that a redirect's `Location` names, or without the condition that a 304 answers
+   (conventions §10, sdk-core ADR-0048). A recording is one request: the recorder sends
    it once through {{ '`client_for(DEMO)`' if tenant_param else '`client`' }}, never retried, whatever the client's `RetryPolicy` says, and
    never answered from the cache, so a 429 or a 5xx is recorded as it came and spends no
    second request on an upstream that counts a quota (conventions §10). Pass
    {{ '`client_for(DEMO)`' if tenant_param else '`client`' }} itself: a recording needs no client of its own.
+
+   A task that sends more than one request, a count and its data, a series of periods or
+   the pages of a list, is recorded whole with
+   `record_task_sync(tasks.<task>, <arguments>, fixtures=Path("tests/fixtures"), case="<case>")`,
+   the sync twin of core's `record_task`, from `xippios.core.testing`, with `tasks`
+   imported from `xippios.{{ import_path }}` and the task's arguments as a caller passes them{% if tenant_param %}, `{{ tenant_param }}=DEMO` among them{% endif %}.
+   It runs the task live, sends each of its requests once through the client the task
+   reaches, none answered from the cache, passes each answer through the frame of
+   `record`, the refusal of a 1xx or a 3xx, the scrub and `rewrite=` (step 4), and writes
+   them under the task's name in the order they arrived, `<case>.json`, `<case>_2.json`
+   and on, all of them or none. It keeps each answer whole, as the task's client reads
+   it: `record_task` takes neither `max_bytes=` nor `max_read_bytes=` and hands a keyword
+   it does not take to the task, so a task whose answer is over the cap of step 5
+   narrows its query. It records no token request inside an auth flow, which keeps a
+   fixture of its own, and refuses a task that downloads, whose file is recorded as
+   below (conventions §10, sdk-core ADR-0057).
 
    A downloaded file's fixture is the GET exchange of the file's URL, the one the
    download task streams: pass that URL in place of the request path, absolute where
@@ -70,30 +91,29 @@ steps 4 to 6 are what they check in a fixture.
    the whole file's `original_bytes` and `sha256` (step 5).
 
 4. Check the file: `grep -niE 'api[_-]?key|token|secret|authorization' tests/fixtures/<wrapper>/<case>.json`
-   must print nothing but `REDACTED` values. A match in upstream's own text (a word such
+   must print nothing but `REDACTED` values, and for a task's recording the same over
+   each file it wrote,
+   `grep -niE 'api[_-]?key|token|secret|authorization' tests/fixtures/<task>/<case>.json tests/fixtures/<task>/<case>_*.json`.
+   A match in upstream's own text (a word such
    as `SECRETARY` in a name or a description) is no credential: read every match by eye.
    If a credential slipped through, delete the file and stop: report which field leaked
    so the scrubber in `xippios-core` can learn it. Where the response carries a documented
    personal identifier the source keeps out of its projections (`ssn`, `iban` and their
    like, sdk-core ADR-0017), record with `scrub=Scrub(secrets=[...])` from
-   `xippios.core.testing`, or rewrite those values by key in a recorder step of the
-   source's own. `record` writes the file itself and takes no hook, so that step sends the
-   request itself, with `request(..., raise_on_error=False)` on a client built for one
-   attempt,
-{% if tenant_param %}
-   `AsyncClient(dataclasses.replace(config, retry=RetryPolicy(max_attempts=1)), auth=...)`,
-   its auth the reserved {{ tenant_param }}'s as `_build` in `xippios.{{ import_path }}._client` makes it, on
-   `TENANTS.var(DEMO, "{{ tenant_field }}")`, with `AsyncClient` and `RetryPolicy` from `xippios.core` and
-   `config` from `xippios.{{ import_path }}._client`. It builds the
-{% else %}
-   `AsyncClient(dataclasses.replace(config, retry=RetryPolicy(max_attempts=1)){% if api_key_env %}, auth=auth{% endif %})`,
-   with `AsyncClient` and `RetryPolicy` from `xippios.core` and
-   `config`{% if api_key_env %} and `auth`{% endif %} from `xippios.{{ import_path }}._client`. It builds the
-{% endif %}
-   `Fixture` in memory with `fixture_from_response(response, scrub=...)`, rewrites the
-   values on it and writes it with `write_fixture(fixture, path)`, both from
-   `xippios.core.testing`, which lays it out as `record` does, so nothing unscrubbed
-   touches disk (conventions §10). Grep the file for those fields too
+   `xippios.core.testing`, or rewrite those values by key in a step of the source's own,
+   passed as `rewrite=` to `record_sync` or `record_task_sync`: a function of the scrubbed
+   `Fixture` that returns it rewritten with the values it replaced,
+   `(fixture, [value, ...])`, and raises `ValueError` to refuse. The recorder runs the
+   scrub, the step and a check that none of the values the step returned survives in the
+   URL, a header value, a body or a string of a JSON body, then writes once, so nothing
+   unscrubbed touches disk (conventions §10, sdk-core ADR-0048). A source that needs the
+   answer itself, the bytes it cuts a sample from say, sends the one request with
+   `send_once_sync`, through {{ '`client_for(DEMO)`' if tenant_param else '`client`' }} itself, which sends it as `record` does and
+   writes nothing, then builds the `Fixture` with
+   `fixture_from_response(response, scrub=..., rewrite=...)` and writes it with
+   `write_fixture(fixture, path)`, all from `xippios.core.testing`, laid out as `record`
+   lays it out: no recorder builds a client of its own for one attempt.
+   Grep each file for those fields too
    (`grep -nE '"(ssn|iban)"' <file>`, with the fields the source declares): every match
    must show a scrubbed value. A real value found means the file is deleted, never
    committed.
@@ -122,8 +142,9 @@ steps 4 to 6 are what they check in a fixture.
    in `tests/fixtures/files/README.md` (sdk-core ADR-0020). A test on a cut fixture or a
    sample asserts the shape, never a size.
 
-6. Reference it from a test with the `replay_fixture("<wrapper>", "<case>")` fixture.
-   Stage it (`git add tests/fixtures`) before `uv run pre-commit run --all-files`, which
+6. Reference it from a test with the `replay_fixture("<wrapper>", "<case>")` fixture, and
+   each exchange of a task's recording by its own case,
+   `replay_fixture("<task>", "<case>_2")` and on. Stage it (`git add tests/fixtures`) before `uv run pre-commit run --all-files`, which
    scans only the files in git's index: an unstaged fixture escapes detect-secrets. When
    detect-secrets flags a recorded HTML error page (a site's "Page not found" carries
    hashes it reads as secrets), never edit the fixture to pass it: narrow the request,
