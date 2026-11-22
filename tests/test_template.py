@@ -1049,6 +1049,7 @@ FILLED_SCRIPTS = ["scripts/refresh_reference.py", "scripts/refresh_upstream.py"]
 # The one version of the script that the organization's repositories carry byte for byte
 # (#246): a copy edited here would write another index than theirs, and the organization's
 # check adr-index runs each repository's own copy. Its next version changes this digest.
+# pragma: allowlist nextline secret
 ADR_SCRIPT_SHA256 = "14f262d22cafd2ff92d4bbcce6e8f51143774d1f35e6c56890ef825261f63cab"
 # A line of docs/adr.md that lists a record opens with the anchor a citation links to,
 # docs/adr.md#0014 for ADR-0014.
