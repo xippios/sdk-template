@@ -56,9 +56,10 @@ it took. The section holds:
   `### Hand-apply` list that closed a release before the notes;
 - each Hand-apply note under its bullet;
 - last, where the release adds a question to `copier.yml` or a choice to one,
-  `### Answers each source passes`: an item per source whose update passes an answer other
-  than the one `--defaults` takes, `` - <source>: `<command>` ``, the command of that update
-  whole with every `-d` argument it passes, or one item that says no source passes one.
+  `### Answers each source passes`: an item per source whose update passes an answer that
+  the update command of [`README.md`](../README.md#updating-generated-repositories) does
+  not, `` - <source>: `<command>` ``, the command of that update whole with every `-d`
+  argument it passes, or one item that says no source passes one.
 
 The section may gain a lead paragraph above its groups. Its merge runs
 `.github/workflows/release.yml`, which tags `vX.Y.Z` from that heading.

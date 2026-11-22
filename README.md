@@ -177,7 +177,10 @@ lets the gateway answer derive the key answers and still record them; `--from
 'copier>=9.19'` keeps a stale tool cache from refusing it.
 Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, as above
 to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the answers
-without moving the template). Files listed under `_skip_if_exists` in `copier.yml` (the
+without moving the template). A release that adds a question or a choice ends its section
+of [CHANGELOG.md](CHANGELOG.md) with `### Answers each source passes`, the whole update
+command of each source that passes an answer the command above does not, and such a
+source copies its command from there. Files listed under `_skip_if_exists` in `copier.yml` (the
 package `__init__.py`, the client, the package's errors, models, endpoint wrappers, the
 file parsers, the task layer and its write tasks, the packaged lists and enums, reference data, the two
 refresh scripts, the task and live tests and the fixtures, upstream snapshot, the ADR
