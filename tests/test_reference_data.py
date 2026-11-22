@@ -1,5 +1,6 @@
-"""Reference data: the answer that renders the scaffold or leaves it out, and the refresh
-script that sends each request once, counts what it sent and takes ``--only`` (#40, #64).
+"""Reference data: the answer that renders the scaffold or leaves it out, the refresh script
+on core's frame, which sends each request once, counts what it sent and takes ``--only``
+(#40, #64, #239), and the live comparison that ``tests/test_live.py`` collects (#252).
 
 ``scripts/prove.sh`` runs the rendered script itself, on core, against answers it replays.
 """
@@ -22,6 +23,7 @@ from helpers import (
     git,
     package_dir,
     ruff,
+    tenant_param,
 )
 
 # The scaffold of a source that packages reference data, ``{pkg}`` its package directory:
@@ -44,12 +46,17 @@ FILLED = [
 # How a render names the scaffold: a file, the folder, the script, the command, an import,
 # or the words, as the code rule on what the tasks call did (#243) and /add-endpoint's
 # lookups did, and core's names that read a packaged list or refuse a code it lacks, which
-# /add-endpoint gives a task only where there is a list (#250, #270).
+# /add-endpoint gives a task only where there is a list (#250, #270), and the live
+# comparison of the packaged lists that tests/test_live.py collects and declares (#252).
 NAMED = re.compile(
     r"params\.py|enums\.py|\breference/|refresh_reference|refresh-reference-data"
     r"|\bxippios\.[\w.]+\.(?:params|enums)\b|\breference data\b|\breference lookups?\b"
     r"|\bPackaged(?:List|Codes)\b|\bnames_codes\b|\bUnknownCode\b"
+    r"|\bxippios\.core\.testing\.live\b|\bLIVE_LISTS\b|\bNO_LIVE_LIST\b"
 )
+# What a module's top level must not call: the family check loads tests/test_live.py to read
+# its declarations and fails one that skips, fails or exits at its import (sdk-core ADR-0055).
+STOPS = {"pytest.skip", "pytest.importorskip", "pytest.fail", "pytest.exit", "sys.exit", "exit"}
 
 
 def paths(rels: list[str], answers: dict[str, object]) -> list[str]:
@@ -191,34 +198,105 @@ def test_the_readme_names_the_scaffold_with_its_answer() -> None:
     assert unqualified == []
 
 
-def test_the_refresh_sends_each_request_once_and_takes_only(keyed_nested: Path) -> None:
-    """#64: the rendered script runs the package's client with ``RetryPolicy(max_attempts=1)``
-    and its own ``observe`` hook, which counts what it sends; ``--only`` and
-    ``--render-only`` are choices of one group; its examples name wrappers in snake case,
-    as ``/add-endpoint`` names them."""
-    text = (keyed_nested / "scripts/refresh_reference.py").read_text()
+def identifiers(tree: ast.Module) -> set[str]:
+    """Every name ``tree`` reads, assigns, imports or takes as an attribute."""
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            found.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            found.add(node.attr)
+        elif isinstance(node, ast.Import | ast.ImportFrom):
+            found |= {alias.name for alias in node.names}
+            if isinstance(node, ast.ImportFrom) and node.module:
+                found.add(node.module)
+    return found
+
+
+def test_the_refresh_runs_on_cores_frame(variant: tuple[str, Path]) -> None:
+    """#64, #239, sdk-core ADR-0051: the rendered script declares its lists in ``LISTS``
+    and hands them to core's frame, ``xippios.core.refresh.run``, with the package, the
+    lists it ships, the client its fetches go through, the reserved tenant's in a
+    multi-tenant source, and the quota header. The frame sends each request once and
+    counts it, one that fails in transport too, and takes ``--only`` and
+    ``--render-only``, so the script keeps no retry, meter, option or write of its own.
+    A multi-tenant script takes the reserved tenant's client only for a run that fetches,
+    so ``--render-only`` and ``--help`` need none of its variables, as at 0.4.0. Its
+    examples name wrappers in snake case, as ``/add-endpoint`` names them."""
+    name, dst = variant
+    text = (dst / "scripts/refresh_reference.py").read_text()
     script = ast.parse(text)
-    calls = [node for node in ast.walk(script) if isinstance(node, ast.Call)]
-    assert "RetryPolicy(max_attempts=1)" in [ast.unparse(call) for call in calls]
-    (configured,) = [call for call in calls if ast.unparse(call.func) == "replace"]
-    assert {keyword.arg for keyword in configured.keywords} == {"retry", "observe"}
-    options = {
-        ast.literal_eval(call.args[0]): ast.unparse(call.func.value)
-        for call in calls
-        if isinstance(call.func, ast.Attribute) and call.func.attr == "add_argument"
-    }
-    assert set(options) == {"--only", "--render-only"}
-    (group,) = set(options.values())
-    groups = [
-        target.id
-        for node in ast.walk(script)
-        if isinstance(node, ast.Assign)
-        and isinstance(node.value, ast.Call)
-        and ast.unparse(node.value.func).endswith(".add_mutually_exclusive_group")
-        for target in node.targets
-        if isinstance(target, ast.Name)
+    frame = [
+        alias.name
+        for node in script.body
+        if isinstance(node, ast.ImportFrom) and node.module == "xippios.core.refresh"
+        for alias in node.names
     ]
-    assert groups == [group], "one choice of the two"
+    assert frame == ["Listed", "run"]
+    (call,) = [
+        node
+        for node in ast.walk(script)
+        if isinstance(node, ast.Call) and ast.unparse(node.func) == "run"
+    ]
+    tenants = bool(tenant_param(VARIANTS[name]))
+    argv = "arguments" if tenants else "argv"
+    assert [ast.unparse(argument) for argument in call.args] == ["LISTS", argv]
+    client = "client_for(DEMO) if fetches else AsyncClient(config)" if tenants else "client"
+    assert {keyword.arg: ast.unparse(keyword.value) for keyword in call.keywords} == {
+        "package": "PACKAGE",
+        "packaged": "PACKAGED_LISTS",
+        "client": client,
+        "quota_header": "QUOTA_HEADER",
+    }
+    own = {"RetryPolicy", "replace", "observe", "argparse", "render_enums", "PackagedList"}
+    assert own & identifiers(script) == set(), "core's frame does them"
     wrappers = re.findall(r"\bapi\.(\w+)", text)
     assert wrappers, "the examples name wrappers"
     assert [name for name in wrappers if not re.fullmatch(r"[a-z][a-z0-9_]*", name)] == []
+
+
+def test_the_live_tests_collect_cores_comparison(variant: tuple[str, Path]) -> None:
+    """#252, sdk-core ADR-0055: the rendered ``tests/test_live.py`` collects core's nightly
+    comparison of the packaged lists by one star import of ``xippios.core.testing.live``,
+    with ``LIVE_LISTS`` and ``NO_LIVE_LIST`` declared empty at its top level, where core's
+    family check reads them, and its top level skips, fails and exits nowhere. A render
+    without reference data collects none of it, as ``NAMED`` holds."""
+    _, dst = variant
+    tree = ast.parse((dst / "tests/test_live.py").read_text())
+    stars = [
+        node.module
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and [alias.name for alias in node.names] == ["*"]
+    ]
+    assert stars == ["xippios.core.testing.live"]
+    declared = {
+        node.target.id: ast.literal_eval(node.value)
+        for node in tree.body
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and node.value is not None
+    }
+    assert {name: declared.get(name) for name in ["LIVE_LISTS", "NO_LIVE_LIST"]} == {
+        "LIVE_LISTS": {},
+        "NO_LIVE_LIST": {},
+    }
+    stops = [
+        ast.unparse(node)
+        for statement in tree.body
+        if not isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+        for node in ast.walk(statement)
+        if isinstance(node, ast.Call) and ast.unparse(node.func) in STOPS
+    ]
+    assert stops == [], "the family check imports the module offline"
+
+
+def test_the_command_names_what_a_new_list_declares(keyless_flat: Path) -> None:
+    """#252, sdk-core ADR-0051 and ADR-0055: ``/refresh-reference-data`` declares a new
+    list as a ``Listed`` of the script's ``LISTS``, names it in ``PACKAGED_LISTS`` and
+    gives it its entry in ``LIVE_LISTS`` or ``NO_LIVE_LIST`` of ``tests/test_live.py``,
+    which core's family check holds; the 0.4.0 script's dicts are gone."""
+    text = (keyless_flat / ".claude/commands/refresh-reference-data.md").read_text()
+    for name in ["Listed", "LISTS", "PACKAGED_LISTS", "LIVE_LISTS", "NO_LIVE_LIST"]:
+        assert f"`{name}`" in text, name
+    assert "`tests/test_live.py`" in text
+    assert [name for name in ["ID_LISTS", "TABLES"] if f"`{name}`" in text] == []
