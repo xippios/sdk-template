@@ -1,8 +1,9 @@
 - An adoption of this release brings xippios-core 0.4.1, and the Hand-apply note below
   carries, ready to adapt, the entries that a source's changelog takes for it, first the
-  adoption's own, `changed` with its three versions, then one for each change of core 0.4.1
-  that the source's callers see, from the list under "Adopting core 0.4.1" of sdk-core's
-  `docs/handover.md`. The pull request that brings a change, the adoption's or a later one
+  adoption's own, `changed` with its three versions, then for each change of core 0.4.1
+  that the source's callers see the entries that the list under "Adopting core 0.4.1" of
+  sdk-core's `docs/handover.md` names, each in its group, and in `changed` the one it names
+  without a group. The pull request that brings a change, the adoption's or a later one
   of the source's patch, copies the entry where it holds, as a fragment of its own, and
   words it for the source's own tasks and names. Where an entry and the handover's list
   part, the list holds, and the source corrects its fragment before its release, which
