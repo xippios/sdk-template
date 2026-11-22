@@ -128,6 +128,10 @@ junit_family = "xunit1"
 # Core's plugin sets them to the placeholder key in every test not marked live
 # (sdk-core ADR-0035), the reserved {{ tenant_param }}'s credential first and the live secrets
 # last, each a variable that the package's own auth reads, so each holds a value offline.
+{% if key_envs | length > 1 %}
+# Between them stand the keys of the source packages this one depends on, which their own
+# auth reads (sdk-core ADR-0021).
+{% endif %}
 xippios_placeholder_key_envs = {{ (key_envs + live_secret_names) | tojson }}
 {% elif tenant_param %}
 {% set credential = 'key' if api_key_env else 'credential' %}
