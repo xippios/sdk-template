@@ -173,7 +173,7 @@ and counts, never on a raw payload.
 
 - Three layers (sdk-core ADR-0001, conventions §2): endpoint wrappers in `api/`, task
   functions in `tasks.py`, adapters in `mcp.py` and `http.py`. The adapters register
-  `tasks.__all__` and call only tasks, the tasks call only wrappers and reference data, and
+  `tasks.__all__` and call only tasks, the tasks call only wrappers{{ ' and reference data' if has_reference_data else '' }}, and
   a wrapper returns models.
 - Upstream's documented error shapes go into `classify` in `_client.py`, once, and an error
   class of the package's own into `errors.py`; a wrapper never inspects a status code
@@ -246,6 +246,21 @@ fills, `__init__.py`, `_client.py`, `errors.py`, `models.py`, `api/`, `parse/`, 
 `CHANGELOG.md` and `CLAUDE.md`. sdk-template's
 [CHANGELOG](https://github.com/xippios/sdk-template/blob/main/CHANGELOG.md) says, per
 release, what to port into those by hand in the same pull request.
+
+The update writes every other file it renders again, since they are the template's:
+`py.typed`, `_version.py`, `mcp.py`,
+{% if write_server %}
+`mcp_write.py`,
+{% endif %}
+`http.py`, `scripts/adr_index.py`, `tests/conftest.py`, `tests/test_family.py`,
+`docs/adr/README.md`, `docs/reports/README.md`, `changelog/README.md`, `.github/`,
+`.claude/`, `pyproject.toml`, `.copier-answers.yml`,
+`.gitattributes`, `.gitignore`, `.pre-commit-config.yaml`, `.python-version`,
+`.secrets.baseline` and `LICENSE`. This package keeps no text of its own in them, the
+docstring of `mcp.py` included: its own words go into a file it fills. A line it has to
+add to one, such as a dependency in `pyproject.toml`, the update carries into the new
+render, silently where the release leaves the lines around it alone and as a conflict
+where it changes them.
 
 ## When something is unclear
 
