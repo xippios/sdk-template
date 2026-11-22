@@ -7,7 +7,8 @@
   of the source's patch, copies the entry where it holds, as a fragment of its own, and
   words it for the source's own tasks and names. Where an entry and the handover's list
   part, the list holds, and the source corrects its fragment before its release, which
-  rewords no entry. (https://github.com/xippios/sdk-template/issues/238)
+  rewords no entry. (https://github.com/xippios/sdk-template/issues/238,
+  https://github.com/xippios/sdk-template/issues/280)
   - Hand-apply: `changelog/changed-<slug>.md` — The package depends on
     `xippios-core~=0.4.1`, its extras likewise, is updated to sdk-template v0.4.1 and
     applies conventions 1.29. (`https://github.com/xippios/<repository>/issues/<n>`) —
@@ -40,7 +41,8 @@
     outside its five area tables.
     `changelog/breaking-<slug>.md` — The tasks refuse an ISO alpha-3 code, which they
     resolved before the call, and the refusal names the UN Comtrade code it stands for,
-    `"CHE"` refused naming `757 (Switzerland)`.
+    `"CHE"` refused naming `757 (Switzerland)`. The refusal ends with its hint and its
+    reason, without the sentence that the packaged list may be out of date.
     (https://github.com/xippios/sdk-core/issues/375, https://github.com/xippios/sdk-core/issues/316)
     — sdk-comtrade alone, whose release this makes a minor by conventions §12.
     `changelog/changed-<slug>.md` — `<task>` refuses a query over upstream's limit of `<n>`
@@ -58,21 +60,33 @@
     `changelog/changed-<slug>.md` — `<task>` refuses a `<parameter>` code that its packaged
     list lacks by core's check, which names the list, its fetch date and the closest codes,
     and refuses a value of the other type than the list's codes with
-    `InvalidRequestError`, naming the integer or the text to pass.
-    (https://github.com/xippios/sdk-core/issues/313) — each argument that
-    `PackagedList.codes(...).check` now checks, worded by the refusals whose wording or
-    class the tests of the port change.
+    `InvalidRequestError`, naming the integer or the text to pass and ending with the
+    task's reason. Another text given for integer codes is refused naming the codes that the
+    task's strategy finds for it, else those whose name holds it. A value of the hint table
+    of `<parameter>` is refused with its hint and its reason, without the sentence that the
+    packaged list may be out of date. (https://github.com/xippios/sdk-core/issues/313) —
+    each argument that `PackagedList.codes(...).check` now checks, worded by the refusals
+    whose wording or class the tests of the port change, the hint table's sentence where
+    the source keeps one.
     `changelog/changed-<slug>.md` — `<task>` refuses a `since` it cannot read in core's
     wording, `since must be the meta.vintage text of an earlier call, an ISO date and time without a time zone such as '2026-10-06T08:00:00'`,
     its class and its two reasons kept. (https://github.com/xippios/sdk-core/issues/318) —
     sdk-usda-esr alone, since sdk-usda-psd's wording stays as it is.
     `changelog/changed-<slug>.md` — `<task>` refuses a range over its ceiling of `<n>`
     `<unit>` in core's wording before the first request, naming the range, the ceiling, its
-    unit and, where the MCP server's ceiling is lower, the option that raises it, its class
-    `InvalidRequestError` and the option's name unchanged. A request after the first that
-    fails raises its error, its class kept, naming the periods fetched before it by their
-    count, the first and the last, and the task returns nothing.
-    (https://github.com/xippios/sdk-core/issues/315) — each task on `fetch_periods`.
+    unit, where the MCP server's ceiling is lower the option that raises it, and that
+    nothing was sent, its class `InvalidRequestError` and the option's name unchanged. A
+    request after the first that fails raises its error, its class kept, naming the periods
+    answered before it by their count, the first and the last, and the task returns nothing.
+    (https://github.com/xippios/sdk-core/issues/315) — each task on `fetch_periods`, but
+    sdk-usda-nass's split of `year__GE` alone, whose refusal of its own says that the count
+    was sent.
+    `changelog/breaking-<slug>.md` — `tasks.<name>` and `tasks.set_<name>` are removed, so
+    a caller's call of either fails, and one `Ceiling` of core's holds the task's ceiling of
+    `<n>` `<unit>` in their place. (https://github.com/xippios/sdk-core/issues/315) —
+    sdk-usda-nass's `split_ceiling` and `set_split_ceiling` and sdk-usda-gats's
+    `series_ceiling` and `set_series_ceiling`, each making its source's release a minor by
+    conventions §12, unless its port keeps the two names.
     `changelog/added-<slug>.md` — The preview of `<write task>` carries `reads`, the
     operations it read, `[]` for none, and the task's docstring says whether its preview
     reads first and what the read costs. (https://github.com/xippios/sdk-core/issues/182) —

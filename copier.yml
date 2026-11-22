@@ -266,10 +266,10 @@ core_version:
     The xippios-core release the package depends on, X.Y.Z, rendered as the bound
     xippios-core~=X.Y.Z, the extras likewise: one core minor, from that release on, Z 0
     unless patch Z shipped what the source adopts (conventions §12, sdk-core ADR-0039
-    decision 1). The default 0.4.0, the core release the template adopts, renders
-    xippios-core~=0.4.0. A source raises it in the adoption PR of a new core minor
+    decision 1). The default 0.4.1, the core release the template adopts, renders
+    xippios-core~=0.4.1. A source raises it in the adoption PR of a new core minor
     (conventions §15).
-  default: "0.4.0"
+  default: "0.4.1"
   validator: >-
     {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+\\Z')) %}
     Use a release version, e.g. 0.2.0

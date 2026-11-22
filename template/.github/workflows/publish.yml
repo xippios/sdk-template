@@ -1,4 +1,4 @@
-# The release train (conventions §12, ADR-0018 amendment b): the release PR merges on
+# The release train (conventions §12, ADR-0039, decision 6): the release PR merges on
 # main → this workflow tags vX.Y.Z from pyproject.toml on the merge commit → environment
 # `pypi` → a maintainer approves the run → trusted publishing uploads. Nobody pushes the tag
 # by hand, and no token is stored anywhere.
@@ -29,7 +29,7 @@
 # release; if the other run already tagged a later commit, the maintainer rejects its `pypi`
 # deployment and the release is re-done as a patch. A release is not merged while
 # another release run is waiting.
-name: Publish to PyPI
+name: Publish
 
 on:
   push:

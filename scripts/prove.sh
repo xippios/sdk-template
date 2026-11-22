@@ -38,7 +38,7 @@
 #                      as esmis or wasde
 #   --gateway          a nested source behind api.data.gov, sdk-example-gov
 #                      (xippios.example.gov), as psd, esr and gats: the gateway answer
-#                      derives the key answers, on the default core, 0.4.0; 0.3.0 was
+#                      derives the key answers, on the default core, 0.4.1; 0.3.0 was
 #                      the first release with xippios.core.data_gov
 #   --tenants          a nested multi-tenant source with a write server and basic auth,
 #                      sdk-example-tenants (xippios.example.tenants), its tenants' keys
