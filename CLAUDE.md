@@ -268,6 +268,13 @@ python3 -I scripts/adr_index.py --check   # this repository's ADR index matches 
   and says internal labels (decisions, rows, plan steps) in plain words, since it becomes
   the tag's message. `.github/workflows/release.yml` tags `vX.Y.Z` on the release's commit
   with that section as the message.
+- The section of a release that adds a question to `copier.yml`, or a choice to one, ends
+  with one list, as `changelog/README.md` lays it out: an item per source whose update
+  passes an answer other than the one `--defaults` takes there, the new question's default
+  or the answer the source recorded, holding that update's command whole, with every `-d`
+  argument it passes. An adoption copies its command from the list, never from the prose of
+  an entry, and a source that the list leaves out runs the README's update command as it
+  stands.
 - Never push a tag by hand, and never touch a secret.
 - Never read or print `.envrc`, `.env`, or any variable ending in `_API_KEY`, `_TOKEN` or
   `_SECRET` (conventions §7).
