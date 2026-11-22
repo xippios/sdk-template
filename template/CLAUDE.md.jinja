@@ -141,7 +141,7 @@ uv run pytest                      # offline, replays the fixtures
 uv run ruff check . && uv run ruff format --check .
 uv run mypy
 uv run pre-commit run --all-files
-python3 scripts/adr_index.py --check   # the index matches the records in docs/adr/
+python3 -I scripts/adr_index.py --check   # the index matches the records in docs/adr/
 uv run pytest -m live --tb=short --assert=plain   # needs XIPPIOS_LIVE_TESTS=1{{ ', ' ~ credentials | join(', ') if credentials else '' }}
 
 uv run xippios-{{ source_slug }}-mcp{{ '-read' if write_server else '' }}   # stdio; add --http for streamable HTTP

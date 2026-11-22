@@ -1046,6 +1046,20 @@ ADR_SCRIPT = "scripts/adr_index.py"
 ADR_INDEX = ["docs/adr.md", "docs/adr.json"]
 ADR_TEMPLATE_FILES = [ADR_SCRIPT, "docs/adr/README.md", "docs/reports/README.md"]
 FILLED_SCRIPTS = ["scripts/refresh_reference.py", "scripts/refresh_upstream.py"]
+# The one version of the script that the organization's repositories carry byte for byte
+# (#246): a copy edited here would write another index than theirs, and the organization's
+# check adr-index runs each repository's own copy. Its next version changes this digest.
+# pragma: allowlist nextline secret
+ADR_SCRIPT_SHA256 = "14f262d22cafd2ff92d4bbcce6e8f51143774d1f35e6c56890ef825261f63cab"
+# A line of docs/adr.md that lists a record opens with the anchor a citation links to,
+# docs/adr.md#0014 for ADR-0014.
+ADR_LINE = re.compile(r'^- <a id="(\d{4})"></a>\[ADR-\1\]\(adr/\1-.+\.md\): ')
+
+
+def adr_lines(repo: Path) -> list[str]:
+    """The lines of ``repo``'s ``docs/adr.md`` that list a record, in their order."""
+    text = (repo / "docs/adr.md").read_text(encoding="utf-8")
+    return [line for line in text.splitlines() if line.startswith("- ")]
 
 
 def adr_index(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -1115,10 +1129,52 @@ def test_the_index_follows_the_records(keyed_nested: Path, tmp_path: Path) -> No
         (repo / "docs/adr" / name).unlink()
 
 
+def test_the_index_anchors_each_record_and_lists_the_superseded_last(
+    keyed_nested: Path, tmp_path: Path
+) -> None:
+    """#246: each line of ``docs/adr.md`` that the rendered script writes opens with its
+    record's anchor, ``<a id="NNNN"></a>``, so ``docs/adr.md#NNNN`` lands on the record; the
+    records in force come first, each part in the order of its number, and ``docs/adr.json``
+    keeps the order of the numbers."""
+    repo = tmp_path / "repo"
+    for rel in [ADR_SCRIPT, *ADR_INDEX, "docs/adr/README.md"]:
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(keyed_nested / rel, repo / rel)
+    statuses = {
+        "0001-first.md": "Superseded by ADR-0003 · Date: 2026-11-01",
+        "0002-second.md": "Accepted · Date: 2026-11-02",
+        "0003-third.md": "Accepted · Date: 2026-11-03 · Supersedes ADR-0001",
+    }
+    for name, status in statuses.items():
+        title = f"# ADR-{name[:4]}: Record {name[:4]}"
+        (repo / "docs/adr" / name).write_text(f"{title}\n\nStatus: {status}\n\n## Context\n")
+    assert adr_index(repo).returncode == 0
+    lines = adr_lines(repo)
+    anchors = [found.group(1) for line in lines if (found := ADR_LINE.match(line))]
+    assert len(anchors) == len(lines), lines
+    assert anchors == ["0002", "0003", "0001"], "in force first, then the superseded"
+    records = json.loads((repo / "docs/adr.json").read_text())["records"]
+    assert [r["id"] for r in records] == ["ADR-0001", "ADR-0002", "ADR-0003"]
+    assert adr_index(repo, "--check").returncode == 0
+
+
+def test_the_index_script_is_the_organizations_one_version() -> None:
+    """#246: this repository's script and the one it renders are the bytes that the
+    organization's repositories share, executable, and the ruff of both leaves the file alone
+    (https://github.com/xippios/sdk-core/issues/357)."""
+    for path in [ROOT / ADR_SCRIPT, ROOT / "template" / ADR_SCRIPT]:
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == ADR_SCRIPT_SHA256, path
+        assert os.access(path, os.X_OK), path
+    ruff_here = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["ruff"]
+    assert ADR_SCRIPT in ruff_here["extend-exclude"]
+
+
 def test_pyproject_tooling(keyed_nested: Path) -> None:
-    """mypy covers scripts/; record_property raises no warning; the sdist ships no tests."""
+    """mypy covers scripts/, the index script among them, which ruff leaves alone (#246);
+    record_property raises no warning; the sdist ships no tests."""
     tool = tomllib.loads((keyed_nested / "pyproject.toml").read_text())["tool"]
     assert tool["mypy"]["files"] == ["src", "tests", "scripts"]
+    assert tool["ruff"]["extend-exclude"] == ["docs", ".claude", ADR_SCRIPT]
     assert tool["pytest"]["ini_options"]["junit_family"] == "xunit1"
     sdist = tool["hatch"]["build"]["targets"]["sdist"]
     assert sdist == {"include": ["/src", "/docs", "/README.md", "/CHANGELOG.md", "/LICENSE"]}
@@ -1458,6 +1514,9 @@ def test_the_template_keeps_its_decisions_as_a_render_does() -> None:
     assert os.access(ROOT / ADR_SCRIPT, os.X_OK)
     run = adr_index(ROOT, "--check")
     assert run.returncode == 0, run.stdout
+    lines = adr_lines(ROOT)
+    assert lines, "the template keeps a record"
+    assert all(ADR_LINE.match(line) for line in lines), "each line opens with its anchor (#246)"
 
 
 def test_publish_is_the_release_train(keyed_nested: Path) -> None:
