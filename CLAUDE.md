@@ -275,6 +275,21 @@ python3 -I scripts/adr_index.py --check   # this repository's ADR index matches 
   them, holding that update's command whole, with every `-d` argument it passes. An
   adoption copies its command from the list, never from the prose of an entry, and a
   source that the list leaves out runs the README's update command as it stands.
+- The section of a release that brings a core release, by `core_version`'s default,
+  carries, ready to adapt, the changelog entries that a source takes for the changes of that
+  core release its callers see, from the list of those changes that sdk-core keeps for the
+  adoption of that release, which the README names. One fragment of the release holds them,
+  one entry per item of its Hand-apply note, as `changelog/README.md` lays it out: first the
+  adoption's own, in the group and with the three versions of conventions §15 item 9, then,
+  for each change of the list, every entry the list names for it, each in the group the
+  list gives it, each item saying where its entry holds. An entry that the list names
+  without a group takes the group of what it does to the source's callers, and the pull
+  request of the fragment names that group in a decision. The pull request of a source that
+  brings a change, its adoption's or a later one of its patch, copies the entry and words it
+  for the source's own tasks. Core's list
+  stays the one place of those changes, which core's review checklist holds an adoption
+  against: where an entry and the list part, the list holds, and a wrong entry is corrected
+  in its fragment before the template's release.
 - Never push a tag by hand, and never touch a secret.
 - Never read or print `.envrc`, `.env`, or any variable ending in `_API_KEY`, `_TOKEN` or
   `_SECRET` (conventions §7).

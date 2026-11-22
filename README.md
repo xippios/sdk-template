@@ -180,7 +180,11 @@ to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the a
 without moving the template). From 0.4.1 on, a release that adds a question or a choice
 ends its section of [CHANGELOG.md](CHANGELOG.md) with `### Answers each source passes`, the whole update
 command of each source that passes an answer the command above does not, and such a
-source copies its command from there. Files listed under `_skip_if_exists` in `copier.yml` (the
+source copies its command from there. From 0.4.1 on too, a release that brings a core
+release carries, in the Hand-apply note of an entry of its own, the changelog entries for
+the changes of that core release that a source's callers see, from the list of sdk-core's
+`docs/handover.md`, and the pull request that brings each change copies the entry that
+holds for it. Files listed under `_skip_if_exists` in `copier.yml` (the
 package `__init__.py`, the client, the package's errors, models, endpoint wrappers, the
 file parsers, the task layer and its write tasks, the packaged lists and enums, reference data, the two
 refresh scripts, the task and live tests and the fixtures, upstream snapshot, the ADR
