@@ -365,7 +365,7 @@ def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
     """Conventions §12: one core minor, the extras likewise; a source package depended on
     bound to its minor the same way, ``~=X.Y.0`` (sdk-core ADR-0021), in no extra."""
     name, dst = variant
-    assert CORE_DEFAULT == "0.4.0", "the core release the template adopts, its verbatim files'"
+    assert CORE_DEFAULT == "0.4.1", "the core release the template adopts, its verbatim files'"
     version = str(VARIANTS[name].get("core_version", CORE_DEFAULT))
     project = tomllib.loads((dst / "pyproject.toml").read_text())["project"]
     depended = [f"xippios-{d['name']}~={d['minor']}.0" for d in dependencies(VARIANTS[name])]
@@ -1308,8 +1308,8 @@ def test_generated_tests_need_no_key(keyed_nested: Path) -> None:
     assert "client.request" not in live
 
 
-# SHA-256 of sdk-core's files the template departs from, at v0.4.0, the core release the
-# template adopts: git -C <workspace root>/sdk-core show v0.4.0:<path> | sha256sum (digests,
+# SHA-256 of sdk-core's files the template departs from, at v0.4.1, the core release the
+# template adopts: git -C <workspace root>/sdk-core show v0.4.1:<path> | sha256sum (digests,
 # not secrets). A render is core's bytes once the template's own lines, named in
 # CLAUDE.md's Rules, are taken out. Core's gates.yml is no file of the template's (#99),
 # and the PR template links core's definition of done where it copied it (#129). The
@@ -1319,7 +1319,7 @@ CORE_EXTENDED = {
     ".github/workflows/ci.yml": "ebee09e20d7004a6761c1986f3bc0e16ee4a2dfa749921ac25040ebad5abacab",
     ".github/workflows/publish.yml": (
         # pragma: allowlist nextline secret
-        "61bc5786dc35acfea34cb4aa2f0f07038795bcfdb5c1593fc016eb8beda58356"
+        "277580b3447181d7fcfdc0b82e5fd6e9699ba878c138c0fe7913482259cf34a3"
     ),
 }
 
@@ -2063,12 +2063,10 @@ ADR_INDEX_EVENTS = {"pull_request": {"types": ["opened", "synchronize", "reopene
 # of a range the issues beside them.
 REVIEW_PERMISSIONS = {"contents": "read", "pull-requests": "write", "checks": "read"}
 RANGE_PERMISSIONS = {**REVIEW_PERMISSIONS, "issues": "read"}
-# Both secrets by name, never inherited: the read token is the empty string where the
-# repository has none, which the review reads as none.
-REVIEW_SECRETS = {
-    "ANTHROPIC_API_KEY": "${{ secrets.ANTHROPIC_API_KEY }}",
-    "DOCUMENTS_READ_TOKEN": "${{ secrets.DOCUMENTS_READ_TOKEN }}",
-}
+# The key by name, never inherited, and no read token's line, as the README of
+# xippios/.github has a repository that reads no private document take the file
+# (https://github.com/xippios/.github/issues/149).
+REVIEW_SECRETS = {"ANTHROPIC_API_KEY": "${{ secrets.ANTHROPIC_API_KEY }}"}
 # The review's switch, in each job's condition beside the event, as the README of
 # xippios/.github lays out the trigger files: on `off` neither job calls its workflow.
 CONVENTIONS_SWITCH = "vars.WORKFLOW_CONVENTIONS != 'off'"
@@ -2102,7 +2100,7 @@ def test_the_review_has_a_trigger_file_of_its_own(keyed_nested: Path) -> None:
     the documents the README lists, and on a push to ``main`` or a dispatch its job ``range``
     calls the review of a range, so the checks keep the names the rulesets match,
     ``conventions / conventions`` and ``range / range``. Each job's condition holds the event
-    and the switch ``WORKFLOW_CONVENTIONS``, and each passes both secrets by name."""
+    and the switch ``WORKFLOW_CONVENTIONS``, and each passes the key alone by name (#282)."""
     workflow = assert_a_trigger_file(keyed_nested, "conventions.yml")
     assert workflow["name"] == "Conventions"
     assert workflow[True] == CONVENTIONS_EVENTS  # YAML 1.1 reads the key `on` as a boolean
@@ -2133,11 +2131,11 @@ def test_the_adr_index_has_a_trigger_file_of_its_own(keyed_nested: Path) -> None
 
 
 # Each workflow's title, by the organization's one rule: the same for a trigger file and the
-# workflow it calls (https://github.com/xippios/.github/issues/111). publish.yml keeps
-# sdk-core's bytes, its title among them, until core's file takes `Publish`.
+# workflow it calls (https://github.com/xippios/.github/issues/111). publish.yml takes
+# `Publish` with sdk-core's bytes at v0.4.1 (https://github.com/xippios/sdk-core/issues/407).
 WORKFLOW_TITLES = {
     "ci.yml": "CI",
-    "publish.yml": "Publish to PyPI",
+    "publish.yml": "Publish",
     "live.yml": "Live tests",
     "siblings.yml": "Siblings",
     "conventions.yml": "Conventions",
