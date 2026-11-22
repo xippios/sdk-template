@@ -36,6 +36,7 @@ from helpers import (
     PUBLISH_STEP,
     QUESTIONS,
     RECORDER,
+    RELEASE_SCRIPTS,
     ROOT,
     TABLE_HEADER,
     TASK_HELPERS,
@@ -80,6 +81,8 @@ REPOSITORY_FILES = [
     "scripts/refresh_reference.py",
     "scripts/refresh_upstream.py",
     "scripts/adr_index.py",
+    "scripts/changelog_assemble.py",
+    "scripts/release_prepare.py",
     "docs/upstream/FETCHED.md",
     "docs/adr/README.md",
     "docs/adr.md",
@@ -208,15 +211,19 @@ def test_answers_file_round_trips(variant: tuple[str, Path]) -> None:
 
 
 def test_no_jinja_left_behind(variant: tuple[str, Path]) -> None:
-    """Workflow files carry GitHub's own ${{ }}; nothing else may, and nothing else in them."""
+    """Workflow files carry GitHub's own ${{ }}, and the release scripts, copied verbatim,
+    the braces an f-string doubles (#247); nothing else may, and nothing else in them."""
     _, dst = variant
     for path in dst.rglob("*"):
         if not path.is_file() or path.suffix not in TEXT_SUFFIXES:
             continue
         text = path.read_text()
+        rel = path.relative_to(dst).as_posix()
         assert "{%" not in text, path
         if ".github/workflows" in str(path):
             assert not re.search(r"(?<!\$)\{\{", text), f"{path}: only ${{{{ }}}} may remain"
+        elif rel in RELEASE_SCRIPTS:
+            assert path.read_bytes() == (ROOT / "template" / rel).read_bytes(), path
         else:
             assert "{{" not in text, path
 
@@ -878,12 +885,14 @@ def test_claude_md_names_the_live_secrets(template_src: Path, tmp_path: Path, ke
 
 def test_claude_md_lays_out_the_decisions_and_the_fragments(variant: tuple[str, Path]) -> None:
     """#135: the Layout lists ``scripts/adr_index.py``, ``docs/adr/`` with its index and
-    ``docs/reports/``, which the render holds, and ``changelog/``; where ``siblings.yml``
-    renders, the entry it continues ends with a comma (#35)."""
+    ``docs/reports/``, which the render holds, and ``changelog/``, and the two release
+    scripts (#247); where ``siblings.yml`` renders, the entry it continues ends with a comma
+    (#35)."""
     _, dst = variant
     claude = (dst / "CLAUDE.md").read_text()
     entries = layout_entries(claude)
-    for entry in ["adr_index.py", "adr/", "adr.md", "adr.json", "reports/", "changelog/"]:
+    scripts = [rel.removeprefix("scripts/") for rel in RELEASE_SCRIPTS]
+    for entry in ["adr_index.py", *scripts, "adr/", "adr.md", "adr.json", "reports/", "changelog/"]:
         assert entry in entries, entry
     block = claude.split("\n## Layout\n", 1)[1].split("```\n", 2)[1].splitlines()
     siblings = [n for n, line in enumerate(block) if line.lstrip().startswith("siblings.yml")]
@@ -1173,11 +1182,11 @@ def test_the_index_script_is_the_organizations_one_version() -> None:
 
 
 def test_pyproject_tooling(keyed_nested: Path) -> None:
-    """mypy covers scripts/, the index script among them, which ruff leaves alone (#246);
-    record_property raises no warning; the sdist ships no tests."""
+    """mypy covers scripts/, the index script and the release scripts among them, which ruff
+    leaves alone (#246, #247); record_property raises no warning; the sdist ships no tests."""
     tool = tomllib.loads((keyed_nested / "pyproject.toml").read_text())["tool"]
     assert tool["mypy"]["files"] == ["src", "tests", "scripts"]
-    assert tool["ruff"]["extend-exclude"] == ["docs", ".claude", ADR_SCRIPT]
+    assert tool["ruff"]["extend-exclude"] == ["docs", ".claude", ADR_SCRIPT, *RELEASE_SCRIPTS]
     assert tool["pytest"]["ini_options"]["junit_family"] == "xunit1"
     sdist = tool["hatch"]["build"]["targets"]["sdist"]
     assert sdist == {"include": ["/src", "/docs", "/README.md", "/CHANGELOG.md", "/LICENSE"]}
