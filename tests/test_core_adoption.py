@@ -1,5 +1,5 @@
-"""The adoption of core 0.4.0: the files a render copies whole from sdk-core, at its tag
-v0.4.0, the secret scan's rule for the line on which core's recorder writes a cut body's
+"""The adoption of core 0.4.1: the files a render copies whole from sdk-core, at its tag
+v0.4.1, the secret scan's rule for the line on which core's recorder writes a cut body's
 sha256, and the reference refresh on core's default class name (#42, #167, #190).
 
 Each test reads the renders of ``conftest.py`` and asserts mechanics: a digest equal, what
@@ -19,8 +19,8 @@ from pathlib import Path
 import yaml
 from helpers import CORE_DEFAULT
 
-# SHA-256 of sdk-core's files that a render copies byte for byte, at v0.4.0, the core
-# release the template adopts: git -C <workspace root>/sdk-core show v0.4.0:<path> |
+# SHA-256 of sdk-core's files that a render copies byte for byte, at v0.4.1, the core
+# release the template adopts: git -C <workspace root>/sdk-core show v0.4.1:<path> |
 # sha256sum (digests, not secrets). ci.yml and publish.yml, which the template extends by
 # its own lines, are pinned by test_template.py once those lines are taken out.
 CORE_VERBATIM = {
@@ -36,9 +36,9 @@ CORE_VERBATIM = {
 
 
 def test_the_copies_are_cores_bytes_at_its_tag(keyed_nested: Path) -> None:
-    """#190: the files a render copies whole from sdk-core are core's at v0.4.0, the release
+    """#190: the files a render copies whole from sdk-core are core's at v0.4.1, the release
     ``core_version`` defaults to."""
-    assert CORE_DEFAULT == "0.4.0", "the core release the template adopts, its copies'"
+    assert CORE_DEFAULT == "0.4.1", "the core release the template adopts, its copies'"
     for rel, digest in CORE_VERBATIM.items():
         assert hashlib.sha256((keyed_nested / rel).read_bytes()).hexdigest() == digest, rel
 

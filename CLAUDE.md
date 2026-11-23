@@ -94,7 +94,7 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   (`--keyless-nested -d has_files=true`), nested behind the api.data.gov gateway
   (`--gateway`), nested and multi-tenant with a write server, its tenants' keys sent as the
   basic user name (`--tenants`), and nested and multi-tenant with tenants that hold a
-  refresh token, no key (`--tenants-keyless`). Every proof runs on core 0.4.0, the release
+  refresh token, no key (`--tenants-keyless`). Every proof runs on core 0.4.1, the release
   `core_version` defaults to; 0.3.0 stays the first release with `xippios.core.data_gov`.
   CI runs all seven. Run them before every pull request and paste their tails into its
   description. `-d` adds an answer to a shape: `-d has_reference_data=false` proves a
@@ -184,8 +184,8 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   `WORKFLOW_SIBLINGS`, in their one job's condition, so on `off` the check reports as
   skipped and passes, as the ADR index does; the review on `off` reports no check, which a
   ruleset that requires it waits for. `ci.yml` and `publish.yml` hold none and always run. Every workflow takes
-  its title by the organization's rule, `Live tests` and `Siblings` among them, but
-  `publish.yml`, which keeps core's bytes and so its title until core's file changes.
+  its title by the organization's rule, `Live tests` and `Siblings` among them, and
+  `publish.yml` its title `Publish` with core's bytes.
   Two verbatim files render only where the import path nests or the source declares a
   dependency, so only their names hold Jinja: `.github/workflows/siblings.yml` and the
   script it runs, `.github/scripts/check-siblings.sh` (executable; copier keeps the bit),
@@ -196,10 +196,10 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   `siblings` is a visible job the ruleset does not require: `ci.yml` stays core's file.
 - The files copied from sdk-core, `ci.yml`, `publish.yml`, `.pre-commit-config.yaml`,
   `.secrets.baseline`, `.python-version` and `LICENSE`, mirror sdk-core at the core release
-  the template adopts, v0.4.0. The template carries neither core's caller of the retired
+  the template adopts, v0.4.1. The template carries neither core's caller of the retired
   gates nor core's pull-request template. `tests/test_template.py` pins `ci.yml` and
   `publish.yml` to core's bytes once the template's own lines below are taken out, and
-  `tests/test_core_adoption.py` pins the other four to their digests at v0.4.0. When
+  `tests/test_core_adoption.py` pins the other four to their digests at v0.4.1. When
   sdk-core changes one of them, change it here too and bump the template; `copier update`
   carries it into the generated repos. The map `SUPERSEDED` of `tests/test_citations.py`
   holds the records that sdk-core's index lists as superseded at the release the template
