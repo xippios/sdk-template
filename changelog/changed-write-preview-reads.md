@@ -4,4 +4,4 @@
   whether its preview reads and at what cost. The write server's test that `/add-endpoint`
   gives a source's first write task passes `preview_reads=True`. The scaffold matters to new
   repositories only, since `tasks_write.py` is the source's once rendered.
-  (§8, https://github.com/xippios/sdk-template/issues/271)
+  (conventions §8, https://github.com/xippios/sdk-template/issues/271)

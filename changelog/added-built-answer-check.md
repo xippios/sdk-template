@@ -4,7 +4,7 @@
   it builds. The module is the source's once rendered, so `copier update` creates it where a
   source has none and leaves the source's declarations alone after. The template's rendered
   tests build no answer, so a new source passes the check before its first test.
-  (§10, https://github.com/xippios/sdk-template/issues/271)
+  (conventions §10, https://github.com/xippios/sdk-template/issues/271)
   - Hand-apply: `CLAUDE.md` — name `test_built_answers.py` under `tests/` in the Layout,
     and `tests/test_built_answers.py` after `tests/test_live.py` among the files the
     package fills, as a render with the package's answers has them — the update creates the

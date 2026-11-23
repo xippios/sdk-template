@@ -185,8 +185,8 @@ lists what they check in an endpoint.
    A task that writes upstream goes into `src/xippios/{{ package_dir }}/tasks_write.py`
    and its `__all__`, with `confirm: bool = False` as its last parameter. Without
    `confirm` it sends no write and returns its preview, a model tagged
-   `performed: Literal[False]`, as the scaffold's `WritePreview` is, with the fields that
-   show what the confirmed call would send by upstream's names, so it returns
+   `performed: Literal[False]`, as `WritePreview` of a new source's scaffold is, with the
+   fields that show what the confirmed call would send by upstream's names, so it returns
    `Result[<preview> | <answer>]`. The preview's `reads` names each operation it read
    first, `[]` when it read none, and the task's docstring says whether its preview reads
    and what that read costs (conventions §8, sdk-core ADR-0050). The source's
