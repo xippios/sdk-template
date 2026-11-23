@@ -132,7 +132,7 @@ def test_the_stub_lays_out_every_kind_of_row(keyless_flat: Path) -> None:
 
 def test_the_rule_on_the_snapshot_leaves_the_notes_to_the_hand(keyless_flat: Path) -> None:
     """Conventions §3: the render's CLAUDE.md forbids a hand edit of ``docs/upstream/`` but
-    for OBSERVED.md, which the command and the script name as the one file so written. Its
+    for OBSERVED.md, which the command and core's frame name as the one file so written. Its
     Layout names the declaration the script holds for core's frame (#240)."""
     claude = flat((keyless_flat / "CLAUDE.md").read_text())
     (rule,) = [
