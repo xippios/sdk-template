@@ -41,7 +41,8 @@ template/                what gets generated; *.jinja files are rendered, others
                          the parsers' package and the samples' provenance table of a source
                          that parses files (sdk-core ADR-0020), skip-listed, only their names
                          conditional
-  scripts/refresh_upstream.py.jinja  the capture skeleton a source fills (/refresh-upstream)
+  scripts/refresh_upstream.py.jinja  the snapshot script a source fills: its SNAPSHOT, which
+                         core's frame, xippios.core.refresh, runs (/refresh-upstream)
   scripts/{% if has_reference_data %}refresh_reference.py{% endif %}.jinja  the reference
                          refresh a source fills (/refresh-reference-data)
   scripts/adr_index.py   writes and checks a source's ADR index; verbatim, this repository's file
