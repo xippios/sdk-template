@@ -1,6 +1,4 @@
-# Written by `coordinate sync` from this template's human paths (C50, C70): `[paths] human` of the root's
-# workspace.toml and the template's defaults. A change to these paths needs the human's review. Edit
-# workspace.toml, not this file; the next PR of the session carries it (coordinate-core#76).
+# The code owners of this repository: a change to a path below needs the review of the owner named beside it.
 /.github/** @jdidaskalu
 /CLAUDE.md @jdidaskalu
 /rules/** @jdidaskalu
