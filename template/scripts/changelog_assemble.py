@@ -36,6 +36,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import Any
 
 FILE = "CHANGELOG.md"
 DIRECTORY = "changelog"
@@ -88,7 +89,7 @@ class Parsed:
 
     first: int = 0  # the bullet's line in the file, from 1; 0 for a text without one
     bullet: list[str] = field(default_factory=list)  # from `- ` to its last continued line, as written
-    notes: list[list] = field(default_factory=list)  # [line, kind, text], a note's continued lines joined
+    notes: list[list[Any]] = field(default_factory=list)  # [line, kind, text], a note's continued lines joined
     stray: list[tuple[int, str]] = field(default_factory=list)  # (line, why it is neither)
 
 

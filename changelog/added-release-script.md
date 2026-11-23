@@ -4,8 +4,8 @@
   in place of the assembly by hand. The script writes the release's section of
   `CHANGELOG.md` from the fragments, removes them and sets the version in `pyproject.toml`
   and on the package's own entry in `uv.lock`, with no `uv lock`, and a second run writes
-  nothing. The rendered `pyproject.toml` leaves both scripts out of ruff, and mypy checks
-  them with a generic without arguments let through in the assembler alone.
+  nothing. The rendered `pyproject.toml` leaves both scripts out of ruff, and its strict mypy
+  checks them as they stand, with no override.
   (https://github.com/xippios/sdk-template/issues/247)
   - Hand-apply: `CLAUDE.md` — name `scripts/changelog_assemble.py` and
     `scripts/release_prepare.py` after `scripts/adr_index.py` among the files the update
