@@ -102,15 +102,17 @@ def test_the_secret_scan_skips_a_fixtures_sha256_line_alone(
 
 
 def test_the_reference_refresh_takes_cores_default_class_name(keyless_flat: Path) -> None:
-    """#167: core 0.4.0's ``render_enums`` names an id list's class after its id field, a
-    camelCase hump kept, ``unitId`` making ``UnitId``, so the rendered script keeps no
-    class names of its own and passes none."""
+    """#167: core's ``render_enums`` names an id list's class after its id field, a
+    camelCase hump kept, ``unitId`` making ``UnitId``, so the rendered script, whose
+    enums core's frame renders (sdk-core ADR-0051), keeps no class names of its own and
+    passes none, ``Enumeration(class_name=...)`` among them."""
     script = ast.parse((keyless_flat / "scripts/refresh_reference.py").read_text())
-    (call,) = [
-        node
+    keywords = {
+        keyword.arg
         for node in ast.walk(script)
-        if isinstance(node, ast.Call) and ast.unparse(node.func) == "render_enums"
-    ]
-    assert "class_names" not in {keyword.arg for keyword in call.keywords}
+        if isinstance(node, ast.Call)
+        for keyword in node.keywords
+    }
+    assert not {"class_name", "class_names"} & keywords
     names = {node.id for node in ast.walk(script) if isinstance(node, ast.Name)}
     assert "class_names" not in names

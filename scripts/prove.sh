@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Prove the template: generate a throwaway source repository from the WORKING TREE and
 # run the full check suite on it (uv sync, ruff, mypy, pytest with core's family check,
-# pre-commit), then re-render enums.py from the (empty) packaged lists and require it
-# unchanged, require core's frame to refuse refresh_upstream.py while it has no pages, and run
+# pre-commit), then require refresh_reference.py, with no list declared, to refuse to run
+# and write nothing, require core's frame to refuse refresh_upstream.py while it has no
+# pages, and run
 # the sibling check where the import path nests (none renders where it is flat): with the
 # wheel alone, failing on a conflicting requirement, warning on a sibling on another core
 # minor and on one that pins this package's previous minor, and failing on one that pins a
 # later minor; require parse/ and tests/fixtures/files/ exactly where has_files is true;
 # check offline that a task named in BULK_TASKS gets no tool and no route, that the
-# refresh script renders a value list and an id list into one enums.py, as ruff leaves it,
-# and that it sends each request once, counts it and keeps the lists --only leaves out;
+# refresh script on core's frame renders a value list and an id list into one enums.py, as
+# ruff leaves it, and that it sends each request once, counts it, one that fails in
+# transport too, and keeps the lists --only leaves out;
 # require none of the reference scaffold where has_reference_data is false; check offline
 # that a key answered basic goes as the basic user name, its password empty; and prove the
 # package contract offline: mcp.py exports build, SOURCE and ENV_VARS, and a server a host
@@ -149,8 +151,17 @@ package_dir="src/xippios/${import_path//.//}"
 has_reference_data="$(sed -n 's/^has_reference_data: //p' "$dest/.copier-answers.yml")"
 echo
 if [ "$has_reference_data" = true ]; then
-  echo "==> refresh_reference.py --render-only renders the shipped enums.py unchanged"
-  (cd "$dest" && uv run python scripts/refresh_reference.py --render-only && git diff --exit-code)
+  # Core's frame stops before anything is read or written while LISTS declares no list.
+  echo "==> refresh_reference.py, with no list declared, refuses to run and writes nothing"
+  if (cd "$dest" && uv run python scripts/refresh_reference.py --render-only) \
+    2> "$work/reference.err"; then
+    echo "error: refresh_reference.py ran with no list declared" >&2
+    exit 1
+  fi
+  refusal="$(grep "Nothing to fetch: declare the lists" "$work/reference.err")" \
+    || { cat "$work/reference.err" >&2; exit 1; }
+  (cd "$dest" && git diff --exit-code && test -z "$(git ls-files --others --exclude-standard)")
+  echo "refused: $refusal"
 else
   echo "==> has_reference_data: $has_reference_data, so none of the reference scaffold rendered"
   for rel in "$package_dir/params.py" "$package_dir/enums.py" "$package_dir/reference" \
@@ -662,10 +673,13 @@ PY
 )
 
 if [ "$has_reference_data" = true ]; then
-# The refresh script's render on two packaged lists fetched on different days, a value
-# list and an id list whose names repeat: one enums.py of a StrEnum and an IntEnum, each
-# with its date, as ruff leaves it (conventions §3, sdk-core ADR-0031). The tree is
-# restored after.
+# The refresh script's render on core's frame (sdk-core ADR-0051), with --render, the
+# prefix of --render-only that core's parser takes, of two packaged lists fetched on
+# different days, a value list and an id list whose names repeat: one enums.py of a
+# StrEnum and an IntEnum, each with its date, as ruff leaves it (conventions §3,
+# sdk-core ADR-0031), and a row of each in the provenance table of reference/README.md in
+# place of the scaffold's "(none yet)". Its help, --he, and the render need no tenant
+# variable in a multi-tenant shape, none being set here. The tree is restored after.
 echo
 echo "==> refresh_reference.py renders a value list and an id list into one enums.py"
 (cd "$dest" && uv run python - "xippios.$import_path" <<'PY'
@@ -673,16 +687,22 @@ import importlib
 import importlib.util
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 from xippios.core import PackagedList
+from xippios.core.refresh import Enumeration, Listed
 
 spec = importlib.util.spec_from_file_location("refresh", "scripts/refresh_reference.py")
 assert spec is not None and spec.loader is not None
 script = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(script)
-script.LISTS = {"state_alpha": ("get_param_values", None)}
-script.ID_LISTS = {"unitsOfMeasure": ("GetUnitsOfMeasure", None, "unitId", "unitDescription")}
-script.REFERENCE.mkdir(exist_ok=True)
+ids = Enumeration(ids="unitId", names="unitDescription")
+script.LISTS = (
+    Listed("state_alpha", list, endpoint="get_param_values", enum=Enumeration()),
+    Listed("unitsOfMeasure", list, endpoint="GetUnitsOfMeasure", enum=ids),
+)
+script.PACKAGED_LISTS = ("state_alpha", "unitsOfMeasure")
+reference = Path(importlib.import_module(sys.argv[1]).__file__).parent / "reference"
 for param, endpoint, day, records in [
     ("state_alpha", "get_param_values", 25, [{"state_alpha": "AK"}, {"state_alpha": "C\u00f4te"}]),
     ("unitsOfMeasure", "GetUnitsOfMeasure", 23, [{"unitId": 33, "unitDescription": "Crates"},
@@ -690,26 +710,36 @@ for param, endpoint, day, records in [
 ]:
     fetched = datetime(2026, 10, day, 9, 15, tzinfo=UTC)
     listed = PackagedList(param=param, endpoint=endpoint, fetched=fetched, records=records)
-    listed.write(script.REFERENCE / f"{param}.json")
-script.render()
+    listed.write(reference / f"{param}.json")
+try:
+    script.main(["--he"])
+except SystemExit as exited:
+    assert exited.code == 0, exited
+else:
+    raise AssertionError("--he printed no help")
+assert script.main(["--render"]) == 0
 enums = importlib.import_module(f"{sys.argv[1]}.enums")
 assert enums.__all__ == ["StateAlpha", "UnitId"], enums.__all__
 assert [enums.StateAlpha.AK, enums.StateAlpha.C_TE] == ["AK", "C\u00f4te"]
 assert [enums.UnitId.CRATES_33, enums.UnitId.CRATES_105] == [33, 105]
 assert "(fetched 2026-10-25)" in (enums.StateAlpha.__doc__ or "")
 assert "(fetched 2026-10-23)" in (enums.UnitId.__doc__ or "")
+rows = (reference / "README.md").read_text(encoding="utf-8")
+assert "| `state_alpha.json` | `get_param_values` | 2026-10-25T09:15:00Z |" in rows, rows
+assert "| `unitsOfMeasure.json` | `GetUnitsOfMeasure` | 2026-10-23T09:15:00Z |" in rows, rows
+assert "(none yet)" not in rows, rows
 PY
 )
 (cd "$dest" && uv run ruff format --check . && uv run ruff check . && git checkout -q -- . && git clean -fdq)
 
-# Offline, through the package's own client, against answers respx replays (#64): the
-# refresh sends each request once, a 503's included, and prints the requests it sent and
-# the quota left, a failed run's too; --only fetches the named list alone and keeps the
-# other's file, and refuses a name no packaged list has before any request. The tree is
-# restored after.
+# Offline, through the package's own client, against answers respx replays (#64, #239):
+# the refresh on core's frame sends each request once, a 503's included, and prints the
+# requests it sent and the quota left, a failed run's too, a request that fails in
+# transport counted as sent; --only fetches the named list alone and keeps the others'
+# files, and refuses a name no packaged list has before any request. The tree is restored
+# after.
 echo
 echo "==> refresh_reference.py sends each request once, counts it, and --only keeps the others"
-(cd "$dest" && uv run python scripts/refresh_reference.py --help | grep -- "--only")
 (cd "$dest" && uv run python - "xippios.$import_path" <<'PY'
 import contextlib
 import importlib
@@ -718,11 +748,13 @@ import io
 import os
 import sys
 from collections.abc import Callable, Coroutine, Sequence
+from pathlib import Path
 from typing import Any
 
 import httpx
 import respx
-from xippios.core import XippiosError
+from xippios.core import TransportError, XippiosError
+from xippios.core.refresh import Listed
 
 package = importlib.import_module(f"{sys.argv[1]}._client")
 tenants = getattr(package, "TENANTS", None)
@@ -749,9 +781,12 @@ def values(name: str) -> Callable[[], Coroutine[Any, Any, Sequence[str]]]:
     return fetch
 
 
-script.LISTS = {name: ("get_param_values", values(name)) for name in ["state_alpha", "unit"]}
-script.PACKAGED_LISTS = ("state_alpha", "unit")
-files = {name: script.REFERENCE / f"{name}.json" for name in script.PACKAGED_LISTS}
+script.PACKAGED_LISTS = ("state_alpha", "unit", "county")
+script.LISTS = tuple(
+    Listed(name, values(name), endpoint="get_param_values") for name in script.PACKAGED_LISTS
+)
+reference = Path(importlib.import_module(sys.argv[1]).__file__).parent / "reference"
+files = {name: reference / f"{name}.json" for name in script.PACKAGED_LISTS}
 
 
 def run(*args: str) -> tuple[str, BaseException | None]:
@@ -770,28 +805,41 @@ def run(*args: str) -> tuple[str, BaseException | None]:
 
 with respx.mock(base_url=package.BASE_URL) as upstream:
     route = upstream.get("/get_param_values")
-    route.respond(503)
+    printed, raised = run("--help")
+    assert isinstance(raised, SystemExit) and raised.code == 0, raised
+    assert "--only" in printed and "--render-only" in printed, printed
+    route.mock(return_value=httpx.Response(503))
     printed, raised = run()
     assert isinstance(raised, XippiosError), raised
     assert route.call_count == 1, f"one request, no retry: {route.call_count}"
     assert "requests sent: 1; quota left: not reported" in printed, printed
     assert not any(path.exists() for path in files.values()), "nothing written"
-    route.respond(200, json=["AK", "CA"], headers={"x-ratelimit-remaining": "41"})
+    # The third request gets no answer: it may have reached upstream, so it counts (#239).
+    answers = [httpx.Response(200, json=["AK"]), httpx.Response(200, json=["CA"])]
+    route.mock(side_effect=[*answers, httpx.ReadTimeout("no answer")])
+    printed, raised = run()
+    assert isinstance(raised, TransportError), raised
+    assert route.call_count == 4, route.call_count
+    sent = "requests sent: 3 (1 ended in a transport error, counted as sent); quota left:"
+    assert sent in printed, printed
+    assert not any(path.exists() for path in files.values()), "nothing written"
+    quota = {"x-ratelimit-remaining": "41"}
+    route.mock(return_value=httpx.Response(200, json=["AK", "CA"], headers=quota))
     printed, raised = run()
     assert raised is None, raised
-    assert route.call_count == 3, route.call_count
-    assert "requests sent: 2; quota left: 41 (x-ratelimit-remaining)" in printed, printed
-    kept = files["state_alpha"].read_bytes()
-    route.respond(200, json=["MT"])
+    assert route.call_count == 7, route.call_count
+    assert "requests sent: 3; quota left: 41 (x-ratelimit-remaining)" in printed, printed
+    kept = {name: files[name].read_bytes() for name in ["state_alpha", "county"]}
+    route.mock(return_value=httpx.Response(200, json=["MT"]))
     printed, raised = run("--only", "unit")
     assert raised is None, raised
-    assert route.call_count == 4, route.call_count
+    assert route.call_count == 8, route.call_count
     assert "requests sent: 1; quota left: not reported" in printed, printed
-    assert files["state_alpha"].read_bytes() == kept, "--only keeps the other list's file"
+    assert {name: files[name].read_bytes() for name in kept} == kept, "--only keeps the others"
     assert '"MT"' in files["unit"].read_text()
-    printed, raised = run("--only", "county")
+    printed, raised = run("--only", "region")
     assert isinstance(raised, SystemExit), "--only took a list no packaged list has"
-    assert route.call_count == 4, "refused before any request"
+    assert route.call_count == 8, "refused before any request"
 PY
 )
 (cd "$dest" && git checkout -q -- . && git clean -fdq)

@@ -1672,28 +1672,24 @@ def assigned(tree: ast.Module) -> set[str]:
 
 
 def test_reference_data_is_packaged_lists_and_one_renderer(keyless_flat: Path) -> None:
-    """Conventions §3, sdk-core ADR-0041 and sdk-core ADR-0031: value lists, id lists and tables
-    are fetched into core's ``PackagedList`` and written by it, records under upstream's
-    names (``dump_upstream``); ``enums.py`` is one ``render_enums`` call, then ``ruff
-    format`` and ``ruff check --fix``; ``--render-only`` re-renders from the packaged
-    files, as an adoption does. ``params.py`` names the lists core's loader reads."""
+    """Conventions §3, sdk-core ADR-0041, ADR-0031 and ADR-0051: value lists, id lists and
+    tables are declared alike, one ``Listed`` each in ``LISTS``, and core's frame fetches
+    them into ``PackagedList`` files, records under upstream's names, and renders
+    ``enums.py`` by one ``render_enums`` call formatted by ruff; ``--render-only``
+    re-renders from the packaged files, as an adoption does. ``params.py`` names the lists
+    core's loader reads, which the frame holds ``LISTS`` to."""
     pkg = keyless_flat / "src/xippios" / package_dir(VARIANTS["keyless-flat"])
     script = ast.parse((keyless_flat / "scripts/refresh_reference.py").read_text())
-    assert {"LISTS", "ID_LISTS", "TABLES"} <= assigned(script)
-    calls = [ast.unparse(node.func) for node in ast.walk(script) if isinstance(node, ast.Call)]
-    assert calls.count("render_enums") == 1, "one module, both kinds"
-    for call in ["PackagedList", "record.dump_upstream", "fetched.write", "id_name_pairs"]:
-        assert call in calls, call
-    loops = [ast.unparse(node.iter) for node in ast.walk(script) if isinstance(node, ast.For)]
-    assert "(['format'], ['check', '--fix'])" in loops, "ruff format, then ruff check --fix"
+    assert {"LISTS", "QUOTA_HEADER"} <= assigned(script)
+    assert not {"ID_LISTS", "TABLES"} & assigned(script), "one Listed per list of any shape"
     imported = {
         alias.name
         for node in script.body
         if isinstance(node, ast.ImportFrom)
         for alias in node.names
     }
-    assert {"PackagedList", "render_enums", "PACKAGED_LISTS"} <= imported
-    assert not {"render_str_enums", "render_int_enums"} & imported, "gone in core 0.3.0"
+    assert {"Listed", "run", "PACKAGE", "PACKAGED_LISTS"} <= imported
+    assert not {"PackagedList", "render_enums", "id_name_pairs"} & imported, "core's frame"
     params = ast.parse((pkg / "params.py").read_text())
     assert assigned(params) == {"__all__", "PACKAGE", "PACKAGED_LISTS"}, "core's loader reads"
     command = (keyless_flat / ".claude/commands/refresh-reference-data.md").read_text()
