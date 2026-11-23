@@ -673,11 +673,13 @@ PY
 )
 
 if [ "$has_reference_data" = true ]; then
-# The refresh script's render on core's frame (sdk-core ADR-0051), with --render-only, of
-# two packaged lists fetched on different days, a value list and an id list whose names
-# repeat: one enums.py of a StrEnum and an IntEnum, each with its date, as ruff leaves it
-# (conventions §3, sdk-core ADR-0031), and a row of each in the provenance table of
-# reference/README.md in place of the scaffold's "(none yet)". The tree is restored after.
+# The refresh script's render on core's frame (sdk-core ADR-0051), with --render, the
+# prefix of --render-only that core's parser takes, of two packaged lists fetched on
+# different days, a value list and an id list whose names repeat: one enums.py of a
+# StrEnum and an IntEnum, each with its date, as ruff leaves it (conventions §3,
+# sdk-core ADR-0031), and a row of each in the provenance table of reference/README.md in
+# place of the scaffold's "(none yet)". Its help, --he, and the render need no tenant
+# variable in a multi-tenant shape, none being set here. The tree is restored after.
 echo
 echo "==> refresh_reference.py renders a value list and an id list into one enums.py"
 (cd "$dest" && uv run python - "xippios.$import_path" <<'PY'
@@ -709,7 +711,13 @@ for param, endpoint, day, records in [
     fetched = datetime(2026, 10, day, 9, 15, tzinfo=UTC)
     listed = PackagedList(param=param, endpoint=endpoint, fetched=fetched, records=records)
     listed.write(reference / f"{param}.json")
-assert script.main(["--render-only"]) == 0
+try:
+    script.main(["--he"])
+except SystemExit as exited:
+    assert exited.code == 0, exited
+else:
+    raise AssertionError("--he printed no help")
+assert script.main(["--render"]) == 0
 enums = importlib.import_module(f"{sys.argv[1]}.enums")
 assert enums.__all__ == ["StateAlpha", "UnitId"], enums.__all__
 assert [enums.StateAlpha.AK, enums.StateAlpha.C_TE] == ["AK", "C\u00f4te"]

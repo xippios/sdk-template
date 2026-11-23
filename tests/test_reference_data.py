@@ -8,7 +8,9 @@ on core's frame, which sends each request once, counts what it sent and takes ``
 import ast
 import re
 import shutil
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 import pytest
 from copier import run_copy, run_update
@@ -241,7 +243,8 @@ def test_the_refresh_runs_on_cores_frame(variant: tuple[str, Path]) -> None:
     tenants = bool(tenant_param(VARIANTS[name]))
     argv = "arguments" if tenants else "argv"
     assert [ast.unparse(argument) for argument in call.args] == ["LISTS", argv]
-    client = "client_for(DEMO) if fetches else AsyncClient(config)" if tenants else "client"
+    client = "client_for(DEMO) if fetches(arguments) else AsyncClient(config)"
+    client = client if tenants else "client"
     assert {keyword.arg: ast.unparse(keyword.value) for keyword in call.keywords} == {
         "package": "PACKAGE",
         "packaged": "PACKAGED_LISTS",
@@ -253,6 +256,41 @@ def test_the_refresh_runs_on_cores_frame(variant: tuple[str, Path]) -> None:
     wrappers = re.findall(r"\bapi\.(\w+)", text)
     assert wrappers, "the examples name wrappers"
     assert [name for name in wrappers if not re.fullmatch(r"[a-z][a-z0-9_]*", name)] == []
+
+
+@pytest.mark.parametrize("name", ["tenants", "tenants-keyless"])
+def test_a_multi_tenant_refresh_that_fetches_nothing_takes_no_tenant(
+    name: str, render: Callable[[str], Path]
+) -> None:
+    """Finding 1 of the review of #287: core's parser takes an option by an unambiguous
+    prefix, ``--render`` for ``--render-only`` and ``--he`` for ``--help``, so the rendered
+    multi-tenant script's ``fetches`` counts ``-h`` and every prefix of either long option
+    longer than ``--`` as a run that fetches nothing, which takes no reserved tenant's
+    client; ``scripts/prove.sh`` runs ``--render`` and ``--he`` with no tenant variable."""
+    script = ast.parse((render(name) / "scripts/refresh_reference.py").read_text())
+    (helper,) = [
+        node for node in script.body if isinstance(node, ast.FunctionDef) and node.name == "fetches"
+    ]
+    namespace: dict[str, Any] = {"Sequence": Sequence}
+    exec(
+        compile(ast.Module(body=[helper], type_ignores=[]), "refresh_reference.py", "exec"),
+        namespace,
+    )
+    fetches = namespace["fetches"]
+    nothing = [
+        ["--render-only"],
+        ["--render"],
+        ["--rend"],
+        ["--r"],
+        ["--help"],
+        ["--he"],
+        ["--h"],
+        ["-h"],
+        ["--only", "unit", "--help"],
+    ]
+    fetching = [[], ["--only", "unit"], ["--o"], ["--"], ["unit"]]
+    assert [arguments for arguments in nothing if fetches(arguments)] == []
+    assert [arguments for arguments in fetching if not fetches(arguments)] == []
 
 
 def test_the_live_tests_collect_cores_comparison(variant: tuple[str, Path]) -> None:

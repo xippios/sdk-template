@@ -69,6 +69,21 @@ LISTS: tuple[Listed, ...] = (
 )
 """The packaged lists, one ``Listed`` each: its fetch, its upstream operation, its enum, if
 any, and its ``origin`` where the provenance row names more than that operation."""
+{% if tenant_param %}
+
+
+def fetches(arguments: Sequence[str]) -> bool:
+    """Whether a run of ``arguments`` fetches the lists.
+
+    A run that asks for ``--render-only`` or ``--help`` fetches nothing, by ``-h`` or by
+    any prefix of either long option that core's parser takes, ``--render`` or ``--he``.
+    """
+    return not any(
+        argument == "-h" or (len(argument) > 2 and option.startswith(argument))
+        for argument in arguments
+        for option in ("--render-only", "--help")
+    )
+{% endif %}
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -78,7 +93,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     # client, the one the fetches send through. A run that fetches nothing, --render-only
     # or --help, needs none of its variables, so it gets a client of no tenant, unused.
     arguments = sys.argv[1:] if argv is None else list(argv)
-    fetches = not {"--render-only", "-h", "--help"} & set(arguments)
 {% endif %}
     return run(
         LISTS,
@@ -90,7 +104,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         package=PACKAGE,
         packaged=PACKAGED_LISTS,
 {% if tenant_param %}
-        client=client_for(DEMO) if fetches else AsyncClient(config),
+        client=client_for(DEMO) if fetches(arguments) else AsyncClient(config),
 {% else %}
         client=client,
 {% endif %}
