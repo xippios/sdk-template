@@ -99,8 +99,8 @@ sdk-<slug>/
                        tasks, api/, mcp, http; parse/ where has_files;
                        params, enums and reference/ where has_reference_data;
                        tasks_write and mcp_write where write_server
-  tests/               conftest, test_family, test_tasks, test_live; fixtures/files/README.md,
-                       the samples' provenance table, where has_files
+  tests/               conftest, test_family, test_tasks, test_live, test_built_answers;
+                       fixtures/files/README.md, the samples' provenance table, where has_files
   scripts/             refresh_upstream.py (the snapshot, on core's frame), adr_index.py
                        (writes and checks the ADR index), release_prepare.py and
                        changelog_assemble.py
@@ -127,7 +127,11 @@ sdk-<slug>/
 The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit`
 before any endpoint is added. `tests/test_family.py`, one line, collects core's family
 check, which then keeps the layout, the adapters, the task shapes, the README status
-table, the template tag and the core bound honest as tasks are added. `mcp.py` carries
+table, the template tag and the core bound honest as tasks are added.
+`tests/test_built_answers.py` collects core's check of a built answer's mark the same way,
+its line followed by the source's `READERS` and `ALLOWED`, and fails a place of the
+source's tests that builds an answer without naming its kind of conventions §10
+(sdk-core ADR-0049); the source fills it once rendered. `mcp.py` carries
 the package contract by which a host serves a source (conventions §8, sdk-core ADR-0026,
 amendment 2026-11-18, points c and d): `build()` returns core's `ToolSet`, with the caps
 and the option hooks `tasks.py` defines, `server` is `build_server(build())`, and
@@ -192,7 +196,7 @@ the changes of that core release that a source's callers see, from the list of s
 holds for it. Files listed under `_skip_if_exists` in `copier.yml` (the
 package `__init__.py`, the client, the package's errors, models, endpoint wrappers, the
 file parsers, the task layer and its write tasks, the packaged lists and enums, reference data, the two
-refresh scripts, the task and live tests and the fixtures, upstream snapshot, the ADR
+refresh scripts, the task, live and built-answer tests and the fixtures, upstream snapshot, the ADR
 index, README, CHANGELOG and CLAUDE.md) are never overwritten once they exist, so a
 template fix to one of them does not reach existing repositories by itself; one the
 template stops rendering, though, is deleted by the update where the repository's earlier

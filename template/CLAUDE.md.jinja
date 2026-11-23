@@ -105,6 +105,8 @@ tests/
   test_api.py      optional: the endpoint wrappers' own tests
   test_tasks.py    per-task replay tests
   test_live.py     @pytest.mark.live smoke tests, one per task
+  test_built_answers.py  core's check of a built answer's mark, one line, then READERS and
+                   ALLOWED, the package's own: an answer a test builds names its kind
 docs/
   upstream/        documentation snapshot and FETCHED.md
   adr/             this package's design decisions, one NNNN-<slug>.md record each, laid
@@ -249,7 +251,8 @@ fills, `__init__.py`, `_client.py`, `errors.py`, `models.py`, `api/`, `parse/`, 
 `params.py`, `enums.py`, `reference/`, `scripts/refresh_reference.py`,
 {% endif %}
 `scripts/refresh_upstream.py`, `tests/test_tasks.py`, `tests/test_live.py`,
-`tests/fixtures/`, `docs/upstream/`, `docs/adr.md`, `docs/adr.json`, `README.md`,
+`tests/test_built_answers.py`, `tests/fixtures/`, `docs/upstream/`, `docs/adr.md`,
+`docs/adr.json`, `README.md`,
 `CHANGELOG.md` and `CLAUDE.md`. sdk-template's
 [CHANGELOG](https://github.com/xippios/sdk-template/blob/main/CHANGELOG.md) says, per
 release, what to port into those by hand in the same pull request.

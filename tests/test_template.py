@@ -1932,6 +1932,16 @@ def test_record_fixture_takes_cores_recorder(variant: tuple[str, Path]) -> None:
     assert "3xx" in record, name
 
 
+def test_record_fixture_names_the_rewrite_type_and_redacted(variant: tuple[str, Path]) -> None:
+    """#271, conventions §10: ``/record-fixture`` names ``Rewrite``, the type of the source's
+    step that ``xippios.core.testing`` exports, and cites sdk-core ADR-0048, decision 7,
+    where it says that the step writes ``REDACTED`` for a field of a request."""
+    name, dst = variant
+    said = sentences((dst / ".claude/commands/record-fixture.md").read_text())
+    assert [s for s in said if "`Rewrite`" in s and "`xippios.core.testing`" in s], name
+    assert [s for s in said if "`REDACTED`" in s and "ADR-0048, decision 7" in s], name
+
+
 def test_record_fixture_checks_every_file_of_a_tasks_recording(variant: tuple[str, Path]) -> None:
     """Findings 1 and 2 of #278, sdk-core ADR-0057, decision 6: the credential grep of
     ``/record-fixture`` names each file that a task's recording writes, ``<case>.json`` and

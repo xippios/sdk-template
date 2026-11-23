@@ -3,7 +3,16 @@
 Each takes ``confirm: bool = False`` as its last parameter and returns a dry-run preview
 unless it is true; core refuses a write task without it before anything is registered.
 No HTTP route serves one. ``/add-endpoint`` adds them.
+
+A preview sends no write and shows the action as the confirmed call would send it, by
+upstream's names, so a task returns ``Result[WritePreview | <answer>]``, and its docstring
+says whether its preview reads first and what that read costs (conventions §8,
+sdk-core ADR-0050).
 """
+
+from typing import Literal
+
+from xippios.core import UpstreamModel
 
 __all__: list[str] = []
 
@@ -13,3 +22,23 @@ __all__: list[str] = []
 # from xippios.core import ResultCap
 #
 # MCP_CAPS = {"create_<thing>": ResultCap(max_bytes=100_000)}
+
+
+class WritePreview(UpstreamModel):
+    """What a write tool would do, returned while ``confirm`` is false; nothing was written.
+
+    The source adds the fields that show what the confirmed call would send, by upstream's
+    names, such as the fields of a create.
+
+    Attributes:
+        performed: ``False``: no write was sent. The tag that tells a preview from the
+            confirmed call's answer.
+        endpoint: The operation the confirmed call sends, by upstream's name, as
+            ``meta.endpoint`` names an operation.
+        reads: The operations the preview read before it was shown, each by upstream's
+            name as ``endpoint`` gives one; ``[]`` when it read nothing.
+    """
+
+    performed: Literal[False] = False
+    endpoint: str
+    reads: list[str]
