@@ -177,7 +177,7 @@ in one adoption PR before its next release (conventions §15, sdk-core ADR-0039)
 `copier update` run inside the generated repository:
 
 ```bash
-uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.4.0 -d core_version=0.4.1 -d core_git_ref=
+uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.4.1 -d core_version=0.4.1 -d core_git_ref=
 git diff                             # review; resolve conflicts
 ```
 
