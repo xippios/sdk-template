@@ -127,12 +127,6 @@ namespace_packages = true
 explicit_package_bases = true
 warn_unreachable = true
 
-[[tool.mypy.overrides]]
-# The bytes of scripts/changelog_assemble.py, which no copy edits, annotate one field as a
-# bare `list`: mypy takes a generic without arguments there and keeps every other check.
-module = ["scripts.changelog_assemble"]
-disallow_any_generics = false
-
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers --import-mode=importlib"
 testpaths = ["tests"]

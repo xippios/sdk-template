@@ -20,18 +20,15 @@ from pathlib import Path
 from helpers import RELEASE_SCRIPTS, ROOT, VARIANTS, git, package_dir, skip_matcher
 
 # The git blob id of each script, as `git hash-object` gives it and as the tree of the
-# organization's version lists it: a copy edited here would write another section than the
-# organization's repositories write. The next version of a script changes its id.
+# organization's version at its tag v0.8.2 lists it: a copy edited here would write another
+# section than the organization's repositories write. The next version of a script changes
+# its id.
 BLOB_IDS = {
     # pragma: allowlist nextline secret
-    "scripts/changelog_assemble.py": "e10263706fda4da3662f6fd598d17080826363fd",
+    "scripts/changelog_assemble.py": "adabf9848ff33d60a33a9ad9b06192f721a5f187",
     # pragma: allowlist nextline secret
     "scripts/release_prepare.py": "8e491fef4ccd7823d822dc75f5d8f7e75f16cd79",
 }
-
-# The one relaxation of the render's mypy: the assembler's bytes annotate one field as a bare
-# `list`, which strict mypy refuses, and no copy edits them.
-MYPY_OVERRIDE = {"module": ["scripts.changelog_assemble"], "disallow_any_generics": False}
 
 # The command /release-prep runs, and the assembler's preview, which writes nothing.
 PREPARE = "`python3 -I scripts/release_prepare.py <version> --date <YYYY-MM-DD>`"
@@ -119,12 +116,13 @@ def test_the_release_scripts_are_the_organizations_bytes(keyed_nested: Path) -> 
 
 def test_the_render_checks_the_scripts_as_they_stand(keyed_nested: Path) -> None:
     """The render's ruff leaves both scripts alone, as it does the index script, and its
-    strict mypy checks them with the one relaxation that the assembler's bytes need."""
+    strict mypy checks them with no relaxation, since the scripts' bytes type every generic."""
     tool = tomllib.loads((keyed_nested / "pyproject.toml").read_text())["tool"]
     for rel in RELEASE_SCRIPTS:
         assert rel in tool["ruff"]["extend-exclude"], rel
     assert "scripts" in tool["mypy"]["files"]
-    assert tool["mypy"]["overrides"] == [MYPY_OVERRIDE]
+    assert tool["mypy"]["strict"] is True
+    assert "overrides" not in tool["mypy"]
 
 
 def test_release_prep_runs_the_script(variant: tuple[str, Path]) -> None:

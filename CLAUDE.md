@@ -146,8 +146,7 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
   `scripts/changelog_assemble.py`, are the organization's one version too, rendered alone,
   with no copy at this repository's root: they change by that version's next one, never by
   an edit of a copy. The tests pin their blob ids and run the script on a render, the
-  render's ruff leaves them alone, and its mypy checks them, taking a generic without
-  arguments in `scripts/changelog_assemble.py` alone, where those bytes hold one.
+  render's ruff leaves them alone, and its mypy checks both as they stand.
   `/release-prep` runs `python3 -I scripts/release_prepare.py`, which sets the version in
   `uv.lock` with no `uv lock`.
   What every source shares and can be tested belongs in core's family check, not in a
