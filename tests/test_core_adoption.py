@@ -1,5 +1,5 @@
-"""The adoption of core 0.4.1: the files a render copies whole from sdk-core, at its tag
-v0.4.1, the secret scan's rule for the line on which core's recorder writes a cut body's
+"""The adoption of core 0.5.0: the files a render copies whole from sdk-core, at the commit
+of its candidate, the secret scan's rule for the line on which core's recorder writes a cut body's
 sha256, the reference refresh on core's default class name (#42, #167, #190), and the
 collecting line of core's check of a built answer's mark (#271).
 
@@ -21,10 +21,11 @@ from pathlib import Path
 import yaml
 from helpers import CORE_DEFAULT, VARIANTS, generate, package_dir, skip_matcher
 
-# SHA-256 of sdk-core's files that a render copies byte for byte, at v0.4.1, the core
-# release the template adopts: git -C <workspace root>/sdk-core show v0.4.1:<path> |
-# sha256sum (digests, not secrets). ci.yml and publish.yml, which the template extends by
-# its own lines, are pinned by test_template.py once those lines are taken out.
+# SHA-256 of sdk-core's files that a render copies byte for byte, at the commit of core
+# 0.5.0's candidate that scripts/prove.sh names, the core release the template adopts:
+# git -C <workspace root>/sdk-core show <commit>:<path> | sha256sum (digests, not secrets);
+# the four bytes stand as they stood at v0.4.1. ci.yml and publish.yml, which the template
+# extends by its own lines, are pinned by test_template.py once those lines are taken out.
 CORE_VERBATIM = {
     # pragma: allowlist nextline secret
     ".pre-commit-config.yaml": "214aa7ed6b8bd72a40f1fe3a7e7060e90e6e0e47d3f06415e6804fb16189cd7e",
@@ -38,9 +39,9 @@ CORE_VERBATIM = {
 
 
 def test_the_copies_are_cores_bytes_at_its_tag(keyed_nested: Path) -> None:
-    """#190: the files a render copies whole from sdk-core are core's at v0.4.1, the release
-    ``core_version`` defaults to."""
-    assert CORE_DEFAULT == "0.4.1", "the core release the template adopts, its copies'"
+    """#190: the files a render copies whole from sdk-core are core's at the candidate of
+    0.5.0, the release ``core_version`` defaults to."""
+    assert CORE_DEFAULT == "0.5.0", "the core release the template adopts, its copies'"
     for rel, digest in CORE_VERBATIM.items():
         assert hashlib.sha256((keyed_nested / rel).read_bytes()).hexdigest() == digest, rel
 
@@ -106,7 +107,7 @@ def test_the_secret_scan_skips_a_fixtures_sha256_line_alone(
 def test_the_reference_refresh_takes_cores_default_class_name(keyless_flat: Path) -> None:
     """#167: core's ``render_enums`` names an id list's class after its id field, a
     camelCase hump kept, ``unitId`` making ``UnitId``, so the rendered script, whose
-    enums core's frame renders (sdk-core ADR-0051), keeps no class names of its own and
+    enums core's frame renders (sdk-core ADR-0062), keeps no class names of its own and
     passes none, ``Enumeration(class_name=...)`` among them."""
     script = ast.parse((keyless_flat / "scripts/refresh_reference.py").read_text())
     keywords = {
@@ -120,31 +121,20 @@ def test_the_reference_refresh_takes_cores_default_class_name(keyless_flat: Path
     assert "class_names" not in names
 
 
-# Core 0.4.1's check of a built answer's mark (sdk-core ADR-0049): the module that core's
-# handover names for it, and its collecting line as core's docstring gives it.
+# Core 0.5.0's check of a built answer's mark (sdk-core ADR-0064): the module that core's
+# handover names for it, and its collecting line as core's docstring gives it, alone.
 BUILT_ANSWERS = "tests/test_built_answers.py"
 BUILT_ANSWERS_LINE = "from xippios.core.testing.built_answers import *  # noqa: F403"
 
 
 def test_the_render_collects_the_built_answer_check(variant: tuple[str, Path]) -> None:
-    """#271: a render collects core's check of a built answer's mark by its one line, first in
-    ``tests/test_built_answers.py``, and below it the source's ``READERS`` and ``ALLOWED``,
-    empty, which the check reads from that module. The module is the source's once rendered,
-    and ``/add-endpoint`` names it, as the template's README lays it out (#300)."""
+    """#271, sdk-core#483: a render collects core's check of a built answer's mark by its one
+    line, ``tests/test_built_answers.py`` whole, with no ``READERS`` and no ``ALLOWED``,
+    which the check no longer reads. The module is the source's once rendered, and
+    ``/add-endpoint`` names it, as the template's README lays it out (#300)."""
     name, dst = variant
     text = (dst / BUILT_ANSWERS).read_text()
-    assert text.splitlines()[0] == BUILT_ANSWERS_LINE, name
-    first, *rest = ast.parse(text).body
-    assert isinstance(first, ast.ImportFrom), ast.unparse(first)
-    assert first.module == "xippios.core.testing.built_answers", first.module
-    assert [alias.name for alias in first.names] == ["*"]
-    declared: dict[str, str] = {}
-    for node in rest:
-        assert isinstance(node, (ast.Assign, ast.AnnAssign)), ast.unparse(node)
-        target = node.targets[0] if isinstance(node, ast.Assign) else node.target
-        assert node.value is not None, ast.unparse(node)
-        declared[ast.unparse(target)] = ast.unparse(node.value)
-    assert declared == {"READERS": "frozenset()", "ALLOWED": "{}"}, name
+    assert text == BUILT_ANSWERS_LINE + "\n", name
     assert skip_matcher(package_dir(VARIANTS[name]))(BUILT_ANSWERS), "the source's declarations"
     assert f"`{BUILT_ANSWERS}`" in (dst / ".claude/commands/add-endpoint.md").read_text(), name
 

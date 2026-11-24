@@ -54,7 +54,6 @@ from helpers import (
     keyed,
     live_secrets,
     package_dir,
-    placeholder_envs,
     ruff,
     skip_matcher,
     tenant_param,
@@ -247,11 +246,10 @@ def test_tool_prefix_is_the_underscored_slug_everywhere(variant: tuple[str, Path
 
 
 def test_the_plugin_sends_the_placeholder_unless_live(variant: tuple[str, Path]) -> None:
-    """sdk-core ADR-0035: core's plugin pins the key; a keyed source only names its variable, and
-    the keys of the source packages it depends on beside it (sdk-core ADR-0021), and only a source
-    with a key to name has the option in its conftest (row 61 d). A multi-tenant source without
-    a key names its live secrets after them (#241). No placeholder fixture, constant or test of
-    the source's own."""
+    """sdk-core ADR-0035: core's plugin pins the key it reads from ``ENV_VARS``, the keys of the
+    source packages it depends on beside it (sdk-core ADR-0021), so neither the conftest nor
+    ``pyproject.toml`` names a variable, and only a source with a key says so in its conftest's
+    comment (row 61 d). No placeholder fixture, constant, list or test of the source's own."""
     name, dst = variant
     keys = key_envs(VARIANTS[name])
     conftest = (dst / "tests/conftest.py").read_text()
@@ -260,9 +258,10 @@ def test_the_plugin_sends_the_placeholder_unless_live(variant: tuple[str, Path])
         code = [line for line in code if "keep_reserved_tenants" not in line]
         code = [line for line in code if not line.startswith("from xippios.")]
     assert code == ['pytest_plugins = ["xippios.core.testing.plugin"]']
-    assert ("xippios_placeholder_key_envs" in conftest) is bool(keys)
+    assert ("ENV_VARS" in conftest) is bool(keys)
+    assert "xippios_placeholder_key_envs" not in conftest
     ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
-    assert ini.get("xippios_placeholder_key_envs") == (placeholder_envs(VARIANTS[name]) or None)
+    assert "xippios_placeholder_key_envs" not in ini, "core's plugin reads ENV_VARS"
     assert "placeholder" not in (dst / "tests/test_tasks.py").read_text()
 
 
@@ -381,7 +380,7 @@ def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
     """Conventions §12: one core minor, the extras likewise; a source package depended on
     bound to its minor the same way, ``~=X.Y.0`` (sdk-core ADR-0021), in no extra."""
     name, dst = variant
-    assert CORE_DEFAULT == "0.4.1", "the core release the template adopts, its verbatim files'"
+    assert CORE_DEFAULT == "0.5.0", "the core release the template adopts, its verbatim files'"
     version = str(VARIANTS[name].get("core_version", CORE_DEFAULT))
     project = tomllib.loads((dst / "pyproject.toml").read_text())["project"]
     depended = [f"xippios-{d['name']}~={d['minor']}.0" for d in dependencies(VARIANTS[name])]
@@ -1409,12 +1408,12 @@ def test_models_use_validation_alias(keyed_nested: Path) -> None:
 
 
 def test_servers_take_the_caps_kept_with_the_tasks(keyed_nested: Path) -> None:
-    """sdk-core ADR-0038: per-tool caps live next to the tasks as MCP_CAPS; the server reads them.
-    sdk-core ADR-0040 decision 4: beside them ``BULK_TASKS``, empty in the scaffold, names the
-    Python-only tasks; the adapters pass ``tasks.__all__`` whole, since core's
-    ``register_tasks`` and ``router_from_tasks`` skip those names themselves (row 64)."""
+    """sdk-core ADR-0038: per-tool caps live next to the tasks as MCP_CAPS; core reads them
+    from the tasks module (sdk-core ADR-0063, decision 7). sdk-core ADR-0040 decision 4:
+    beside them ``BULK_TASKS``, empty in the scaffold, names the Python-only tasks; the
+    adapters pass ``tool_functions(tasks)``, which skips those names (row 64)."""
     pkg = keyed_nested / "src/xippios" / package_dir(VARIANTS["keyed-nested"])
-    assert 'caps=getattr(tasks, "MCP_CAPS", None),' in (pkg / "mcp.py").read_text()
+    assert "ToolSet.from_tasks(SOURCE, tasks," in (pkg / "mcp.py").read_text()
     tasks = (pkg / "tasks.py").read_text()
     assert "# MCP_CAPS = {" in tasks, "a commented scaffold"
     assert "# from xippios.core import ResultCap" in tasks, "core 0.3.0 exports it"
@@ -1425,35 +1424,40 @@ def test_servers_take_the_caps_kept_with_the_tasks(keyed_nested: Path) -> None:
     ]
     assert ast.unparse(bulk) == "BULK_TASKS: frozenset[str] = frozenset()"
     assert tasks.index("BULK_TASKS") < tasks.index("# MCP_CAPS"), "beside MCP_CAPS"
-    whole = "[getattr(tasks, name) for name in tasks.__all__]"
-    assert whole in (pkg / "http.py").read_text()
+    assert "tool_functions(tasks)" in (pkg / "http.py").read_text(), "the list mcp.py serves"
     mcp = (pkg / "mcp.py").read_text()
-    assert "tool_functions(tasks)" in mcp, "core's, which skips BULK_TASKS too (#81)"
-    assert "add_options=" in mcp, "core's hooks for a source's options (sdk-core ADR-0036)"
+    assert "getattr(" not in mcp, "core reads the tasks module (sdk-core ADR-0063)"
     assert "tenant_lock" not in mcp, "core 0.3.0's build_server has none"
 
 
-def test_generated_tests_need_no_key(keyed_nested: Path) -> None:
-    """The reachability probe is a plain request: the package's client would send the key."""
-    live = (keyed_nested / "tests/test_live.py").read_text()
-    assert "httpx.AsyncClient(" in live
-    assert "await http.get(BASE_URL)" in live
-    assert "follow_redirects=True" in live
-    assert "client.request" not in live
+@pytest.mark.parametrize("name", ["keyed-nested", "keyless-flat"])
+def test_the_live_tests_hold_no_probe_of_the_base_url(
+    name: str, render: Callable[[str], Path]
+) -> None:
+    """sdk-core#477: the live probe of upstream's base URL leaves the scaffold with its two
+    imports, ``httpx`` and the client's ``BASE_URL`` and ``config``, since core's family
+    check and each task's smoke test hold what it held."""
+    live = ast.parse((render(name) / "tests/test_live.py").read_text())
+    functions = [n.name for n in live.body if isinstance(n, ast.AsyncFunctionDef | ast.FunctionDef)]
+    assert functions == []
+    modules = {n.module for n in live.body if isinstance(n, ast.ImportFrom)}
+    plain = {alias.name for n in live.body if isinstance(n, ast.Import) for alias in n.names}
+    assert "httpx" not in plain
+    assert not {m for m in modules if m and m.endswith("._client")}
 
 
-# SHA-256 of sdk-core's files the template departs from, at v0.4.1, the core release the
-# template adopts: git -C <workspace root>/sdk-core show v0.4.1:<path> | sha256sum (digests,
-# not secrets). A render is core's bytes once the template's own lines, named in
-# CLAUDE.md's Rules, are taken out. Core's gates.yml is no file of the template's (#99),
-# and the PR template links core's definition of done where it copied it (#129). The
-# files a render copies whole are pinned in test_core_adoption.py.
+# SHA-256 of sdk-core's files the template departs from, at the commit of core 0.5.0's
+# candidate that scripts/prove.sh names: git -C <workspace root>/sdk-core show
+# <commit>:<path> | sha256sum (digests, not secrets). A render is core's bytes once the
+# template's own lines, named in CLAUDE.md's Rules, are taken out. Core's gates.yml is no
+# file of the template's (#99), and the PR template links core's definition of done where it
+# copied it (#129). The files a render copies whole are pinned in test_core_adoption.py.
 CORE_EXTENDED = {
     # pragma: allowlist nextline secret
-    ".github/workflows/ci.yml": "ebee09e20d7004a6761c1986f3bc0e16ee4a2dfa749921ac25040ebad5abacab",
+    ".github/workflows/ci.yml": "152473f8f17f61b7e137da200c0afc5355261b335b6a3e684bb82a8c217deaf2",
     ".github/workflows/publish.yml": (
         # pragma: allowlist nextline secret
-        "277580b3447181d7fcfdc0b82e5fd6e9699ba878c138c0fe7913482259cf34a3"
+        "1063f6ac5d6c6841e3bd78b9fd9302da12c4942f62c548c2c7185083e900c80c"
     ),
 }
 
@@ -1465,7 +1469,8 @@ def without(text: str, first: str, stop: str) -> str:
 
 
 def test_workflows_are_cores_bytes(keyed_nested: Path) -> None:
-    """ci.yml and publish.yml are core's plus ours."""
+    """ci.yml and publish.yml are core's plus ours, and neither carries a comment but the
+    version after a pinned action, as core's bytes carry none (conventions §13, #312)."""
     ci = (keyed_nested / ".github/workflows/ci.yml").read_text()
     assert ci.count(FETCH_DEPTH) == 1
     core_ci = without(ci.replace(FETCH_DEPTH, ""), *CI_STEPS)
@@ -1476,6 +1481,13 @@ def test_workflows_are_cores_bytes(keyed_nested: Path) -> None:
         (".github/workflows/publish.yml", core_publish),
     ]:
         assert hashlib.sha256(core.encode()).hexdigest() == CORE_EXTENDED[rel], rel
+    for text in [ci, publish]:
+        comments = [
+            line
+            for line in text.splitlines()
+            if line.lstrip().startswith("#") or (" # " in line and "uses: " not in line)
+        ]
+        assert comments == [], comments
 
 
 def steps_of(workflow: dict[str, object], job: str) -> list[dict[str, object]]:
@@ -1775,17 +1787,14 @@ def test_release_prep_cites_the_count_that_core_prints(variant: tuple[str, Path]
 
 
 def test_an_adoptions_entry_names_the_three_versions(variant: tuple[str, Path]) -> None:
-    """#251, sdk-core#355: wherever the render cites conventions §15 item 9, in the
-    template's own lines of ``ci.yml`` and in ``/release-prep``, the sentence names the three
-    versions as they stand after the adoption, and the one of ``/release-prep`` names the
-    fragment's groups."""
+    """#251, sdk-core#355: wherever the render cites conventions §15 item 9, in
+    ``/release-prep``, the sentence names the three versions as they stand after the
+    adoption and the fragment's groups; ``ci.yml`` carries no comment that cites it (#312)."""
     _, dst = variant
     ci = (dst / ".github/workflows/ci.yml").read_text()
-    start = ci.index(CI_STEPS[0])
-    own = [line.strip() for line in ci[start : ci.index(CI_STEPS[1], start)].splitlines()]
-    comment = " ".join(line.removeprefix("#") for line in own if line.startswith("#"))
+    assert "item 9" not in ci
     text = (dst / ".claude/commands/release-prep.md").read_text()
-    for where, read in [("ci.yml", comment), ("release-prep.md", text)]:
+    for where, read in [("release-prep.md", text)]:
         cited = [s for s in sentences(read) if "item 9" in s]
         assert cited, where
         for sentence in cited:
@@ -1808,15 +1817,27 @@ def assigned(tree: ast.Module) -> set[str]:
 
 
 def test_reference_data_is_packaged_lists_and_one_renderer(keyless_flat: Path) -> None:
-    """Conventions §3, sdk-core ADR-0041, ADR-0031 and ADR-0051: value lists, id lists and
-    tables are declared alike, one ``Listed`` each in ``LISTS``, and core's frame fetches
-    them into ``PackagedList`` files, records under upstream's names, and renders
-    ``enums.py`` by one ``render_enums`` call formatted by ruff; ``--render-only``
+    """Conventions §3, sdk-core ADR-0041, ADR-0031 and ADR-0062: value lists, id lists and
+    tables are declared alike, one ``Listed`` each in the lists of ``LISTS``, core's one
+    ``Lists``, and core's frame fetches them into ``PackagedList`` files, records under
+    upstream's names, and renders ``enums.py`` formatted by ruff; ``--render-only``
     re-renders from the packaged files, as an adoption does. ``params.py`` names the lists
-    core's loader reads, which the frame holds ``LISTS`` to."""
+    core's loader reads, which the declaration holds as ``packaged``."""
     pkg = keyless_flat / "src/xippios" / package_dir(VARIANTS["keyless-flat"])
     script = ast.parse((keyless_flat / "scripts/refresh_reference.py").read_text())
-    assert {"LISTS", "QUOTA_HEADER"} <= assigned(script)
+    assert assigned(script) == {"LISTS"}
+    declared = [n.value for n in script.body if isinstance(n, ast.Assign)]
+    assert isinstance(declared[0], ast.Call)
+    assert ast.unparse(declared[0].func) == "Lists"
+    assert {k.arg for k in declared[0].keywords} == {
+        "package",
+        "lists",
+        "packaged",
+        "client",
+        "quota_header",
+    }
+    (main,) = [n for n in script.body if isinstance(n, ast.FunctionDef) and n.name == "main"]
+    assert ast.unparse(main.body[-1]) == "return run(LISTS, argv)"
     assert not {"ID_LISTS", "TABLES"} & assigned(script), "one Listed per list of any shape"
     imported = {
         alias.name
@@ -1824,7 +1845,7 @@ def test_reference_data_is_packaged_lists_and_one_renderer(keyless_flat: Path) -
         if isinstance(node, ast.ImportFrom)
         for alias in node.names
     }
-    assert {"Listed", "run", "PACKAGE", "PACKAGED_LISTS"} <= imported
+    assert {"Lists", "run", "PACKAGE", "PACKAGED_LISTS"} <= imported
     assert not {"PackagedList", "render_enums", "id_name_pairs"} & imported, "core's frame"
     params = ast.parse((pkg / "params.py").read_text())
     assert assigned(params) == {"__all__", "PACKAGE", "PACKAGED_LISTS"}, "core's loader reads"

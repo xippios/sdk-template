@@ -11,5 +11,11 @@ Upstream: {{ source_name }}.
 {% endif %}
 
 from xippios.{{ import_path }}._version import __version__
+{% if tenant_param %}
+from xippios.{{ import_path }}.tasks import list_{{ tenant_param }}s
+
+__all__ = ["__version__", "list_{{ tenant_param }}s"]
+{% else %}
 
 __all__ = ["__version__"]
+{% endif %}

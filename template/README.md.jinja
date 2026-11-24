@@ -150,7 +150,9 @@ and, once a reviewer of the environment `pypi` approves the run, publishes it to
 trusted publishing. Every push to `main` and a dispatch start it, and a push that brings no
 release ends quietly. It is handed no secret: the step that tells a release is handed the
 job's token as `GH_TOKEN`, the tag goes with the job's token and PyPI trusts the workflow
-itself. No variable switches it off.
+itself. Its job `tag` holds the one checkout of the repository that keeps its credentials,
+since it pushes the tag with the job's token; every other checkout sets
+`persist-credentials: false` (conventions §13). No variable switches it off.
 
 {% if shape == 'source' %}
 {% set live_names = key_envs + live_secret_names %}

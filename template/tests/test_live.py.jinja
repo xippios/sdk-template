@@ -18,14 +18,11 @@ never at the module's top level.
 from collections.abc import Callable
 
 {% endif %}
-import httpx
 import pytest
 {% if has_reference_data %}
 from xippios.core.reference import PackagedCodes
 from xippios.core.testing.live import *  # noqa: F403
 {% endif %}
-
-from xippios.{{ import_path }}._client import BASE_URL, config
 
 pytestmark = [pytest.mark.live, pytest.mark.anyio]
 {% if has_reference_data %}
@@ -40,23 +37,3 @@ NO_LIVE_LIST: dict[str, str] = {
     # "units": "No endpoint serves the list: it is rebuilt from docs/upstream/.",
 }
 {% endif %}
-
-
-async def test_upstream_answers() -> None:
-    """The base URL answers without a server error.
-
-{% if api_key_env %}
-    A plain request, not the package's client, so no key goes out and it spends no keyed
-    call; a keyed gateway's answer to it (a 403 or a 404, say) still shows the host is up.
-{% else %}
-    A plain request, not the package's client; any answer below 500 (a 404 at the
-    root, say) shows the host is up.
-{% endif %}
-    """
-    async with httpx.AsyncClient(
-        headers={"User-Agent": config.user_agent},
-        timeout=config.timeouts.to_httpx(),
-        follow_redirects=True,
-    ) as http:
-        response = await http.get(BASE_URL)
-    assert response.status_code < 500

@@ -1,6 +1,6 @@
 # ADR-0002: The answers that render the package contract's variants, and what the template asks
 
-Status: Accepted · Date: 2026-11-24 · Decided by https://github.com/xippios/sdk-template/issues/301 · Supersedes ADR-0001
+Status: Accepted · Date: 2026-11-24 · Decided by https://github.com/xippios/sdk-template/issues/301 · Supersedes ADR-0001 · Amended 2026-11-24 by https://github.com/xippios/sdk-core/issues/476
 
 ## Context
 
@@ -36,8 +36,9 @@ takes its place.
    `mcp_write.py`, the `tasks_write.py` scaffold, which the source fills and
    `_skip_if_exists` protects, and the entry points `-mcp-read` and `-mcp-write` in place of
    `-mcp`, with no alias for the old name. `tenant_param`, empty by default, names the
-   tenant's parameter, `org` say, and renders core's registry, `build(lock)`, `serve_tenants`
-   and the strip. Carried from ADR-0001, decision 1.
+   tenant's parameter, `org` say, and renders core's registry, `build(lock)`, the registry
+   handed to core's `main` (amended 2026-11-24, in place of `serve_tenants`) and the strip.
+   Carried from ADR-0001, decision 1.
 2. **The tenants' variables derive from the key answer alone.** A multi-tenant source's
    tenants each hold a key of their own, `<PREFIX>_<NAME>_API_KEY`, the prefix `api_key_env`'s
    without `_API_KEY`, passed as the registry's `var_prefix` where it is not the slug's; the
@@ -57,16 +58,16 @@ takes its place.
    request changes as it sets the base URL. `tenant_param` takes at most 20 characters, so
    every generated Python line stays within 100 columns. Replaces ADR-0001, decisions 2 and
    3, for a credential that is no key.
-4. **What a source sets beside the render stays its own.** The render passes
-   `check=check_<param>` from `_client.py`, which checks that a bound tenant has its key, and
-   names no noun for a tenant, no read server held to loopback and no write server's name of
-   its own: a source that wants one keeps its line, merged three ways. So does a source whose
-   tenant list is not named `list_<param>s` keep its own instructions, which name that tool.
-   Carried from ADR-0001, decision 4.
-5. **The option hooks by default.** Every server's `build()` passes the caps and the option
-   hooks its tasks module defines, `MCP_CAPS`, `mcp_add_options` and `mcp_apply_options`, or
-   `None`, so a source with options defines them in `tasks.py` alone
-   (https://github.com/xippios/sdk-template/issues/65). Carried from ADR-0001, decision 5.
+4. **What a source sets beside the render: replaced by decision 9** (amended 2026-11-24).
+   The render named no noun for a tenant, no read server held to loopback and no write
+   server's name of its own, and a source that wanted one kept its line in `mcp.py` or
+   `mcp_write.py`, merged three ways at every update, as did a source whose tenant list is
+   not named `list_<param>s` with its own instructions. Carried from ADR-0001, decision 4,
+   until decision 9 took its place.
+5. **The option hooks by default: replaced by decision 9** (amended 2026-11-24). Every
+   server's `build()` passed `MCP_CAPS`, `mcp_add_options` and `mcp_apply_options` of its
+   tasks module by three `getattr` reads (https://github.com/xippios/sdk-template/issues/65).
+   Carried from ADR-0001, decision 5, until core read them from the module by decision 9.
 6. **What the template asks.** The template asks what keeps its sources in step (#301,
    part 1). `copier.yml` asks fourteen questions whose answers a source records, `source_slug`, `import_path`, `source_name`,
    `upstream_url`, `upstream_docs_url`, `api_key_env`, `write_server`, `tenant_param`,
@@ -85,6 +86,27 @@ takes its place.
    names one. A source behind api.data.gov keeps its recorded `api_key_env`,
    `DATA_GOV_API_KEY`, and imports the gateway from its publisher's shared package,
    `xippios.usda.fas`, in its own `_client.py` (#302, part 2; sdk-core ADR-0032).
+9. **No rendered file holds a line of a source** (amended 2026-11-24). Core builds a
+   source's tool set from its tasks module and runs every server through one entry
+   (https://github.com/xippios/sdk-core/issues/476; sdk-core ADR-0063, decision 7):
+   `ToolSet.from_tasks` reads `MCP_INSTRUCTIONS`, `MCP_BOUND_INSTRUCTIONS`, `MCP_CAPS`, the
+   option hooks `mcp_add_options` and `mcp_apply_options` and `MCP_LOOPBACK_ONLY`, and
+   `main(build, *, tenants=None, check=None)` binds a tenant where it is handed the registry.
+   So `mcp.py` and `mcp_write.py` hold the contract's names alone: `__all__` with `ENV_VARS`,
+   `SOURCE`, `build`, `run` and `server`; `build`, which returns
+   `ToolSet.from_tasks(SOURCE, tasks, version=__version__)`, with `lock` for a multi-tenant
+   source and `read_only=False` for the write server; the line `server = build_server(build())`;
+   and `run`, which calls `main(build)`, or for a multi-tenant source
+   `main(build, tenants=TENANTS, check=check_<param>)`. `http.py` passes
+   `tool_functions(tasks)`, the list that `mcp.py` serves. No line of these files is a
+   source's, and an update writes them whole. What a source sets for its server stands in a
+   file it owns: its instructions, and a multi-tenant source's bound text, in `tasks.py` or
+   `tasks_write.py`, which the scaffolds render with the template's text; a read server held
+   to loopback as `MCP_LOOPBACK_ONLY = True` there; and a noun for a tenant in its
+   `Tenants(noun=)` of `_client.py`. Both servers take the name `xippios-<source>`, so no
+   write server keeps one of its own. The scaffold declares no option hook, and a source that
+   declares one takes core's signature, `mcp_apply_options(namespace)` without a server. This
+   ends the conflicts that two sources merged in `mcp.py` and `mcp_write.py` at every update.
 
 ## Consequences
 
@@ -105,6 +127,13 @@ takes its place.
   nested, a dependent that parses files, and a flat multi-tenant source with a write server
   and a key per tenant, and `scripts/prove.sh --all` runs five proofs. No proof renders a source
   whose tenants hold no key or a source behind a gateway.
-- Core's `serve_tenants` takes no option hook of the source's, so a multi-tenant source's
-  options reach a host through its tool set but not its own entry point, until sdk-core
-  decides https://github.com/xippios/sdk-core/issues/311.
+- Core's one `main` reads the option hooks of a multi-tenant source's tool set as of any
+  other, so its options reach its own entry point as they reach a host (amended 2026-11-24,
+  by https://github.com/xippios/sdk-core/issues/476, in place of the bound that
+  https://github.com/xippios/sdk-core/issues/311 left open).
+- Every source's update writes `mcp.py`, `mcp_write.py` and `http.py` anew (amended
+  2026-11-24). A source moves its instructions from `mcp.py` into `tasks.py` by hand, since
+  the file is its own once rendered; sdk-cashctrl moves its noun for a tenant into its
+  `Tenants` and loses its write server's name of its own, and sdk-google-mail declares its
+  read server held to loopback in its `tasks.py`, each after one more conflict in its two
+  server files, on the lines that move.

@@ -36,11 +36,12 @@ CORE_BYTES = {
 # form of a citation, and the organization's one index script, whose bytes no repository edits.
 NO_CITATIONS = {"docs/adr/README.md", "scripts/adr_index.py"}
 
-# The records that sdk-core's index, docs/adr.md at its tag v0.4.1, the core release the
-# template adopts, lists as superseded, each with the record that stands in its place. The
-# adoption of another core release brings the map to that release's index and SUPERSEDED_AT
-# to its version, which test_the_superseded_records_are_those_of_the_adopted_core asks.
-SUPERSEDED_AT = "0.4.1"
+# The records that sdk-core's index, docs/adr.md at the commit of core 0.5.0's candidate
+# that scripts/prove.sh names, the core release the template adopts, lists as superseded,
+# each with the record that stands in its place. The adoption of another core release brings
+# the map to that release's index and SUPERSEDED_AT to its version, which
+# test_the_superseded_records_are_those_of_the_adopted_core asks.
+SUPERSEDED_AT = "0.5.0"
 SUPERSEDED = {
     "0003": "0028",
     "0004": "0029",
@@ -56,7 +57,14 @@ SUPERSEDED = {
     "0018": "0039",
     "0019": "0040",
     "0022": "0041",
+    "0023": "0059",
     "0024": "0042",
+    "0046": "0062",
+    "0048": "0066",
+    "0049": "0064",
+    "0051": "0062",
+    "0056": "0067",
+    "0057": "0066",
 }
 
 # This repository's own files that cite records: its documents, its questions, its scripts
@@ -156,7 +164,7 @@ def test_this_repositorys_bare_citations_name_its_own_records() -> None:
 
 
 def test_no_citation_names_a_record_that_core_superseded() -> None:
-    """A citation of sdk-core's names the record that stands at v0.4.1, never one that
+    """A citation of sdk-core's names the record that stands at 0.5.0, never one that
     sdk-core's index lists as superseded, in the template's files but core's bytes and in
     this repository's own."""
     template = ROOT / "template"

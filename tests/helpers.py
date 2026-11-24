@@ -29,17 +29,18 @@ BASE_ANSWERS: dict[str, object] = {
 }
 
 
-# The template's own lines of the two workflows it copies from sdk-core and extends: in
-# ci.yml the full history for the two steps that read the pull request (core's
-# docs/handover.md, "Template v0.2.1"), in publish.yml the refusal of a git-pinned core
-# before the tag.
-FETCH_DEPTH = "          fetch-depth: 0 # both steps below diff against origin/<base>\n"
+# The template's own lines of the two workflows it copies from sdk-core and extends, with
+# no comment, as core's bytes carry none (#312): in ci.yml the full history for the two
+# steps that read the pull request (core's handover at v0.4.1, "Template v0.2.1",
+# https://github.com/xippios/sdk-core/blob/v0.4.1/docs/handover.md), in publish.yml the
+# refusal of a git-pinned core before the tag.
+FETCH_DEPTH = "          fetch-depth: 0\n"
 CI_STEPS = (
-    "      # Conventions §12: every PR but Dependabot's",
+    "      - name: The changelog has an entry",
     "      - uses: astral-sh/setup-uv@",
 )
 PUBLISH_STEP = (
-    "      # sdk-template's one step beyond core's file",
+    "      - name: Refuse a pyproject with [tool.uv.sources]",
     "      - name: Tag the merge commit",
 )
 
@@ -101,9 +102,9 @@ def keyed(env: str) -> dict[str, object]:
     return {"api_key_env": env}
 
 
-# The auths of core's that send a key: the source's first pull request passes the one that
-# upstream documents, and the scaffold renders none (#301).
-KEY_AUTHS = {"QueryKeyAuth", "HeaderKeyAuth", "BearerAuth", "BasicKeyAuth"}
+# Core's one key class, which sends a key where upstream documents it: the source's first
+# pull request passes it, and the scaffold renders none (#301; sdk-core ADR-0059).
+KEY_AUTHS = {"KeyAuth"}
 
 
 def key_answers(answers: dict[str, object]) -> dict[str, object]:
@@ -245,17 +246,6 @@ def key_envs(answers: dict[str, object]) -> list[str]:
         own = f"{tenant_prefix(answers)}_DEMO_{tenant_field(answers)}"
     keys = [own] + [d["key_env"] for d in dependencies(answers)]
     return list(dict.fromkeys(key for key in keys if key))
-
-
-def placeholder_envs(answers: dict[str, object]) -> list[str]:
-    """The variables core's plugin sets to the placeholder in every test not marked live
-    (sdk-core ADR-0035), ``xippios_placeholder_key_envs``: the keys, and after them the live
-    secrets of a multi-tenant source without a key, its tenants' credential among them,
-    which its own auth reads (#241, #301)."""
-    keys = key_envs(answers)
-    if tenant_param(answers) and not key_answers(answers).get("api_key_env"):
-        return keys + live_secrets(answers)
-    return keys
 
 
 def env_vars(answers: dict[str, object]) -> list[tuple[str, bool, bool]]:
