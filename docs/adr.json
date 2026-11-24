@@ -38,6 +38,20 @@
       ],
       "other": [],
       "superseded_by": null
+    },
+    {
+      "id": "ADR-0003",
+      "number": 3,
+      "title": "The general part of a repository as a shape without tasks and servers",
+      "path": "docs/adr/0003-the-general-part-of-a-repository-as-a-shape-without-tasks.md",
+      "status": "Accepted",
+      "date": "2026-11-24",
+      "decided_by": "https://github.com/xippios/sdk-template/issues/302",
+      "amended": [],
+      "amends": [],
+      "supersedes": [],
+      "other": [],
+      "superseded_by": null
     }
   ]
 }
