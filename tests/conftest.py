@@ -11,7 +11,7 @@ import pytest
 # a test module's do.
 pytest.register_assert_rewrite("helpers")
 
-from helpers import ROOT, VARIANTS, generate  # noqa: E402
+from helpers import GENERAL, ROOT, VARIANTS, generate  # noqa: E402
 
 
 @pytest.fixture(scope="session")
@@ -32,7 +32,7 @@ def render(template_src: Path, tmp_path_factory: pytest.TempPathFactory) -> Call
     def get(name: str) -> Path:
         if name not in renders:
             dst = tmp_path_factory.mktemp(name) / "repo"
-            renders[name] = generate(template_src, dst, **VARIANTS[name])
+            renders[name] = generate(template_src, dst, **{**VARIANTS, **GENERAL}[name])
         return renders[name]
 
     return get
@@ -41,6 +41,12 @@ def render(template_src: Path, tmp_path_factory: pytest.TempPathFactory) -> Call
 @pytest.fixture(params=list(VARIANTS), scope="session")
 def variant(request: pytest.FixtureRequest, render: Callable[[str], Path]) -> tuple[str, Path]:
     """A check that differs between variants, run on each render."""
+    return request.param, render(request.param)
+
+
+@pytest.fixture(params=list(GENERAL), scope="session")
+def general(request: pytest.FixtureRequest, render: Callable[[str], Path]) -> tuple[str, Path]:
+    """A check of the general part of a repository (ADR-0003), run on each of its renders."""
     return request.param, render(request.param)
 
 

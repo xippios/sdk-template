@@ -11,6 +11,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+import jinja2
 import yaml
 from copier import run_copy
 from pathspec import PathSpec
@@ -147,6 +148,25 @@ VARIANTS: dict[str, dict[str, object]] = {
 # A source on unreleased core: the keyed nested answers with a full-SHA core pin.
 PINNED = {**VARIANTS["keyed-nested"], "core_git_ref": FAKE_CORE_SHA}
 
+# The general part of a repository without tasks and servers (ADR-0003), in the two renders of
+# the invented source that scripts/prove.sh proves too: a publisher's shared package with a
+# nested import path, and a flat package in a repository not named sdk-<slug>. They answer
+# none of a source's questions of an upstream, so the checks of a source's render, which read
+# VARIANTS, read neither.
+GENERAL: dict[str, dict[str, object]] = {
+    "general-nested": {
+        "shape": "general",
+        "source_slug": "example-shared",
+        "source_name": "Shared code of the example sources",
+    },
+    "general-flat": {
+        "shape": "general",
+        "source_slug": "example",
+        "source_name": "Example tools",
+        "repository_name": "xippios-example",
+    },
+}
+
 
 def package_dir(answers: dict[str, object]) -> str:
     import_path = str(answers.get("import_path") or str(answers["source_slug"]).replace("-", "."))
@@ -272,11 +292,21 @@ def ruff(dst: Path, command: str, *args: str) -> subprocess.CompletedProcess[str
     )
 
 
-def skip_matcher(pkg: str) -> Callable[[str], bool]:
+def copier_patterns(setting: str, pkg: str, shape: str = "source") -> list[str]:
+    """The lines of a list setting of ``copier.yml``, ``_skip_if_exists`` or ``_exclude``, as
+    copier 9.19.1 renders them for a render of ``shape`` whose package is ``pkg``: each
+    pattern rendered with the answers it reads, then split into its lines."""
+    env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True)
+    answers = {"package_dir": pkg, "shape": shape}
+    rendered = [env.from_string(p).render(answers) for p in QUESTIONS[setting]]
+    return [line for pattern in rendered for line in pattern.splitlines()]
+
+
+def skip_matcher(pkg: str, shape: str = "source") -> Callable[[str], bool]:
     """Whether copier's ``_skip_if_exists`` protects a path, matched as copier 9.19.1 does:
     the patterns rendered, read as gitignore lines by pathspec."""
-    rendered = [p.replace("{{ package_dir }}", pkg) for p in QUESTIONS["_skip_if_exists"]]
-    return PathSpec.from_lines("gitignore", rendered).match_file
+    patterns = copier_patterns("_skip_if_exists", pkg, shape)
+    return PathSpec.from_lines("gitignore", patterns).match_file
 
 
 def detect_secrets_hook(directory: Path, *files: str) -> subprocess.CompletedProcess[str]:
