@@ -731,6 +731,23 @@ def test_claude_md_holds_the_facts_and_imports_the_layout(variant: tuple[str, Pa
     assert len(claude) < 40_000, "Claude Code cuts a file that loads on demand"
 
 
+def test_the_depends_on_row_says_what_each_kind_of_dependency_serves(
+    render: Callable[[str], Path],
+) -> None:
+    """The answers do not tell a source package from a publisher's shared package, so the
+    source's CLAUDE.md says what each kind serves in its "Depends on" row (#335): a source
+    package's task layer by sdk-core ADR-0021 and a shared package's public names by sdk-core
+    ADR-0065, decision 3, each kind in a clause of the row with its record."""
+    claude = (render("dependency") / "CLAUDE.md").read_text()
+    (row,) = [line for line in claude.splitlines() if line.startswith("| Depends on | ")]
+    clauses = row.split("; ")
+    for kind, record in [
+        ("source package", "(sdk-core ADR-0021)"),
+        ("shared package", "(sdk-core ADR-0065 decision 3)"),
+    ]:
+        assert [c for c in clauses if kind in c and record in c], (kind, record, row)
+
+
 def test_generated_tree_names_no_source_and_no_workspace_file(variant: tuple[str, Path]) -> None:
     """Nothing source-specific is scaffolded (sdk-core ADR-0031), nor a workspace-local
     reference."""
