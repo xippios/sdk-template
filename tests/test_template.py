@@ -654,13 +654,16 @@ def test_live_secrets_are_names_the_step_sets_once(
 
 def test_release_prep_waits_for_the_dependencies(variant: tuple[str, Path]) -> None:
     """sdk-core ADR-0021 decision 5: a dependent releases after the packages it depends on, which
-    /release-prep names in step 1 only where a dependency is declared."""
+    /release-prep names in step 1 only where a dependency is declared, citing conventions §12,
+    the section that holds the rule at core 0.5.0 (#300)."""
     name, dst = variant
     text = (dst / ".claude/commands/release-prep.md").read_text()
     depended = dependencies(VARIANTS[name])
     assert ("sdk-core ADR-0021 decision 5" in text) is bool(depended)
     for dependency in depended:
         assert f"`xippios-{dependency['name']}`" in text, dependency
+    cited = [s for s in sentences(text) if "sdk-core ADR-0021 decision 5" in s]
+    assert all("conventions §12" in s and "§15" not in s for s in cited), cited
 
 
 def live_start(dst: Path) -> tuple[int, int]:

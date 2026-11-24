@@ -314,6 +314,18 @@ def test_the_packages_own_key_decides_its_client(
         assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_a_dependent_general_render_cites_section_12_for_its_release(
+    template_src: Path, tmp_path: Path
+) -> None:
+    """#300: the general shape's ``/release-prep`` names the packages a dependent releases
+    after, citing conventions §12, the section that holds the rule at core 0.5.0."""
+    answers = {**GENERAL["general-nested"], "source_dependencies": KEYED_DEPENDENCY}
+    dst = generate(template_src, tmp_path / "repo", **answers)
+    release = " ".join((dst / ".claude/commands/release-prep.md").read_text().split())
+    assert "`xippios-example-keyed`" in release
+    assert "(sdk-core ADR-0021 decision 5, conventions §12)" in release
+
+
 def test_an_update_never_writes_the_general_shapes_manifest(
     template_src: Path, tmp_path: Path
 ) -> None:
