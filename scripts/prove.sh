@@ -12,8 +12,7 @@
 # refresh script on core's frame renders a value list and an id list into one enums.py, as
 # ruff leaves it, and that it sends each request once, counts it, one that fails in
 # transport too, and keeps the lists --only leaves out;
-# require none of the reference scaffold where has_reference_data is false; check offline
-# that a key answered basic goes as the basic user name, its password empty; and prove the
+# require none of the reference scaffold where has_reference_data is false; and prove the
 # package contract offline: mcp.py exports build, SOURCE and ENV_VARS, and a server a host
 # builds from build()'s tool set with register_tasks serves the tools, caps and option
 # defaults of the entry point, the write server's too where there is one, which passes
@@ -41,21 +40,21 @@
 #                      as esmis or wasde
 #   --gateway          a nested source behind api.data.gov, sdk-example-gov
 #                      (xippios.example.gov), as psd, esr and gats: the gateway answer
-#                      derives the key answers, on the default core, 0.4.1; 0.3.0 was
+#                      derives the key answer, on the default core, 0.4.1; 0.3.0 was
 #                      the first release with xippios.core.data_gov
-#   --tenants          a nested multi-tenant source with a write server and basic auth,
+#   --tenants          a nested multi-tenant source with a write server and a key per tenant,
 #                      sdk-example-tenants (xippios.example.tenants), its tenants' keys
 #                      EXAMPLE_<NAME>_API_KEY under a prefix other than the slug's, as
-#                      cashctrl: write_server, tenant_param=org, api_key_location=basic
+#                      cashctrl: write_server, tenant_param=org, no reference data
 #   --tenants-keyless  a nested multi-tenant source whose tenants hold a refresh token, no
 #                      key, with a write server, sdk-example-mail (xippios.example.mail),
 #                      its tenants' variables EXAMPLE_<NAME>_REFRESH_TOKEN under a prefix
 #                      other than the slug's, as google-mail: write_server,
-#                      tenant_param=account, tenant_credential_env, two live secrets
+#                      tenant_param=account, tenant_credential_env, two live secrets,
+#                      no reference data
 #   --keep             leave the generated repository in place
 #   -d key=value       one more copier answer, e.g. -d has_files=true, or
-#                      -d has_reference_data=false for a source that packages none, or
-#                      -d api_key_location=basic for a key sent as the basic user name
+#                      -d has_reference_data=false for a source that packages none
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -88,11 +87,12 @@ case "$shape" in
   keyless-nested) slug="example-files"; key=() ;;
   gateway) slug="example-gov"; key=(-d "gateway=api.data.gov") ;;
   tenants) slug="example-tenants"; key=(-d "api_key_env=EXAMPLE_API_KEY"
-    -d "api_key_location=basic" -d "write_server=true" -d "tenant_param=org") ;;
+    -d "write_server=true" -d "tenant_param=org" -d "has_reference_data=false") ;;
   tenants-keyless) slug="example-mail"; key=(-d "write_server=true" -d "tenant_param=account"
     -d "tenant_credential_env=EXAMPLE_<NAME>_REFRESH_TOKEN"
-    -d "live_secrets=[EXAMPLE_CLIENT_ID, EXAMPLE_CLIENT_SECRET]") ;;
-  *) slug="example-api"; key=(-d "api_key_env=EXAMPLE_API_KEY" -d "api_key_location=query") ;;
+    -d "live_secrets=[EXAMPLE_CLIENT_ID, EXAMPLE_CLIENT_SECRET]"
+    -d "has_reference_data=false") ;;
+  *) slug="example-api"; key=(-d "api_key_env=EXAMPLE_API_KEY") ;;
 esac
 if [ -n "$dest" ] && [ -e "$dest" ]; then
   echo "error: --dest $dest already exists" >&2
@@ -123,9 +123,7 @@ uv run --project "$here" copier copy --defaults --quiet --vcs-ref "v$version" \
   -d "source_name=Example Data Service" \
   -d "upstream_url=https://api.example.org" \
   -d "upstream_docs_url=https://api.example.org/docs" \
-  -d "api_base_url=https://api.example.org/v1" \
   "${key[@]}" \
-  -d "rate_limit_per_minute=120" \
   -d "core_git_ref=$core_ref" \
   "${extra[@]}" \
   "$snapshot" "$dest"
@@ -226,36 +224,6 @@ refused = httpx.Response(
 )
 assert isinstance(client.classify(refused), AuthError)
 print(f"{sys.argv[1]}: Gateway({client.SOURCE!r}): auth, policy hooks and classify wired")
-PY
-  )
-fi
-# Offline, against an answer respx replays: core's BasicKeyAuth sends the key as the basic
-# user name with an empty password, where the key answer is basic (#173).
-api_key_location="$(sed -n 's/^api_key_location: //p' "$dest/.copier-answers.yml")"
-if [ "$api_key_location" = basic ]; then
-  echo
-  echo "==> the basic answer: the client sends the key as the basic user name, no password"
-  (cd "$dest" && uv run python - "xippios.$import_path._client" <<'PY'
-import asyncio
-import base64
-import importlib
-import os
-import sys
-
-import respx
-
-client = importlib.import_module(sys.argv[1])
-tenants = getattr(client, "TENANTS", None)
-variable = client.API_KEY_ENV if tenants is None else tenants.var(client.DEMO, "API_KEY")
-os.environ[variable] = "placeholder"  # pragma: allowlist secret (a stand-in)
-# A multi-tenant source: the reserved tenant's client, which its key alone declares.
-target = client.client if tenants is None else client.client_for(client.DEMO)
-with respx.mock(base_url=client.BASE_URL) as upstream:
-    route = upstream.get("/x").respond(200, json={})
-    asyncio.run(target.get_json("/x"))
-expected = "Basic " + base64.b64encode(b"placeholder:").decode("ascii")
-assert route.calls.last.request.headers["Authorization"] == expected, "the key, no password"
-print(f"{sys.argv[1]}: BasicKeyAuth sends {variable} as the basic user name")
 PY
   )
 fi
@@ -687,8 +655,7 @@ if [ "$has_reference_data" = true ]; then
 # different days, a value list and an id list whose names repeat: one enums.py of a
 # StrEnum and an IntEnum, each with its date, as ruff leaves it (conventions §3,
 # sdk-core ADR-0031), and a row of each in the provenance table of reference/README.md in
-# place of the scaffold's "(none yet)". Its help, --he, and the render need no tenant
-# variable in a multi-tenant shape, none being set here. The tree is restored after.
+# place of the scaffold's "(none yet)", after its help, --he. The tree is restored after.
 echo
 echo "==> refresh_reference.py renders a value list and an id list into one enums.py"
 (cd "$dest" && uv run python - "xippios.$import_path" <<'PY'
@@ -766,15 +733,9 @@ from xippios.core import TransportError, XippiosError
 from xippios.core.refresh import Listed
 
 package = importlib.import_module(f"{sys.argv[1]}._client")
-tenants = getattr(package, "TENANTS", None)
-if tenants is not None:  # a multi-tenant source fetches through the reserved tenant's client
-    (field,) = tenants.fields
-    os.environ[tenants.var(package.DEMO, field)] = "placeholder"  # pragma: allowlist secret
-    client = package.client_for(package.DEMO)
-else:
-    if package.API_KEY_ENV:
-        os.environ[package.API_KEY_ENV] = "placeholder"  # pragma: allowlist secret (a stand-in)
-    client = package.client
+if package.API_KEY_ENV:
+    os.environ[package.API_KEY_ENV] = "placeholder"  # pragma: allowlist secret (a stand-in)
+client = package.client
 spec = importlib.util.spec_from_file_location("refresh", "scripts/refresh_reference.py")
 assert spec is not None and spec.loader is not None
 script = importlib.util.module_from_spec(spec)
