@@ -17,16 +17,18 @@ lists what they check in an endpoint.
    payload object, named and typed by conventions §3. A field takes upstream's name in
    snake case and accepts upstream's spelling with `Field(validation_alias=...)`, never
    `Field(alias=...)`, and a time upstream prints is read into the type that keeps
-   everything it sends, with no text beside it. A code field names its codes in
-   `meta.names` by the mark `NamedBy(...)` in its annotation (conventions §4):
+   everything it sends, with no text beside it. A code field marks where its codes' names
+   come from with `NamedBy(...)` in its annotation (conventions §4):
 {% if has_reference_data %}
-   `Annotated[str, NamedBy(REGIONS)]` for the packaged list of step 5 that names them, or
-   `Annotated[int, NamedBy("item")]` for the field in which upstream sends the name. An
-   enumeration written by hand, for a value set upstream documents and no packaged list
-   renders, lives here too, since `enums.py` is generated whole
+   `Annotated[str, NamedBy(REGIONS)]` for the packaged list of step 5, whose names the
+   answer puts in `meta.names`, or `Annotated[int, NamedBy("item")]` for the field in
+   which upstream sends the name, which stands on the record beside its code and takes no
+   entry there. An enumeration written by hand, for a value set upstream documents and no
+   packaged list renders, lives here too, since `enums.py` is generated whole
    (`/refresh-reference-data`), and an offline test reads it against `docs/upstream/`.
 {% else %}
-   `Annotated[int, NamedBy("item")]` for the field in which upstream sends the name. An
+   `Annotated[int, NamedBy("item")]` for the field in which upstream sends the name, which
+   stands on the record beside its code and takes no entry in `meta.names`. An
    enumeration written by hand, for a value set upstream documents, lives here too, and an
    offline test reads it against `docs/upstream/`.
 {% endif %}
@@ -87,7 +89,7 @@ lists what they check in an endpoint.
      before the first request, and `fetch_periods(periods, fetch, skip=...)`; a lower
      ceiling on the MCP server takes `mcp=` and `option=` (conventions §4);
    - a file it downloads: the client's `download`, and `check_dest(dest, source=...)`
-     before the task's first request (conventions §6);
+     before the task's first request (conventions §6){{ ';' if has_reference_data else '.' }}
 {% if has_reference_data %}
    - a code that its answer names: core's decorator `names_codes` with the list's
      declaration of step 5, `@names_codes(region_code=REGIONS)` (conventions §4).
