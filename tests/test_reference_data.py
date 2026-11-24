@@ -136,10 +136,11 @@ def test_add_endpoint_without_reference_data_names_cores_other_helpers(
 
 
 def test_an_update_brings_no_reference_scaffold_back(template_src: Path, tmp_path: Path) -> None:
-    """#40: copier recreates a file under ``_skip_if_exists`` that a source deleted, so a
-    source that deleted the scaffold gets some of it back at an update (copier 9.19.1 the
-    script, whose pattern names no answer). With the answer false, the update leaves all
-    of it out, and so does every later one, which reads the recorded answer."""
+    """#40: a source that deleted the scaffold but kept the answer gets some of it back at an
+    update: copier 9.19.1 leaves the package's deleted files deleted, as
+    ``test_an_update_leaves_a_deleted_stub_deleted`` shows, and renders
+    ``scripts/refresh_reference.py`` again. With the answer false, the update leaves all of
+    it out, and so does every later one, which reads the recorded answer."""
     template = tmp_path / "template"
     shutil.copytree(template_src, template)
     git(template, "init", "-q", "-b", "main")
