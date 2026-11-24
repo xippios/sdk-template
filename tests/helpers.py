@@ -351,11 +351,15 @@ def generate(template_src: Path, dst: Path, **answers: object) -> Path:
     return dst
 
 
-def ruff(dst: Path, command: str, *args: str) -> subprocess.CompletedProcess[str]:
-    """``ruff <command>`` in ``dst``, writing no cache into a render the tests share."""
+def ruff(
+    dst: Path, command: str, *args: str, stdin: str | None = None
+) -> subprocess.CompletedProcess[str]:
+    """``ruff <command>`` in ``dst``, writing no cache into a render the tests share; ``stdin``
+    is the source that ``--stdin-filename`` names, so a check writes no file there."""
     return subprocess.run(
         [sys.executable, "-m", "ruff", command, "--no-cache", *args],
         cwd=dst,
+        input=stdin,
         capture_output=True,
         text=True,
         check=False,
