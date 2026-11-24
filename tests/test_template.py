@@ -329,6 +329,15 @@ def test_add_endpoint_states_one_limiter_per_host(variant: tuple[str, Path]) -> 
     assert "`RateLimit`" not in (dst / "CLAUDE.md").read_text(), name
 
 
+def test_add_endpoint_names_the_layout_a_source_edits(keyed_nested: Path) -> None:
+    """#233, #300: a service's module, where operation ids repeat across services, is laid
+    out in ``docs/layout.md``, the file a source edits, which ``/add-endpoint`` names; no
+    sentence of it places the Layout in ``CLAUDE.md``, which only imports the file."""
+    text = " ".join((keyed_nested / ".claude/commands/add-endpoint.md").read_text().split())
+    assert f"`{LAYOUT_FILE}`" in text
+    assert "Layout in `CLAUDE.md`" not in text
+
+
 def blocks(text: str) -> list[str]:
     """``text`` cut into its paragraphs, list items and numbered steps, whitespace folded."""
     parts = re.split(r"\n\s*\n|\n(?=\s*(?:- |\d+\. ))", text)
