@@ -20,7 +20,7 @@ template/                the tree of the README's What gets generated, in both s
                          answer holds its condition in its name
 scripts/prove.sh         generates one shape from the working tree with copier copy and runs every
                          check on it; --all proves every shape of its list `shapes`, as the
-                         README's Developing the template lists them
+                         README's Developing the template says
 scripts/adr_index.py     writes docs/adr.md and docs/adr.json from the records in docs/adr/; --check
                          fails while either is stale
 tests/                   the template's tests: conftest.py renders each variant once, helpers.py
@@ -54,8 +54,9 @@ pyproject.toml, uv.lock  the development tooling; version names the latest relea
 
 - A render passes its checks out of the box, before an endpoint is added, as the README's
   Generating a source repository says. `scripts/prove.sh --all` is the proof, in every shape
-  that the README's Developing the template lists, on the core that its default `--core-ref`
-  names: run it before every pull request and paste its tail into the description.
+  of its list `shapes`, as the README's Developing the template says, on the core that its
+  default `--core-ref` names: run it before every pull request and paste its tail into the
+  description.
 - The tests render each variant that the README's Developing the template lists once per
   run; a check no answer changes reads one render, and an answer outside the variants, such
   as `has_reference_data: false`, a core pin, a name at its bound or an `import_path`
