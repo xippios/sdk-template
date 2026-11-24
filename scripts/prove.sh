@@ -686,8 +686,9 @@ from xippios.core import TransportError, XippiosError
 from xippios.core.refresh import Listed
 
 package = importlib.import_module(f"{sys.argv[1]}._client")
-if package.API_KEY_ENV:
-    os.environ[package.API_KEY_ENV] = "placeholder"  # pragma: allowlist secret (a stand-in)
+key_env = getattr(package, "API_KEY_ENV", None)
+if key_env:
+    os.environ[key_env] = "placeholder"  # pragma: allowlist secret (a stand-in)
 client = package.client
 spec = importlib.util.spec_from_file_location("refresh", "scripts/refresh_reference.py")
 assert spec is not None and spec.loader is not None

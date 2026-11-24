@@ -43,8 +43,6 @@ DEMO = "demo"
 """The reserved tenant, declared by its own key alone and never listed."""
 {% elif api_key_env %}
 API_KEY_ENV = "{{ api_key_env }}"  # pragma: allowlist secret (a variable name, not a key)
-{% else %}
-API_KEY_ENV: str | None = None
 {% endif %}
 {% set ns = namespace(entries=[]) %}
 {% for var in env_vars %}
@@ -162,7 +160,7 @@ client = AsyncClient(config)
 {% endif %}
 
 __all__ = [
-{% if not tenant_param %}
+{% if api_key_env and not tenant_param %}
     "API_KEY_ENV",
 {% endif %}
     "BASE_URL",

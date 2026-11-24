@@ -245,9 +245,9 @@ fills, `__init__.py`, `_client.py`, `errors.py`, `models.py`, `api/`, `parse/`, 
 {% if has_reference_data %}
 `params.py`, `enums.py`, `reference/`, `scripts/refresh_reference.py`,
 {% endif %}
-`scripts/refresh_upstream.py`, `tests/test_tasks.py`, `tests/test_live.py`,
-`tests/test_built_answers.py`, `tests/fixtures/`, `docs/upstream/`, `docs/adr.md`,
-`docs/adr.json`, `README.md`,
+`scripts/refresh_upstream.py`, `tests/conftest.py`, `tests/test_tasks.py`,
+`tests/test_live.py`, `tests/test_built_answers.py`, `tests/fixtures/`, `docs/upstream/`,
+`docs/adr.md`, `docs/adr.json`, `.secrets.baseline`, `README.md`,
 `CHANGELOG.md` and `CLAUDE.md`. sdk-template's
 [CHANGELOG](https://github.com/xippios/sdk-template/blob/main/CHANGELOG.md) says, per
 release, what to port into those by hand in the same pull request.
@@ -258,11 +258,11 @@ The update writes every other file it renders again, since they are the template
 `mcp_write.py`,
 {% endif %}
 `http.py`, `scripts/adr_index.py`, `scripts/changelog_assemble.py`,
-`scripts/release_prepare.py`, `tests/conftest.py`, `tests/test_family.py`,
+`scripts/release_prepare.py`, `tests/test_family.py`,
 `docs/adr/README.md`, `docs/reports/README.md`, `changelog/README.md`, `.github/`,
 `.claude/`, `pyproject.toml`, `.copier-answers.yml`,
-`.gitattributes`, `.gitignore`, `.pre-commit-config.yaml`, `.python-version`,
-`.secrets.baseline` and `LICENSE`. This package keeps no text of its own in them, the
+`.gitattributes`, `.gitignore`, `.pre-commit-config.yaml`, `.python-version` and
+`LICENSE`. This package keeps no text of its own in them, the
 docstring of `mcp.py` included: its own words go into a file it fills. A line it has to
 add to one, such as a dependency in `pyproject.toml`, the update carries into the new
 render, silently where the release leaves the lines around it alone and as a conflict

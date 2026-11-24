@@ -165,11 +165,16 @@ release of a minor stays green; one that pins another minor of the source fails 
 A variable `WORKFLOW_<NAME>` of `off`, the repository's over the organization's, switches
 off `live.yml` by `WORKFLOW_LIVE`, `siblings.yml` by `WORKFLOW_SIBLINGS` and the two
 checks by `WORKFLOW_CONVENTIONS` and `WORKFLOW_ADR_INDEX`, and a workflow runs where
-neither sets one; `ci.yml` and `publish.yml` take no switch and always run.
+neither sets one; `ci.yml` and `publish.yml` take no switch and always run. The
+render's README says the same of each workflow the render holds, one paragraph each under
+`## Workflows`: what it checks, when it runs, what the calling file hands over and what
+switches it.
 `scripts/refresh_upstream.py`, the capture script `/refresh-upstream` runs, declares the
 source's `Snapshot` as `SNAPSHOT`, which xippios-core's frame `xippios.core.refresh` runs and
 core's family check reads (sdk-core ADR-0046); the frame refuses to run it until the source
-names its pages.
+names its pages, and its first run writes `docs/upstream/FETCHED.md` whole, where the
+render's stub holds its title and one paragraph. The scaffold declares no `reduce`, so
+core's default keeps each page as fetched until the source adds its converter.
 
 ## Updating generated repositories
 
@@ -196,18 +201,21 @@ the changes of that core release that a source's callers see, from the list of s
 holds for it. Files listed under `_skip_if_exists` in `copier.yml` (the
 package `__init__.py`, the client, the package's errors, models, endpoint wrappers, the
 file parsers, the task layer and its write tasks, the packaged lists and enums, reference data, the two
-refresh scripts, the task, live and built-answer tests and the fixtures, upstream snapshot, the ADR
-index, README, CHANGELOG and CLAUDE.md) are never overwritten once they exist, so a
-template fix to one of them does not reach existing repositories by itself; one the
+refresh scripts, the conftest, the task, live and built-answer tests and the fixtures, upstream
+snapshot, the ADR index, the secrets baseline, README, CHANGELOG and CLAUDE.md) are never
+overwritten once they exist, so a template fix to one of them does not reach existing repositories by itself; one the
 template stops rendering, though, is deleted by the update where the repository's earlier
 render had it, the source's content included.
 [CHANGELOG.md](CHANGELOG.md) lists those fixes per release, path, change and reason, in a
 **Hand-apply** list at the section's end or, from 0.3.3, in a `Hand-apply:` note under
 the change's bullet; port each one by hand in the same PR. A new file under those
 patterns is created by the update where the repository has none of that name. Every other
-file is the template's: the commands under `.claude/commands/`, `scripts/adr_index.py`,
-`tests/conftest.py` and `tests/test_family.py` among them are re-rendered, and a source's
-own lines in them are merged three ways, conflicts marked. `pyproject.toml` is one: a
+file is the template's: the commands under `.claude/commands/`, `scripts/adr_index.py` and
+`tests/test_family.py` among them are re-rendered, and a source's own lines in them are
+merged three ways, conflicts marked. From 0.5.0 on `tests/conftest.py` and
+`.secrets.baseline` are the source's, so an update merges no line of the template's into
+the lines a source holds there, and a later change of core's baseline or of the plugin's
+line reaches a source by a Hand-apply note. `pyproject.toml` is one: a
 script the package adds goes under `[project.scripts]` after the servers' entry points, as
 the comment there says, and the update keeps it while the template's lines beside it stay;
 a change of `write_server`, which renames them, marks it as a conflict. A template-owned
