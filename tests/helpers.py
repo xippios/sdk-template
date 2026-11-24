@@ -41,6 +41,13 @@ PUBLISH_STEP = (
 )
 
 
+# The rules no change of a render breaks, in a file of the template's that Claude Code loads
+# at launch by its place, and the layout of what a source adds to the family's tree, the
+# source's own, which the render's CLAUDE.md imports (#300, #233).
+NEVER_FILE = ".claude/rules/never.md"
+LAYOUT_FILE = "docs/layout.md"
+
+
 # The release script and the assembler it loads, the organization's one version of each,
 # which a render carries byte for byte (#247): the template's files, outside the render's
 # ruff as the index script is.

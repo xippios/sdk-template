@@ -359,7 +359,9 @@ _envops:
 # scripts are the template's, and a script of the source's own is never rendered, so no
 # update touches it. The ADR index is the source's, generated from its records by
 # scripts/adr_index.py, which writes it again. tests/conftest.py and .secrets.baseline are
-# the source's from 0.5.0 on, so an update merges no line of the template's into its own.
+# the source's from 0.5.0 on, so an update merges no line of the template's into its own,
+# and so is docs/layout.md, what the source adds to the family's tree, which CLAUDE.md
+# imports; the rules of .claude/rules/never.md are the template's and update with it.
 _skip_if_exists:
   - src/xippios/{{ package_dir }}/__init__.py
   - src/xippios/{{ package_dir }}/_client.py
@@ -382,6 +384,7 @@ _skip_if_exists:
   - docs/upstream/**
   - docs/adr.md
   - docs/adr.json
+  - docs/layout.md
   - .secrets.baseline
   - /README.md
   - CHANGELOG.md

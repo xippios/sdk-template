@@ -9,7 +9,8 @@ three-layer layout, `xippios-core` client and models, MCP server and FastAPI rou
 to the task layer, test harness with the live-test gate and core's family check, CI with
 the required `ci` check, the release train with trusted publishing, the organization's
 checks of a pull request, pre-commit, `docs/adr/` with its index, changelog fragments,
-and, for Claude Code, slash commands and a `CLAUDE.md` of the package's facts and rules.
+and, for Claude Code, slash commands, a `CLAUDE.md` of the package's facts that imports its
+layout, `docs/layout.md`, and the rules no change breaks, `.claude/rules/never.md`.
 The documents a change of the template follows are listed under [Documents](#documents).
 
 ## Generating a source repository
@@ -85,33 +86,68 @@ organization secret whose repository access takes the new repository, never set 
 
 ```
 sdk-<slug>/
-  src/xippios/<import path as dirs>/   __init__, py.typed, _version, _client, errors, models,
-                       tasks, api/, mcp, http; parse/ where has_files;
-                       params, enums and reference/ where has_reference_data;
-                       tasks_write and mcp_write where write_server
-  tests/               conftest, test_family, test_tasks, test_live, test_built_answers;
-                       fixtures/files/README.md, the samples' provenance table, where has_files
-  scripts/             refresh_upstream.py (the snapshot, on core's frame), adr_index.py
-                       (writes and checks the ADR index), release_prepare.py and
-                       changelog_assemble.py
-                       (prepare a release, /release-prep);
-                       refresh_reference.py where has_reference_data
-  docs/upstream/       FETCHED.md
-  docs/adr/            README.md: the decision records; docs/adr.md and docs/adr.json, their index
-  docs/reports/        README.md: the dated reports a decision cites
+  src/xippios/<import path as directories>/   the package; each level above it a namespace
+    __init__.py        the public surface: __version__ and the re-exported task functions
+    py.typed           the PEP 561 marker, which a caller's mypy --strict needs
+    _version.py        __version__ from the distribution's metadata
+    _client.py         the configured AsyncClient with its base URL, auth and pace, ENV_VARS,
+                       and classify, upstream's documented error shapes; where tenant_param,
+                       the tenants' registry TENANTS, a client per tenant by client_for
+    errors.py          the package's own error classes, where conventions §5 calls for one
+    models.py          pydantic models of upstream's payloads (UpstreamModel), and a value set
+                       written by hand that no packaged list renders
+    api/__init__.py    the endpoint wrappers, one module per upstream operation (conventions §2)
+    parse/__init__.py  where has_files: the file parsers, one module per file kind
+    tasks.py           the task functions: __all__ is what the adapters serve, BULK_TASKS the
+                       Python-only ones, MCP_CAPS the per-tool result caps
+    mcp.py             the MCP server's entry point: build() the tool set, server
+    http.py            the FastAPI router over the same tasks
+    tasks_write.py     where write_server: the write tasks, each confirm-gated
+    mcp_write.py       where write_server: the write server's entry point, mcp.py then the
+                       read server's
+    params.py          where has_reference_data: the packaged lists, read from the files
+    enums.py           where has_reference_data: StrEnums generated from those lists
+    reference/README.md  where has_reference_data: the lists' files and their provenance
+  tests/
+    conftest.py        enables core's plugin, which keeps a run offline; where tenant_param,
+                       the strip of every tenant but the reserved one
+    test_family.py     core's family check, one line
+    test_built_answers.py  core's check of a built answer's mark
+    test_tasks.py      the replay test of each task, from its recorded fixtures
+    test_live.py       the live smoke test of each task, marked live
+    fixtures/files/README.md  where has_files: the samples' provenance table
+  scripts/
+    refresh_upstream.py    declares SNAPSHOT, the source's pages, which core's frame
+                           xippios.core.refresh fetches into docs/upstream/ (/refresh-upstream)
+    refresh_reference.py   where has_reference_data: fetches the packaged lists through api/
+                           and writes their StrEnums again
+    adr_index.py           writes docs/adr.md and docs/adr.json from the records; --check
+    release_prepare.py     prepares a release (/release-prep): its CHANGELOG section and the
+                           version in pyproject.toml and uv.lock
+    changelog_assemble.py  writes a release's CHANGELOG section from changelog/ and removes
+                           the fragments; --notes prints the next section and writes nothing
+  docs/upstream/       FETCHED.md, the list of the snapshot that core's frame writes
+  docs/adr/README.md   the decision records, laid out; docs/adr.md and docs/adr.json, their
+                       index, which scripts/adr_index.py writes
+  docs/reports/README.md  the dated reports a decision cites, laid out
+  docs/layout.md       the source's own: what it adds to this tree, which CLAUDE.md imports
   .claude/commands/    add-endpoint, record-fixture, refresh-upstream, release-prep,
                        refresh-reference-data where has_reference_data
-  .claude/settings.json  .github/workflows/{ci,publish,live,conventions,adr-index}.yml
+  .claude/rules/never.md  the rules no change breaks, which Claude Code loads by its place
+  .claude/settings.json   what Claude Code may run in the repository: its checks and local git
+  .github/workflows/   ci.yml, publish.yml, live.yml, conventions.yml and adr-index.yml;
+                       siblings.yml where the import path nests or the source declares a
+                       dependency, with .github/scripts/check-siblings.sh, which it runs
   .github/PULL_REQUEST_TEMPLATE.md
   .github/CODEOWNERS   the paths that steer the repository, each owned by the human, jdidaskalu
-  CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
+  CLAUDE.md            what the package wraps, its commands and what only it knows
+  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .copier-answers.yml  .python-version
+  .pre-commit-config.yaml  .secrets.baseline
   changelog/README.md  the changelog fragments: one file per change, assembled at the release
   .gitattributes       docs/upstream/** -text, and tests/fixtures/files/** -text where has_files,
                        so upstream files and the samples keep their bytes and line endings
   .gitignore           caches, builds, local env files, copier's leftovers and .local/, the
                        operator's own files
-  .github/workflows/siblings.yml  .github/scripts/check-siblings.sh   where the import path nests
-                       or the source declares a dependency
 ```
 
 The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit`
@@ -202,7 +238,7 @@ holds for it. Files listed under `_skip_if_exists` in `copier.yml` (the
 package `__init__.py`, the client, the package's errors, models, endpoint wrappers, the
 file parsers, the task layer and its write tasks, the packaged lists and enums, reference data, the two
 refresh scripts, the conftest, the task, live and built-answer tests and the fixtures, upstream
-snapshot, the ADR index, the secrets baseline, README, CHANGELOG and CLAUDE.md) are never
+snapshot, the ADR index, the layout, the secrets baseline, README, CHANGELOG and CLAUDE.md) are never
 overwritten once they exist, so a template fix to one of them does not reach existing repositories by itself; one the
 template stops rendering, though, is deleted by the update where the repository's earlier
 render had it, the source's content included.
@@ -210,12 +246,15 @@ render had it, the source's content included.
 **Hand-apply** list at the section's end or, from 0.3.3, in a `Hand-apply:` note under
 the change's bullet; port each one by hand in the same PR. A new file under those
 patterns is created by the update where the repository has none of that name. Every other
-file is the template's: the commands under `.claude/commands/`, `scripts/adr_index.py` and
-`tests/test_family.py` among them are re-rendered, and a source's own lines in them are
+file is the template's: the commands under `.claude/commands/`, the rules of
+`.claude/rules/never.md`, `scripts/adr_index.py` and `tests/test_family.py` among them are
+re-rendered, and a source's own lines in them are
 merged three ways, conflicts marked. From 0.5.0 on `tests/conftest.py` and
 `.secrets.baseline` are the source's, so an update merges no line of the template's into
 the lines a source holds there, and a later change of core's baseline or of the plugin's
-line reaches a source by a Hand-apply note. `pyproject.toml` is one: a
+line reaches a source by a Hand-apply note. From 0.5.0 on, too, the update writes
+`.claude/rules/never.md` at every release and creates `docs/layout.md` where the repository
+has none, which the source then fills by hand. `pyproject.toml` is one: a
 script the package adds goes under `[project.scripts]` after the servers' entry points, as
 the comment there says, and the update keeps it while the template's lines beside it stay;
 a change of `write_server`, which renames them, marks it as a conflict. A template-owned
