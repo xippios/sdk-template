@@ -12,9 +12,8 @@ list's row of the provenance table in ``reference/README.md`` and ``enums.py``, 
 ``render_enums`` call formatted by ``ruff format`` and ``ruff check --fix``
 (sdk-core ADR-0031), as one: a run that fails writes nothing and is run again.
 
-Only lists that are the same for every caller are packaged; a multi-tenant source
-packages no tenant data (sdk-core ADR-0036). Run from the repository root, with whatever
-the list endpoints need in the environment (a key only where they take one)::
+Only lists that are the same for every caller are packaged. Run from the repository root,
+with whatever the list endpoints need in the environment (a key only where they take one)::
 
     uv run python scripts/refresh_reference.py                     # fetch every list
     uv run python scripts/refresh_reference.py --only commodities  # one list, the rest kept
@@ -24,21 +23,11 @@ the list endpoints need in the environment (a key only where they take one)::
 adoption does after a core release changes the renderer (conventions §15, item 6).
 """
 
-{% if tenant_param %}
-import sys
-{% endif %}
 from collections.abc import Sequence
 
-{% if tenant_param %}
-from xippios.core import AsyncClient
-{% endif %}
 from xippios.core.refresh import Listed, run
 
-{% if tenant_param %}
-from xippios.{{ import_path }}._client import DEMO, client_for, config
-{% else %}
 from xippios.{{ import_path }}._client import client
-{% endif %}
 from xippios.{{ import_path }}.params import PACKAGE, PACKAGED_LISTS
 
 QUOTA_HEADER: str | None = "x-ratelimit-remaining"
@@ -69,45 +58,16 @@ LISTS: tuple[Listed, ...] = (
 )
 """The packaged lists, one ``Listed`` each: its fetch, its upstream operation, its enum, if
 any, and its ``origin`` where the provenance row names more than that operation."""
-{% if tenant_param %}
-
-
-def fetches(arguments: Sequence[str]) -> bool:
-    """Whether a run of ``arguments`` fetches the lists.
-
-    A run that asks for ``--render-only`` or ``--help`` fetches nothing, by ``-h`` or by
-    any prefix of either long option that core's parser takes, ``--render`` or ``--he``.
-    """
-    return not any(
-        argument == "-h" or (len(argument) > 2 and option.startswith(argument))
-        for argument in arguments
-        for option in ("--render-only", "--help")
-    )
-{% endif %}
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run core's frame on ``LISTS``: every list, some with ``--only``, or ``--render-only``."""
-{% if tenant_param %}
-    # Reference data is the same for every tenant: fetched through the reserved one's
-    # client, the one the fetches send through. A run that fetches nothing, --render-only
-    # or --help, needs none of its variables, so it gets a client of no tenant, unused.
-    arguments = sys.argv[1:] if argv is None else list(argv)
-{% endif %}
     return run(
         LISTS,
-{% if tenant_param %}
-        arguments,
-{% else %}
         argv,
-{% endif %}
         package=PACKAGE,
         packaged=PACKAGED_LISTS,
-{% if tenant_param %}
-        client=client_for(DEMO) if fetches(arguments) else AsyncClient(config),
-{% else %}
         client=client,
-{% endif %}
         quota_header=QUOTA_HEADER,
     )
 

@@ -19,16 +19,6 @@ environment declares, and ``client_for`` returns that tenant's own client, with 
 
 import httpx
 {% set names = ['AsyncClient', 'ClientConfig', 'EnvVar', 'RateLimit', 'XippiosError'] %}
-{% if gateway == 'api.data.gov' %}
-{% elif api_key_env and api_key_location == 'query' %}
-{% set names = names + ['QueryKeyAuth'] %}
-{% elif api_key_env and api_key_location == 'header' %}
-{% set names = names + ['HeaderKeyAuth'] %}
-{% elif api_key_env and api_key_location == 'bearer' %}
-{% set names = names + ['BearerAuth'] %}
-{% elif api_key_env and api_key_location == 'basic' %}
-{% set names = names + ['BasicKeyAuth'] %}
-{% endif %}
 {% if tenant_param %}
 {% set names = names + ['Tenants'] %}
 {% endif %}
@@ -49,7 +39,9 @@ from xippios.core.data_gov import Gateway
 from xippios.{{ import_path }}._version import __version__
 
 SOURCE = "{{ source_slug }}"
-BASE_URL = "{{ api_base_url }}"
+BASE_URL = "https://example.invalid"
+"""The URL that request paths join onto, usually not the provider page: the source's first pull
+request sets it from upstream's documentation, in place of this host that never resolves."""
 {% if tenant_param %}
 DEMO = "demo"
 """The reserved tenant, declared by its own {{ credential }} alone and never listed."""
@@ -81,15 +73,11 @@ ENV_VARS: tuple[EnvVar, ...] = ()
 """The variables the package reads, for a host (conventions §7; sdk-core ADR-0026, amendment
 2026-11-18, point c). An ``EnvVar`` names a variable and reads none; a variable the source reads
 beside these joins the list."""
-{% if rate_limit_provenance == 'self-imposed' %}
-# A self-imposed pace: upstream documents no per-second or per-minute limit (sdk-core ADR-0033
-# decision 1).
-{% elif rate_limit_provenance == 'below-documented' %}
-# Paced under the limit upstream documents; CLAUDE.md gives both (sdk-core ADR-0033 decision 1).
-{% else %}
-# Paced within the limit upstream documents (sdk-core ADR-0033 decision 1).
-{% endif %}
-RATE_LIMIT = RateLimit(per_minute={{ rate_limit_per_minute }}, burst={{ rate_limit_burst }})
+RATE_LIMIT = RateLimit(per_minute=60, burst=1)
+"""The pace, enforced client-side: the source's first pull request sets it from upstream's
+documentation, within its per-second or per-minute limit, under it on evidence or, where it
+documents neither, self-imposed, with a burst of 1 unless upstream documents one, and says
+which here and in CLAUDE.md (sdk-core ADR-0033 decision 1)."""
 {% if gateway == 'api.data.gov' %}
 
 # api.data.gov's key, its documented answers and its hourly quota, kept by one policy per
@@ -152,24 +140,20 @@ config = ClientConfig(
 {% endif %}
 
 {% if tenant_param and api_key_env %}
-{% if api_key_location == 'query' %}
-{% set auth_call = 'QueryKeyAuth("' ~ api_key_name ~ '", TENANTS.var(name, "API_KEY"), source=SOURCE)' %}
-{% elif api_key_location == 'header' %}
-{% set auth_call = 'HeaderKeyAuth("' ~ api_key_name ~ '", TENANTS.var(name, "API_KEY"), source=SOURCE)' %}
-{% elif api_key_location == 'bearer' %}
-{% set auth_call = 'BearerAuth(TENANTS.var(name, "API_KEY"), source=SOURCE)' %}
-{% else %}
-{% set auth_call = 'BasicKeyAuth(TENANTS.var(name, "API_KEY"), source=SOURCE)' %}
-{% endif %}
 
 def _build(name: str) -> AsyncClient:
-    """Tenant ``name``'s own client, its key read from the environment on its first request.
+    """Tenant ``name``'s own client, with the auth that reads its key.
 
     Every tenant's client has its own rate limiter; ``config`` holds no cache, so the
     clients share settings alone.
     """
-    auth = {{ auth_call }}
-    return AsyncClient(config, auth=auth)
+    # The source's first pull request passes the auth that upstream documents, core's
+    # QueryKeyAuth, HeaderKeyAuth, BearerAuth or BasicKeyAuth on the tenant's key, which it
+    # reads on the first request, never at import (conventions §6, §7), for example:
+    #
+    # auth = BasicKeyAuth(TENANTS.var(name, "API_KEY"), source=SOURCE)
+    # return AsyncClient(config, auth=auth)
+    return AsyncClient(config)
 {% endif %}
 {% if tenant_param and not api_key_env %}
 
@@ -211,20 +195,18 @@ def check_{{ tenant_param }}({{ tenant_param }}: str) -> None:
     """
     TENANTS.field({{ tenant_param }}, "{{ tenant_field }}")
 
-{% elif api_key_env %}
+{% elif gateway == 'api.data.gov' %}
 # The key is read from the environment on the first request, never at import.
-{% if gateway == 'api.data.gov' %}
 auth = gateway.auth
-{% elif api_key_location == 'query' %}
-auth = QueryKeyAuth("{{ api_key_name }}", API_KEY_ENV, source=SOURCE)
-{% elif api_key_location == 'header' %}
-auth = HeaderKeyAuth("{{ api_key_name }}", API_KEY_ENV, source=SOURCE)
-{% elif api_key_location == 'bearer' %}
-auth = BearerAuth(API_KEY_ENV, source=SOURCE)
-{% elif api_key_location == 'basic' %}
-auth = BasicKeyAuth(API_KEY_ENV, source=SOURCE)
-{% endif %}
 client = AsyncClient(config, auth=auth)
+{% elif api_key_env %}
+# The source's first pull request passes the auth that upstream documents, core's
+# QueryKeyAuth, HeaderKeyAuth, BearerAuth or BasicKeyAuth on API_KEY_ENV, which it reads on
+# the first request, never at import (conventions §6), and exports it, for example:
+#
+# auth = QueryKeyAuth("<parameter>", API_KEY_ENV, source=SOURCE)
+# client = AsyncClient(config, auth=auth)
+client = AsyncClient(config)
 {% else %}
 client = AsyncClient(config)
 {% endif %}
@@ -242,7 +224,7 @@ __all__ = [
     "SOURCE",
 {% if tenant_param %}
     "TENANTS",
-{% elif api_key_env %}
+{% elif gateway == 'api.data.gov' %}
     "auth",
 {% endif %}
 {% if tenant_param %}

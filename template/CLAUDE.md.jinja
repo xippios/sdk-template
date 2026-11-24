@@ -13,16 +13,16 @@ follows, sdk-core's conventions among them, are listed under
 | | |
 | --- | --- |
 | Upstream | {{ source_name }}, {{ upstream_url }} |
-| API base URL | `{{ api_base_url }}` |
+| API base URL | <!-- the URL that request paths join onto, `BASE_URL` in `_client.py`, and the page of upstream's documentation that states it --> |
 | Documentation | {{ upstream_docs_url }}, snapshotted in `docs/upstream/`; an OpenAPI or Swagger document a page names is kept beside it, its URL in `SPEC_URL` of `scripts/refresh_upstream.py` (`/refresh-upstream`) |
 {% if api_key_env %}
-| Credentials | {% if tenant_param %}per {{ tenant_param }}, `{{ tenant_prefix }}_<NAME>_API_KEY`{% else %}`{{ api_key_env }}`{% endif %} from the environment, sent {% if api_key_location == 'query' %}as the `{{ api_key_name }}` query parameter{% elif api_key_location == 'header' %}as the `{{ api_key_name }}` header{% elif api_key_location == 'bearer' %}as a bearer token{% elif api_key_location == 'basic' %}as the HTTP basic user name, with no password{% endif %}{% if gateway == 'api.data.gov' %} by `xippios.core.data_gov`'s `Gateway`; the key is api.data.gov's, shared by every package that reads it (sdk-core ADR-0032){% endif %} |
+| Credentials | {% if tenant_param %}per {{ tenant_param }}, `{{ tenant_prefix }}_<NAME>_API_KEY`{% else %}`{{ api_key_env }}`{% endif %} from the environment, sent {% if gateway == 'api.data.gov' %}in the `X-Api-Key` header by `xippios.core.data_gov`'s `Gateway`; the key is api.data.gov's, shared by every package that reads it (sdk-core ADR-0032){% else %}<!-- how upstream takes it, the auth `_client.py` passes: a query parameter or a header and its name, a bearer token or the HTTP basic user name -->{% endif %} |
 {% elif tenant_param %}
 | Credentials | per {{ tenant_param }}, `{{ tenant_credential_env }}` from the environment, read by the source's own auth in `_client.py`, which `_build` passes to each {{ tenant_param }}'s client <!-- what the credential is, how upstream issues it and how the auth sends it --> |
 {% else %}
 | Credentials | none; the API is open |
 {% endif %}
-| Rate limit | {{ rate_limit_per_minute }} requests per minute, burst {{ rate_limit_burst }}; {% if rate_limit_provenance == 'self-imposed' %}a self-imposed pace: upstream documents no per-second or per-minute limit{% elif rate_limit_provenance == 'below-documented' %}set under the limit upstream documents <!-- name that limit, in upstream's own unit, and why the pace is set under it -->{% else %}within the limit documented by upstream{% endif %} (sdk-core ADR-0033); enforced client-side in `_client.py`{% if gateway == 'api.data.gov' %}. The hourly quota is the gateway's, shared by every package on the key: one `QuotaPolicy` per process, `Gateway.policy`, which once the quota is spent waits within the policy's cap or refuses before sending (sdk-core ADR-0032, sdk-core ADR-0037){% else %} <!-- name here an hourly or daily quota upstream documents, if any, and the QuotaPolicy that keeps it (sdk-core ADR-0037) -->{% endif %} |
+| Rate limit | <!-- the requests per minute and the burst of `RATE_LIMIT` in `_client.py`, and where the pace comes from: within the limit upstream documents, set under it, that limit named in upstream's own unit with why, or self-imposed, where upstream documents no per-second or per-minute limit --> (sdk-core ADR-0033); enforced client-side in `_client.py`{% if gateway == 'api.data.gov' %}. The hourly quota is the gateway's, shared by every package on the key: one `QuotaPolicy` per process, `Gateway.policy`, which once the quota is spent waits within the policy's cap or refuses before sending (sdk-core ADR-0032, sdk-core ADR-0037){% else %} <!-- name here an hourly or daily quota upstream documents, if any, and the QuotaPolicy that keeps it (sdk-core ADR-0037) -->{% endif %} |
 {% if write_server %}
 | Write tools | yes: `tasks_write.py`, each taking `confirm: bool = False` and previewing its change without it, served by `xippios-{{ source_slug }}-mcp-write` alone and never as a route (conventions §8) |
 {% else %}
@@ -122,13 +122,10 @@ CHANGELOG.md       the releases, each section assembled from the fragments
                    tests), conventions.yml (the organization's review of a pull request
                    against the documents the README lists, from xippios/.github),
                    adr-index.yml (the organization's check that docs/adr.md and docs/adr.json
-                   are what scripts/adr_index.py writes){{ ',' if '.' in import_path or depends_on else '' }}
+                   are what scripts/adr_index.py writes){{ ',' if '.' in import_path else '' }}
 {% if '.' in import_path %}
                    siblings.yml (the sibling proof of sdk-core ADR-0006: this wheel beside the
                    siblings under xippios.{{ import_path.rsplit('.', 1)[0] }}{{ ' and the source packages it depends on (sdk-core ADR-0021)' if depends_on else '' }}, a visible check the ruleset does not require)
-{% elif depends_on %}
-                   siblings.yml (this wheel beside the source packages it depends on,
-                   sdk-core ADR-0021, a visible check the ruleset does not require)
 {% endif %}
 {% if '.' in import_path or depends_on %}
 .github/scripts/   check-siblings.sh, which siblings.yml runs; the template's, as is the workflow

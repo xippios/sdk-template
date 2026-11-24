@@ -31,6 +31,7 @@ from helpers import (
     DATA_GOV,
     FAKE_CORE_SHA,
     FETCH_DEPTH,
+    KEY_AUTHS,
     LIST_HELPERS,
     PINNED,
     PUBLISH_STEP,
@@ -48,6 +49,7 @@ from helpers import (
     generate,
     git,
     has_files,
+    has_reference_data,
     key_answers,
     key_envs,
     keyed,
@@ -153,7 +155,8 @@ def test_layout(variant: tuple[str, Path]) -> None:
     answers = VARIANTS[name]
     pkg = package_dir(answers)
     for rel in [*(f"src/xippios/{pkg}/{part}" for part in PACKAGE_FILES), *REPOSITORY_FILES]:
-        assert (dst / rel).is_file(), rel
+        if has_reference_data(answers) or not re.search(r"params|enums|reference", rel):
+            assert (dst / rel).is_file(), rel
     for rel in REMOVED_FILES:
         if not (write_server(answers) and rel in WRITE_SERVER_FILES):
             assert not (dst / rel.format(pkg=pkg)).exists(), rel
@@ -188,15 +191,7 @@ def test_answers_file_round_trips(variant: tuple[str, Path]) -> None:
     assert answers["source_slug"] == expected["source_slug"]
     assert answers["import_path"] == package_dir(expected).replace("/", ".")
     assert answers["gateway"] == gateway_of(expected), "recorded, the default included"
-    key = key_answers(expected)
-    assert answers["api_key_env"] == key["api_key_env"]
-    if key["api_key_env"]:
-        assert answers["api_key_location"] == key["api_key_location"]
-        if key["api_key_location"] in ("query", "header"):
-            assert answers["api_key_name"] == key.get("api_key_name", "key")
-    else:
-        assert "api_key_location" not in answers, "not asked without a key"
-        assert "api_key_name" not in answers
+    assert answers["api_key_env"] == key_answers(expected)["api_key_env"]
     assert answers["source_dependencies"] == expected.get("source_dependencies", "[]")
     assert yaml.safe_load(answers["source_dependencies"]) == dependencies(expected)
     assert answers["live_secrets"] == expected.get("live_secrets", "[]"), "the default included"
@@ -206,7 +201,7 @@ def test_answers_file_round_trips(variant: tuple[str, Path]) -> None:
     computed = ["package_dir", "tool_prefix", "live_schedule", "depends_on", "key_envs"]
     for derived in [*computed, "live_secret_names"]:
         assert derived not in answers, f"{derived}: derived, never recorded"
-    for gone in ["source_pkg", "domain_topic", "needs_write_tools"]:
+    for gone in ["source_pkg", "domain_topic", "needs_write_tools", *CLIENT_ANSWERS]:
         assert gone not in answers, f"{gone}: no question asks it"
 
 
@@ -272,22 +267,74 @@ def test_the_plugin_sends_the_placeholder_unless_live(variant: tuple[str, Path])
     assert "placeholder" not in (dst / "tests/test_tasks.py").read_text()
 
 
-def test_rate_limit_renders_pace_burst_and_provenance(variant: tuple[str, Path]) -> None:
-    """sdk-core ADR-0033 decision 1: the pace and the burst in the client and in the facts, and
-    where the pace comes from; a quota's policy pointed at (sdk-core ADR-0037), but behind the
-    gateway, whose policy is core's (sdk-core ADR-0032)."""
+# The six answers that acted at generation alone, read by the scaffold's _client.py and
+# CLAUDE.md, which no update renders again: a new source's first pull request fills the base
+# URL, the auth and the pace, as it fills tasks.py (#301).
+CLIENT_ANSWERS = [
+    "api_base_url",
+    "api_key_location",
+    "api_key_name",
+    "rate_limit_per_minute",
+    "rate_limit_burst",
+    "rate_limit_provenance",
+]
+# The scaffold's stand-ins in the place the source fills: a host that never resolves
+# (RFC 6761), and the pace and burst that the questions took by default.
+PLACEHOLDER_BASE_URL = 'BASE_URL = "https://example.invalid"\n'
+PLACEHOLDER_PACE = "RATE_LIMIT = RateLimit(per_minute=60, burst=1)\n"
+
+
+def test_no_question_asks_what_the_client_fills() -> None:
+    """#301: no question asks the base URL, how the key is sent or the pace, nor a host, so
+    a second host stays a constant of the source's own ``_client.py`` (#172)."""
+    questions = [name for name in QUESTIONS if not name.startswith("_")]
+    assert [name for name in CLIENT_ANSWERS if name in questions] == []
+    hosts = [name for name in questions if "host" in name or ("url" in name and "base" in name)]
+    assert hosts == []
+
+
+def test_the_client_leaves_base_url_and_pace_to_the_source(variant: tuple[str, Path]) -> None:
+    """#301, sdk-core ADR-0033 decision 1: the scaffold's ``_client.py`` holds a stand-in for
+    the base URL and the pace, which the source's first pull request sets, and the facts of
+    ``CLAUDE.md`` leave the base URL and the pace, with where it comes from, a comment each
+    to fill; a quota's policy pointed at (sdk-core ADR-0037), but behind the gateway, whose
+    policy is core's (sdk-core ADR-0032)."""
     name, dst = variant
-    answers = {**BASE_ANSWERS, **VARIANTS[name]}
-    per_minute, burst = answers["rate_limit_per_minute"], answers.get("rate_limit_burst", 1)
-    self_imposed = answers.get("rate_limit_provenance") == "self-imposed"
+    answers = VARIANTS[name]
     client = (dst / f"src/xippios/{package_dir(answers)}/_client.py").read_text()
-    assert f"RATE_LIMIT = RateLimit(per_minute={per_minute}, burst={burst})" in client
+    assert PLACEHOLDER_BASE_URL in client
+    assert PLACEHOLDER_PACE in client
     assert ("QuotaPolicy" in client) is (gateway_of(answers) == "none"), "the gateway's own"
-    assert ("self-imposed" in client) is self_imposed
     claude = (dst / "CLAUDE.md").read_text().splitlines()
-    (row,) = [line for line in claude if line.startswith("| Rate limit | ")]
-    assert row.startswith(f"| Rate limit | {per_minute} requests per minute, burst {burst}; ")
-    assert ("self-imposed" in row) is self_imposed
+    for fact in ["API base URL", "Rate limit"]:
+        (row,) = [line for line in claude if line.startswith(f"| {fact} | ")]
+        assert row.startswith(f"| {fact} | <!-- "), row
+
+
+def test_claude_md_and_add_endpoint_state_one_limiter_per_host(variant: tuple[str, Path]) -> None:
+    """#172, conventions §2 and §6: the rendered ``CLAUDE.md`` and ``/add-endpoint`` each
+    state the rule in one paragraph, the one that names ``RateLimit``: it names
+    ``_client.py``, where a second host's client and pace go, ``classify``, whose path
+    checks name a second base on the first host, and ``docs/upstream/``, which names a
+    mirror's host beside its canonical one; ``/add-endpoint``'s names ``CLAUDE.md``, where
+    the host's row goes."""
+    name, dst = variant
+    for rel, names in [
+        ("CLAUDE.md", ["`_client.py`", "`classify`", "`docs/upstream/`"]),
+        (
+            ".claude/commands/add-endpoint.md",
+            ["`_client.py`", "`classify`", "`docs/upstream/`", "`CLAUDE.md`"],
+        ),
+    ]:
+        (rule,) = [block for block in blocks((dst / rel).read_text()) if "`RateLimit`" in block]
+        for named in ["conventions §2", "§6", *names]:
+            assert named in rule, f"{name}: {rel}: {named}"
+
+
+def blocks(text: str) -> list[str]:
+    """``text`` cut into its paragraphs, list items and numbered steps, whitespace folded."""
+    parts = re.split(r"\n\s*\n|\n(?=\s*(?:- |\d+\. ))", text)
+    return [" ".join(part.split()) for part in parts]
 
 
 def test_client_exports_one_sorted_name_per_line(variant: tuple[str, Path]) -> None:
@@ -326,7 +373,7 @@ def test_the_gateway_answer_renders_cores_gateway(variant: tuple[str, Path]) -> 
     (rate,) = [line for line in claude if line.startswith("| Rate limit | ")]
     assert ("`Gateway`" in credentials) is behind
     assert ("`Gateway.policy`" in rate) is behind
-    assert ("<!-- " in rate) is not behind, "a quota to name where no gateway keeps it"
+    assert rate.count("<!-- ") == (1 if behind else 2), "a quota to name, but the gateway's"
     live = (dst / ".github/workflows/live.yml").read_text()
     assert (DATA_GOV in live) is behind
     readme = (dst / "README.md").read_text()
@@ -474,7 +521,19 @@ def test_a_flat_source_with_a_dependency_has_the_sibling_check(
     answers = {**VARIANTS["keyless-flat"], "source_dependencies": DEPENDS_ON_BASE}
     dst = generate(template_src, tmp_path / "repo", **answers)
     assert_the_sibling_check(dst, package_dir(answers))
-    assert "siblings.yml" in (dst / "CLAUDE.md").read_text()
+    claude = (dst / "CLAUDE.md").read_text()
+    assert "siblings.yml" in claude, "the line of .github/scripts/ names it"
+    layout = claude.split("\n## Layout\n", 1)[1].split("```", 2)[1].splitlines()
+    start = next(i for i, line in enumerate(layout) if line.startswith(".github/workflows/"))
+    workflows = [layout[start]]
+    for line in layout[start + 1 :]:
+        if not line.startswith(" "):
+            break
+        workflows.append(line)
+    assert [line for line in workflows if "siblings.yml" in line] == [], (
+        "a shape no source takes: the source writes its own entry (#301)"
+    )
+    assert workflows[-1].endswith(")"), "the list closes on its last workflow"
 
 
 DEPENDS_ON_BASE = '[{name: example-base, minor: "0.3", key_env: ""}]'
@@ -1370,7 +1429,8 @@ def test_ci_reads_the_pull_request_and_runs_once_on_main(keyed_nested: Path) -> 
     assert changelog["name"] == "The changelog has an entry"
     assert changelog["if"] == CHANGELOG_STEP_RUNS, "Dependabot's branch alone (#136)"
     assert cap["name"] == "Fixture files under 256 KiB"
-    assert cap["env"]["LEVEL"] == "error", "the cap binds a source from v0.3.0 (sdk-core ADR-0040)"
+    assert cap["env"] == {"BASE": "${{ github.base_ref }}"}, "no LEVEL: an error since v0.3.0"
+    assert "::error file=" in cap["run"], "the cap binds a source (sdk-core ADR-0040)"
     assert "git diff -z --name-only --find-renames=100% --diff-filter=AM" in cap["run"]
     assert "--no-renames" not in cap["run"], "a pure move adds and changes no fixture"
     assert "262144" in cap["run"]
@@ -1591,13 +1651,14 @@ def test_release_prep_names_what_its_rows_add(variant: tuple[str, Path]) -> None
     of its own while its records stay unchanged, ``fetched`` aside (#39); the live run over
     the release's base (#73); ``docs/handover.md`` only as sdk-core's file, which no render
     has (#75); and the update that takes a template release, in a file every source gets
-    from the template (#120)."""
-    _, dst = variant
+    from the template (#120). A render without reference data, a multi-tenant one (#301),
+    names no refresh."""
+    name, dst = variant
     text = " ".join((dst / ".claude/commands/release-prep.md").read_text().split())
     project = tomllib.loads((dst / "pyproject.toml").read_text())["project"]["name"]
     assert f"project name `{project}`" in text, "#72"
-    for name in ["`/refresh-reference-data`", "`fetched`"]:
-        assert name in text, f"#39: {name}"
+    for named in ["`/refresh-reference-data`", "`fetched`"]:
+        assert (named in text) is has_reference_data(VARIANTS[name]), f"#39: {named}"
     assert "`live.yml`" in text, "#73"
     (local,) = [s for s in re.split(r"(?<=[.:;])\s", text) if "pytest -m live --tb=short" in s]
     assert 0 <= local.find("dispatch") < local.find("pytest -m live"), f"#73: {local}"
@@ -1708,6 +1769,13 @@ RENDERED_COMMANDS = [
 COMMAND_NAMED = re.compile(r"`/([a-z]+(?:-[a-z]+)*)[` ]")
 
 
+def commands_of(answers: dict[str, object]) -> list[str]:
+    """The commands a variant renders: all of them, ``/refresh-reference-data`` where it
+    packages reference data."""
+    listed = has_reference_data(answers)
+    return [name for name in RENDERED_COMMANDS if listed or name != "refresh-reference-data"]
+
+
 def layout_commands(text: str) -> list[str]:
     """The commands a layout lists after ``.claude/commands/``, a trailing comma carrying
     the list onto the next line."""
@@ -1729,14 +1797,17 @@ def test_every_command_points_at_the_process(keyless_flat: Path) -> None:
 
 def test_a_render_names_only_the_commands_it_has(variant: tuple[str, Path]) -> None:
     """#120: every ``/<command>`` a render's files name is one it has, and its
-    ``CLAUDE.md`` lists them all in its layout, so a retired command leaves no mention."""
-    _, dst = variant
+    ``CLAUDE.md`` lists them all in its layout, so a retired command leaves no mention;
+    a render without reference data, a multi-tenant one (#301), has no
+    ``/refresh-reference-data``."""
+    name, dst = variant
+    rendered = commands_of(VARIANTS[name])
     named: set[str] = set()
     for path in dst.rglob("*"):
         if path.is_file() and path.suffix in TEXT_SUFFIXES:
             named |= set(COMMAND_NAMED.findall(path.read_text()))
-    assert named <= set(RENDERED_COMMANDS), named - set(RENDERED_COMMANDS)
-    assert sorted(layout_commands((dst / "CLAUDE.md").read_text())) == RENDERED_COMMANDS
+    assert named <= set(rendered), named - set(rendered)
+    assert sorted(layout_commands((dst / "CLAUDE.md").read_text())) == rendered
 
 
 def test_the_templates_own_files_list_the_rendered_commands() -> None:
@@ -1810,9 +1881,10 @@ LANDING = re.compile(
 def test_the_commands_on_a_source_say_no_way_a_change_lands(variant: tuple[str, Path]) -> None:
     """No line of the four commands names a branch, the GitHub CLI, a merge, the definition
     of done as a body to copy, or anything outside the repository, in every render."""
-    _, dst = variant
+    name, dst = variant
     found = []
-    for command in SOURCE_COMMANDS:
+    rendered = commands_of(VARIANTS[name])
+    for command in [command for command in SOURCE_COMMANDS if command[:-3] in rendered]:
         lines = (dst / ".claude/commands" / command).read_text().splitlines()
         for number, line in enumerate(lines, 1):
             if LANDING.search(line):
@@ -1906,14 +1978,16 @@ def test_add_endpoint_names_cores_helpers_where_a_task_meets_them(
     """#270, #250: ``/add-endpoint`` names each helper of core 0.4.1 that a new task meets,
     and every sentence that names ``UnknownCode`` hands the refusal to the ``check`` of the
     list's declaration, ``PackagedList.codes(...)``, so no step tells a task to raise it by
-    hand. Every variant packages reference data; ``tests/test_reference_data.py`` reads the
-    render that packages none."""
+    hand. A variant that packages no reference data, a multi-tenant one (#301), names
+    neither, as ``tests/test_reference_data.py`` holds of every render that packages none."""
     name, dst = variant
+    listed = has_reference_data(VARIANTS[name])
     add = (dst / ".claude/commands/add-endpoint.md").read_text()
     flat = " ".join(add.split())
-    assert [helper for helper in LIST_HELPERS + TASK_HELPERS if helper not in flat] == [], name
+    expected = (LIST_HELPERS if listed else []) + TASK_HELPERS
+    assert [helper for helper in expected if helper not in flat] == [], name
     cited = [sentence for sentence in sentences(add) if "`UnknownCode`" in sentence]
-    assert cited, name
+    assert bool(cited) is listed, name
     for sentence in cited:
         assert "`PackagedList.codes(" in sentence, sentence
         assert "check(" in sentence, sentence
@@ -2292,36 +2366,27 @@ def test_a_release_passes_the_changelog_step_by_its_changelog(
 # The answers: what each renders, and what copier refuses.
 
 
-def test_key_auth_matches_location(
-    template_src: Path, tmp_path: Path, keyed_nested: Path, keyless_flat: Path
+def test_a_keyed_client_leaves_its_auth_to_the_source(
+    keyed_nested: Path, keyless_flat: Path
 ) -> None:
-    """Each key location renders its auth, exported, in a ruff-clean ``_client.py``, the one
-    Python file the location changes; a keyless client has none. ``basic`` is tested with
-    the other client answers, in ``test_client_answers.py``."""
-    clients = {
-        "query": keyed_nested / "src/xippios/usda/nass/_client.py",
-        "": keyless_flat / "src/xippios/eurostat/_client.py",
-    }
-    for location in ["header", "bearer"]:
-        answers = keyed("EX_API_KEY", location)
-        dst = generate(template_src, tmp_path / location, source_slug="ex", **answers)
-        clients[location] = dst / "src/xippios/ex/_client.py"
-        for args in [("check",), ("format", "--check")]:
-            run = ruff(dst, *args, "src/xippios/ex/_client.py")
-            assert run.returncode == 0, run.stdout + run.stderr
-    for location, auth in [
-        ("query", 'QueryKeyAuth("key", API_KEY_ENV, source=SOURCE)'),
-        ("header", 'HeaderKeyAuth("X-Api-Key", API_KEY_ENV, source=SOURCE)'),
-        ("bearer", "BearerAuth(API_KEY_ENV, source=SOURCE)"),
-    ]:
-        client = clients[location].read_text()
-        assert f"auth = {auth}" in client, location
-        assert '    "auth",\n' in client, "auth is exported"
-    keyless = clients[""].read_text()
+    """#301: no answer says how the key is sent, so a keyed source's ``_client.py`` imports
+    no auth of core's, builds its client without one and exports no ``auth``, which the
+    source's first pull request passes, as the comment above the client shows; a keyless
+    client has none, its ``API_KEY_ENV`` none either."""
+    keyed_client = (keyed_nested / "src/xippios/usda/nass/_client.py").read_text()
+    keyless = (keyless_flat / "src/xippios/eurostat/_client.py").read_text()
+    for client in [keyed_client, keyless]:
+        (core,) = [
+            node
+            for node in ast.parse(client).body
+            if isinstance(node, ast.ImportFrom) and node.module == "xippios.core"
+        ]
+        assert not KEY_AUTHS & {alias.name for alias in core.names}
+        assert "\nclient = AsyncClient(config)\n" in client
+        assert '"auth"' not in client
+    assert "# auth = " in keyed_client, "the place the source fills"
     assert "Auth" not in keyless
-    assert '"auth"' not in keyless
     assert "API_KEY_ENV: str | None = None" in keyless
-    assert "client = AsyncClient(config)" in keyless
 
 
 @pytest.mark.parametrize("ref", ["main", FAKE_CORE_SHA])
@@ -2468,18 +2533,16 @@ def test_source_dependencies_are_slugs_minors_and_key_variables(
     ("answers", "refused"),
     [
         ({"gateway": "data.gov"}, "gateway"),
-        ({"gateway": DATA_GOV, **keyed("EX_API_KEY", "header")}, "api_key_env"),
+        ({"gateway": DATA_GOV, **keyed("EX_API_KEY")}, "api_key_env"),
         ({"gateway": DATA_GOV, **keyed("")}, "api_key_env"),
-        ({"gateway": DATA_GOV, **keyed("DATA_GOV_API_KEY")}, "api_key_location"),
-        ({"gateway": DATA_GOV, **keyed("DATA_GOV_API_KEY", "header", "Key")}, "api_key_name"),
         ({"gateway": DATA_GOV, "core_version": "0.2.1"}, "core_version"),
     ],
 )
 def test_the_gateway_derives_the_key_answers(
     template_src: Path, tmp_path: Path, answers: dict[str, object], refused: str
 ) -> None:
-    """D84 (1): behind api.data.gov the three key answers are derived, never asked, so an
-    answer that differs from the gateway's is refused rather than rendered beside it, and
+    """D84 (1): behind api.data.gov the key answer is derived, never asked, so an answer
+    that differs from the gateway's is refused rather than rendered beside it, and
     so is a core before 0.3.0, which has no ``xippios.core.data_gov``."""
     with pytest.raises(ValueError, match=refused):
         generate(template_src, tmp_path / "repo", source_slug="ex", **answers)

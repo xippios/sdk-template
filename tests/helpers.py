@@ -23,8 +23,6 @@ BASE_ANSWERS: dict[str, object] = {
     "source_name": "Example Data Service",
     "upstream_url": "https://api.example.org",
     "upstream_docs_url": "https://api.example.org/docs",
-    "api_base_url": "https://api.example.org/v1",
-    "rate_limit_per_minute": 120,
 }
 
 
@@ -82,18 +80,20 @@ TASK_HELPERS = [
 RECORDER = ["`rewrite=`", "`send_once_sync`", "`record_task`", "`record_task_sync("]
 
 
-def keyed(env: str, location: str = "query", name: str | None = None) -> dict[str, object]:
-    """Answers for how the key is sent; values are variables so no line looks like a secret."""
-    answers: dict[str, object] = {"api_key_env": env, "api_key_location": location}
-    if name is not None:
-        answers["api_key_name"] = name
-    return answers
+def keyed(env: str) -> dict[str, object]:
+    """The key answer, a variable's name, so no line looks like a secret; how the key is sent
+    is no answer, but the source's own auth in ``_client.py`` (#301)."""
+    return {"api_key_env": env}
 
 
-# What the api.data.gov gateway answer derives (sdk-core ADR-0032): the key's variable, its
-# location and its header, recorded as if answered.
+# What the api.data.gov gateway answer derives (sdk-core ADR-0032): the key's variable,
+# recorded as if answered.
 DATA_GOV = "api.data.gov"
-GATEWAY_KEY = keyed("DATA_GOV_API_KEY", "header", "X-Api-Key")
+GATEWAY_KEY = keyed("DATA_GOV_API_KEY")
+
+# The auths of core's that send a key: the source's first pull request passes the one that
+# upstream documents, and the scaffold renders none (#301).
+KEY_AUTHS = {"QueryKeyAuth", "HeaderKeyAuth", "BearerAuth", "BasicKeyAuth"}
 
 
 def gateway_of(answers: dict[str, object]) -> str:
@@ -101,27 +101,25 @@ def gateway_of(answers: dict[str, object]) -> str:
 
 
 def key_answers(answers: dict[str, object]) -> dict[str, object]:
-    """The three key answers a render reads: the gateway's where it is set, else as given."""
+    """The key answer a render reads: the gateway's where it is set, else as given."""
     if gateway_of(answers) == DATA_GOV:
         return GATEWAY_KEY
     return {k: v for k, v in answers.items() if k.startswith("api_key_")}
 
 
-# The family's variants (T11 as narrowed): the shapes its sources take. Their pace answers
-# differ so that both provenances and a burst render; the key locations, a core pin and a
-# name at its bound are answers of their own, each tested by its rule in test_template.py.
+# The family's variants (T11 as narrowed): the shapes its sources take. A core pin and a name
+# at its bound are answers of their own, each tested by its rule in test_template.py.
 VARIANTS: dict[str, dict[str, object]] = {
-    # sdk-usda-nass's shape: a key of its own, sent as a query parameter, and a nested
-    # import path (sdk-core ADR-0006); no gateway, answered as such.
+    # sdk-usda-nass's shape: a key of its own and a nested import path (sdk-core ADR-0006);
+    # no gateway, answered as such.
     "keyed-nested": {
         "source_slug": "usda-nass",
         "gateway": "none",
-        **keyed("NASS_API_KEY", "query", "key"),
+        **keyed("NASS_API_KEY"),
     },
     # sdk-eurostat's: no key, a flat import path.
     "keyless-flat": {
         "source_slug": "eurostat",
-        "rate_limit_provenance": "self-imposed",
         **keyed(""),
     },
     # sdk-usda-esmis's (and sdk-usda-wasde's): no key, a nested import path; with the
@@ -130,8 +128,6 @@ VARIANTS: dict[str, dict[str, object]] = {
     "keyless-nested": {
         "source_slug": "usda-esmis",
         "source_name": "USDA ESMIS (Economics, Statistics and Market Information System)",
-        "rate_limit_burst": 3,
-        "rate_limit_provenance": "self-imposed",
         **keyed(""),
     },
     # sdk-usda-wasde's, as it will start (sdk-core ADR-0021): no key, a nested import path, and the
@@ -152,17 +148,16 @@ VARIANTS: dict[str, dict[str, object]] = {
     "gateway": {
         "source_slug": "usda-psd",
         "gateway": DATA_GOV,
-        "rate_limit_per_minute": 60,
-        "rate_limit_provenance": "self-imposed",
     },
-    # sdk-cashctrl's (#174): a multi-tenant source with a write server, each tenant's key
-    # sent as the basic user name (#173), its tenants named by org; flat.
+    # sdk-cashctrl's (#174): a multi-tenant source with a write server and a key per tenant,
+    # its tenants named by org; flat. A multi-tenant source packages no reference data, whose
+    # refresh fetches through the one client of a source with one tenant (#301).
     "tenants": {
         "source_slug": "cashctrl",
         "write_server": True,
         "tenant_param": "org",
-        "rate_limit_provenance": "self-imposed",
-        **keyed("CASHCTRL_API_KEY", "basic"),
+        "has_reference_data": False,
+        **keyed("CASHCTRL_API_KEY"),
     },
     # sdk-google-mail's (#207, #209): a multi-tenant source whose tenants hold a refresh
     # token, no key, under a prefix the slug does not give (GOOGLE, not GOOGLE_MAIL), with
@@ -174,8 +169,7 @@ VARIANTS: dict[str, dict[str, object]] = {
         "tenant_param": "account",
         "tenant_credential_env": "GOOGLE_<NAME>_REFRESH_TOKEN",
         "live_secrets": "[GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET]",
-        "rate_limit_burst": 10,
-        "rate_limit_provenance": "self-imposed",
+        "has_reference_data": False,
         **keyed(""),
     },
 }
@@ -198,6 +192,11 @@ def dependencies(answers: dict[str, object]) -> list[dict[str, str]]:
 def has_files(answers: dict[str, object]) -> bool:
     """Whether a variant parses the files it downloads (sdk-core ADR-0020); copier's default no."""
     return answers.get("has_files", False) is True
+
+
+def has_reference_data(answers: dict[str, object]) -> bool:
+    """Whether a variant packages reference data (conventions §3); copier's default yes."""
+    return answers.get("has_reference_data", True) is True
 
 
 def write_server(answers: dict[str, object]) -> bool:

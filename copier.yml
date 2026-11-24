@@ -75,24 +75,18 @@ upstream_docs_url:
   placeholder: https://quickstats.nass.usda.gov/api
   validator: "{% if not upstream_docs_url.startswith('https://') %}Must start with https://{% endif %}"
 
-api_base_url:
-  type: str
-  help: Base URL that request paths are joined onto; usually not the provider page
-  placeholder: https://quickstats.nass.usda.gov/api
-  validator: "{% if not api_base_url.startswith('https://') %}Required; must start with https://{% endif %}"
-
-# The gateway decides the three key answers below: behind api.data.gov they are derived,
-# never asked (ask is false), and still recorded, so the rendered files read them as for
-# any keyed source; their validators refuse another value. A `when` would derive them too,
-# but copier records no answer of a question whose `when` is false.
+# The gateway decides the key answer below: behind api.data.gov it is derived, never asked
+# (ask is false), and still recorded, so the rendered files read it as for any keyed
+# source; its validator refuses another value. A `when` would derive it too, but copier
+# records no answer of a question whose `when` is false.
 gateway:
   type: str
   help: >-
     The shared gateway the API sits behind: api.data.gov for an agency API it fronts
     (USDA FAS's PSD, ESR and GATS), whose key, documented error answers and hourly quota
-    come from xippios.core.data_gov, core 0.3.0 on (sdk-core ADR-0032); the key answers then
-    follow from it, DATA_GOV_API_KEY in the X-Api-Key header, and are not asked. none, the
-    default, for every other API.
+    come from xippios.core.data_gov, core 0.3.0 on (sdk-core ADR-0032); the key answer then
+    follows from it, DATA_GOV_API_KEY, which the gateway sends in the X-Api-Key header, and
+    is not asked. none, the default, for every other API.
   choices:
     - none
     - api.data.gov
@@ -109,35 +103,6 @@ api_key_env:
     {% elif gateway == 'api.data.gov' and api_key_env != 'DATA_GOV_API_KEY' %}
     Behind api.data.gov the key is DATA_GOV_API_KEY (sdk-core ADR-0032): leave it to the
     gateway answer
-    {% endif %}
-
-api_key_location:
-  type: str
-  help: How the key is sent
-  choices:
-    query parameter: query
-    request header: header
-    bearer token in the Authorization header: bearer
-    HTTP basic auth, the key as the user name: basic
-  default: "{{ 'header' if gateway == 'api.data.gov' else 'query' }}"
-  when: "{{ api_key_env != '' }}"
-  ask: "{{ gateway == 'none' }}"
-  validator: >-
-    {% if gateway == 'api.data.gov' and api_key_location != 'header' %}
-    Behind api.data.gov the key goes in a header (sdk-core ADR-0032): leave it to the
-    gateway answer
-    {% endif %}
-
-api_key_name:
-  type: str
-  help: Name of the query parameter or header that carries the key
-  default: "{{ 'key' if api_key_location == 'query' else 'X-Api-Key' }}"  # pragma: allowlist secret
-  when: "{{ api_key_env != '' and api_key_location in ['query', 'header'] }}"
-  ask: "{{ gateway == 'none' }}"
-  validator: >-
-    {% if gateway == 'api.data.gov' and api_key_name != 'X-Api-Key' %}
-    Behind api.data.gov the header is X-Api-Key (sdk-core ADR-0032): leave it to the gateway
-    answer
     {% endif %}
 
 # The two answers of the package contract's variants (conventions §7 and §8;
@@ -182,7 +147,7 @@ tenant_param:
 # The variable that holds each tenant's credential, <PREFIX>_<NAME>_<FIELD> (conventions
 # §7): asked of a multi-tenant source without a key alone, whose tenants hold another
 # credential, a refresh token say, which its own auth in _client.py reads. A key derives
-# it, <PREFIX>_<NAME>_API_KEY from api_key_env, as the gateway derives the key answers; the
+# it, <PREFIX>_<NAME>_API_KEY from api_key_env, as the gateway derives the key answer; the
 # `when` keeps a derived value out of .copier-answers.yml, and the validator refuses one
 # given against it.
 tenant_credential_env:
@@ -195,7 +160,7 @@ tenant_credential_env:
     by <PREFIX>_DEMO_<FIELD> alone, and the source's own auth in _client.py reads it. At
     most 40 characters, so every generated Python line stays within 100 columns. A source
     whose tenants hold a key answers api_key_env instead, which derives
-    <PREFIX>_<NAME>_API_KEY and renders the key's auth.
+    <PREFIX>_<NAME>_API_KEY.
   default: "{{ api_key_env[:-8] ~ '_<NAME>_API_KEY' if tenant_param and api_key_env else '' }}"
   when: "{{ tenant_param != '' and api_key_env == '' }}"
   validator: >-
@@ -206,7 +171,7 @@ tenant_credential_env:
     {% elif not (tenant_credential_env | regex_search('^[A-Z][A-Z0-9_]*_<NAME>_[A-Z][A-Z0-9_]*\\Z')) %}
     <PREFIX>_<NAME>_<FIELD> in upper case, <NAME> as written, e.g. GOOGLE_<NAME>_REFRESH_TOKEN
     {% elif tenant_credential_env.endswith('_API_KEY') %}
-    A key: answer api_key_env, which renders its auth and derives <PREFIX>_<NAME>_API_KEY
+    A key: answer api_key_env, which derives <PREFIX>_<NAME>_API_KEY
     {% elif tenant_credential_env | length > 40 %}
     At most 40 characters, so every generated Python line stays within 100 columns
     {% endif %}
@@ -231,34 +196,6 @@ tenant_list_var:
   type: str
   default: "{{ tenant_prefix ~ '_' ~ (tenant_param | upper) ~ 'S' if tenant_param else '' }}"
   when: false
-
-rate_limit_per_minute:
-  type: int
-  help: >-
-    The pace in requests per minute, enforced client-side: the upstream's documented
-    per-minute limit (or its per-second limit times 60), a pace set under that limit on
-    evidence, such as recorded refusals or a limit stated in another unit than requests,
-    or, where upstream documents no per-second or per-minute limit, a self-imposed pace, an
-    hourly or daily quota notwithstanding (sdk-core ADR-0033 decision 1)
-  default: 60
-  validator: "{% if rate_limit_per_minute < 1 %}Must be at least 1{% endif %}"
-
-rate_limit_burst:
-  type: int
-  help: >-
-    Requests the limiter lets through at once before it paces them. 1 unless the
-    upstream documents a burst (sdk-core ADR-0033 decision 1)
-  default: 1
-  validator: "{% if rate_limit_burst < 1 %}Must be at least 1{% endif %}"
-
-rate_limit_provenance:
-  type: str
-  help: Where the pace comes from; the generated CLAUDE.md names it (sdk-core ADR-0033 decision 1)
-  choices:
-    documented by upstream: documented
-    set under a limit upstream documents, CLAUDE.md giving both: below-documented
-    self-imposed, upstream documents no per-second or per-minute limit: self-imposed
-  default: documented
 
 core_version:
   type: str
@@ -436,7 +373,9 @@ has_files:
 # Whether the source packages reference data (conventions §3): params.py, enums.py,
 # reference/, scripts/refresh_reference.py and /refresh-reference-data render only then,
 # so an update brings none of them back to a source that packages none. Its default, true,
-# is a literal, so every source that predates the question takes it on update.
+# is a literal, so every source that predates the question takes it on update. A
+# multi-tenant source answers false: the refresh script fetches through the one client of a
+# source with one tenant, so the validator refuses true beside tenant_param.
 has_reference_data:
   type: bool
   help: >-
@@ -447,8 +386,14 @@ has_reference_data:
     scripts/refresh_reference.py and /refresh-reference-data, whether or not a list is
     packaged yet. A source that packages none answers false: none of it renders, and an
     update deletes the files the template rendered, the source's lines in them included,
-    and leaves a file the source added under reference/ for the source to delete.
+    and leaves a file the source added under reference/ for the source to delete. A
+    multi-tenant source answers false.
   default: true
+  validator: >-
+    {% if has_reference_data and tenant_param %}
+    A multi-tenant source answers false: the reference scaffold fetches through the one
+    client of a source with one tenant
+    {% endif %}
 
 # The human's GitHub login, which the rendered .github/CODEOWNERS names as the owner of the
 # paths that steer the repository. Its default is a literal, so every source that predates
@@ -466,7 +411,7 @@ human:
     A GitHub login without the @: letters, digits and single hyphens, at most 39 characters
     {% endif %}
 
-# 9.19.0 brought `ask`, which the key answers take behind a gateway.
+# 9.19.0 brought `ask`, which the key answer takes behind a gateway.
 _min_copier_version: "9.19.0"
 _subdirectory: template
 _templates_suffix: .jinja

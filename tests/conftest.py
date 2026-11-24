@@ -57,7 +57,7 @@ def keyless_flat(render: Callable[[str], Path]) -> Path:
 
 @pytest.fixture(scope="session")
 def tenants(render: Callable[[str], Path]) -> Path:
-    """The multi-tenant render with a write server and basic auth (#174)."""
+    """The multi-tenant render with a write server and a key per tenant (#174)."""
     return render("tenants")
 
 
