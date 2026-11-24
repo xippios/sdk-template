@@ -71,12 +71,10 @@ checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.m
    `publish.yml` refuses too (sdk-core ADR-0021 decision 5, conventions §15 item 1).
 {% endif %}
 {% if has_reference_data %}
-2. **Reference data.** Where the source packages lists, run `/refresh-reference-data`
-   before the release; the release's pull request fetches nothing. The refresh is a pull
-   request of its own, before the release's, only when a record changed or `fetched`
-   goes from a bare date to the full time; otherwise it gets none, and the release's pull
-   request cites the run, "unchanged" meaning the records, not the files (conventions
-   §12).
+2. **Reference data.** Run `/refresh-reference-data` before the release, whose pull
+   request fetches nothing. The refresh is a pull request of its own only where a record
+   changed or `fetched` went from a bare date to the full time, and the release's pull
+   request cites the run otherwise (conventions §12).
 {% else %}
 2. **Reference data.** None: the source packages no lists (`has_reference_data` is
    false in `.copier-answers.yml`), so the release cites no refresh.
@@ -88,29 +86,18 @@ checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.m
    nightly or one more dispatch. Before a dispatch, where the live tests can run here
    (`XIPPIOS_LIVE_TESTS=1`), run them first,
    `uv run pytest -m live --tb=short --assert=plain`, so that a failure shows before the
-   dispatch spends a run. After the live tests, in the log of the pytest step of `live.yml`
-   as in a run here, xippios-core's testing plugin prints the requests they sent in one
-   line, `requests sent by the live run: <n>`, each host's count in parentheses after it,
-   or no host where the run built a `Tenants` registry. The release cites that count of
-   the run it names, and counts as its live calls the requests of every run it dispatched
-   or ran here, their lines added up.
+   dispatch spends a run. After the live tests, xippios-core's testing plugin prints the
+   requests they sent in one line, `requests sent by the live run: <n>`, in the log of the
+   pytest step of `live.yml` as in a run here. The release cites that count of the run it
+   names, and counts as its live calls the requests of every run it dispatched or ran
+   here, their lines added up.
 {% endif %}
-{% if shape == 'general' %}
-1. SemVer check (conventions §12): pre-1.0, only a breaking change bumps the minor, and
-   added functions or parameters make a patch. A change of the public surface that breaks
-   a caller is a breaking change, and so is an adoption of a core minor, whatever else the
-   release brings: it moves the core bound to the new minor, so the release no longer
-{% else %}
-4. SemVer check (conventions §12): pre-1.0, only a breaking change bumps the minor, and
-   added tasks or parameters make a patch. An upstream API change that changed our public
-   surface is a breaking change, and so is an adoption of a core minor, whatever else the
-   release brings: it moves the core bound to the new minor, so the release no longer
-{% endif %}
-   installs beside a package still bound to the old one, and the adoption's fragment is
-   `breaking`. Read the fragments under `changelog/` and what `## [Unreleased]` holds,
-   which `python3 -I scripts/changelog_assemble.py --notes` prints as the section will
-   hold them, writing nothing, and confirm that the version matches them; say so in the
-   pull request if it does not.
+{{ 4 - skip }}. **SemVer**, by conventions §12: an adoption of a core minor is a breaking
+   change, whatever else the release brings, and its fragment is `breaking`. Read the
+   fragments under `changelog/` and what `## [Unreleased]` holds, which
+   `python3 -I scripts/changelog_assemble.py --notes` prints as the section will hold
+   them, writing nothing, and confirm that the version matches them; say so in the pull
+   request if it does not.
 {{ 5 - skip }}. **The version.** `version` in `pyproject.toml` is the version `publish.yml` tags, and
    `uv.lock` holds it on this package's own entry. Step {{ 6 - skip }}'s script sets both and runs no
    `uv lock`, so the release builds nothing and reaches no index. A first release keeps
@@ -121,11 +108,8 @@ checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.m
    `## [Unreleased]`, or above the last release where there is none, assembles its section
    from the fragments under `changelog/` and what `## [Unreleased]` held, as
    `changelog/README.md` lays it out, deletes the fragments it took, the README kept, and
-   sets the version of step {{ 5 - skip }}. It refuses before it writes anything, the reason on one
-   line and exit 1, and run again on the tree it prepared it writes nothing. Each entry
-   goes in as its fragment reads, under the group its file's name gives: the release
-   rewords and regroups no entry, and a wrong one is corrected in its fragment, by a pull
-   request before the release's (conventions §12).
+   sets the version of step {{ 5 - skip }}. The release rewords and regroups no entry: a wrong one
+   is corrected in its fragment, by a pull request before the release's (conventions §12).
    `publish.yml` tags only a version whose section has this heading, and the section
    becomes the tag's message. The date is the tag's, the day the pull request reaches
    `main`: if that slips to a later day, the same command with that day's `--date`
