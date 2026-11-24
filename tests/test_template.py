@@ -2710,6 +2710,32 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
         assert (dst / rel).read_text() != "# edited\n", f"{rel} is the template's"
 
 
+def test_an_update_leaves_a_deleted_stub_deleted(template_src: Path, tmp_path: Path) -> None:
+    """#300: a source deletes ``errors.py`` or ``enums.py`` where it never filled it, and an
+    update of copier 9.19.1 to a release that renders the stub as before brings neither back,
+    since it applies the source's deletion over the new render."""
+    template = tmp_path / "template"
+    shutil.copytree(template_src, template)
+    git(template, "init", "-q", "-b", "main")
+    for tag in ["v0.0.1", "v0.0.2"]:
+        (template / "RELEASE").write_text(f"{tag}\n")
+        git(template, "add", "-A")
+        git(template, "commit", "-q", "--no-verify", "-m", tag)
+        git(template, "tag", tag)
+    answers = VARIANTS["keyless-flat"]
+    data = {**BASE_ANSWERS, **answers}
+    dst = tmp_path / "repo"
+    run_copy(str(template), str(dst), data=data, defaults=True, vcs_ref="v0.0.1", quiet=True)
+    stubs = [f"src/xippios/{package_dir(answers)}/{name}" for name in ["errors.py", "enums.py"]]
+    for rel in stubs:
+        (dst / rel).unlink()
+    git(dst, "init", "-q", "-b", "main")
+    git(dst, "add", "-A")
+    git(dst, "commit", "-q", "--no-verify", "-m", "a source that deleted two stubs")
+    run_update(str(dst), defaults=True, overwrite=True, vcs_ref="v0.0.2", quiet=True)
+    assert [rel for rel in stubs if (dst / rel).exists()] == []
+
+
 def test_an_update_brings_the_index_and_keeps_a_sources_scripts(
     template_src: Path, tmp_path: Path
 ) -> None:
