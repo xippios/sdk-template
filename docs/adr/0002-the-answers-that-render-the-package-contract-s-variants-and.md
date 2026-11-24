@@ -1,6 +1,6 @@
 # ADR-0002: The answers that render the package contract's variants, and what the template asks
 
-Status: Accepted · Date: 2026-11-24 · Decided by https://github.com/xippios/sdk-template/issues/301 · Supersedes ADR-0001 · Amended 2026-11-24 by https://github.com/xippios/sdk-core/issues/476
+Status: Accepted · Date: 2026-11-24 · Decided by https://github.com/xippios/sdk-template/issues/301 · Supersedes ADR-0001 · Amended 2026-11-24 by https://github.com/xippios/sdk-core/issues/476 · Amended 2026-11-24 by https://github.com/xippios/sdk-template/issues/302
 
 ## Context
 
@@ -69,10 +69,12 @@ takes its place.
    tasks module by three `getattr` reads (https://github.com/xippios/sdk-template/issues/65).
    Carried from ADR-0001, decision 5, until core read them from the module by decision 9.
 6. **What the template asks.** The template asks what keeps its sources in step (#301,
-   part 1). `copier.yml` asks fourteen questions whose answers a source records, `source_slug`, `import_path`, `source_name`,
+   part 1). `copier.yml` asks fifteen questions whose answers a source records, `shape`,
+   which ADR-0003 adds (amended 2026-11-24), `source_slug`, `import_path`, `source_name`,
    `upstream_url`, `upstream_docs_url`, `api_key_env`, `write_server`, `tenant_param`,
    `core_version`, `core_git_ref`, `source_dependencies`, `live_secrets`, `has_files` and
-   `has_reference_data`, and computes ten that no source records. An answer that acts at
+   `has_reference_data`, and computes ten that no source records; a sixteenth,
+   `repository_name`, is asked in the general shape alone (ADR-0003). An answer that acts at
    generation alone is no question: the source's first pull request fills its place in a file
    it owns (#301, part 1). An answer that one source or one publisher needs goes back to
    it (#301, part 3; #302, part 2). `core_version` stays an answer, which an adoption
@@ -118,14 +120,16 @@ takes its place.
   `xippios.core.data_gov`, since the file is theirs once rendered.
 - sdk-google-mail drops `tenant_credential_env` and passes `-d live_secrets=` with
   `GOOGLE_DEMO_REFRESH_TOKEN`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, in that order:
-  its `live.yml` and its placeholder list render the bytes they rendered before, and its
-  `/record-fixture` names the three variables where it named the reserved tenant's credential
-  alone. Its `_client.py`, `README.md` and `CLAUDE.md` are its own and keep their lines.
+  its `live.yml` renders the bytes it rendered before, its placeholder list leaves
+  `pyproject.toml` as every source's does, since core's plugin reads `_client.ENV_VARS`
+  (https://github.com/xippios/sdk-core/issues/475), and its `/record-fixture` names the three
+  variables where it named the reserved tenant's credential alone. Its `_client.py`, `README.md` and `CLAUDE.md` are its own and keep their lines.
 - sdk-cashctrl answers `write_server: true` and `tenant_param: org`, and its render follows
   decision 2 as before.
-- The template's tests render five variants, keyed and nested, keyless and flat, keyless and
-  nested, a dependent that parses files, and a flat multi-tenant source with a write server
-  and a key per tenant, and `scripts/prove.sh --all` runs five proofs. No proof renders a source
+- The template's tests render five variants of a source, keyed and nested, keyless and flat,
+  keyless and nested, a dependent that parses files, and a flat multi-tenant source with a
+  write server and a key per tenant, and `scripts/prove.sh --all` runs five proofs of a
+  source, beside the general shape's two of ADR-0003, seven in all. No proof renders a source
   whose tenants hold no key or a source behind a gateway.
 - Core's one `main` reads the option hooks of a multi-tenant source's tool set as of any
   other, so its options reach its own entry point as they reach a host (amended 2026-11-24,

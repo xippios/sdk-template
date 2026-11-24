@@ -4,15 +4,10 @@
 the per-source packages of the [xippios SDK family](https://github.com/xippios). A
 generated repository conforms to the family's
 [conventions](https://github.com/xippios/sdk-core/blob/main/docs/conventions.md) and
-[ADRs](https://github.com/xippios/sdk-core/blob/main/docs/adr.md) out of the box: the
-three-layer layout, `xippios-core` client and models, MCP server and FastAPI router wired
-to the task layer, test harness with the live-test gate and core's family check, CI with
-the required `ci` check, the release train with trusted publishing, the organization's
-checks of a pull request, pre-commit, `docs/adr/` with its index, changelog fragments,
-and, for Claude Code, slash commands, a `CLAUDE.md` of the package's facts that imports its
-layout, `docs/layout.md`, and the rules no change breaks, `.claude/rules/never.md`.
-Its second shape, the general part of a repository, renders that repository around a
-package of the family that wraps no API, without tasks and servers
+[ADRs](https://github.com/xippios/sdk-core/blob/main/docs/adr.md) out of the box, and
+[What gets generated](#what-gets-generated) lays out its files. Its second shape, the
+general part of a repository, renders that repository around a package of the family that
+wraps no API, without tasks and servers
 ([The general part of a repository](#the-general-part-of-a-repository), ADR-0003).
 The documents a change of the template follows are listed under [Documents](#documents).
 
@@ -63,11 +58,11 @@ again, never the render by hand. On GitHub the repository takes the topics `xipp
 its first release, PyPI needs a pending trusted publisher for the project, owner
 `xippios`, the repository, workflow `publish.yml` and environment `pypi`, and the
 repository needs the environment `pypi` with a required reviewer, who approves each
-publishing run of `publish.yml`. Its nightly `live.yml` reads the key, or the bearer
-token, from the secret that `api_key_env` names, and each variable `live_secrets` lists
-from the secret of the same name. A key several sources share (sdk-core ADR-0032) is one
-organization secret whose repository access takes the new repository, never set with
-`gh secret set --repos`, which replaces the list.
+publishing run of `publish.yml`. Its nightly `live.yml` reads each variable that
+[The workflows of a render](#the-workflows-of-a-render) names from the secret of the same
+name. A key several sources share (sdk-core ADR-0032) is one organization secret whose
+repository access takes the new repository, never set with `gh secret set --repos`, which
+replaces the list.
 
 ## Questions
 
@@ -168,68 +163,87 @@ and the name of xippios-core that serves it, restating neither, so that a rule o
 stands once, in core's documents. `/record-fixture` records through core's recorder, and a
 source with a recorder of its own, `scripts/record_fixture.py`, records with that.
 
-The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit`
-before any endpoint is added. `tests/test_family.py`, one line, collects core's family
-check, which then keeps the layout, the adapters, the task shapes, the README status
-table, the template tag and the core bound honest as tasks are added.
-`tests/test_built_answers.py` collects core's check of a built answer's mark the same way,
-by its one line, and fails a place of the source's tests that builds an answer without
-naming its kind of conventions §10 (sdk-core ADR-0064); it is the source's once rendered.
+`tests/test_family.py`, one line, collects core's family check, which keeps the layout, the
+adapters, the task shapes, the README status table, the template tag and the core bound
+honest as tasks are added. `tests/test_built_answers.py` collects core's check of a built
+answer's mark the same way, by its one line, and fails a place of the source's tests that
+builds an answer without naming its kind of conventions §10 (sdk-core ADR-0064); it is the
+source's once rendered.
+
 `mcp.py` carries the package contract by which a host serves a source (conventions §8,
 sdk-core ADR-0063): `build()` returns the `ToolSet` that core builds from `tasks.py`,
 whose `MCP_INSTRUCTIONS`, `MCP_CAPS` and option hooks it reads, `server` is
 `build_server(build())`, `run()` calls core's one `main`, and `ENV_VARS`, which
 `_client.py` declares from the key answers and `live_secrets` and which core's plugin
 reads, stands beside `SOURCE`. No line of `mcp.py` or `mcp_write.py` is a source's: what a
-source's server declares stands in its tasks module (ADR-0002). A generated package is read-only unless `write_server` answers `true`,
-and serves one tenant unless `tenant_param` names its parameter. `ci.yml` also requires a
-CHANGELOG entry on every pull request but Dependabot's, an adoption's (conventions §15
-item 9) and a release's included, which changes `CHANGELOG.md` itself, as a fragment
-under `changelog/` or a line in `CHANGELOG.md`, and fails on a fixture file over 256 KiB;
-`publish.yml` is the release train. The organization's checks start from one trigger
-file each, named as the workflow of xippios/.github it calls: `conventions.yml` runs the
-review of a pull request against the documents the README lists, the check
-`conventions / conventions`, and on a push to `main` the review of a range,
-`range / range`, and `adr-index.yml` the check `adr-index / adr-index`, which runs the
-render's `scripts/adr_index.py --check`. `live.yml`, the one workflow whose text the
-answers render, runs every `live` test against the upstream every night and on demand,
-never on a pull request, with `--tb=short --assert=plain`, so its public log holds neither a
-failing test's frame arguments nor the values a failed assertion compared. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources that
-share a key do not start together; only its pytest step sees the keys, from the org
-secrets named by `api_key_env`, or a multi-tenant source's reserved tenant's key in
-its place, and by `source_dependencies`' `key_env`, and the other variables `live_secrets`
-names, each from the secret of the same name, so the checkout, setup-uv and `uv sync` see
-none. Where the import
-path nests or the source declares a dependency, `siblings.yml` runs
+source's server declares stands in its tasks module (ADR-0002).
+
+`scripts/refresh_upstream.py` is the capture script that `/refresh-upstream` runs
+(sdk-core ADR-0062), and no check of core reads it without a request; core's frame refuses
+to run it until the source names its pages, and its first run writes
+`docs/upstream/FETCHED.md` whole, where the render's stub holds its title and one paragraph.
+The scaffold declares no `reduce`, so core's default keeps each page as fetched until the
+source adds its converter.
+
+### The workflows of a render
+
+`ci.yml` runs the checks of the render on every pull request, on each Python that the family
+supports. It also requires a CHANGELOG entry on every pull request but Dependabot's, an
+adoption's (conventions §15 item 9) and a release's included, which changes `CHANGELOG.md`
+itself, as a fragment that the pull request adds or changes under `changelog/` or a line in
+`CHANGELOG.md`, and fails on a fixture file over 256 KiB. `publish.yml` is the release train
+(conventions §12), and it refuses a `pyproject.toml` that has `[tool.uv.sources]` before its
+tag, since a source that pins core to git cannot be published.
+
+The organization's checks start from one trigger file each, named as the workflow of
+xippios/.github it calls at `@main`. `conventions.yml` runs on a pull request's opening,
+push, reopening and edit, never on `labeled`, since GitHub reports a head's checks from its
+newest run, and on a push to `main` and a dispatch: its job `conventions` runs the review of
+a pull request against the documents the README lists, which tells a release pull request by
+its own condition, the check `conventions / conventions`, and its job `range` the review of
+the commits that reach `main`, the check `range / range`. `adr-index.yml` runs on the
+opening, a push and a reopening, and its one job runs the check `adr-index / adr-index`,
+the render's `scripts/adr_index.py --check`. The rulesets match the checks by these names.
+
+`live.yml`, the one workflow whose text the answers render, runs every `live` test against
+the upstream every night and on demand, never on a pull request, with
+`--tb=short --assert=plain`, so its public log holds neither a failing test's frame arguments
+nor the values a failed assertion compared. Its start time derives from the slug, between
+01:00 and 05:59 UTC, so sources that share a key do not start together. Only its pytest step
+sees the secrets, each from the secret of the same name, in this order: the key that
+`api_key_env` names, or a multi-tenant source's reserved tenant's key in its place, the
+`key_env` of each of `source_dependencies`, then each variable that `live_secrets` lists;
+the checkout, setup-uv and `uv sync` see none.
+
+Where the import path nests or the source declares a dependency, `siblings.yml` runs
 `.github/scripts/check-siblings.sh` on every pull request and push to `main`, handing it
 the job's read-only token for the listing of the organization's repositories, since GitHub
-limits the calls of a runner without one: it installs
-the wheel beside every sibling on PyPI under the same provider namespace that shares its
-core minor and beside the source packages it depends on, at their bound, and proves the
-namespace levels stay portions (sdk-core ADR-0006, sdk-core ADR-0021), a visible check the
-ruleset does not require; a declared dependency on another core minor fails it. It is a
-workflow of its own beside `ci.yml`, never a job there, since `ci.yml` is core's file,
-which `publish.yml` calls for a release, and a job there would tie the package's releases
-to its siblings. Both workflows are hardened as every workflow of the family
-(conventions §13): their actions pinned to the commits `ci.yml` pins, the checkout keeping
-no credentials, the token reading only, and neither file carries a comment but the version
-after a pinned action. A sibling
-that depends on the source and pins its previous minor is left out with a warning that
-names the pin, since it takes the new minor in its own adoption (conventions §12), so the
-release of a minor stays green; one that pins another minor of the source fails it.
-A variable `WORKFLOW_<NAME>` of `off`, the repository's over the organization's, switches
-off `live.yml` by `WORKFLOW_LIVE`, `siblings.yml` by `WORKFLOW_SIBLINGS` and the two
-checks by `WORKFLOW_CONVENTIONS` and `WORKFLOW_ADR_INDEX`, and a workflow runs where
-neither sets one; `ci.yml` and `publish.yml` take no switch and always run. The
-render's README says the same of each workflow the render holds, one paragraph each under
-`## Workflows`: what it checks, when it runs, what the calling file hands over and what
-switches it.
-`scripts/refresh_upstream.py`, the capture script `/refresh-upstream` runs, declares the
-source's `Snapshot` as `SNAPSHOT`, which xippios-core's frame `xippios.core.refresh` runs
-(sdk-core ADR-0062), and no check of core reads it without a request; the frame refuses to
-run it until the source names its pages, and its first run writes `docs/upstream/FETCHED.md` whole, where the
-render's stub holds its title and one paragraph. The scaffold declares no `reduce`, so
-core's default keeps each page as fetched until the source adds its converter.
+limits the calls of a runner without one: it installs the wheel beside every sibling on PyPI
+under the same provider namespace that shares its core minor and beside the source packages
+it depends on, at their bound, and proves the namespace levels stay portions
+(sdk-core ADR-0006, sdk-core ADR-0021), a visible check the ruleset does not require; a
+declared dependency on another core minor fails it. A sibling that depends on the source and
+pins its previous minor is left out with a warning that names the pin, since it takes the
+new minor in its own adoption (conventions §12), so the release of a minor stays green; one that pins
+another minor of the source fails it. It is a workflow of its own beside `ci.yml`, never a
+job there, since `ci.yml` is core's file, which `publish.yml` calls for a release, and a job
+there would tie the package's releases to its siblings. `live.yml` and `siblings.yml` are
+hardened as every workflow of the family (conventions §13): their actions pinned to the
+commits `ci.yml` pins, the checkout keeping no credentials, the token reading only, and
+neither file carries a comment but the version after a pinned action. Every workflow takes
+its title by the organization's rule, `Live tests` and `Siblings` among them, and
+`publish.yml` its title `Publish` with core's bytes.
+
+A variable `WORKFLOW_<NAME>`, `on` or `off`, switches a workflow: GitHub reads the
+repository's over the organization's and compares without case, so a workflow runs where
+neither sets one. `live.yml` and `siblings.yml` hold theirs, `WORKFLOW_LIVE` and
+`WORKFLOW_SIBLINGS`, in their one job's condition, so on `off` the check reports as skipped
+and passes, as the check of the ADR index does, which reads `WORKFLOW_ADR_INDEX` itself;
+each job of `conventions.yml` holds `WORKFLOW_CONVENTIONS` in its condition, so on `off` the
+review reports no check, which a ruleset that requires it waits for. `ci.yml` and
+`publish.yml` take no switch and always run. The render's README says the same of each
+workflow the render holds, one paragraph each under `## Workflows`: what it checks, when it
+runs, what the calling file hands over and what switches it.
 
 ### The general part of a repository
 
@@ -277,42 +291,42 @@ The template needs copier 9.19.0 or later (`_min_copier_version`), the release i
 and proofs run on; `--from 'copier>=9.19'` keeps a stale tool cache from refusing it.
 Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, as above
 to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the answers
-without moving the template). From 0.4.1 on, a release that adds a question or a choice
-ends its section of [CHANGELOG.md](CHANGELOG.md) with `### Answers each source passes`, the whole update
-command of each source that passes an answer the command above does not, and such a
-source copies its command from there. From 0.4.1 on too, a release that brings a core
-release carries, in the Hand-apply note of an entry of its own, the changelog entries for
-the changes of that core release that a source's callers see, from the list of sdk-core's
-`docs/handover.md`, and the pull request that brings each change copies the entry that
-holds for it. Files listed under `_skip_if_exists` in `copier.yml` (the
-package `__init__.py`, the client, the package's errors, models, endpoint wrappers, the
-file parsers, the task layer and its write tasks, the packaged lists and enums, reference data, the two
-refresh scripts, the conftest, the task, live and built-answer tests and the fixtures, upstream
-snapshot, the ADR index, the layout, the secrets baseline, README, CHANGELOG and CLAUDE.md, and
-in the general shape its package test and `pyproject.toml`) are never
-overwritten once they exist, so a template fix to one of them does not reach existing repositories by itself; one the
-template stops rendering, though, is deleted by the update where the repository's earlier
-render had it, the source's content included.
-[CHANGELOG.md](CHANGELOG.md) lists those fixes per release, path, change and reason, in a
-**Hand-apply** list at the section's end or, from 0.3.3, in a `Hand-apply:` note under
-the change's bullet; port each one by hand in the same PR. A new file under those
-patterns is created by the update where the repository has none of that name. Every other
-file is the template's: the commands under `.claude/commands/`, the rules of
-`.claude/rules/never.md`, `scripts/adr_index.py` and `tests/test_family.py` among them are
-re-rendered, and a source's own lines in them are
-merged three ways, conflicts marked. From 0.5.0 on `tests/conftest.py` and
-`.secrets.baseline` are the source's, so an update merges no line of the template's into
-the lines a source holds there, and a later change of core's baseline or of the plugin's
-line reaches a source by a Hand-apply note. A repository of the general shape records
-`shape: general`, and every source records `shape: source`, the default, at its update. From 0.5.0 on, too, the update writes
-`.claude/rules/never.md` at every release and creates `docs/layout.md` where the repository
-has none, which the source then fills by hand. `pyproject.toml` is one: a
-script the package adds goes under `[project.scripts]` after the servers' entry points, as
-the comment there says, and the update keeps it while the template's lines beside it stay;
-a change of `write_server`, which renames them, marks it as a conflict. In the general
-shape it is the repository's, so the update never writes it. A template-owned
-file a release removes is deleted by the update, a source's own lines in it included, so the
-release's CHANGELOG says where they move first.
+without moving the template). A repository of the general shape records `shape: general`,
+and every source records `shape: source`, the default, at its update. From 0.4.1 on, a
+release that adds a question or a choice ends its section of [CHANGELOG.md](CHANGELOG.md)
+with `### Answers each source passes`, the whole update command of each source that passes
+an answer the command above does not: such a source copies its command from there, never
+from the prose of an entry, and a source that the list leaves out runs the command above as
+it stands. From 0.4.1 on too, a release that brings a core release carries, in the
+Hand-apply note of an entry of its own, the changelog entries for the changes of that core
+release that a source's callers see, from that release's part of sdk-core's
+`docs/handover.md`, `## Adopting core X.Y.Z`, and the pull request that brings each change
+copies the entry that holds for it.
+
+Files listed under `_skip_if_exists` in `copier.yml` (the package `__init__.py`, the
+client, the package's errors, models, endpoint wrappers, the file parsers, the task layer
+and its write tasks, the packaged lists and enums, reference data, the two refresh scripts,
+the conftest, the task, live and built-answer tests and the fixtures, upstream snapshot, the
+ADR index, the layout, the secrets baseline, README, CHANGELOG and CLAUDE.md, and in the
+general shape its package test and `pyproject.toml`) are never overwritten once they exist,
+so a template fix to one of them does not reach existing repositories by itself:
+[CHANGELOG.md](CHANGELOG.md) names each such fix in a `Hand-apply:` note under the change's
+bullet, path, change and reason, and a source ports it by hand in the same PR. A new file
+under those patterns is created by the update where the repository has none of that name,
+as `docs/layout.md` is from 0.5.0 on, which the source then fills by hand. From 0.5.0 on
+`tests/conftest.py` and `.secrets.baseline` are the source's, so an update merges no line of
+the template's into the lines a source holds there, and a later change of core's baseline
+or of the plugin's line reaches a source by a Hand-apply note. Every other file is the
+template's: the commands under `.claude/commands/`, the rules of `.claude/rules/never.md`,
+`scripts/adr_index.py` and `tests/test_family.py` among them are rendered again at every
+release, and a source's own lines in them are merged three ways, conflicts marked.
+`pyproject.toml` is one: a script the package adds goes under `[project.scripts]` after the
+servers' entry points, as the comment there says, and the update keeps it while the
+template's lines beside it stay; a change of `write_server`, which renames them, marks it as
+a conflict. In the general shape it is the repository's, so the update never writes it. A
+file that a release stops rendering, under `_skip_if_exists` or not, is deleted by the
+update where the repository's earlier render had it, the source's lines in it included, so
+the release's CHANGELOG says first where they move.
 
 Before its update a source checks two things on its `main`. First, its own lines in the
 template's files, against a render of the tag it records with the answers it records. In a
@@ -344,7 +358,9 @@ answer's lines by hand in the same pull request, as a render with the new answer
 
 ```bash
 uv sync
-uv run pytest           # renders the family's five variants and the general shape's two once each, and checks them
+uv run pytest           # renders each variant below once and checks the renders
+uv run ruff check . && uv run ruff format --check .
+python3 -I scripts/adr_index.py --check   # the ADR index matches the records in docs/adr/
 scripts/prove.sh --all  # every shape below, one proof each, as CI runs them; fails where one fails
 scripts/prove.sh        # full proof: copier copy, uv sync, ruff, mypy, pytest, pre-commit, on
                         # the commit of core 0.5.0's candidate that --core-ref names until 0.5.0 is on PyPI
@@ -354,10 +370,19 @@ scripts/prove.sh --keyless         # a keyless flat source instead of the keyed 
 scripts/prove.sh --keyless-nested  # a keyless nested source
 scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files
 scripts/prove.sh --tenants         # a nested multi-tenant source with a write server and a key per tenant
-scripts/prove.sh --general         # the general shape: a publisher's shared package, nested
-scripts/prove.sh --general-flat    # the general shape, flat, in a repository not named sdk-<slug>
+scripts/prove.sh --general         # the general shape: a publisher's shared package, nested, with a key
+scripts/prove.sh --general-flat    # the general shape, flat, with no key, in a repository not named sdk-<slug>
 scripts/prove.sh -d has_reference_data=false   # a source that packages no reference data
 ```
+
+The tests render each variant once per run, when a test first reads it, by the fixtures of
+`tests/conftest.py` from the answers in `tests/helpers.py`. A source has five: keyed and
+nested; keyless and flat; keyless and nested; a dependent that parses files, keyless and
+nested with `source_dependencies`, one open and one keyed, and `has_files`; and a flat
+multi-tenant source with a write server and a key per tenant, by `write_server` and
+`tenant_param` (ADR-0002). The general shape has two, nested with a key, and flat with none
+in a repository not named `sdk-<slug>` (ADR-0003). A dependent has no proof of its own,
+since a dependency that is not on PyPI cannot be installed, and the tests cover its render.
 
 A pull request of the template runs `.github/workflows/ci.yml`, whose one job `ci` is the
 check the organization's ruleset requires: it runs the tests, then `scripts/prove.sh
@@ -376,10 +401,13 @@ Every change brings its CHANGELOG entry as a fragment under `changelog/`, one fi
 change, as [changelog/README.md](changelog/README.md) lays it out. The template follows
 the release train (conventions §12): a release PR assembles the fragments and what
 `## [Unreleased]` holds into `## [X.Y.Z] - <date>` in `CHANGELOG.md`, the section perhaps
-with a lead paragraph and its internal labels put into plain words, deletes the
-fragments, and changes no other file outside conventions §12's release subset. It also
-sets `version` in `pyproject.toml` to `X.Y.Z` and locks again with `uv lock`, which CI's
-`uv sync --locked` checks, and sets the update command's `--vcs-ref` above to `vX.Y.Z`.
+with a lead paragraph and its internal labels, decisions, rows and plan steps, put into
+plain words, since the section becomes the tag's message, and deletes the fragments. It
+also sets `version` in `pyproject.toml` to `X.Y.Z` and locks again with `uv lock`, which
+CI's `uv sync --locked` checks, and sets the update command's `--vcs-ref` above to
+`vX.Y.Z`. It changes no other file outside conventions §12's release subset:
+`CHANGELOG.md`, `pyproject.toml`, `uv.lock`, and `README.md` or `CLAUDE.md` where a sentence
+names the release.
 No package is built from the manifest, but it names the template's latest release, and
 `tests/test_template.py` holds it to the top release heading of `CHANGELOG.md`.
 
@@ -398,8 +426,12 @@ are not serialised, since a concurrency group keeps one pending run and cancels 
 next, which would tag its own commit. So two pushes to `main` close together can both find the
 version untagged: the second run's tag push then fails red, or, where it runs first, it
 tags the later commit, and the maintainer deletes that tag before a source adopts it and
-runs the release again with "Re-run all jobs". A release is therefore not merged while
-another push to `main` is in flight, which keeps two runs from racing.
+runs the release again with "Re-run all jobs". This differs from conventions §12, where a
+maintainer rejects the later commit's run at `pypi` and the release is made again as a patch
+(sdk-core ADR-0069, decision 4), because the template has no `pypi` stage: its tag is at once
+the release a source adopts, and on the later commit it holds a change that its section does
+not name. A release is therefore not merged while another push to `main` is in flight,
+which keeps two runs from racing.
 
 ## Documents
 

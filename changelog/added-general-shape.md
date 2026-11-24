@@ -8,11 +8,3 @@
   client and is the package's to fill. A source's update records `shape: source` and changes
   no other file. (ADR-0003, https://github.com/xippios/sdk-template/issues/302,
   https://github.com/xippios/sdk-core/issues/538)
-  - Hand-apply: `README.md` — nothing to port — a source renders it as before, and the
-    general shape's lines matter to a new repository of that shape alone.
-    `CLAUDE.md` — nothing to port — the same.
-    `CHANGELOG.md` — nothing to port — the same.
-    `docs/layout.md` — nothing to port — the same.
-    `tests/conftest.py` — nothing to port — the same.
-    `src/xippios/<import path>/__init__.py` — nothing to port — the same.
-    `src/xippios/<import path>/_client.py` — nothing to port — the same.

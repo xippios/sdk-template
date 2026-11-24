@@ -7,7 +7,7 @@
   tenant's first, as sdk-google-mail's update passes them,
   `-d "live_secrets=[GOOGLE_DEMO_REFRESH_TOKEN, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET]"`, by
   the release's list of the answers each source passes, which keeps the bytes of its
-  `live.yml` and its placeholder list. (ADR-0002,
+  `live.yml`. (ADR-0002,
   https://github.com/xippios/sdk-template/issues/301,
   https://github.com/xippios/sdk-template/issues/302)
   - Hand-apply: `src/xippios/<import path>/_client.py` — in sdk-usda-psd, sdk-usda-esr and
