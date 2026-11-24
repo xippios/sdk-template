@@ -884,6 +884,37 @@ def test_the_secrecy_rule_names_every_credential_variable(variant: tuple[str, Pa
         assert suffix in rule, suffix
 
 
+# The pattern of the tenants' keys in a secrecy rule, `<PREFIX>_<NAME>_<FIELD>`.
+TENANT_PATTERN = re.compile(r"`[A-Z0-9_]+_<NAME>_[A-Z0-9_]+`")
+
+
+@pytest.mark.parametrize("key", ["", "EX_API_KEY"])
+def test_the_secrecy_rule_names_the_tenants_pattern_only_with_their_key(
+    template_src: Path, tmp_path: Path, key: str
+) -> None:
+    """#301: the tenants' variables derive from the key answer alone, so the Never file's
+    secrecy rule names the pattern ``<PREFIX>_<NAME>_API_KEY`` only where the tenants hold the
+    key. A multi-tenant source whose tenants hold another credential answers no key, and the
+    template knows no variable of its tenants: its rule names none, the file being the
+    template's, which the source cannot correct, and names its live secrets beside the
+    endings ``_API_KEY``, ``_TOKEN`` and ``_SECRET``, which cover the rest."""
+    dst = generate(
+        template_src,
+        tmp_path / "repo",
+        source_slug="ex",
+        tenant_param="org",
+        has_reference_data=False,
+        live_secrets=LIVE_SECRETS,
+        **keyed(key),
+    )
+    rule = secrecy_rule((dst / NEVER_FILE).read_text())
+    assert TENANT_PATTERN.findall(rule) == (["`EX_<NAME>_API_KEY`"] if key else [])
+    for name in ["A_B", "C_D"]:
+        assert f"`{name}`" in rule, name
+    for suffix in SECRET_SUFFIXES:
+        assert suffix in rule, suffix
+
+
 @pytest.mark.parametrize("key", ["", "EX_API_KEY"])
 def test_claude_md_names_the_live_secrets(template_src: Path, tmp_path: Path, key: str) -> None:
     """#108, #82: the variables ``live_secrets`` names stand in the live run's paragraph of
