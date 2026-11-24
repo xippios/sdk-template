@@ -29,7 +29,7 @@ checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.m
 The source packages this one depends on, {% for dep in depends_on %}`xippios-{{ dep.name }}`{{ ', ' if not loop.last else '' }}{% endfor %}, are
 released on PyPI before this release: each tags first, its bound in `pyproject.toml` names
 that published version, and no `[tool.uv.sources]` entry pins it, which `publish.yml`
-refuses too (sdk-core ADR-0021 decision 5, conventions §15 item 1).
+refuses too (sdk-core ADR-0021 decision 5, conventions §12).
 {% endif %}
 
 {% else %}
@@ -68,7 +68,7 @@ checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.m
    The source packages this one depends on, {% for dep in depends_on %}`xippios-{{ dep.name }}`{{ ', ' if not loop.last else '' }}{% endfor %}, are
    released on PyPI before this release: each tags first, its bound in `pyproject.toml`
    names that published version, and no `[tool.uv.sources]` entry pins it, which
-   `publish.yml` refuses too (sdk-core ADR-0021 decision 5, conventions §15 item 1).
+   `publish.yml` refuses too (sdk-core ADR-0021 decision 5, conventions §12).
 {% endif %}
 {% if has_reference_data %}
 2. **Reference data.** Run `/refresh-reference-data` before the release, whose pull
