@@ -16,8 +16,8 @@ from pathlib import Path
 from helpers import BASE_ANSWERS, NEVER_FILE, ROOT, VARIANTS
 
 FRAME = "xippios.core.refresh"
-# The last line of a FETCHED.md that core's frame wrote, which core's family check judges
-# against the script's SNAPSHOT (sdk-core ADR-0046, decision 6): a fresh render carries none.
+# The last line of a FETCHED.md that core's frame wrote, which names the file's form (sdk-core
+# ADR-0062, decision 8): a fresh render carries none until its first refresh writes the file.
 FORM_MARK = re.compile(r"<!-- form \d+ of the FETCHED\.md that xippios\.core\.refresh writes -->")
 # The fields of the declaration a source fills, which the render declares and the command names.
 FILLED = ["pages", "attribution", "not_fetched", "vocabulary", "capture"]
@@ -54,7 +54,7 @@ def keywords(call: ast.Call) -> dict[str, ast.expr]:
 
 def test_the_script_declares_its_snapshot_to_core_s_frame(variant: tuple[str, Path]) -> None:
     """ADR-0046 of sdk-core: the script imports core's frame, assigns its ``Snapshot`` to
-    ``SNAPSHOT`` at its top level, which core's family check reads, and runs it under
+    ``SNAPSHOT`` at its top level, which imports and declares alone, and runs it under
     ``if __name__ == "__main__":`` alone, so it sends nothing while it loads. Its pages are
     empty until the source fills them, and it declares no ``linked`` while it links no page.
     It runs in the project's environment, with no ``# /// script`` block, and defines no
@@ -96,19 +96,23 @@ def test_the_script_declares_its_snapshot_to_core_s_frame(variant: tuple[str, Pa
 def test_refresh_upstream_command_follows_the_declaration(keyless_flat: Path) -> None:
     """The command names the fields of ``SNAPSHOT`` a source fills, the hooks it adds where it
     needs them, core's helpers, the records it fills them with, the page kinds, ``--check``,
-    the hand-written file and the samples (#123, sdk-core ADR-0046); the converter is the
-    project's, so the command names no ``# /// script`` block (sdk-core ADR-0046, decision 1)."""
+    the hand-written file and the samples (#123, sdk-core ADR-0062); a keyed sample's
+    credentials are the source's own client's, whose variables the declaration names
+    (sdk-core#483); the converter is the project's, so the command names no ``# /// script``
+    block (sdk-core ADR-0062, decision 1). ``--check`` is the one comparison, so the command
+    names no family check of ``FETCHED.md`` (#310)."""
     command = flat((keyless_flat / ".claude/commands/refresh-upstream.md").read_text())
     assert "`SNAPSHOT`" in command
     assert f"`{FRAME}`" in command
-    for name in [*FILLED, *ADDED, "load_json", "dump_json", "changed"]:
+    for name in [*FILLED, *ADDED, "read_json", "dump_json", "changed"]:
         assert f"`{name}`" in command, name
-    for name in ["Page", "Statement", "NotFetched", "Credentials"]:
+    for name in ["Page", "Statement", "NotFetched"]:
         assert f"`{name}(" in command, name
     for keyword in ["status=403", "status=302", "stable=False", "excerpt=True", "terms=True"]:
         assert keyword in command, keyword
-    for keyword in ["sample=True", "names=", "keyed=True", "`--keyless`"]:
+    for keyword in ["sample=True", "names=", "keyed=True", "`--keyless`", "client=", "variables="]:
         assert keyword in command, keyword
+    assert "family check" not in command, "#310"
     assert "uv run scripts/refresh_upstream.py --check" in command
     assert "# /// script" not in command
     for name in ["`pyproject.toml`", "`uv.lock`", "`html.parser`", "`MarkdownConverter`"]:
@@ -121,8 +125,8 @@ def test_refresh_upstream_command_follows_the_declaration(keyless_flat: Path) ->
 def test_the_stub_leaves_the_file_to_core_s_frame(keyless_flat: Path) -> None:
     """#300: FETCHED.md's stub holds its title and one paragraph, which names the script that
     writes the file whole, and none of the sections and tables that core's frame writes at
-    the first refresh. It carries no mark of the frame's form, so core's family check passes a
-    fresh render until its first refresh (sdk-core ADR-0046, decision 6)."""
+    the first refresh. It carries no mark of the frame's form, which the first refresh writes
+    with the file (sdk-core ADR-0062, decisions 6 and 8)."""
     stub = (keyless_flat / "docs/upstream/FETCHED.md").read_text()
     title, *blocks = [block for block in stub.split("\n\n") if block.strip()]
     assert title.startswith("# "), title

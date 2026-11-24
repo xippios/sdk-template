@@ -602,7 +602,8 @@ LIVE_SECRETS = "[A_B, C_D]"
 @pytest.mark.parametrize("key", ["", "EX_API_KEY"])
 def test_live_secrets_reach_the_pytest_step(template_src: Path, tmp_path: Path, key: str) -> None:
     """#105: two names render two more lines on the pytest step, after the key where the
-    source has one, and the answer is recorded on one line at column 0, a quoted scalar."""
+    source has one, and the answer is recorded on one line at column 0, a quoted scalar.
+    ``/record-fixture``'s step 1 names them beside the key, in the same order (#300)."""
     dst = generate(
         template_src,
         tmp_path / "repo",
@@ -612,6 +613,9 @@ def test_live_secrets_reach_the_pytest_step(template_src: Path, tmp_path: Path, 
     )
     assert_the_live_env(dst, [key] if key else [], ["A_B", "C_D"])
     assert f"\nlive_secrets: '{LIVE_SECRETS}'\n" in (dst / ".copier-answers.yml").read_text()
+    named = [key] if key else []
+    step = (dst / ".claude/commands/record-fixture.md").read_text().split("\n2. ")[0]
+    assert "`" + "` and `".join([*named, "A_B", "C_D"]) + "`" in step
 
 
 KEYED_DEPENDENCY = '[{name: example-keyed, minor: "0.1", key_env: EXAMPLE_KEYED_API_KEY}]'
@@ -650,13 +654,16 @@ def test_live_secrets_are_names_the_step_sets_once(
 
 def test_release_prep_waits_for_the_dependencies(variant: tuple[str, Path]) -> None:
     """sdk-core ADR-0021 decision 5: a dependent releases after the packages it depends on, which
-    /release-prep names in step 1 only where a dependency is declared."""
+    /release-prep names in step 1 only where a dependency is declared, citing conventions §12,
+    the section that holds the rule at core 0.5.0 (#300)."""
     name, dst = variant
     text = (dst / ".claude/commands/release-prep.md").read_text()
     depended = dependencies(VARIANTS[name])
     assert ("sdk-core ADR-0021 decision 5" in text) is bool(depended)
     for dependency in depended:
         assert f"`xippios-{dependency['name']}`" in text, dependency
+    cited = [s for s in sentences(text) if "sdk-core ADR-0021 decision 5" in s]
+    assert all("conventions §12" in s and "§15" not in s for s in cited), cited
 
 
 def live_start(dst: Path) -> tuple[int, int]:
@@ -1853,13 +1860,15 @@ def layout_commands(text: str) -> list[str]:
 
 
 def test_every_command_points_at_the_process(keyless_flat: Path) -> None:
-    """The definition of done and the review checklist, by URL, instead of repeated text."""
+    """The definition of done and the review checklist, by URL, and the conventions, by
+    section, instead of repeated text (#300)."""
     commands = sorted((keyless_flat / ".claude/commands").glob("*.md"))
     assert [path.stem for path in commands] == RENDERED_COMMANDS, "#120"
     for path in commands:
         flat = " ".join(path.read_text().split())
         for doc in ["definition-of-done.md", "review-checklist.md"]:
             assert SDK_CORE_DOCS + doc in flat, f"{path.name}: {doc}"
+        assert "conventions §" in flat, f"{path.name}: the conventions by section"
         assert "../" not in flat, f"{path.name}: a relative path leaves a worktree"
 
 
@@ -2011,10 +2020,11 @@ def test_add_endpoint_checks_the_samples_where_the_source_parses_files(
 def test_record_fixture_leaves_the_key_to_the_clients_refusal(variant: tuple[str, Path]) -> None:
     """#63: no step reads a key's variable, not even to test that it is set: the client
     refuses an unset key before it sends, with core's ``ConfigError`` naming the variable.
-    A source without a key names neither."""
+    The variables of ``live_secrets`` stand beside the key (#300). A source without a
+    credential names neither."""
     name, dst = variant
     text = (dst / ".claude/commands/record-fixture.md").read_text()
-    keys = key_envs(VARIANTS[name])
+    keys = key_envs(VARIANTS[name]) + live_secrets(VARIANTS[name])
     for key in keys:
         assert f"`{key}`" in text, key
         assert f"${key}" not in text, key
@@ -2043,11 +2053,12 @@ def test_the_commands_on_a_source_name_what_their_rows_add(keyed_nested: Path) -
 def test_add_endpoint_names_cores_helpers_where_a_task_meets_them(
     variant: tuple[str, Path],
 ) -> None:
-    """#270, #250: ``/add-endpoint`` names each helper of core 0.4.1 that a new task meets,
-    and every sentence that names ``UnknownCode`` hands the refusal to the ``check`` of the
-    list's declaration, ``PackagedList.codes(...)``, so no step tells a task to raise it by
-    hand. A variant that packages no reference data, a multi-tenant one (#301), names
-    neither, as ``tests/test_reference_data.py`` holds of every render that packages none."""
+    """#270, #250, sdk-core#483: ``/add-endpoint`` names each helper of core 0.5.0 that a new
+    task meets, and every sentence that names ``UnknownCode`` hands the refusal to the
+    ``check`` of the list's declaration, ``PackagedList.codes(...)``, so no step tells a task
+    to raise it by hand. A variant that packages no reference data, a multi-tenant one
+    (#301), names neither, as ``tests/test_reference_data.py`` holds of every render that
+    packages none."""
     name, dst = variant
     listed = has_reference_data(VARIANTS[name])
     add = (dst / ".claude/commands/add-endpoint.md").read_text()
@@ -2061,14 +2072,29 @@ def test_add_endpoint_names_cores_helpers_where_a_task_meets_them(
         assert "check(" in sentence, sentence
 
 
+def test_add_endpoint_ends_its_list_of_helpers_on_a_full_stop(variant: tuple[str, Path]) -> None:
+    """Finding 3 of #327: the list of core's helpers in ``/add-endpoint`` ends on a full stop
+    in every render, with reference data or without, and each item before the last on a
+    semicolon."""
+    name, dst = variant
+    text = (dst / ".claude/commands/add-endpoint.md").read_text()
+    block = text.split("it takes core's helper and writes none by hand:\n")[1].split("\n\n")[0]
+    items = [" ".join(item.split()) for item in re.split(r"\n   - ", "\n" + block)[1:]]
+    assert len(items) > 1, (name, block)
+    assert [item[-1] for item in items] == [";"] * (len(items) - 1) + ["."], (name, items)
+
+
 def test_record_fixture_takes_cores_recorder(variant: tuple[str, Path]) -> None:
-    """#270: ``/record-fixture`` names the source's rewrite step and the one send that
-    writes nothing (sdk-core ADR-0048), and the recording of every exchange of a task
-    (sdk-core ADR-0057); it builds no client for one attempt, since core's send is one
-    whatever the client's retry, and names the recorder's refusal of a 1xx or a 3xx."""
+    """#270, sdk-core#483: ``/record-fixture`` names the source's rewrite step, the recorder
+    and the one send that writes nothing under their plain names, and what a source's own
+    capture of a task's exchanges builds and writes them with (sdk-core ADR-0066); it
+    builds no client for one exchange, since core's send is one whatever the client's
+    retry, names the recorder's refusal of a 1xx or a 3xx, and says that a source with a
+    recorder of its own records with it (#300)."""
     name, dst = variant
     record = " ".join((dst / ".claude/commands/record-fixture.md").read_text().split())
     assert [helper for helper in RECORDER if helper not in record] == [], name
+    assert "`scripts/record_fixture.py`" in record, name
     assert "max_attempts" not in record, name
     assert "1xx" in record, name
     assert "3xx" in record, name
@@ -2076,26 +2102,61 @@ def test_record_fixture_takes_cores_recorder(variant: tuple[str, Path]) -> None:
 
 def test_record_fixture_names_the_rewrite_type_and_redacted(variant: tuple[str, Path]) -> None:
     """#271, conventions §10: ``/record-fixture`` names ``Rewrite``, the type of the source's
-    step that ``xippios.core.testing`` exports, and cites sdk-core ADR-0048, decision 7,
-    where it says that the step writes ``REDACTED`` for a field of a request."""
+    step that ``xippios.core.testing`` exports, and cites conventions §10 where it says that
+    the step writes ``REDACTED`` for a field of a request (#300)."""
     name, dst = variant
     said = sentences((dst / ".claude/commands/record-fixture.md").read_text())
     assert [s for s in said if "`Rewrite`" in s and "`xippios.core.testing`" in s], name
-    assert [s for s in said if "`REDACTED`" in s and "ADR-0048, decision 7" in s], name
+    assert [s for s in said if "`REDACTED`" in s and "conventions §10" in s], name
 
 
 def test_record_fixture_checks_every_file_of_a_tasks_recording(variant: tuple[str, Path]) -> None:
-    """Findings 1 and 2 of #278, sdk-core ADR-0057, decision 6: the credential grep of
-    ``/record-fixture`` names each file that a task's recording writes, ``<case>.json`` and
-    ``<case>_<k>.json`` under the task's name, and the sentence on ``record_task`` names
-    the two bounds of ``record`` it does not take, ``max_bytes=`` and ``max_read_bytes=``."""
+    """Findings 1 and 2 of #278: the credential grep of ``/record-fixture`` names each file
+    that a task's recording writes, ``<case>.json`` and ``<case>_<k>.json`` under the task's
+    name (conventions §10)."""
     name, dst = variant
     record = (dst / ".claude/commands/record-fixture.md").read_text()
     spans = re.findall(r"`(grep -niE [^`]*)`", " ".join(record.split()))
     task_files = ["tests/fixtures/<task>/<case>.json", "tests/fixtures/<task>/<case>_*.json"]
     assert [span for span in spans if all(path in span for path in task_files)], (name, spans)
-    bounds = ["`record_task`", "`max_bytes=`", "`max_read_bytes=`"]
-    assert [s for s in sentences(record) if all(bound in s for bound in bounds)], name
+
+
+# The names that xippios-core 0.5.0 retired or that its family check no longer reads, which
+# the commands named up to the template's 0.4.1 (sdk-core#483): the recorder's sync twins and
+# the recording of a task, the cut of a JSON object by its key, the readers of JSON beside
+# get_answer, the walks of a page, the reader of a time without a zone, the exemptions of a
+# code's name and of a tenant, the readers of the built-answer check, the declaration of a
+# snapshot's credentials and the bound on a preview's reads. The refresh's reader of a shared
+# document left its name, load_json, for read_json in core 0.5.0, while xippios.core still
+# exports load_json as the reader of a packaged file, so no test bars it (finding 4 of #327).
+RETIRED_CORE_NAMES = [
+    "record_sync",
+    "send_once_sync",
+    "record_task",
+    "array_key",
+    "spared_end",
+    "mount_fixture",
+    "get_json",
+    "decode_json",
+    "paginate_",
+    "naive_time",
+    "UNNAMED_CODES",
+    "NO_TENANT_TASKS",
+    "READERS",
+    "Credentials(",
+    "preview_reads",
+]
+
+
+def test_the_commands_name_no_retired_name_of_core(variant: tuple[str, Path]) -> None:
+    """#300, sdk-core#483: the commands cite core 0.5.0, so none names a name that core
+    retired or no longer reads, in every render."""
+    _, dst = variant
+    found = []
+    for path in sorted((dst / ".claude/commands").glob("*.md")):
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            found += [f"{path.name}:{number}: {n}" for n in RETIRED_CORE_NAMES if n in line]
+    assert not found, "\n".join(found)
 
 
 def test_readme_status_table_has_the_columns_the_family_check_reads(keyless_flat: Path) -> None:

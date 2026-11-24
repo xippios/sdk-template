@@ -158,6 +158,12 @@ sdk-<slug>/
                        operator's own files
 ```
 
+The commands under `.claude/commands/` keep the steps of the work on a source and the paths
+that the answers render, and cite for each mechanism the section of sdk-core's conventions
+and the name of xippios-core that serves it, restating neither, so that a rule of the family
+stands once, in core's documents. `/record-fixture` records through core's recorder, and a
+source with a recorder of its own, `scripts/record_fixture.py`, records with that.
+
 The generated repository passes `ruff`, `mypy --strict`, `pytest` and `pre-commit`
 before any endpoint is added. `tests/test_family.py`, one line, collects core's family
 check, which then keeps the layout, the adapters, the task shapes, the README status

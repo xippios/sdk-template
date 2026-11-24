@@ -123,13 +123,12 @@ def test_a_source_without_reference_data_renders_none_of_it(without_reference: P
         assert run.returncode == 0, run.stdout + run.stderr
 
 
-def test_add_endpoint_without_reference_data_exempts_a_countrys_codes(
+def test_add_endpoint_without_reference_data_names_cores_other_helpers(
     without_reference: Path,
 ) -> None:
-    """#270, sdk-core ADR-0056: with no packaged list to name a country's codes by,
-    ``/add-endpoint`` hands such a parameter to ``UNNAMED_CODES``, the exemption that core's
-    family check reads, and names core's other helpers as every render does; the test
-    above holds that it names none of ``LIST_HELPERS``."""
+    """#270, sdk-core#483: with no packaged list to name a code by, ``/add-endpoint`` names
+    a code field by the field that carries its name, ``NamedBy``, and core's other helpers
+    as every render does; the test above holds that it names none of ``LIST_HELPERS``."""
     add = (without_reference / ".claude/commands/add-endpoint.md").read_text()
     flat = " ".join(add.split())
     assert [helper for helper in TASK_HELPERS if helper not in flat] == []
@@ -306,12 +305,15 @@ def test_the_live_tests_collect_cores_comparison(name: str, render: Callable[[st
 
 
 def test_the_command_names_what_a_new_list_declares(keyless_flat: Path) -> None:
-    """#252, sdk-core ADR-0051 and ADR-0055: ``/refresh-reference-data`` declares a new
-    list as a ``Listed`` of the script's ``LISTS``, names it in ``PACKAGED_LISTS`` and
-    gives it its entry in ``LIVE_LISTS`` or ``NO_LIVE_LIST`` of ``tests/test_live.py``,
-    which core's family check holds; the 0.4.0 script's dicts are gone."""
+    """#252, sdk-core ADR-0062 and ADR-0055: ``/refresh-reference-data`` declares a new
+    list as a ``Listed`` of the script's ``LISTS``, core 0.5.0's one ``Lists`` that the one
+    ``run`` takes (sdk-core#482), names it in ``PACKAGED_LISTS`` and gives it its entry in
+    ``LIVE_LISTS`` or ``NO_LIVE_LIST`` of ``tests/test_live.py``, which core's family check
+    holds; the 0.4.0 script's dicts are gone."""
     text = (keyless_flat / ".claude/commands/refresh-reference-data.md").read_text()
     for name in ["Listed", "LISTS", "PACKAGED_LISTS", "LIVE_LISTS", "NO_LIVE_LIST"]:
         assert f"`{name}`" in text, name
+    for call in ["`Lists(", "`run("]:
+        assert call in text, call
     assert "`tests/test_live.py`" in text
     assert [name for name in ["ID_LISTS", "TABLES"] if f"`{name}`" in text] == []

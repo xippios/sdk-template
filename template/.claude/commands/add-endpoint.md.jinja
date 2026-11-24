@@ -1,7 +1,8 @@
 Add an endpoint wrapper and a task function for the {{ source_name }} operation: $ARGUMENTS
 
-Follow the three layers (sdk-core ADR-0001) exactly. The change meets sdk-core's
-definition of done,
+Follow the three layers of conventions §2 (sdk-core ADR-0001). Each step names the section
+of sdk-core's conventions that holds its rules and the name of xippios-core that serves it.
+The change meets sdk-core's definition of done,
 https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md, and its review
 checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md: step 9
 lists what they check in an endpoint.
@@ -13,207 +14,138 @@ lists what they check in an endpoint.
    publication date or release identifier the response carries.
 
 2. **Models** in `src/xippios/{{ package_dir }}/models.py`: one `UpstreamModel` subclass per
-   payload object. Field names are the upstream names in snake_case; where upstream spells
-   one differently, accept that spelling with `Field(validation_alias=...)`, never
-   `Field(alias=...)`: the adapters serialise by alias, so `alias=` would hand agents
-   upstream camelCase rows while tool arguments are snake_case. With `validation_alias`
-   the upstream spelling is accepted on input and every output surface stays snake_case.
-   Dates become `datetime.date`/`datetime`, numbers become `int`/`Decimal`/`float`,
-   upstream enumerations become `StrEnum`, an enumeration of integer ids `IntEnum`
-   (conventions §3). No renaming to match another source. An enumeration written by
+   payload object, named and typed by conventions §3. A field takes upstream's name in
+   snake case and accepts upstream's spelling with `Field(validation_alias=...)`, never
+   `Field(alias=...)`, and a time upstream prints is read into the type that keeps
+   everything it sends, with no text beside it. A code field marks where its codes' names
+   come from with `NamedBy(...)` in its annotation (conventions §4):
 {% if has_reference_data %}
-   hand, for a value set upstream documents and no packaged list renders, lives here
-   too, by the family's precedent: `enums.py` is generated whole
-   (`/refresh-reference-data`).
+   `Annotated[str, NamedBy(REGIONS)]` for the packaged list of step 5, whose names the
+   answer puts in `meta.names`, or `Annotated[int, NamedBy("item")]` for the field in
+   which upstream sends the name, which stands on the record beside its code and takes no
+   entry there. An enumeration written by hand, for a value set upstream documents and no
+   packaged list renders, lives here too, since `enums.py` is generated whole
+   (`/refresh-reference-data`), and an offline test reads it against `docs/upstream/`.
 {% else %}
-   hand, for a value set upstream documents, lives here too, by the family's precedent.
+   `Annotated[int, NamedBy("item")]` for the field in which upstream sends the name, which
+   stands on the record beside its code and takes no entry in `meta.names`. An
+   enumeration written by hand, for a value set upstream documents, lives here too, and an
+   offline test reads it against `docs/upstream/`.
 {% endif %}
 
 3. **Endpoint wrapper** in `src/xippios/{{ package_dir }}/api/<wrapper>.py`, or in the
-   service's module where operation ids repeat across services and `docs/layout.md`
-   keeps one module per service: one async function. The module and the
-   function carry the upstream operation name in snake case, from the operation's id in
-   the snapshot (an OpenAPI `operationId`, a WADL method id), else from the path, minus a
-   controller prefix that every operation of the API shares, so
-   `PSDData_GetCommodityDataByYear` is `get_commodity_data_by_year` in
-   `api/get_commodity_data_by_year.py`; conventions §2 gives the rule's cases, an id that
-   restates the path and a name taken from the path among them. The verbatim id stays in
-   the first line of the wrapper's docstring and in the `endpoint=` the wrapper passes, so
-   `meta.endpoint` keeps upstream's exact name. Parameters as upstream names them,
+   service's module where operation ids repeat and `docs/layout.md` keeps one module per
+   service: one async function, named from the operation's id by conventions §2, the
+   verbatim id kept in the first line of its docstring and in the `endpoint=` it passes.
 {% if tenant_param %}
-   snake_cased; it takes `{{ tenant_param }}`, the tenant's name, and calls
-   `xippios.{{ import_path }}._client.client_for({{ tenant_param }})`, that tenant's own client, and
-   returns models via
+   Parameters as upstream names them, snake_cased; it takes `{{ tenant_param }}` and calls
+   `xippios.{{ import_path }}._client.client_for({{ tenant_param }})`, that tenant's own client,
 {% else %}
-   snake_cased; it calls `xippios.{{ import_path }}._client.client` and returns models via
+   Parameters as upstream names them, snake_cased; it calls
+   `xippios.{{ import_path }}._client.client`,
 {% endif %}
-   `xippios.core.parse(...)`. It calls `get_json`, or `get_answer` where the answer may
-   come from the cache, whose `retrieved_at` the task puts into its `ResultMeta`, or
-   `get` and then `decode_json` where it needs more of the response, a header say
-   (conventions §6). No defaults beyond upstream's own, no composition, no status-code
-   checks: upstream's documented error shapes go into `classify` in `_client.py`, an
-   error class of the package's own into `errors.py` (conventions §5, §6).
+   reads JSON through `get_answer`, the one reader, and returns models via
+   `xippios.core.parse(...)`. No defaults beyond upstream's own, no composition, no
+   status-code checks: upstream's error shapes go into `classify` in `_client.py`, an error
+   class of the package's own into `errors.py` (conventions §5, §6).
 
    An operation that upstream serves from another host than `BASE_URL`'s follows the
-   rule of one limiter per host (conventions §2, §6). A second base URL on the same host
-   goes through {{ '`client_for(' ~ tenant_param ~ ')`' if tenant_param else '`client`' }} by its absolute URL, and `classify`'s path checks name both
-   bases. An origin or mirror that the publisher runs itself, where its canonical host
-   refuses automated requests, takes that host's pace through the same client, and
-   `docs/upstream/` names both hosts; a mirror that anyone else runs is never sent to. A
-   host that a dependency sends to is reached through the dependency's tasks alone, never
-   by a wrapper here. Any other host gets a client of its own in `_client.py`, its base
-   URL and its `RateLimit` beside the first's, and its row in the table of `CLAUDE.md`,
-   with its pace and where the pace comes from, in the same pull request.
+   rule of one limiter per host (conventions §2, §6): a second base on the same host goes
+   through {{ '`client_for(' ~ tenant_param ~ ')`' if tenant_param else '`client`' }} by its absolute URL, and `classify`'s path checks name both
+   bases; a mirror the publisher runs takes its canonical host's pace, and
+   `docs/upstream/` names both hosts; a host that a dependency sends to is reached through
+   its tasks alone; any other host gets a client of its own in `_client.py`, with its
+   `RateLimit`, and its row in the table of `CLAUDE.md`.
 
-4. **Task function** in `src/xippios/{{ package_dir }}/tasks.py`: an async function shaped
-   like what a person or agent wants (`get_<thing>(...)`, with the parameters a caller
-   thinks in), composing wrappers, resolving pagination with `xippios.core.paginate_*`
-{% if has_reference_data %}
-   and reference lookups, and returning `Result[T]` with full `ResultMeta` (`source`,
-{% else %}
-   and returning `Result[T]` with full `ResultMeta` (`source`,
-{% endif %}
-   `endpoint`, `request`, and `published_at` / `vintage` when upstream provides them). Then:
-   `get_<thing> = sync(get_<thing>_async)`, add `"get_<thing>"` to `__all__`, and
-   re-export it from `__init__.py`.
+4. **Task function** in `src/xippios/{{ package_dir }}/tasks.py`, a task as conventions §2
+   defines it: its operation's answer for the arguments given, the arguments that
+   identify a record positional in the order of upstream's path and every filter
+   keyword-only. It composes wrappers and returns `Result[T]` with full `ResultMeta`
+   (conventions §4). Then: `get_<thing> = sync(get_<thing>_async)`, add `"get_<thing>"`
+   to `__all__`, and re-export it from `__init__.py`.
 {% if tenant_param %}
-   It takes `{{ tenant_param }}: str`, one tenant, required with no default, and hands it to
-   each wrapper it calls: the family check holds every task to it but the tenant list and
-   those `NO_TENANT_TASKS` names (conventions §7).
+   The tenant comes first, `{{ tenant_param }}: str`, positional and required with no
+   default, and goes to each wrapper it calls (conventions §2, §7).
 {% endif %}
-   A projection the task returns leaves out documented
-   personal identifiers (`ssn`, `iban` and their like) unless the task fetches them
-   deliberately and says so in its docstring (sdk-core ADR-0017). A list task whose whole
-   list an agent needs, longer than the default result cap, gets a cap of its own in
-   `MCP_CAPS` (sdk-core ADR-0038). So does a task whose result is one upstream page that
-   must return whole, a cursor-paged page with the `next_token` the caller needs for the
-   next page or a bounded lookup: a byte bound of its own, the row bound unchanged, and
-   where the upstream bills per result, the docstring states the price per result
-   (conventions §8; sdk-core ADR-0038, decision 4). A tool whose cut answer a caller can
-   continue, where a second run of its task costs little, takes a paged cap,
-   `ResultCap(paged=True)`, which gives the tool the adapter's own `offset` and ends the
-   note of a cut answer with the call for the next rows; a tool whose second run is dear,
-   many upstream requests or a billed page, stays unpaged, and registration refuses a
-   paged cap to a write task and to a task that takes a parameter named `offset`. A tool
-   whose answer is a series ordered oldest first keeps its newest rows with
-   `ResultCap(keep="last")` (conventions §8, sdk-core ADR-0047). A bulk task, one that
-   returns a file or a list read from one, is named in `BULK_TASKS` beside it:
-   Python-only, no tool and no route (sdk-core ADR-0040 decision 4).
+   A projection leaves out documented personal identifiers (conventions §3). A cap of its
+   own over MCP is an entry of `MCP_CAPS` (conventions §8): for a list an agent needs
+   whole, or one upstream page that returns whole with the `next_token` the caller needs;
+   `ResultCap(paged=True)` where a second run costs upstream nothing, and
+   `ResultCap(keep="last")` for a series ordered oldest first. A bulk task, which returns
+   a file or a list read from one, is named in `BULK_TASKS`.
 
    Where a task meets one of these, it takes core's helper and writes none by hand:
-{% if has_reference_data %}
-   - a parameter whose name holds `country`, `countries`, `area`, `reporter` or
-     `partner`: core's decorator `names_codes` names the codes of each call in
-     `meta.names`, `@names_codes(country_code=COUNTRIES)` with the declaration of the
-     list that step 5 makes, `PackagedList.codes(...)`, and a parameter whose codes no
-     packaged list names, or that takes no code, stands in `UNNAMED_CODES` of its tasks
-     module, the task's name to the parameter and the reason; core's family check fails
-     a parameter that is neither named nor exempt (conventions §4, sdk-core ADR-0056);
-{% else %}
-   - a parameter whose name holds `country`, `countries`, `area`, `reporter` or
-     `partner`: it stands in `UNNAMED_CODES` of its tasks module, the task's name to the
-     parameter and the reason, since the source packages no list that names its codes;
-     core's family check fails a parameter that no entry exempts (conventions §4,
-     sdk-core ADR-0056);
-{% endif %}
-   - a `since` that takes back the `meta.vintage` of an earlier call: core's
-     `newer_than(since, items, released=..., read=...)` keeps what was released strictly
-     later, `read` the reader of the vintage's text, core's `naive_time` for a release
-     time printed without a zone, which the task also calls on `since` before its
-     request, so an unreadable text is refused before the call; the task sets
-     `meta.vintage` and `meta.published_at` from the whole answer (conventions §4,
-     sdk-core ADR-0052);
+   - an offset-paged list collected whole: the walk,
+     `fetch_pages(fetch, page_size=..., most=..., paging=...)`, whose bound of `most`
+     pages the task's docstring states (conventions §4);
+   - a `since` that takes back the `meta.vintage` of an earlier call:
+     `newer_than(since, items, released=..., read=...)`, `read` the source's own reader of
+     its vintage's text (conventions §4);
    - an upstream that counts a query's records on request and serves at most a limit per
-     call: core's `fetch_counted(count, fetch, limit=..., empty=..., narrow=...)` counts
-     first, refuses a count over the limit with `QueryTooLarge` before the data request
-     and returns the count, which the task sets as `meta.total`, and `classify` maps
-     upstream's own refusal of a query as too large to `QueryTooLarge` (conventions §5,
-     sdk-core ADR-0053);
-   - a series assembled from one request per period: a ceiling declared once,
-     `Ceiling(most, unit=...)`, whose `check` refuses a range over it before the first
-     request, and `fetch_periods(periods, fetch, skip=...)`, which sends the requests one
-     after another and returns each period with its answer for the task to assemble, the
-     vintage included. A lower ceiling on the MCP server takes `mcp=` and `option=`, and
-     `tasks.py` gives the tool set the ceiling's `add_options` and `apply_options` as
-     `mcp_add_options` and `mcp_apply_options` (conventions §4, sdk-core ADR-0054).
-
-5. **Docstring for agents** on the task: first line one sentence; then an `Args:` block
-   explaining every parameter with examples of valid values. The MCP tool description and
-   the OpenAPI summary are generated from it. Errors must come from the taxonomy in
-   `xippios.core.errors`; raise `NotFoundError` where upstream signals absence
-   (conventions §5).
+     call: `fetch_counted(count, fetch, limit=..., empty=..., narrow=...)`, which refuses
+     with `QueryTooLarge` before the data request, as `classify` maps upstream's own
+     refusal (conventions §5);
+   - a series of one request per period: `Ceiling(most, unit=...)`, whose `check` runs
+     before the first request, and `fetch_periods(periods, fetch, skip=...)`; a lower
+     ceiling on the MCP server takes `mcp=` and `option=` (conventions §4);
+   - a file it downloads: the client's `download`, and `check_dest(dest, source=...)`
+     before the task's first request (conventions §6){{ ';' if has_reference_data else '.' }}
 {% if has_reference_data %}
-   A code the packaged list lacks, where upstream answers one with an empty result, is
-   refused before the call by the list's declaration,
-   `PackagedList.codes(code, name, fold_case=...)`, called once on the loaded list and
-   kept as a constant of the module, whose `check(param, value)` returns the value as the
-   caller gave it or raises core's `UnknownCode`, naming the list, its fetch date and the
-   closest codes, so no task raises `UnknownCode` itself (conventions §5,
-   sdk-core ADR-0045).
+   - a code that its answer names: core's decorator `names_codes` with the list's
+     declaration of step 5, `@names_codes(region_code=REGIONS)` (conventions §4).
+{% endif %}
+
+5. **Docstring for agents** on the task, as conventions §8 has it: one sentence, then an
+   `Args:` block with valid values for each parameter; the tool's description and the
+   route's summary come from it. Errors come from the taxonomy of conventions §5,
+   `NotFoundError` where upstream signals absence, and a refusal of the task's own before
+   any request says `Nothing was sent.` after its first sentence, as core's do.
+{% if has_reference_data %}
+   A code the packaged list lacks is refused before the call by the list's declaration,
+   `PackagedList.codes(code, name, fold_case=...)`, kept as a constant of the module,
+   whose `check(param, value)` takes one code or a list of them and raises core's
+   `UnknownCode`, so no task raises it itself (conventions §5).
 {% endif %}
 
 6. **Tests.** Run `/record-fixture <wrapper> <case> <parameters>` for at least one
    realistic case, or `/record-fixture <task> <case> <parameters>` for a task that sends
-   more than one request, which records each of its exchanges under the task's name with
-   core's `record_task`, add a replay test in `tests/test_tasks.py` using the
-   `replay_fixture` fixture, and a `@pytest.mark.live` smoke test in `tests/test_live.py`. The replay
-   tests of a family of tasks may live in a module of the source's own beside
-   `tests/test_tasks.py`: `copier update` never touches a file the template has never
-   rendered, and `tests/test_tasks.py` itself is the source's once rendered. A replay
-   test that checks what was sent compares `xippios.core.testing.sent_query(route)`, the
-   scrubbed query of the last request, `sent_urls(route)`, the URLs with credentials
-   redacted, or `sent_bodies(route)`, the bodies decoded, a JSON body as it parses and a
-   form as a mapping of its fields, credentials redacted, never a request kept from
-   `route.calls`, which a failure or `pytest -l` would print.
-   A test that builds an answer or changes a recorded one, rather than replaying it as
-   recorded, says where the body comes from and names its kind in a docstring or a block of
-   comments that reaches it, `NOT RECORDED: <where it comes from> (conventions §10, kind 2)`,
-   a replay for another request than its recording names `kind 3`, and a value handed to
-   the code that no route serves says so in the sentence
-   `<the value> is an input of the test, not an answer from <upstream>.` in place of a
-   kind. `tests/test_built_answers.py` collects core's check of that mark, which fails
-   an unmarked place by its file and line, and names in `READERS` the source's own functions
-   that take a body written in a test (conventions §10, sdk-core ADR-0049).
+   more than one request, add a replay test in `tests/test_tasks.py` using the
+   `replay_fixture` fixture, and a `@pytest.mark.live` smoke test in `tests/test_live.py`
+   (conventions §10). The replay tests of a family of tasks may live in a module of the
+   source's own beside `tests/test_tasks.py`, which `copier update` never touches. What
+   was sent is read with `sent_query`, `sent_urls` or `sent_bodies`, and a test that
+   builds an answer marks it by its kind, `NOT RECORDED: <where it comes from>
+   (conventions §10, kind 2)`, which core's check in `tests/test_built_answers.py` holds.
 {% if has_reference_data %}
-   A test of a task that answers from a packaged list reads the list's
-   fetch date and counts from the packaged file instead of pinning them, so a refresh of
-   the list breaks no test.
+   A test of a task that answers from a packaged list reads the list's fetch date and
+   counts from the packaged file, so a refresh of the list breaks no test.
 {% endif %}
    Grep the fixture for key patterns before committing.
 {% if write_server %}
 
    A task that writes upstream goes into `src/xippios/{{ package_dir }}/tasks_write.py`
-   and its `__all__`, with `confirm: bool = False` as its last parameter. Without
-   `confirm` it sends no write and returns its preview, a model tagged
-   `performed: Literal[False]`, as `WritePreview` of a new source's scaffold is, with the
-   fields that show what the confirmed call would send by upstream's names, so it returns
-   `Result[<preview> | <answer>]`. The preview's `reads` names each operation it read
-   first, `[]` when it read none, and the task's docstring says whether its preview reads
-   and what that read costs (conventions §8, sdk-core ADR-0050). The source's
-   first write task brings the test of the write server, in `tests/test_tasks_write.py`:
-   core's `assert_write_tools` holds that the write server serves exactly the write
-   tasks, each taking `confirm` last, that none of them is a tool of the read server
-   or a route of the router (conventions §8), and with `preview_reads=True` that each
-   returns one preview that declares `reads`. It lists the tools on the test's own loop,
-   so the test awaits it under `@pytest.mark.anyio`:
+   and its `__all__`, `confirm: bool = False` its last parameter: without `confirm` it
+   sends no write and returns its preview, tagged `performed: Literal[False]`, whose
+   `reads` names each operation it read first. Its docstring says whether the preview
+   reads and what that costs, and which read shows whether a failed write was applied
+   (conventions §6, §8). The source's first write task brings the test of the write
+   server, in `tests/test_tasks_write.py`, core's `assert_write_tools`, awaited under
+   `@pytest.mark.anyio`; with `dry_run=` and `sent=` it calls each tool without `confirm`:
 
    ```python
    import pytest
    from xippios.core.testing import assert_write_tools
 
    from xippios.{{ import_path }} import http, mcp, mcp_write, tasks_write
-   from xippios.{{ import_path }}._client import SOURCE
 
 
    @pytest.mark.anyio
    async def test_the_write_server_serves_write_tasks_only() -> None:
        await assert_write_tools(
-           mcp_write.server,
+           mcp_write.build(),
            [getattr(tasks_write, name) for name in tasks_write.__all__],
-           source=SOURCE,
            read_server=mcp.server,
            router=http.router,
-           preview_reads=True,
        )
    ```
 {% endif %}
@@ -226,27 +158,16 @@ lists what they check in an endpoint.
 
 8. **Checks**, all of them:
    `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest && uv run pre-commit run --all-files`.
-   `tests/test_family.py`, core's family check, proves the new task is exposed as a tool
-   and a route, a bulk task as neither, without touching `mcp.py` or `http.py`, returns
-   `Result[T]` with an agent docstring, and is in the README status table.
+   `tests/test_family.py`, core's family check, proves the new task is served as a tool
+   and a route, a bulk task as neither, returns `Result[T]` with an agent docstring, and
+   stands in the README status table (conventions §10).
 
-9. **Done** when each of these holds, the definition of done's checks of an endpoint:
-   - the change sits in its layer, and `mcp.py` and `http.py` hold no logic
-     (sdk-core ADR-0001);
-   - the wrapper matches `docs/upstream/`: its name, its parameters and their semantics;
-   - the task returns `Result[T]` with full `ResultMeta`, raises only from the taxonomy
-     of conventions §5, and has its agent docstring;
-   - `__init__.py` exports the task and the README status table lists it;
-   - the task has a replay test on a recorded fixture and a live smoke test, and each
-     fixture this change adds is recorded, free of key patterns and of the values of the
-     fields the source keeps out of its projections (sdk-core ADR-0017), and under 256 KiB
-     (sdk-core ADR-0040);
+9. **Done** when the items of the definition of done's blocks Code, Tests and Docs hold
+   for the endpoint, its wrapper matching `docs/upstream/` and its task with its replay
+   test and its live smoke test,
 {% if has_files %}
-   - each file kind the source parses has a sample under
-     `tests/fixtures/files/<file_kind>/` with its provenance row in
-     `tests/fixtures/files/README.md`, and one live test that checks the parser still
-     reads the current release (sdk-core ADR-0020);
+   each file kind the source parses with a sample under
+   `tests/fixtures/files/<file_kind>/`, its provenance row in
+   `tests/fixtures/files/README.md` and one live parser test (conventions §10),
 {% endif %}
-   - the changelog fragment says what the change adds for a user of the package;
-   - the README says what changed in install, usage or endpoint coverage;
-   - the checks of step 8 pass.
+   and the checks of step 8 pass.

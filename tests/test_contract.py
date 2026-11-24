@@ -145,14 +145,15 @@ def test_the_write_scaffold_serves_nothing_yet(tenants: Path) -> None:
 def test_add_endpoint_brings_the_write_servers_test(variant: tuple[str, Path]) -> None:
     """Conventions §8, #220: where there is a write server, ``/add-endpoint`` names the test a
     source's first write task brings, core's ``assert_write_tools``, awaited under
-    ``@pytest.mark.anyio``, in ``tests/test_tasks_write.py``, which holds each preview's
-    ``reads`` with ``preview_reads=True`` (sdk-core ADR-0050, #271); elsewhere it names none."""
+    ``@pytest.mark.anyio``, in ``tests/test_tasks_write.py``, which takes the write tool set
+    first, ``mcp_write.build()``, and holds each preview's ``reads`` in every call (sdk-core
+    ADR-0050, #271, sdk-core#483); elsewhere it names none."""
     name, dst = variant
     text = (dst / ".claude/commands/add-endpoint.md").read_text()
     for named in [
         "xippios.core.testing import assert_write_tools",
         "await assert_write_tools(",
-        "preview_reads=True",
+        "mcp_write.build(),",
         "@pytest.mark.anyio",
         "tests/test_tasks_write.py",
     ]:
