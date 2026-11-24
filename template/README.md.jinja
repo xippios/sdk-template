@@ -1,5 +1,14 @@
 # xippios-{{ source_slug }}
 
+{% if shape == 'general' %}
+{{ source_name }}, a package of the [xippios SDK family](https://github.com/xippios).
+
+## Install
+
+```bash
+uv add xippios-{{ source_slug }}
+```
+{% else %}
 Typed Python client, MCP server and FastAPI routes for
 [{{ source_name }}]({{ upstream_url }}), part of the
 [xippios SDK family](https://github.com/xippios). Names and semantics follow the
@@ -13,11 +22,13 @@ uv add xippios-{{ source_slug }}            # client only
 uv add "xippios-{{ source_slug }}[mcp]"     # + MCP server
 uv add "xippios-{{ source_slug }}[http]"    # + FastAPI router
 ```
+{% endif %}
 
 {% if depends_on %}
 It depends on {% for dep in depends_on %}`xippios-{{ dep.name }}`{{ ', ' if not loop.last else '' }}{% endfor %}, installed with it. <!-- what it uses each for, one line (sdk-core ADR-0021 decision 6) -->
 
 {% endif %}
+{% if shape == 'source' %}
 {% set tenant_vars = [tenant_list_var, tenant_prefix ~ '_<NAME>_' ~ tenant_field] if tenant_param else [] %}
 {% set plain_vars = env_vars | map(attribute='name') | reject('in', tenant_vars) | list %}
 {% if tenant_param %}
@@ -123,6 +134,7 @@ Data comes from {{ source_name }} ({{ upstream_url }}), on whatever terms upstre
 states for it, if any; this package adds no rights to it. Documentation snapshot and its
 attribution: `docs/upstream/FETCHED.md`.
 
+{% endif %}
 ## Workflows
 
 `ci.yml` runs ruff, its format check, mypy, pytest and pre-commit on Python 3.12, 3.13 and
@@ -140,6 +152,7 @@ release ends quietly. It is handed no secret: the step that tells a release is h
 job's token as `GH_TOKEN`, the tag goes with the job's token and PyPI trusts the workflow
 itself. No variable switches it off.
 
+{% if shape == 'source' %}
 {% set live_names = key_envs + live_secret_names %}
 `live.yml` runs every `live` test against the upstream with `--tb=short --assert=plain`, so
 its public log holds neither a failing test's arguments nor the values an assertion compared.
@@ -152,6 +165,7 @@ Its pytest step alone is handed `XIPPIOS_LIVE_TESTS`, and no secret.
 {% endif %}
 A variable `WORKFLOW_LIVE` of `off`, the repository's over the organization's, switches it off.
 
+{% endif %}
 `conventions.yml` calls the organization's review of a pull request against the documents
 listed under Documents below, the check `conventions / conventions`, when a pull request
 opens, is pushed to, reopens or is edited, and on a push to `main` or a dispatch the review
@@ -182,9 +196,11 @@ over the organization's, switches it off.
 - sdk-core: [docs/adr.md](https://github.com/xippios/sdk-core/blob/main/docs/adr.md) — the index of the family's architecture decisions, which the conventions cite.
 - sdk-core: [docs/definition-of-done.md](https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md) — what a change satisfies before its pull request is opened.
 - sdk-core: [docs/review-checklist.md](https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md) — what the review of a pull request checks, in order.
-- sdk-{{ source_slug }}: [docs/adr.md](https://github.com/xippios/sdk-{{ source_slug }}/blob/main/docs/adr.md) — the index of this package's own decisions, generated from the records in `docs/adr/`.
-- sdk-{{ source_slug }}: [docs/upstream/FETCHED.md](https://github.com/xippios/sdk-{{ source_slug }}/blob/main/docs/upstream/FETCHED.md) — the snapshot of the upstream documentation, the reference for names, parameters and semantics.
+- {{ repository_name }}: [docs/adr.md](https://github.com/xippios/{{ repository_name }}/blob/main/docs/adr.md) — the index of this package's own decisions, generated from the records in `docs/adr/`.
+{% if shape == 'source' %}
+- {{ repository_name }}: [docs/upstream/FETCHED.md](https://github.com/xippios/{{ repository_name }}/blob/main/docs/upstream/FETCHED.md) — the snapshot of the upstream documentation, the reference for names, parameters and semantics.
+{% endif %}
 
 ## Licence
 
-Apache-2.0. See [LICENSE](https://github.com/xippios/sdk-{{ source_slug }}/blob/main/LICENSE).
+Apache-2.0. See [LICENSE](https://github.com/xippios/{{ repository_name }}/blob/main/LICENSE).

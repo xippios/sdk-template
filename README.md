@@ -11,6 +11,9 @@ the required `ci` check, the release train with trusted publishing, the organiza
 checks of a pull request, pre-commit, `docs/adr/` with its index, changelog fragments,
 and, for Claude Code, slash commands, a `CLAUDE.md` of the package's facts that imports its
 layout, `docs/layout.md`, and the rules no change breaks, `.claude/rules/never.md`.
+Its second shape, the general part of a repository, renders that repository around a
+package of the family that wraps no API, without tasks and servers
+([The general part of a repository](#the-general-part-of-a-repository), ADR-0003).
 The documents a change of the template follows are listed under [Documents](#documents).
 
 ## Generating a source repository
@@ -30,6 +33,9 @@ base URL, the key and the pace, or the person's word, and the status a status-on
 the host returned; it goes under the Assumptions of the repository's first pull request.
 `core_version` stays at its default unless the person names another core release, and
 `core_git_ref` is left out but to build against unreleased core.
+A repository of the general shape is generated the same way with `-d shape=general`, its
+slug, its `source_name` and, where it is not named `sdk-<slug>`, its `repository_name`, and
+no answer of an upstream.
 
 ```bash
 uvx --from 'copier>=9.19' copier copy --defaults \
@@ -67,16 +73,18 @@ organization secret whose repository access takes the new repository, never set 
 
 | Question | Meaning | Example |
 | --- | --- | --- |
+| `shape` | what the repository holds, a choice of two names (ADR-0003): `source`, the default, a source package with its client, tasks and servers; `general`, the general part of a repository alone, for a package of the family that wraps no API, which asks no question of a source and owns its `pyproject.toml` once rendered | `general` |
 | `source_slug` | provider, plus API when one provider has several; names the repo, the distribution and the import | `usda-nass` |
-| `source_name` | human name; at most 77 characters, so every generated Python line stays within 100 columns, and no `"` or `\`, which the generated Python quotes | `USDA NASS Quick Stats` |
+| `repository_name` | the general shape's alone: the repository's name on GitHub, which the package's URLs and the trusted publisher of `/release-prep` take; default `sdk-<slug>`, the name every source's repository has | `xippios-example` |
+| `source_name` | human name; at most 77 characters, so every generated Python line stays within 100 columns, and no `"` or `\`, which the generated Python quotes. In the general shape, the package's description in a few words, which `pyproject.toml`'s description and the first sentence of `README.md` and `CLAUDE.md` take at the first render | `USDA NASS Quick Stats` |
 | `import_path` | import path under `xippios`; defaults to the slug with dots, so multi-API providers nest (sdk-core ADR-0006); override for a hyphenated single-API provider | `usda.nass` |
-| `upstream_url` | provider page, linked from the README | `https://quickstats.nass.usda.gov` |
+| `upstream_url` | a source's, as are the seven questions after it but `core_version`, `core_git_ref` and `source_dependencies`: provider page, linked from the README | `https://quickstats.nass.usda.gov` |
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
 | `api_key_env` | environment variable with the key; empty for open APIs, and for a multi-tenant source whose tenants hold another credential | `NASS_API_KEY` |
 | `write_server` | whether the source writes to the upstream through a server of its own (conventions §8): `true` renders `mcp_write.py`, which serves `tasks_write.__all__` as confirm-gated tools, the `tasks_write.py` scaffold, the source's once rendered, and the entry points `xippios-<slug>-mcp-read` and `xippios-<slug>-mcp-write` in place of `xippios-<slug>-mcp`, with no alias for the old name; default `false` | `true` |
 | `tenant_param` | the task parameter that names a tenant, for a multi-tenant source whose upstream serves each tenant under a credential of its own (conventions §7): it renders core's `Tenants` registry in `_client.py`, a client per tenant with its key in `<PREFIX>_<NAME>_API_KEY`, the prefix `api_key_env`'s without `_API_KEY`, the tenants listed in `<PREFIX>_<PARAM>S` and the reserved tenant `demo`, whose key the offline tests and `live.yml` take in place of `api_key_env`; the tenant list task, `build(lock)` and `serve_tenants` in the servers, whose `--<param>` binds a server to one tenant, and `keep_reserved_tenants` in `tests/conftest.py`. A source whose tenants hold another credential, a refresh token say, answers no key and names that credential's variables in `live_secrets`, the reserved tenant's first, and its own `_client.py` reads them (ADR-0002). At most 20 characters, so every generated Python line stays within 100 columns; default empty, one tenant | `org` |
-| `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, sdk-core ADR-0039 decision 1); default `0.4.1`, the release the template adopts, rendered `~=0.4.1` | `0.4.1` |
-| `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); empty, the default, for no pin; a release carries none, since `/release-prep` removes it first, in a PR of its own | `main` |
+| `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, sdk-core ADR-0039 decision 1); default `0.4.1`, the release the template adopts, rendered `~=0.4.1`; in the general shape at the first render alone, since `pyproject.toml` is then the repository's | `0.4.1` |
+| `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); empty, the default, for no pin; a release carries none, since `/release-prep` removes it first, in a PR of its own; in the general shape at the first render alone, and the repository removes the pin from its own `pyproject.toml` | `main` |
 | `source_dependencies` | the source packages this one uses the task layer of (sdk-core ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |
 | `live_secrets` | the variables the live tests read beyond the keys, such as a username and a password, a YAML flow list of UPPER_SNAKE_CASE names in a string: `live.yml` passes each one to its pytest step from the secret of the same name, after the keys, and a multi-tenant source without a key names its tenants' credential here, the reserved tenant's first, each under `xippios_placeholder_key_envs` in `pyproject.toml` too, since its own auth reads them, so core's plugin sets them in every test not marked live; each name once, never a key (`api_key_env`'s or a dependency's `key_env`), `XIPPIOS_LIVE_TESTS` or a name with GitHub's `GITHUB_` prefix; default `[]`, none, recorded on one line | `[FAOSTAT_USERNAME, FAOSTAT_PASSWORD]` |
 | `has_files` | whether the source parses the files it downloads (sdk-core ADR-0020): `true` renders `parse/`, one module per file kind, and `tests/fixtures/files/README.md`, one provenance row per sample file its parser tests read, both the source's once rendered, and a line of `.gitattributes` that keeps the samples byte for byte; a retrieval-only source, which lists releases and downloads files without parsing them, answers `false`, its download fixture the recorded exchange of the file's URL (sdk-core ADR-0040 decision 5); default `false` | `true` |
@@ -212,6 +220,31 @@ names its pages, and its first run writes `docs/upstream/FETCHED.md` whole, wher
 render's stub holds its title and one paragraph. The scaffold declares no `reduce`, so
 core's default keeps each page as fetched until the source adds its converter.
 
+### The general part of a repository
+
+`-d shape=general` renders the general part of a repository alone, for a package of the
+family that wraps no API, a publisher's shared package or a host of the sources (ADR-0003).
+Of the tree above it renders `ci.yml`, `publish.yml`, `conventions.yml`, `adr-index.yml`,
+and `siblings.yml` with `check-siblings.sh` where the import path nests or the package
+declares a dependency; the changelog's files with `release_prepare.py` and
+`changelog_assemble.py`; the decision records' files with `adr_index.py`; `/release-prep`,
+the Never file, `.claude/settings.json`, `docs/layout.md`, `CLAUDE.md`, `README.md`,
+`CHANGELOG.md`, `pyproject.toml`, `.copier-answers.yml` and the repository's small files;
+and the package's `__init__.py`, `_version.py` and `py.typed`, with `tests/conftest.py`,
+which enables core's plugin. One file renders in this shape alone, `test_package.py`, the
+repository's own test under `_skip_if_exists`, which imports the package and compares its
+version with its distribution's. It renders none of a source's 27 other files, which the
+list `_exclude` of `copier.yml` names: no client, model, task, server, router, reference
+scaffold, snapshot, fixture, live workflow, `.gitattributes`, and none of the commands that
+add an endpoint, record a fixture or refresh. A nested render holds 35 files, a flat one 33.
+Its `pyproject.toml` declares the family's tables with the `testing` extra alone and no
+entry point, and is the repository's once rendered, so the package keeps its own
+dependencies, extras and scripts there and raises its core bound by hand. Its
+`/release-prep` takes no pin out by an update, cites no live run and no refresh, and its
+`README.md` and `CLAUDE.md` hold no section on tasks, servers or upstream terms. The
+package's URLs, the documents' links and the trusted publisher name the repository by
+`repository_name`.
+
 ## Updating generated repositories
 
 A template release, and the xippios-core minor it carries, reach a generated repository
@@ -238,7 +271,8 @@ holds for it. Files listed under `_skip_if_exists` in `copier.yml` (the
 package `__init__.py`, the client, the package's errors, models, endpoint wrappers, the
 file parsers, the task layer and its write tasks, the packaged lists and enums, reference data, the two
 refresh scripts, the conftest, the task, live and built-answer tests and the fixtures, upstream
-snapshot, the ADR index, the layout, the secrets baseline, README, CHANGELOG and CLAUDE.md) are never
+snapshot, the ADR index, the layout, the secrets baseline, README, CHANGELOG and CLAUDE.md, and
+in the general shape its package test and `pyproject.toml`) are never
 overwritten once they exist, so a template fix to one of them does not reach existing repositories by itself; one the
 template stops rendering, though, is deleted by the update where the repository's earlier
 render had it, the source's content included.
@@ -252,12 +286,14 @@ re-rendered, and a source's own lines in them are
 merged three ways, conflicts marked. From 0.5.0 on `tests/conftest.py` and
 `.secrets.baseline` are the source's, so an update merges no line of the template's into
 the lines a source holds there, and a later change of core's baseline or of the plugin's
-line reaches a source by a Hand-apply note. From 0.5.0 on, too, the update writes
+line reaches a source by a Hand-apply note. A repository of the general shape records
+`shape: general`, and every source records `shape: source`, the default, at its update. From 0.5.0 on, too, the update writes
 `.claude/rules/never.md` at every release and creates `docs/layout.md` where the repository
 has none, which the source then fills by hand. `pyproject.toml` is one: a
 script the package adds goes under `[project.scripts]` after the servers' entry points, as
 the comment there says, and the update keeps it while the template's lines beside it stay;
-a change of `write_server`, which renames them, marks it as a conflict. A template-owned
+a change of `write_server`, which renames them, marks it as a conflict. In the general
+shape it is the repository's, so the update never writes it. A template-owned
 file a release removes is deleted by the update, a source's own lines in it included, so the
 release's CHANGELOG says where they move first.
 
@@ -291,7 +327,7 @@ answer's lines by hand in the same pull request, as a render with the new answer
 
 ```bash
 uv sync
-uv run pytest           # renders the family's five variants once each and checks them, ruff included
+uv run pytest           # renders the family's five variants and the general shape's two once each, and checks them
 scripts/prove.sh --all  # every shape below, one proof each, as CI runs them; fails where one fails
 scripts/prove.sh        # full proof against the released core: copier copy, uv sync, ruff, mypy, pytest, pre-commit
 scripts/prove.sh --core-ref main   # against unreleased core, --all --core-ref main for every shape
@@ -299,6 +335,8 @@ scripts/prove.sh --keyless         # a keyless flat source instead of the keyed 
 scripts/prove.sh --keyless-nested  # a keyless nested source
 scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files
 scripts/prove.sh --tenants         # a nested multi-tenant source with a write server and a key per tenant
+scripts/prove.sh --general         # the general shape: a publisher's shared package, nested
+scripts/prove.sh --general-flat    # the general shape, flat, in a repository not named sdk-<slug>
 scripts/prove.sh -d has_reference_data=false   # a source that packages no reference data
 ```
 

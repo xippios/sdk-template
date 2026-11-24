@@ -1,0 +1,7 @@
+from importlib.metadata import version
+
+import xippios.{{ import_path }}
+
+
+def test_the_package_imports_with_its_distributions_version() -> None:
+    assert xippios.{{ import_path }}.__version__ == version("xippios-{{ source_slug }}")

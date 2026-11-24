@@ -1,7 +1,14 @@
+{% if shape == 'general' %}
+"""Public API: ``__version__`` and what the package exports.
+
+{{ source_name }}.
+"""
+{% else %}
 """Public API: ``__version__`` and the task functions re-exported here (conventions §2).
 
 Upstream: {{ source_name }}.
 """
+{% endif %}
 
 from xippios.{{ import_path }}._version import __version__
 

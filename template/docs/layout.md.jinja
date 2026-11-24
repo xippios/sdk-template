@@ -1,14 +1,27 @@
 # Layout
 
+{% if shape == 'general' %}
+The files that every repository of the template's general shape holds are laid out once, in
+sdk-template's README,
+[The general part of a repository](https://github.com/xippios/sdk-template/blob/main/README.md#the-general-part-of-a-repository).
+This file holds what `xippios-{{ source_slug }}` adds to them, a module, a script or a test of
+its own, each with what it holds, and the change that adds one updates it.
+{% else %}
 The files that every source of the family holds are laid out once, in the tree of
 sdk-template's README,
 [What gets generated](https://github.com/xippios/sdk-template/blob/main/README.md#what-gets-generated).
 This file holds what `xippios-{{ source_slug }}` adds to that tree, a module, a task file, a
 script or a test of its own, each with what it holds, and the change that adds one updates it.
+{% endif %}
 
 The import path is `xippios.{{ import_path }}` (sdk-core ADR-0006); `src/xippios/` is a
 namespace package{% if '/' in package_dir %}, and so is `src/xippios/{{ package_dir.rsplit('/', 1)[0] }}/`, the provider level{% endif %}.
+{% if shape == 'general' %}
+
+<!-- What this package adds to those files, in a code block laid out as the family's tree is: a line per file or directory with what it holds, the package's own modules, scripts and tests among them. -->
+{% else %}
 Where the API's operation ids repeat across its services, `api/` keeps one module per service
 instead, named after the service, and this file says so (conventions §2).
 
 <!-- What this package adds to the family's tree, in a code block laid out as that tree is: a line per file or directory with what it holds, the modules of `api/` and the package's own scripts and tests among them. -->
+{% endif %}

@@ -18,7 +18,10 @@
 # defaults of the entry point, the write server's too where there is one, which passes
 # core's assert_write_tools with preview_reads=True on a task that returns the scaffold's
 # WritePreview, and in the multi-tenant shape the bound server of --<param>
-# as well, whose instructions say that no tool takes the tenant.
+# as well, whose instructions say that no tool takes the tenant. In the general shape, the
+# general part of a repository without tasks and servers (ADR-0003), it requires none of a
+# source's 27 files and none of the eight answers of an upstream, and the repository's name
+# in the answers and the manifest, and runs the checks of the render and the sibling check.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
 # suite tests it. --all proves every shape of the list `shapes` below, the keyless nested
 # one again with -d has_files=true, a source that parses the files it downloads
@@ -26,7 +29,8 @@
 # alone, as README.md says a source is generated.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF]
-#                         [--keyless | --keyless-nested | --tenants] [--keep]
+#                         [--keyless | --keyless-nested | --tenants | --general
+#                          | --general-flat] [--keep]
 #                         [-d key=value ...]
 #        scripts/prove.sh --all [--core-ref REF] [--keep]
 #   --all              every shape of the list `shapes`, one proof each in a process of its
@@ -43,6 +47,10 @@
 #                      sdk-example-tenants (xippios.example.tenants), its tenants' keys
 #                      EXAMPLE_<NAME>_API_KEY under a prefix other than the slug's:
 #                      write_server, tenant_param=org, no reference data
+#   --general          the general shape, a publisher's shared package with a nested import
+#                      path, sdk-example-shared (xippios.example.shared)
+#   --general-flat     the general shape, flat, in a repository not named sdk-<slug>,
+#                      xippios-example (xippios.example)
 #   --keep             leave the generated repository in place
 #   -d key=value       one more copier answer, e.g. -d has_files=true, or
 #                      -d has_reference_data=false for a source that packages none
@@ -63,6 +71,8 @@ while [ $# -gt 0 ]; do
     --keyless) shape=keyless ;;
     --keyless-nested) shape=keyless-nested ;;
     --tenants) shape=tenants ;;
+    --general) shape=general ;;
+    --general-flat) shape=general-flat ;;
     --keep) keep=1 ;;
     -d) extra+=(-d "$2"); shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -77,6 +87,8 @@ shapes=(
   "--keyless-nested"
   "--keyless-nested -d has_files=true"
   "--tenants"
+  "--general"
+  "--general-flat"
 )
 if [ "$all" = 1 ]; then
   if [ -n "$dest" ] || [ "$shape" != keyed ] || [ "${#extra[@]}" -gt 0 ]; then
@@ -103,19 +115,29 @@ if [ "$all" = 1 ]; then
 fi
 # The keyed slug nests (example-api → xippios.example.api) so the proof covers
 # sdk-core ADR-0006; a keyless one is flat or nested.
+name="Example Data Service"
 case "$shape" in
   keyless) slug="example"; key=() ;;
   keyless-nested) slug="example-files"; key=() ;;
   tenants) slug="example-tenants"; key=(-d "api_key_env=EXAMPLE_API_KEY"
     -d "write_server=true" -d "tenant_param=org" -d "has_reference_data=false") ;;
+  general) slug="example-shared"; name="Shared code of the example sources"
+    key=(-d "shape=general") ;;
+  general-flat) slug="example"; name="Example tools"
+    key=(-d "shape=general" -d "repository_name=xippios-example") ;;
   *) slug="example-api"; key=(-d "api_key_env=EXAMPLE_API_KEY") ;;
 esac
+# The repository's name: sdk-<slug>, or the answer of a repository named otherwise.
+repository="sdk-$slug"
+for arg in "${key[@]}" "${extra[@]}"; do
+  case "$arg" in repository_name=*) repository="${arg#repository_name=}" ;; esac
+done
 if [ -n "$dest" ] && [ -e "$dest" ]; then
   echo "error: --dest $dest already exists" >&2
   exit 2
 fi
 work="$(mktemp -d "${TMPDIR:-/tmp}/sdk-template-prove.XXXXXX")"
-dest="${dest:-$work/sdk-$slug}"
+dest="${dest:-$work/$repository}"
 
 # Snapshot the working tree so uncommitted template changes are what gets proven. The
 # snapshot is a git repository tagged with the version of the CHANGELOG's top release
@@ -136,7 +158,7 @@ git -C "$snapshot" -c tag.gpgsign=false tag "v$version"
 echo "==> generating $dest from the working tree at v$version"
 uv run --project "$here" copier copy --defaults --quiet --vcs-ref "v$version" \
   -d "source_slug=$slug" \
-  -d "source_name=Example Data Service" \
+  -d "source_name=$name" \
   -d "upstream_url=https://api.example.org" \
   -d "upstream_docs_url=https://api.example.org/docs" \
   "${key[@]}" \
@@ -162,10 +184,38 @@ echo "==> the checks of the render: uv sync, ruff, mypy, pytest, pre-commit"
 import_path="$(sed -n 's/^import_path: //p' "$dest/.copier-answers.yml")"
 package_dir="src/xippios/${import_path//.//}"
 
+# The shape as copier recorded it: a source, or the general part of a repository alone, which
+# renders none of a source's files and none of the checks below that read them (ADR-0003).
+recorded_shape="$(sed -n 's/^shape: //p' "$dest/.copier-answers.yml")"
 # The reference scaffold, as copier recorded has_reference_data (#40): whole, or none of it.
 has_reference_data="$(sed -n 's/^has_reference_data: //p' "$dest/.copier-answers.yml")"
 echo
-if [ "$has_reference_data" = true ]; then
+if [ "$recorded_shape" = general ]; then
+  echo "==> the general shape: none of a source's 27 files rendered, nothing of an upstream asked"
+  for rel in "$package_dir/_client.py" "$package_dir/errors.py" "$package_dir/models.py" \
+    "$package_dir/api" "$package_dir/parse" "$package_dir/tasks.py" "$package_dir/tasks_write.py" \
+    "$package_dir/mcp.py" "$package_dir/mcp_write.py" "$package_dir/http.py" \
+    "$package_dir/params.py" "$package_dir/enums.py" "$package_dir/reference" \
+    scripts/refresh_reference.py scripts/refresh_upstream.py docs/upstream .gitattributes \
+    .github/workflows/live.yml .claude/commands/add-endpoint.md \
+    .claude/commands/record-fixture.md .claude/commands/refresh-upstream.md \
+    .claude/commands/refresh-reference-data.md tests/test_family.py \
+    tests/test_built_answers.py tests/test_live.py tests/test_tasks.py tests/fixtures; do
+    [ ! -e "$dest/$rel" ] || { echo "error: the general shape rendered $rel" >&2; exit 1; }
+  done
+  for answer in upstream_url upstream_docs_url api_key_env write_server tenant_param \
+    live_secrets has_files has_reference_data; do
+    if grep -q "^$answer:" "$dest/.copier-answers.yml"; then
+      echo "error: the general shape recorded $answer" >&2
+      exit 1
+    fi
+  done
+  grep -qx "repository_name: $repository" "$dest/.copier-answers.yml" \
+    || { echo "error: the answers name no repository $repository" >&2; exit 1; }
+  grep -qx "Homepage = \"https://github.com/xippios/$repository\"" "$dest/pyproject.toml" \
+    || { echo "error: pyproject.toml names another repository" >&2; exit 1; }
+  echo "none of them; the answers name the repository $repository, as pyproject.toml does"
+elif [ "$has_reference_data" = true ]; then
   # Core's frame stops before anything is read or written while LISTS declares no list.
   echo "==> refresh_reference.py, with no list declared, refuses to run and writes nothing"
   if (cd "$dest" && uv run python scripts/refresh_reference.py --render-only) \
@@ -186,15 +236,17 @@ else
   echo "none of params.py, enums.py, reference/, refresh_reference.py, /refresh-reference-data"
 fi
 
-echo
-echo "==> refresh_upstream.py runs on core's frame, which refuses its SNAPSHOT until it has pages"
-if (cd "$dest" && uv run scripts/refresh_upstream.py --check) 2> "$work/refresh.err"; then
-  echo "error: the declaration without pages ran" >&2
-  exit 1
+if [ "$recorded_shape" = source ]; then
+  echo
+  echo "==> refresh_upstream.py runs on core's frame, which refuses its SNAPSHOT until it has pages"
+  if (cd "$dest" && uv run scripts/refresh_upstream.py --check) 2> "$work/refresh.err"; then
+    echo "error: the declaration without pages ran" >&2
+    exit 1
+  fi
+  refusal="$(grep "Nothing to fetch: declare the snapshot's pages" "$work/refresh.err")" \
+    || { cat "$work/refresh.err" >&2; exit 1; }
+  echo "refused: $refusal"
 fi
-refusal="$(grep "Nothing to fetch: declare the snapshot's pages" "$work/refresh.err")" \
-  || { cat "$work/refresh.err" >&2; exit 1; }
-echo "refused: $refusal"
 
 # The parsers' package and the samples' table, as copier recorded has_files
 # (sdk-core ADR-0020): the suite above passed on the render, with an empty parse/ where
@@ -209,7 +261,7 @@ if [ "$has_files" = true ]; then
   done
   (cd "$dest" && git ls-files "$parse_dir" tests/fixtures)
 else
-  echo "==> has_files: $has_files, so neither parse/ nor tests/fixtures/ rendered"
+  echo "==> has_files: ${has_files:-not asked}, so neither parse/ nor tests/fixtures/ rendered"
   for rel in "$parse_dir" tests/fixtures; do
     [ ! -e "$dest/$rel" ] || { echo "error: $rel rendered without has_files" >&2; exit 1; }
   done
@@ -324,6 +376,7 @@ else
   echo "failed, as it must: $(tail -n 1 "$work/ahead.log")"
 fi
 
+if [ "$recorded_shape" = source ]; then
 # Offline, on core's adapters as the render calls them: a task named in BULK_TASKS gets no
 # tool and no route, while mcp.py passes tool_functions(tasks) and http.py tasks.__all__
 # whole (sdk-core ADR-0040).
@@ -601,6 +654,7 @@ def create_row({takes}confirm: bool = False) -> Result[WritePreview | dict[str, 
         print(f"{package}.mcp_write {flag} demo: {bound_text(mcp_write)!r}")
 PY
 )
+fi
 
 if [ "$has_reference_data" = true ]; then
 # The refresh script's render on core's frame (sdk-core ADR-0051), with --render, the

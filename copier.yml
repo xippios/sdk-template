@@ -1,6 +1,24 @@
 # Copier template for xippios-<source> repositories. Questions first; copier settings
 # (keys starting with "_") at the end. See README.md for how to use it.
 
+# What the repository is, a name per shape, never a switch (ADR-0003): a source package, or
+# the general part of a repository alone, for a package of the family that wraps no API.
+# Asked first, since the questions of a source take it as their condition. Its default is a
+# literal, so every source that predates it records it on update.
+shape:
+  type: str
+  help: >-
+    What the repository holds. source, the default: a source package, which wraps one
+    upstream API in a client, tasks, an MCP server and HTTP routes. general: the general
+    part of a repository alone, its CI, release train, changelog, decision records and the
+    organization's checks around a package with its version, for a package of the family
+    that wraps no API of its own; it asks nothing of an upstream, and its pyproject.toml
+    is the repository's once rendered (ADR-0003).
+  choices:
+    - source
+    - general
+  default: source
+
 source_slug:
   type: str
   help: >-
@@ -10,6 +28,21 @@ source_slug:
   validator: >-
     {% if not (source_slug | regex_search('^[a-z0-9]+(-[a-z0-9]+)*$')) %}
     Use lowercase letters, digits and single hyphens, e.g. usda-nass
+    {% endif %}
+
+# The repository's name on GitHub (ADR-0003): a source's is sdk-<slug>, so the question is
+# the general shape's alone, and hidden it takes its default, which a source records not.
+repository_name:
+  type: str
+  help: >-
+    The repository's name on GitHub, which the package's URLs and the trusted publisher
+    that /release-prep names take: sdk-<slug>, the default, or the name of a repository
+    named otherwise, e.g. xippios-example.
+  default: "sdk-{{ source_slug }}"
+  when: "{{ shape == 'general' }}"
+  validator: >-
+    {% if not (repository_name | regex_search('^[a-z0-9]+(-[a-z0-9]+)*\\Z')) %}
+    Use lowercase letters, digits and single hyphens, e.g. sdk-example
     {% endif %}
 
 import_path:
@@ -54,7 +87,10 @@ source_name:
   help: >-
     Human-readable name of the source, at most 77 characters: the generated Python puts
     it on a line, the longest of them http.py's first, which ruff keeps within 100
-    columns; no double quote or backslash, since the generated Python quotes it
+    columns; no double quote or backslash, since the generated Python quotes it. In the
+    general shape, the package's description in a few words, which the description of
+    pyproject.toml and the first sentence of README.md and CLAUDE.md take at the first
+    render, since the repository owns all three then
   placeholder: USDA NASS Quick Stats
   validator: >-
     {% if not source_name %}Required{% elif source_name | length > 77 %}
@@ -63,22 +99,28 @@ source_name:
     No double quote and no backslash: the generated Python quotes the name
     {% endif %}
 
+# The eight questions of an upstream and of the package contract's variants, which the general
+# shape does not answer: hidden by their condition, not by a default, so that it records none
+# of them (ADR-0003), and the upstream's URLs, which have no default, stay required of a source.
 upstream_url:
   type: str
   help: The provider's page for this API; linked from the README
   placeholder: https://quickstats.nass.usda.gov
+  when: "{{ shape == 'source' }}"
   validator: "{% if not upstream_url.startswith('https://') %}Must start with https://{% endif %}"
 
 upstream_docs_url:
   type: str
   help: Where the API documentation lives; /refresh-upstream snapshots it into docs/upstream/
   placeholder: https://quickstats.nass.usda.gov/api
+  when: "{{ shape == 'source' }}"
   validator: "{% if not upstream_docs_url.startswith('https://') %}Must start with https://{% endif %}"
 
 api_key_env:
   type: str
   help: Environment variable holding the API key, e.g. NASS_API_KEY. Leave empty if the API needs no key.
   default: ""
+  when: "{{ shape == 'source' }}"
   validator: >-
     {% if api_key_env and not (api_key_env | regex_search('^[A-Z][A-Z0-9_]*_API_KEY$')) %}
     Use UPPER_SNAKE_CASE ending in _API_KEY, e.g. NASS_API_KEY
@@ -98,6 +140,7 @@ write_server:
     xippios-<slug>-mcp-write in place of xippios-<slug>-mcp, with no alias for the old
     name. false, the default, for a read-only source.
   default: false
+  when: "{{ shape == 'source' }}"
 
 tenant_param:
   type: str
@@ -115,6 +158,7 @@ tenant_param:
     characters, so every generated Python line stays within 100 columns. Empty, the
     default, for a source with one tenant.
   default: ""
+  when: "{{ shape == 'source' }}"
   validator: >-
     {% if tenant_param and not (tenant_param | regex_search('^[a-z][a-z0-9_]*\\Z')) %}
     A parameter name in lower case, letters, digits and underscores, e.g. org
@@ -151,7 +195,8 @@ core_version:
     unless patch Z shipped what the source adopts (conventions §12, sdk-core ADR-0039
     decision 1). The default 0.4.1, the core release the template adopts, renders
     xippios-core~=0.4.1. A source raises it in the adoption PR of a new core minor
-    (conventions §15).
+    (conventions §15). In the general shape it renders the bound at the first render
+    alone, since pyproject.toml is the repository's then.
   default: "0.4.1"
   validator: >-
     {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+\\Z')) %}
@@ -164,7 +209,9 @@ core_git_ref:
     Development only. The sdk-core commit to depend on for a core change that is not
     released yet: main, or the full 40-character SHA of a commit on main, which uv reads
     as that commit. Leave it empty, the default, for no pin; a release carries none
-    (/release-prep removes it first, in a PR of its own).
+    (/release-prep removes it first, in a PR of its own). In the general shape it renders
+    the pin at the first render alone, and the repository removes it from its own
+    pyproject.toml.
   default: ""
   validator: >-
     {% if core_git_ref and not (core_git_ref | regex_search('^(main|[0-9a-f]{40})\\Z')) %}
@@ -246,6 +293,7 @@ live_secrets:
     under xippios_placeholder_key_envs too, since its own auth reads them. A key is
     api_key_env's or a dependency's key_env, never one of these. The default [] for none.
   default: "[]"
+  when: "{{ shape == 'source' }}"
   validator: >-
     {% set names = live_secrets | from_yaml %}
     {% set ns = namespace(error='', seen=[]) %}
@@ -314,6 +362,7 @@ has_files:
     its download fixture is the recorded exchange of the file's URL (sdk-core ADR-0040
     decision 5). false, the default, for an API that answers with records.
   default: false
+  when: "{{ shape == 'source' }}"
 
 # Whether the source packages reference data (conventions §3): params.py, enums.py,
 # reference/, scripts/refresh_reference.py and /refresh-reference-data render only then,
@@ -334,6 +383,7 @@ has_reference_data:
     and leaves a file the source added under reference/ for the source to delete. A
     multi-tenant source answers false.
   default: true
+  when: "{{ shape == 'source' }}"
   validator: >-
     {% if has_reference_data and tenant_param %}
     A multi-tenant source answers false: the reference scaffold fetches through the one
@@ -348,6 +398,42 @@ _answers_file: .copier-answers.yml
 _envops:
   trim_blocks: true
   lstrip_blocks: true
+# What the general shape leaves out (ADR-0003): the 27 files of a source, its client, models,
+# tasks, servers, reference scaffold, snapshot, fixtures, live workflow, tests and the four
+# commands that serve them. Copier renders each exclusion and matches its lines, as
+# gitignore lines, against the rendered paths, so a source's render excludes nothing and the
+# files keep their names, which steps of their own change.
+_exclude:
+  - |-
+    {% if shape == 'general' %}
+    /src/xippios/{{ package_dir }}/_client.py
+    /src/xippios/{{ package_dir }}/errors.py
+    /src/xippios/{{ package_dir }}/models.py
+    /src/xippios/{{ package_dir }}/api
+    /src/xippios/{{ package_dir }}/parse
+    /src/xippios/{{ package_dir }}/tasks.py
+    /src/xippios/{{ package_dir }}/tasks_write.py
+    /src/xippios/{{ package_dir }}/mcp.py
+    /src/xippios/{{ package_dir }}/mcp_write.py
+    /src/xippios/{{ package_dir }}/http.py
+    /src/xippios/{{ package_dir }}/params.py
+    /src/xippios/{{ package_dir }}/enums.py
+    /src/xippios/{{ package_dir }}/reference
+    /scripts/refresh_reference.py
+    /scripts/refresh_upstream.py
+    /docs/upstream
+    /.gitattributes
+    /.github/workflows/live.yml
+    /.claude/commands/add-endpoint.md
+    /.claude/commands/record-fixture.md
+    /.claude/commands/refresh-upstream.md
+    /.claude/commands/refresh-reference-data.md
+    /tests/test_family.py
+    /tests/test_built_answers.py
+    /tests/test_live.py
+    /tests/test_tasks.py
+    /tests/fixtures
+    {% endif %}
 # Files a source fills with its own content: never overwritten by `copier update`.
 # Every other rendered file is the template's and updates with it, the commands under
 # .claude/commands/ and tests/test_family.py among them. Copier renders these patterns, so
@@ -362,6 +448,8 @@ _envops:
 # the source's from 0.5.0 on, so an update merges no line of the template's into its own,
 # and so is docs/layout.md, what the source adds to the family's tree, which CLAUDE.md
 # imports; the rules of .claude/rules/never.md are the template's and update with it.
+# In the general shape pyproject.toml is the repository's too, its manifest once rendered,
+# and tests/test_package.py, which only that shape renders, is the repository's own test.
 _skip_if_exists:
   - src/xippios/{{ package_dir }}/__init__.py
   - src/xippios/{{ package_dir }}/_client.py
@@ -380,6 +468,7 @@ _skip_if_exists:
   - tests/test_tasks.py
   - tests/test_live.py
   - tests/test_built_answers.py
+  - tests/test_package.py
   - tests/fixtures/**
   - docs/upstream/**
   - docs/adr.md
@@ -389,3 +478,4 @@ _skip_if_exists:
   - /README.md
   - CHANGELOG.md
   - CLAUDE.md
+  - "{{ '/pyproject.toml' if shape == 'general' else '' }}"
