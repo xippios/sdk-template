@@ -86,35 +86,22 @@ def keyed(env: str) -> dict[str, object]:
     return {"api_key_env": env}
 
 
-# What the api.data.gov gateway answer derives (sdk-core ADR-0032): the key's variable,
-# recorded as if answered.
-DATA_GOV = "api.data.gov"
-GATEWAY_KEY = keyed("DATA_GOV_API_KEY")
-
 # The auths of core's that send a key: the source's first pull request passes the one that
 # upstream documents, and the scaffold renders none (#301).
 KEY_AUTHS = {"QueryKeyAuth", "HeaderKeyAuth", "BearerAuth", "BasicKeyAuth"}
 
 
-def gateway_of(answers: dict[str, object]) -> str:
-    return str(answers.get("gateway", "none"))
-
-
 def key_answers(answers: dict[str, object]) -> dict[str, object]:
-    """The key answer a render reads: the gateway's where it is set, else as given."""
-    if gateway_of(answers) == DATA_GOV:
-        return GATEWAY_KEY
+    """The key answer a render reads, as given."""
     return {k: v for k, v in answers.items() if k.startswith("api_key_")}
 
 
 # The family's variants (T11 as narrowed): the shapes its sources take. A core pin and a name
 # at its bound are answers of their own, each tested by its rule in test_template.py.
 VARIANTS: dict[str, dict[str, object]] = {
-    # sdk-usda-nass's shape: a key of its own and a nested import path (sdk-core ADR-0006);
-    # no gateway, answered as such.
+    # sdk-usda-nass's shape: a key of its own and a nested import path (sdk-core ADR-0006).
     "keyed-nested": {
         "source_slug": "usda-nass",
-        "gateway": "none",
         **keyed("NASS_API_KEY"),
     },
     # sdk-eurostat's: no key, a flat import path.
@@ -143,12 +130,6 @@ VARIANTS: dict[str, dict[str, object]] = {
         "has_files": True,
         **keyed(""),
     },
-    # sdk-usda-psd's (and sdk-usda-esr's and sdk-usda-gats's): behind the api.data.gov
-    # gateway (T9, sdk-core ADR-0032), which derives the key answers, so none is passed; nested.
-    "gateway": {
-        "source_slug": "usda-psd",
-        "gateway": DATA_GOV,
-    },
     # sdk-cashctrl's (#174): a multi-tenant source with a write server and a key per tenant,
     # its tenants named by org; flat. A multi-tenant source packages no reference data, whose
     # refresh fetches through the one client of a source with one tenant (#301).
@@ -158,19 +139,6 @@ VARIANTS: dict[str, dict[str, object]] = {
         "tenant_param": "org",
         "has_reference_data": False,
         **keyed("CASHCTRL_API_KEY"),
-    },
-    # sdk-google-mail's (#207, #209): a multi-tenant source whose tenants hold a refresh
-    # token, no key, under a prefix the slug does not give (GOOGLE, not GOOGLE_MAIL), with
-    # a write server and the live secrets of its OAuth client; its tenants named by
-    # account; nested.
-    "tenants-keyless": {
-        "source_slug": "google-mail",
-        "write_server": True,
-        "tenant_param": "account",
-        "tenant_credential_env": "GOOGLE_<NAME>_REFRESH_TOKEN",
-        "live_secrets": "[GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET]",
-        "has_reference_data": False,
-        **keyed(""),
     },
 }
 # A source on unreleased core: the keyed nested answers with a full-SHA core pin.
@@ -210,15 +178,14 @@ def tenant_param(answers: dict[str, object]) -> str:
 
 
 def tenant_credential(answers: dict[str, object]) -> str:
-    """The pattern of a multi-tenant variant's credential variable, ``<PREFIX>_<NAME>_<FIELD>``
-    (#209): its key's, ``<PREFIX>_<NAME>_API_KEY``, where it has a key, else its answer;
-    empty for a source with one tenant."""
+    """The pattern of a multi-tenant variant's key variable, ``<PREFIX>_<NAME>_API_KEY``, from
+    the key answer alone (#301): the key's prefix, or the slug's, core's own, where the
+    tenants hold no key; empty for a source with one tenant."""
     if not tenant_param(answers):
         return ""
     key = str(key_answers(answers).get("api_key_env", ""))
-    if key:
-        return key.removesuffix("_API_KEY") + "_<NAME>_API_KEY"
-    return str(answers["tenant_credential_env"])
+    prefix = key.removesuffix("_API_KEY") or str(answers["source_slug"]).upper().replace("-", "_")
+    return prefix + "_<NAME>_API_KEY"
 
 
 def tenant_prefix(answers: dict[str, object]) -> str:
@@ -235,11 +202,11 @@ def tenant_field(answers: dict[str, object]) -> str:
 
 def key_envs(answers: dict[str, object]) -> list[str]:
     """Every key variable a render's tests and live run read: the source's own, the reserved
-    tenant's credential for a multi-tenant source, then its dependencies', once."""
-    if tenant_param(answers):
+    tenant's key for a multi-tenant source, then its dependencies', once; a multi-tenant
+    source without a key names its credential in ``live_secrets`` (#301)."""
+    own = str(key_answers(answers).get("api_key_env", ""))
+    if tenant_param(answers) and own:
         own = f"{tenant_prefix(answers)}_DEMO_{tenant_field(answers)}"
-    else:
-        own = str(key_answers(answers).get("api_key_env", ""))
     keys = [own] + [d["key_env"] for d in dependencies(answers)]
     return list(dict.fromkeys(key for key in keys if key))
 
@@ -247,8 +214,8 @@ def key_envs(answers: dict[str, object]) -> list[str]:
 def placeholder_envs(answers: dict[str, object]) -> list[str]:
     """The variables core's plugin sets to the placeholder in every test not marked live
     (sdk-core ADR-0035), ``xippios_placeholder_key_envs``: the keys, and after them the live
-    secrets of a multi-tenant source without a key, which its own auth reads beside the
-    reserved tenant's credential (#241)."""
+    secrets of a multi-tenant source without a key, its tenants' credential among them,
+    which its own auth reads (#241, #301)."""
     keys = key_envs(answers)
     if tenant_param(answers) and not key_answers(answers).get("api_key_env"):
         return keys + live_secrets(answers)
@@ -257,7 +224,7 @@ def placeholder_envs(answers: dict[str, object]) -> list[str]:
 
 def env_vars(answers: dict[str, object]) -> list[tuple[str, bool, bool]]:
     """The variables a render's ``ENV_VARS`` declares, each with whether it is secret and
-    required: the key, or the tenant list and the tenants' credential pattern, then the
+    required: the key, or the tenant list and the tenants' key pattern, then the
     dependencies' keys and the live secrets, each once."""
     own = str(key_answers(answers).get("api_key_env", ""))
     if tenant_param(answers):

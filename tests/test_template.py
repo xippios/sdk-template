@@ -28,7 +28,6 @@ from helpers import (
     BASE_ANSWERS,
     CI_STEPS,
     CORE_DEFAULT,
-    DATA_GOV,
     FAKE_CORE_SHA,
     FETCH_DEPTH,
     KEY_AUTHS,
@@ -45,7 +44,6 @@ from helpers import (
     dependencies,
     detect_secrets_hook,
     env_vars,
-    gateway_of,
     generate,
     git,
     has_files,
@@ -190,18 +188,16 @@ def test_answers_file_round_trips(variant: tuple[str, Path]) -> None:
     answers = yaml.safe_load((dst / ".copier-answers.yml").read_text())
     assert answers["source_slug"] == expected["source_slug"]
     assert answers["import_path"] == package_dir(expected).replace("/", ".")
-    assert answers["gateway"] == gateway_of(expected), "recorded, the default included"
     assert answers["api_key_env"] == key_answers(expected)["api_key_env"]
     assert answers["source_dependencies"] == expected.get("source_dependencies", "[]")
     assert yaml.safe_load(answers["source_dependencies"]) == dependencies(expected)
     assert answers["live_secrets"] == expected.get("live_secrets", "[]"), "the default included"
     assert yaml.safe_load(answers["live_secrets"]) == live_secrets(expected)
     assert answers["has_files"] is has_files(expected), "recorded, the default included"
-    assert answers["human"] == HUMAN, "recorded, the default included"
     computed = ["package_dir", "tool_prefix", "live_schedule", "depends_on", "key_envs"]
     for derived in [*computed, "live_secret_names"]:
         assert derived not in answers, f"{derived}: derived, never recorded"
-    for gone in ["source_pkg", "domain_topic", "needs_write_tools", *CLIENT_ANSWERS]:
+    for gone in ["source_pkg", "domain_topic", "needs_write_tools", *CLIENT_ANSWERS, *GONE]:
         assert gone not in answers, f"{gone}: no question asks it"
 
 
@@ -278,6 +274,10 @@ CLIENT_ANSWERS = [
     "rate_limit_burst",
     "rate_limit_provenance",
 ]
+# The three answers that one publisher, one source and one login needed, which leave the
+# questions: the gateway goes to its publisher's shared package (#302), the credential of
+# tenants without a key to the source's live_secrets, and the human is a constant (#301).
+GONE = ["gateway", "tenant_credential_env", "human"]
 # The scaffold's stand-ins in the place the source fills: a host that never resolves
 # (RFC 6761), and the pace and burst that the questions took by default.
 PLACEHOLDER_BASE_URL = 'BASE_URL = "https://example.invalid"\n'
@@ -297,14 +297,13 @@ def test_the_client_leaves_base_url_and_pace_to_the_source(variant: tuple[str, P
     """#301, sdk-core ADR-0033 decision 1: the scaffold's ``_client.py`` holds a stand-in for
     the base URL and the pace, which the source's first pull request sets, and the facts of
     ``CLAUDE.md`` leave the base URL and the pace, with where it comes from, a comment each
-    to fill; a quota's policy pointed at (sdk-core ADR-0037), but behind the gateway, whose
-    policy is core's (sdk-core ADR-0032)."""
+    to fill; a quota's policy pointed at (sdk-core ADR-0037)."""
     name, dst = variant
     answers = VARIANTS[name]
     client = (dst / f"src/xippios/{package_dir(answers)}/_client.py").read_text()
     assert PLACEHOLDER_BASE_URL in client
     assert PLACEHOLDER_PACE in client
-    assert ("QuotaPolicy" in client) is (gateway_of(answers) == "none"), "the gateway's own"
+    assert "QuotaPolicy" in client
     claude = (dst / "CLAUDE.md").read_text().splitlines()
     for fact in ["API base URL", "Rate limit"]:
         (row,) = [line for line in claude if line.startswith(f"| {fact} | ")]
@@ -356,56 +355,18 @@ def test_client_exports_one_sorted_name_per_line(variant: tuple[str, Path]) -> N
     assert lines[start + 1 + len(names)] == "]"
 
 
-def test_the_gateway_answer_renders_cores_gateway(variant: tuple[str, Path]) -> None:
-    """T9, sdk-core ADR-0032: behind api.data.gov the client takes ``xippios.core.data_gov``'s
-    ``Gateway``, its auth, its policy's hooks through ``install`` and its ``classify``
-    asked first; the facts name ``Gateway`` and its shared policy, and ``live.yml`` passes
-    the shared key. Any other answer renders none of it."""
-    name, dst = variant
-    answers = VARIANTS[name]
-    behind = gateway_of(answers) == DATA_GOV
-    client = (dst / f"src/xippios/{package_dir(answers)}/_client.py").read_text()
-    lines = client.splitlines()
-    assert ("from xippios.core.data_gov import Gateway" in lines) is behind
-    assert ("Gateway" in client) is behind
-    claude = (dst / "CLAUDE.md").read_text().splitlines()
-    (credentials,) = [line for line in claude if line.startswith("| Credentials | ")]
-    (rate,) = [line for line in claude if line.startswith("| Rate limit | ")]
-    assert ("`Gateway`" in credentials) is behind
-    assert ("`Gateway.policy`" in rate) is behind
-    assert rate.count("<!-- ") == (1 if behind else 2), "a quota to name, but the gateway's"
-    live = (dst / ".github/workflows/live.yml").read_text()
-    assert (str(key_answers({"gateway": DATA_GOV})["api_key_env"]) in live) is behind
-    readme = (dst / "README.md").read_text()
-    assert (DATA_GOV in readme) is behind
-    if not behind:
-        return
-    for line in [
-        "gateway = Gateway(SOURCE)",
-        "config = gateway.install(",
-        "auth = gateway.auth",
-        "client = AsyncClient(config, auth=auth)",
-        '    "gateway",',
-    ]:
-        assert line in lines, line
-    (classify,) = [
-        node
-        for node in ast.parse(client).body
-        if isinstance(node, ast.FunctionDef) and node.name == "classify"
-    ]
-    _, first, second, last = classify.body  # the docstring, then the gateway's say
-    assert ast.unparse(first) == "error = gateway.classify(response)"
-    assert ast.unparse(second) == "if error is not None:\n    return error"
-    assert ast.unparse(last) == "return None"
-    (install,) = [
-        node.value
-        for node in ast.parse(client).body
-        if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "config"
-    ]
-    assert isinstance(install, ast.Call)
-    assert ast.unparse(install.func) == "gateway.install"
-    (config,) = install.args
-    assert "classify=classify" in ast.unparse(config)
+def test_no_question_asks_a_gateway_and_no_render_names_one(variant: tuple[str, Path]) -> None:
+    """#302: the gateway question leaves with its branch, so no question asks for the
+    gateway, the credential of tenants without a key or the human (#301), and no file of a
+    render names ``xippios.core.data_gov``, its ``Gateway`` or api.data.gov: a source behind
+    the gateway imports it from its publisher's shared package in a file of its own."""
+    assert [name for name in GONE if name in QUESTIONS] == []
+    _, dst = variant
+    for path in sorted(dst.rglob("*")):
+        if path.is_file() and path.suffix in TEXT_SUFFIXES:
+            text = path.read_text()
+            named = [name for name in ["data_gov", "Gateway", "api.data.gov"] if name in text]
+            assert not named, (path, named)
 
 
 def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
@@ -1084,32 +1045,27 @@ def owner_rules(dst: Path) -> list[str]:
 
 
 def test_codeowners_names_the_human_for_every_member_path(variant: tuple[str, Path]) -> None:
-    """A source's ``.github/CODEOWNERS`` comes from its template: a header of comments that
-    says what the file is, names each path it owns and the answer it is rendered from, and
-    no tool, rule or file around the repository (#129), then the five paths that steer it,
-    each owned by the ``human`` answer, its default ``jdidaskalu`` in every variant. The
-    answer's help names each path too, and neither names ``rules/``, which no source has
-    (#152)."""
+    """#301: a source's ``.github/CODEOWNERS`` is the template's file, copied as it stands:
+    a header of comments that says what the file is and names each path it owns, and no
+    tool, rule or file around the repository (#129), then the five paths that steer it,
+    each owned by the human, ``jdidaskalu``, a constant that no question asks. It names no
+    ``rules/``, which no source has (#152)."""
     _, dst = variant
-    assert (QUESTIONS["human"]["type"], QUESTIONS["human"]["default"]) == ("str", HUMAN)
+    assert "human" not in QUESTIONS
+    source = ROOT / "template/.github/CODEOWNERS"
+    assert (dst / ".github/CODEOWNERS").read_bytes() == source.read_bytes()
     rules = owner_rules(dst)
     assert rules == [f"{path} @{HUMAN}" for path in MEMBER_HUMAN_PATHS]
-    lines = (dst / ".github/CODEOWNERS").read_text().splitlines()
+    lines = source.read_text().splitlines()
     head = lines[: lines.index(rules[0])]
     assert head, "a header"
     assert all(line.startswith("#") for line in head), "the header, then the rules"
     header = " ".join(head)
-    assert "`human`" in header, "the answer it is rendered from"
     assert not AROUND_THE_REPOSITORY.search(header), AROUND_THE_REPOSITORY.search(header)
-    help_text = " ".join(str(QUESTIONS["human"]["help"]).split())
     for path in MEMBER_HUMAN_PATHS:
         name = path.removeprefix("/").removesuffix("**")
         assert f"`{name}`" in header, f"the header names {name}"
-        assert f" {name}" in help_text, f"the help names {name}"
-    readme = (ROOT / "README.md").read_text().splitlines()
-    (row,) = [line for line in readme if line.startswith("| `human` |")]
-    for text in [header, help_text, row]:
-        assert "rules/" not in text, text
+    assert "rules/" not in header
 
 
 # The checks no answer changes, on one render.
@@ -2483,7 +2439,7 @@ def test_answers_file_records_each_answer_on_one_line(variant: tuple[str, Path])
     predates has a literal default, one scalar, which its update records.
     ``source_dependencies`` is a string holding a YAML flow list, so a list of dependencies
     never writes block lines there, and its default, the string ``[]``, is recorded as that
-    one quoted scalar; ``gateway``'s default, ``none``, as one plain scalar."""
+    one quoted scalar."""
     name, dst = variant
     text = (dst / ".copier-answers.yml").read_text()
     for line in text.splitlines():
@@ -2496,12 +2452,6 @@ def test_answers_file_records_each_answer_on_one_line(variant: tuple[str, Path])
     assert '\n  default: "[]"\n' in block, "one quoted scalar, a literal"
     if not dependencies(VARIANTS[name]):
         assert "\nsource_dependencies: '[]'\n" in text
-    # The gateway answer, which every source before it lacks, is free at its default.
-    assert (QUESTIONS["gateway"]["type"], QUESTIONS["gateway"]["default"]) == ("str", "none")
-    raw = (ROOT / "copier.yml").read_text().split("\ngateway:\n", 1)[1]
-    block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
-    assert "\n  default: none\n" in block, "one plain scalar, a literal"
-    assert f"\ngateway: {gateway_of(VARIANTS[name])}\n" in text
     # has_files likewise: a bool whose default, false, is one plain scalar.
     assert (QUESTIONS["has_files"]["type"], QUESTIONS["has_files"]["default"]) == ("bool", False)
     raw = (ROOT / "copier.yml").read_text().split("\nhas_files:\n", 1)[1]
@@ -2549,46 +2499,6 @@ def test_source_dependencies_are_slugs_minors_and_key_variables(
             source_dependencies=value,
             **keyed(""),
         )
-
-
-@pytest.mark.parametrize(
-    ("answers", "refused"),
-    [
-        ({"gateway": "data.gov"}, "gateway"),
-        ({"gateway": DATA_GOV, **keyed("EX_API_KEY")}, "api_key_env"),
-        ({"gateway": DATA_GOV, **keyed("")}, "api_key_env"),
-        ({"gateway": DATA_GOV, "core_version": "0.2.1"}, "core_version"),
-    ],
-)
-def test_the_gateway_derives_the_key_answers(
-    template_src: Path, tmp_path: Path, answers: dict[str, object], refused: str
-) -> None:
-    """D84 (1): behind api.data.gov the key answer is derived, never asked, so an answer
-    that differs from the gateway's is refused rather than rendered beside it, and
-    so is a core before 0.3.0, which has no ``xippios.core.data_gov``."""
-    with pytest.raises(ValueError, match=refused):
-        generate(template_src, tmp_path / "repo", source_slug="ex", **answers)
-
-
-@pytest.mark.parametrize("login", ["octo-cat", "a" * 39, "A1-b"])
-def test_the_human_answer_owns_every_member_path(
-    template_src: Path, tmp_path: Path, login: str
-) -> None:
-    """Another login renders as the owner of each path and is recorded as answered: a
-    hyphen, the bound of 39 characters and mixed case among them."""
-    dst = generate(template_src, tmp_path / "repo", source_slug="ex", human=login, **keyed(""))
-    assert owner_rules(dst) == [f"{path} @{login}" for path in MEMBER_HUMAN_PATHS]
-    assert yaml.safe_load((dst / ".copier-answers.yml").read_text())["human"] == login
-
-
-@pytest.mark.parametrize(
-    "login", ["", "@jdidaskalu", "jd didaskalu", "-jdidaskalu", "jdidaskalu-", "jd--d", "a" * 40]
-)
-def test_the_human_is_a_github_login(template_src: Path, tmp_path: Path, login: str) -> None:
-    """A GitHub login without the ``@``: letters, digits and single hyphens, neither first
-    nor last, at most 39 characters; CODEOWNERS adds the ``@`` itself."""
-    with pytest.raises(ValueError, match="human"):
-        generate(template_src, tmp_path / "repo", source_slug="ex", human=login, **keyed(""))
 
 
 def test_the_sibling_check_names_the_declared_dependencies(render: Callable[[str], Path]) -> None:
@@ -2667,7 +2577,6 @@ def test_answers_file_is_copiers_canonical_form(
     assert b"_commit: v0.0.1\n" in written
     recorded = yaml.safe_load(written)
     expected = {**VARIANTS, "pinned": PINNED}[case]
-    assert recorded["gateway"] == gateway_of(expected)
     assert recorded["has_files"] is has_files(expected)
     key = key_answers(expected)
     assert recorded["api_key_env"] == key["api_key_env"]
@@ -2791,12 +2700,12 @@ def test_an_update_brings_the_index_and_keeps_a_sources_scripts(
 
 
 def test_sources_sharing_a_key_start_at_stable_different_times(
-    template_src: Path, tmp_path: Path, render: Callable[[str], Path]
+    template_src: Path, tmp_path: Path
 ) -> None:
     """sdk-core ADR-0032: usda-psd, usda-esr and usda-gats share one key and one gateway quota;
     their nightly runs never start together, and a render keeps a repository's time."""
-    shared = VARIANTS["gateway"]
-    starts = {"usda-psd": live_start(render("gateway"))}
+    shared = {"source_slug": "usda-psd", **keyed("DATA_GOV_API_KEY")}
+    starts = {"usda-psd": live_start(generate(template_src, tmp_path / "usda-psd", **shared))}
     for slug in ["usda-esr", "usda-gats"]:
         dst = generate(template_src, tmp_path / slug, **{**shared, "source_slug": slug})
         starts[slug] = live_start(dst)

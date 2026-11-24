@@ -91,7 +91,7 @@ def test_the_answer_is_true_unless_a_source_says_otherwise(variant: tuple[str, P
         assert (dst / rel).exists() is listed, f"{name}: {rel}"
 
 
-@pytest.mark.parametrize("name", ["tenants", "tenants-keyless"])
+@pytest.mark.parametrize("name", ["tenants"])
 def test_a_multi_tenant_source_packages_no_reference_data(
     template_src: Path, tmp_path: Path, name: str
 ) -> None:
