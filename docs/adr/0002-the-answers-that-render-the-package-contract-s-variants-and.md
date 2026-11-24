@@ -102,7 +102,7 @@ takes its place.
 - sdk-cashctrl answers `write_server: true` and `tenant_param: org`, and its render follows
   decision 2 as before.
 - The template's tests render five variants, keyed and nested, keyless and flat, keyless and
-  nested, a dependent that parses files, and a nested multi-tenant source with a write server
+  nested, a dependent that parses files, and a flat multi-tenant source with a write server
   and a key per tenant, and `scripts/prove.sh --all` runs five proofs. No proof renders a source
   whose tenants hold no key or a source behind a gateway.
 - Core's `serve_tenants` takes no option hook of the source's, so a multi-tenant source's
