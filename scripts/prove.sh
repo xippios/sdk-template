@@ -20,8 +20,10 @@
 # WritePreview, and in the multi-tenant shape the bound server of --<param>
 # as well, whose instructions say that no tool takes the tenant. In the general shape, the
 # general part of a repository without tasks and servers (ADR-0003), it requires none of a
-# source's 27 files and none of the eight answers of an upstream, and the repository's name
-# in the answers and the manifest, and runs the checks of the render and the sibling check.
+# source's 26 other files and none of the seven answers of an upstream, the repository's name
+# in the answers and the manifest, and, as the answers record the package's key, a
+# _client.py whose ENV_VARS declares that key and that holds no client, or none where the
+# package holds no key (sdk-core#538), and runs the checks of the render and the sibling check.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
 # suite tests it. --all proves every shape of the list `shapes` below, the keyless nested
 # one again with -d has_files=true, a source that parses the files it downloads
@@ -48,9 +50,10 @@
 #                      EXAMPLE_<NAME>_API_KEY under a prefix other than the slug's:
 #                      write_server, tenant_param=org, no reference data
 #   --general          the general shape, a publisher's shared package with a nested import
-#                      path, sdk-example-shared (xippios.example.shared)
-#   --general-flat     the general shape, flat, in a repository not named sdk-<slug>,
-#                      xippios-example (xippios.example)
+#                      path that holds its sources' key, sdk-example-shared
+#                      (xippios.example.shared): api_key_env=EXAMPLE_API_KEY
+#   --general-flat     the general shape, flat, in a repository not named sdk-<slug>, whose
+#                      package holds no key, xippios-example (xippios.example)
 #   --keep             leave the generated repository in place
 #   -d key=value       one more copier answer, e.g. -d has_files=true, or
 #                      -d has_reference_data=false for a source that packages none
@@ -122,15 +125,20 @@ case "$shape" in
   tenants) slug="example-tenants"; key=(-d "api_key_env=EXAMPLE_API_KEY"
     -d "write_server=true" -d "tenant_param=org" -d "has_reference_data=false") ;;
   general) slug="example-shared"; name="Shared code of the example sources"
-    key=(-d "shape=general") ;;
+    key=(-d "shape=general" -d "api_key_env=EXAMPLE_API_KEY") ;;
   general-flat) slug="example"; name="Example tools"
     key=(-d "shape=general" -d "repository_name=xippios-example") ;;
   *) slug="example-api"; key=(-d "api_key_env=EXAMPLE_API_KEY") ;;
 esac
-# The repository's name: sdk-<slug>, or the answer of a repository named otherwise.
+# The repository's name: sdk-<slug>, or the answer of a repository named otherwise; and the
+# key the answers give, empty for none.
 repository="sdk-$slug"
+given_key=""
 for arg in "${key[@]}" "${extra[@]}"; do
-  case "$arg" in repository_name=*) repository="${arg#repository_name=}" ;; esac
+  case "$arg" in
+    repository_name=*) repository="${arg#repository_name=}" ;;
+    api_key_env=*) given_key="${arg#api_key_env=}" ;;
+  esac
 done
 if [ -n "$dest" ] && [ -e "$dest" ]; then
   echo "error: --dest $dest already exists" >&2
@@ -191,8 +199,8 @@ recorded_shape="$(sed -n 's/^shape: //p' "$dest/.copier-answers.yml")"
 has_reference_data="$(sed -n 's/^has_reference_data: //p' "$dest/.copier-answers.yml")"
 echo
 if [ "$recorded_shape" = general ]; then
-  echo "==> the general shape: none of a source's 27 files rendered, nothing of an upstream asked"
-  for rel in "$package_dir/_client.py" "$package_dir/errors.py" "$package_dir/models.py" \
+  echo "==> the general shape: none of a source's 26 other files, nothing of an upstream asked"
+  for rel in "$package_dir/errors.py" "$package_dir/models.py" \
     "$package_dir/api" "$package_dir/parse" "$package_dir/tasks.py" "$package_dir/tasks_write.py" \
     "$package_dir/mcp.py" "$package_dir/mcp_write.py" "$package_dir/http.py" \
     "$package_dir/params.py" "$package_dir/enums.py" "$package_dir/reference" \
@@ -203,7 +211,7 @@ if [ "$recorded_shape" = general ]; then
     tests/test_built_answers.py tests/test_live.py tests/test_tasks.py tests/fixtures; do
     [ ! -e "$dest/$rel" ] || { echo "error: the general shape rendered $rel" >&2; exit 1; }
   done
-  for answer in upstream_url upstream_docs_url api_key_env write_server tenant_param \
+  for answer in upstream_url upstream_docs_url write_server tenant_param \
     live_secrets has_files has_reference_data; do
     if grep -q "^$answer:" "$dest/.copier-answers.yml"; then
       echo "error: the general shape recorded $answer" >&2
@@ -215,6 +223,35 @@ if [ "$recorded_shape" = general ]; then
   grep -qx "Homepage = \"https://github.com/xippios/$repository\"" "$dest/pyproject.toml" \
     || { echo "error: pyproject.toml names another repository" >&2; exit 1; }
   echo "none of them; the answers name the repository $repository, as pyproject.toml does"
+
+  # The package's key, which both shapes ask, as copier recorded it, '' for none: it decides
+  # the client file (sdk-core#538).
+  recorded_key="$(sed -n 's/^api_key_env: //p' "$dest/.copier-answers.yml")"
+  [ "$recorded_key" = "${given_key:-''}" ] \
+    || { echo "error: the answers record api_key_env: $recorded_key" >&2; exit 1; }
+  echo
+  if [ -z "$given_key" ]; then
+    echo "==> the package holds no key, so no _client.py rendered"
+    [ ! -e "$dest/$package_dir/_client.py" ] \
+      || { echo "error: a package without a key rendered _client.py" >&2; exit 1; }
+    echo "none"
+  else
+    echo "==> the package holds a key: _client.py declares it in ENV_VARS and holds no client"
+    (cd "$dest" && uv run python - "xippios.$import_path" "$given_key" <<'PY'
+import importlib
+import sys
+
+from xippios.core import AsyncClient, ClientConfig, EnvVar
+
+package, key = sys.argv[1], sys.argv[2]
+client = importlib.import_module(f"{package}._client")
+assert client.ENV_VARS == (EnvVar(key, secret=True, required=True),), client.ENV_VARS
+held = [name for name, value in vars(client).items() if isinstance(value, AsyncClient | ClientConfig)]
+assert held == [], held
+print(f"ENV_VARS = {client.ENV_VARS!r}; no client and no client's configuration")
+PY
+    )
+  fi
 elif [ "$has_reference_data" = true ]; then
   # Core's frame stops before anything is read or written while LISTS declares no list.
   echo "==> refresh_reference.py, with no list declared, refuses to run and writes nothing"

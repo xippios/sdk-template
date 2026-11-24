@@ -28,12 +28,16 @@ from helpers import (
     KEY_AUTHS,
     QUESTIONS,
     VARIANTS,
+    assigned,
+    entries,
     env_vars,
     generate,
     git,
-    key_answers,
+    imported,
     key_envs,
     keyed,
+    keywords,
+    module,
     package_dir,
     placeholder_envs,
     ruff,
@@ -52,21 +56,6 @@ HOOKS = {
 }
 
 
-def module(dst: Path, answers: dict[str, object], name: str) -> ast.Module:
-    return ast.parse((dst / "src/xippios" / package_dir(answers) / name).read_text())
-
-
-def assigned(tree: ast.Module, target: str) -> ast.expr:
-    """The value a module-level statement assigns to ``target``, annotated or not."""
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == target:
-            return node.value
-        if isinstance(node, ast.AnnAssign) and ast.unparse(node.target) == target:
-            assert node.value is not None, target
-            return node.value
-    raise AssertionError(f"no {target} at module level")
-
-
 def function(tree: ast.Module, name: str) -> ast.FunctionDef:
     (found,) = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == name]
     return found
@@ -78,19 +67,6 @@ def toolset_call(build: ast.FunctionDef) -> ast.Call:
     assert isinstance(returned.value, ast.Call), ast.unparse(build)
     assert ast.unparse(returned.value.func) == "ToolSet"
     return returned.value
-
-
-def keywords(call: ast.Call) -> dict[str, str]:
-    return {str(k.arg): ast.unparse(k.value) for k in call.keywords}
-
-
-def imported(tree: ast.Module, origin: str) -> set[str]:
-    return {
-        alias.name
-        for node in tree.body
-        if isinstance(node, ast.ImportFrom) and node.module == origin
-        for alias in node.names
-    }
 
 
 # The multi-tenant variant: tenants that hold a key (#174); tenants that hold another
@@ -211,24 +187,6 @@ def test_the_write_scaffold_declares_its_previews_reads(
     ((preview, fields),) = previews
     assert fields.get("reads") == "list[str]", (name, preview, fields)
     assert ast.literal_eval(assigned(tree, "__all__")) == [], "no write task yet"
-
-
-def entries(dst: Path, answers: dict[str, object]) -> list[tuple[str, bool, bool]]:
-    """``ENV_VARS`` of a render's ``_client.py``: each entry's name, secret and required."""
-    tree = module(dst, answers, "_client.py")
-    value = assigned(tree, "ENV_VARS")
-    assert isinstance(value, ast.Tuple), ast.unparse(value)
-    names = {"API_KEY_ENV": str(key_answers(answers).get("api_key_env", ""))}
-    listed = []
-    for call in value.elts:
-        assert isinstance(call, ast.Call)
-        assert ast.unparse(call.func) == "EnvVar"
-        (first,) = call.args
-        given = keywords(call)
-        named = names[first.id] if isinstance(first, ast.Name) else ast.literal_eval(first)
-        flags = [given[flag] == "True" for flag in ("secret", "required")]
-        listed.append((named, flags[0], flags[1]))
-    return listed
 
 
 def test_client_declares_the_variables_it_reads(variant: tuple[str, Path]) -> None:

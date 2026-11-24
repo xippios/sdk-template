@@ -1,10 +1,12 @@
 """What the template tests share: the family's variants and their answers, the render, and
-the tools a test runs on a render (ruff, git, copier's skip matcher).
+the tools a test runs on a render (ruff, git, copier's skip matcher, the readers of a rendered
+module's names).
 
 ``conftest.py`` renders each variant once per session from these answers; a test module
 imports what it reads from here.
 """
 
+import ast
 import hashlib
 import subprocess
 import sys
@@ -150,14 +152,16 @@ PINNED = {**VARIANTS["keyed-nested"], "core_git_ref": FAKE_CORE_SHA}
 
 # The general part of a repository without tasks and servers (ADR-0003), in the two renders of
 # the invented source that scripts/prove.sh proves too: a publisher's shared package with a
-# nested import path, and a flat package in a repository not named sdk-<slug>. They answer
-# none of a source's questions of an upstream, so the checks of a source's render, which read
-# VARIANTS, read neither.
+# nested import path, which holds the key its sources share, and a flat package in a
+# repository not named sdk-<slug>, which holds none (sdk-core#538). They answer none of a
+# source's questions of an upstream, so the checks of a source's render, which read VARIANTS,
+# read neither.
 GENERAL: dict[str, dict[str, object]] = {
     "general-nested": {
         "shape": "general",
         "source_slug": "example-shared",
         "source_name": "Shared code of the example sources",
+        **keyed("EXAMPLE_API_KEY"),
     },
     "general-flat": {
         "shape": "general",
@@ -269,6 +273,52 @@ def live_secrets(answers: dict[str, object]) -> list[str]:
     return parsed
 
 
+def module(dst: Path, answers: dict[str, object], name: str) -> ast.Module:
+    return ast.parse((dst / "src/xippios" / package_dir(answers) / name).read_text())
+
+
+def assigned(tree: ast.Module, target: str) -> ast.expr:
+    """The value a module-level statement assigns to ``target``, annotated or not."""
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == target:
+            return node.value
+        if isinstance(node, ast.AnnAssign) and ast.unparse(node.target) == target:
+            assert node.value is not None, target
+            return node.value
+    raise AssertionError(f"no {target} at module level")
+
+
+def keywords(call: ast.Call) -> dict[str, str]:
+    return {str(k.arg): ast.unparse(k.value) for k in call.keywords}
+
+
+def imported(tree: ast.Module, origin: str) -> set[str]:
+    return {
+        alias.name
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == origin
+        for alias in node.names
+    }
+
+
+def entries(dst: Path, answers: dict[str, object]) -> list[tuple[str, bool, bool]]:
+    """``ENV_VARS`` of a render's ``_client.py``: each entry's name, secret and required."""
+    tree = module(dst, answers, "_client.py")
+    value = assigned(tree, "ENV_VARS")
+    assert isinstance(value, ast.Tuple), ast.unparse(value)
+    names = {"API_KEY_ENV": str(key_answers(answers).get("api_key_env", ""))}
+    listed = []
+    for call in value.elts:
+        assert isinstance(call, ast.Call)
+        assert ast.unparse(call.func) == "EnvVar"
+        (first,) = call.args
+        given = keywords(call)
+        named = names[first.id] if isinstance(first, ast.Name) else ast.literal_eval(first)
+        flags = [given[flag] == "True" for flag in ("secret", "required")]
+        listed.append((named, flags[0], flags[1]))
+    return listed
+
+
 def generate(template_src: Path, dst: Path, **answers: object) -> Path:
     run_copy(
         str(template_src),
@@ -292,12 +342,13 @@ def ruff(dst: Path, command: str, *args: str) -> subprocess.CompletedProcess[str
     )
 
 
-def copier_patterns(setting: str, pkg: str, shape: str = "source") -> list[str]:
+def copier_patterns(setting: str, pkg: str, shape: str = "source", key: str = "") -> list[str]:
     """The lines of a list setting of ``copier.yml``, ``_skip_if_exists`` or ``_exclude``, as
-    copier 9.19.1 renders them for a render of ``shape`` whose package is ``pkg``: each
-    pattern rendered with the answers it reads, then split into its lines."""
+    copier 9.19.1 renders them for a render of ``shape`` whose package is ``pkg`` and whose
+    key answer is ``key``: each pattern rendered with the answers it reads, then split into
+    its lines."""
     env = jinja2.Environment(trim_blocks=True, lstrip_blocks=True)
-    answers = {"package_dir": pkg, "shape": shape}
+    answers = {"package_dir": pkg, "shape": shape, "api_key_env": key}
     rendered = [env.from_string(p).render(answers) for p in QUESTIONS[setting]]
     return [line for pattern in rendered for line in pattern.splitlines()]
 
