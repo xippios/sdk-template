@@ -1,13 +1,21 @@
 [project]
 name = "xippios-{{ source_slug }}"
 version = "0.1.0"
+{% if shape == 'general' %}
+description = "{{ source_name }}"
+{% else %}
 description = "Typed client, MCP tools and HTTP routes for {{ source_name }}"
+{% endif %}
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
 authors = [{ name = "XIPPIOS GmbH" }]
+{% if shape == 'general' %}
+keywords = ["sdk", "{{ source_slug }}", "xippios"]
+{% else %}
 keywords = ["sdk", "{{ source_slug }}", "mcp", "httpx", "pydantic"]
+{% endif %}
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
@@ -25,9 +33,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+{% if shape == 'source' %}
 mcp = ["xippios-core[mcp]~={{ core_version }}"]
 http = ["xippios-core[http]~={{ core_version }}"]
+{% endif %}
 testing = ["xippios-core[testing]~={{ core_version }}"]
+{% if shape == 'source' %}
 
 [project.scripts]
 # The servers' entry points, the template's; a script of the package's own goes after them.
@@ -37,12 +48,15 @@ xippios-{{ source_slug }}-mcp-write = "xippios.{{ import_path }}.mcp_write:run"
 {% else %}
 xippios-{{ source_slug }}-mcp = "xippios.{{ import_path }}.mcp:run"
 {% endif %}
+{% endif %}
 
 [project.urls]
-Homepage = "https://github.com/xippios/sdk-{{ source_slug }}"
+Homepage = "https://github.com/xippios/{{ repository_name }}"
+{% if shape == 'source' %}
 Upstream = "{{ upstream_url }}"
-Changelog = "https://github.com/xippios/sdk-{{ source_slug }}/blob/main/CHANGELOG.md"
-Issues = "https://github.com/xippios/sdk-{{ source_slug }}/issues"
+{% endif %}
+Changelog = "https://github.com/xippios/{{ repository_name }}/blob/main/CHANGELOG.md"
+Issues = "https://github.com/xippios/{{ repository_name }}/issues"
 
 [dependency-groups]
 # ruff is pinned to the rev of the ruff-pre-commit hook in .pre-commit-config.yaml, so a new
@@ -61,12 +75,19 @@ dev = [
 [tool.uv.sources]
 # Development only: xippios-core from git, for a core change that is not released yet.
 # While the pin is set, uv takes core from it and ignores the version bound above.
+{% if shape == 'general' %}
+# This file is the repository's, so no template update changes the pin or the bound:
+# before a release, remove this table and raise the bound above, still one minor, to the
+# core release that carries the pinned change, then uv lock, in a PR of its own merged
+# before the release PR; publish.yml refuses a pinned release.
+{% else %}
 # Before a release, remove the pin and raise core_version to the release that carries
 # the pinned change: X.Y.Z with Z the patch that shipped it, or X.Y.0 when the minor
 # itself did; still one minor. Then uv lock:
 #   uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=:current: -d core_git_ref= -d core_version=X.Y.Z
 # The removal is a PR of its own, merged before the release PR; /release-prep and
 # publish.yml refuse a pinned release.
+{% endif %}
 xippios-core = { git = "https://github.com/xippios/sdk-core.git", rev = "{{ core_git_ref }}" }  # pragma: allowlist secret (a git ref, not a key)
 {% endif %}
 

@@ -1,6 +1,14 @@
 {% set credentials = key_envs + live_secret_names %}
-# sdk-{{ source_slug }} — instructions for Claude Code
+# {{ repository_name }} — instructions for Claude Code
 
+{% if shape == 'general' %}
+`xippios-{{ source_slug }}`: {{ source_name }}, a package of the xippios SDK family, built
+on `xippios-core`. This file holds what an agent needs to work on the package: its layout,
+its commands and what only it knows. The documents it follows, sdk-core's conventions among
+them, are listed under [`## Documents` in the README](README.md#documents); read them
+before you change a file. The rules that no change breaks stand in
+`.claude/rules/never.md`, which Claude Code loads with this file.
+{% else %}
 `xippios-{{ source_slug }}` wraps {{ source_name }} as a typed Python client, an MCP server
 and FastAPI routes, built on `xippios-core`. This file holds what an agent needs to work on
 the package: what it wraps, its layout, its commands and what only it knows. The documents it
@@ -39,6 +47,7 @@ this file.
 
 The snapshot listed in `docs/upstream/FETCHED.md` is the reference for names, parameters and
 semantics; a wrapper is never written from memory of the API.
+{% endif %}
 
 ## Layout
 
@@ -51,15 +60,22 @@ imported here:
 
 ```bash
 uv sync --all-extras
+{% if shape == 'general' %}
+uv run pytest
+{% else %}
 uv run pytest                      # offline, replays the fixtures
+{% endif %}
 uv run ruff check . && uv run ruff format --check .
 uv run mypy
 uv run pre-commit run --all-files
 python3 -I scripts/adr_index.py --check   # the index matches the records in docs/adr/
+{% if shape == 'source' %}
 uv run pytest -m live --tb=short --assert=plain   # needs XIPPIOS_LIVE_TESTS=1{{ ', ' ~ credentials | join(', ') if credentials else '' }}
 
 uv run xippios-{{ source_slug }}-mcp{{ '-read' if write_server else '' }}   # stdio; add --http for streamable HTTP
+{% endif %}
 ```
+{% if shape == 'source' %}
 
 `.github/workflows/live.yml` runs the live tests nightly at {{ live_schedule.time }} UTC, a time derived from
 the slug{{ ' so that sources sharing a key never start together' if key_envs else '' }}, and on demand; a pull request never runs them.
@@ -73,6 +89,7 @@ Every live run takes `--tb=short --assert=plain`, since the log of `live.yml` is
 the first keeps a failing test's frame arguments out of it, a raw upstream payload among
 them, and the second the values a failed `assert` compares. A live test asserts on shapes
 and counts, never on a raw payload.
+{% endif %}
 
 ## Template updates
 
@@ -85,6 +102,15 @@ and sdk-template's
 [CHANGELOG](https://github.com/xippios/sdk-template/blob/main/CHANGELOG.md) says, per
 release, what to port into those by hand in the same pull request.
 
+{% if shape == 'general' %}
+The update writes every other file it renders again, since they are the template's,
+`.claude/rules/never.md` among them. This package keeps no text of its own in them: its own
+words go into a file it fills. `pyproject.toml` is one it fills, its manifest once rendered,
+so no update changes its dependencies, its scripts or its bound of `xippios-core`, which an
+adoption of a core minor raises there by hand.
+
+## What only this package knows
+{% else %}
 The update writes every other file it renders again, since they are the template's,
 `.claude/rules/never.md` among them. This package keeps no text of its own in them, the
 docstring of `mcp.py` included: its own words go into a file it fills. A line it has to
@@ -93,5 +119,10 @@ render, silently where the release leaves the lines around it alone and as a con
 where it changes them.
 
 ## {{ source_name }} specifics
+{% endif %}
 
+{% if shape == 'general' %}
+<!-- What only this package knows: its modules' purpose, the packages that use it, sections of its own. Fill this section or delete it. -->
+{% else %}
 <!-- What only this package knows: upstream behaviour established by fixtures, the client's quirks, sections of its own. Fill this section or delete it. -->
+{% endif %}

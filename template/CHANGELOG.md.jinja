@@ -8,10 +8,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+{% if shape == 'general' %}
+- Scaffold from [sdk-template](https://github.com/xippios/sdk-template), its general part
+  of a repository: the package with its version, CI, the organization's checks, the
+  decision records and the release train, in which a release PR's merge tags and
+  publishes.
+{% else %}
 - Scaffold from [sdk-template](https://github.com/xippios/sdk-template): configured
   client for {{ source_name }}, empty task layer, MCP server and FastAPI router
   wired to it, test harness with core's family check, CI, the nightly live tests and
   the release train, in which a release PR's merge tags and publishes.
+{% endif %}
 {% for dep in depends_on %}
 - Depends on `xippios-{{ dep.name }}` {{ dep.minor }}.0 (`~={{ dep.minor }}.0`),
   whose task layer and models this package uses.
