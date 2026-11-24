@@ -15,9 +15,10 @@ done, https://github.com/xippios/sdk-core/blob/main/docs/definition-of-done.md, 
 review checklist, https://github.com/xippios/sdk-core/blob/main/docs/review-checklist.md:
 steps 4 to 6 are what they check in a fixture.
 
-{% if key_envs %}
+{% set credentials = key_envs + (live_secret_names if tenant_param and not api_key_env else []) %}
+{% if credentials %}
 {% set credential = 'credential' if tenant_param and not api_key_env else 'key' %}
-1. The {{ credential }} comes from the environment, `{{ key_envs | join('` and `') }}`: never read, test or print {{ 'that variable' if key_envs | length == 1 else 'those variables' }}, not even to see whether {{ 'it is' if key_envs | length == 1 else 'they are' }} set. The client guards the {{ credential }} itself: where the variable is unset or empty, it refuses on its first request, before anything is sent, with a `ConfigError` that names the variable, never a value.
+1. The {{ credential }} comes from the environment, `{{ credentials | join('` and `') }}`: never read, test or print {{ 'that variable' if credentials | length == 1 else 'those variables' }}, not even to see whether {{ 'it is' if credentials | length == 1 else 'they are' }} set. The client guards the {{ credential }} itself: where the variable is unset or empty, it refuses on its first request, before anything is sent, with a `ConfigError` that names the variable, never a value.
 {% else %}
 1. No key is needed for this source.
 {% endif %}

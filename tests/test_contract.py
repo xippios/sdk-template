@@ -6,7 +6,7 @@ by default, serves ``build_server(build())`` and exports ``ENV_VARS`` beside ``S
 which ``_client.py`` declares. ``write_server`` renders the write server and its scaffold
 under the two entry points; ``tenant_param`` renders core's registry, ``build(lock)``,
 ``serve_tenants`` and the strip of the other tenants' variables, for tenants that hold a
-key or, named by ``tenant_credential_env``, a credential that is none (#207).
+key; tenants that hold another credential name it in ``live_secrets`` (#301).
 A bound server's text names no tenant argument (#219), ``/add-endpoint`` names the test
 of a write server (#220), and the write scaffold declares a preview's ``reads``, which that
 test holds (#271). ``scripts/prove.sh`` serves them: a host's server from the tool set
@@ -34,12 +34,10 @@ from helpers import (
     key_answers,
     key_envs,
     keyed,
-    live_secrets,
     package_dir,
     placeholder_envs,
     ruff,
     skip_matcher,
-    tenant_credential,
     tenant_field,
     tenant_param,
     tenant_prefix,
@@ -95,9 +93,9 @@ def imported(tree: ast.Module, origin: str) -> set[str]:
     }
 
 
-# The multi-tenant variants: tenants that hold a key, and tenants that hold a credential
-# that is none (#207).
-TENANT_VARIANTS = ["tenants", "tenants-keyless"]
+# The multi-tenant variant: tenants that hold a key (#174); tenants that hold another
+# credential are no variant, but name it in live_secrets (#301).
+TENANT_VARIANTS = ["tenants"]
 
 
 def servers(answers: dict[str, object]) -> list[tuple[str, str]]:
@@ -378,9 +376,8 @@ def test_a_multi_tenant_source_strips_the_other_tenants(
 ) -> None:
     """sdk-core ADR-0042, decision 1: the template's ``tests/conftest.py`` calls core's
     ``keep_reserved_tenants(TENANTS)`` at import, before any fixture; the plugin pins the
-    reserved tenant's credential first, its key or the field ``tenant_credential_env`` names,
-    which alone declares that tenant offline and which ``live.yml`` passes, and no other
-    tenant's variable: a source without a key adds its live secrets alone (#241)."""
+    reserved tenant's key, which alone declares that tenant offline and which ``live.yml``
+    passes, and no other tenant's variable."""
     answers, tenants = VARIANTS[name], render(name)
     tree = ast.parse((tenants / "tests/conftest.py").read_text())
     calls = [ast.unparse(n.value) for n in tree.body if isinstance(n, ast.Expr)]
@@ -390,9 +387,7 @@ def test_a_multi_tenant_source_strips_the_other_tenants(
     keys = ini["ini_options"]["xippios_placeholder_key_envs"]
     reserved = f"{tenant_prefix(answers)}_DEMO_{tenant_field(answers)}"
     assert key_envs(answers) == [reserved]
-    assert keys == placeholder_envs(answers)
-    assert keys[0] == reserved
-    assert keys[1:] == ([] if key_answers(answers).get("api_key_env") else live_secrets(answers))
+    assert keys == placeholder_envs(answers) == [reserved]
 
 
 def test_the_tenants_prefix_is_the_keys(template_src: Path, tmp_path: Path) -> None:
@@ -461,14 +456,12 @@ def test_tenant_param_is_bounded_by_the_longest_python_line(
         ("Org", keyed("EX_API_KEY")),
         ("org-id", keyed("EX_API_KEY")),
         ("1org", keyed("EX_API_KEY")),
-        ("org", {"gateway": "api.data.gov"}),
     ],
 )
-def test_tenant_param_needs_a_name_and_no_gateway(
+def test_tenant_param_needs_a_name(
     template_src: Path, tmp_path: Path, value: str, answers: dict[str, object]
 ) -> None:
-    """A parameter name, and no gateway's key, which every package behind it shares; a
-    source without a key of its own answers ``tenant_credential_env`` instead (#209)."""
+    """A parameter name: lower case, letters, digits and underscores, a letter first."""
     with pytest.raises(ValueError, match="tenant_param"):
         generate(template_src, tmp_path / "repo", source_slug="ex", tenant_param=value, **answers)
 
@@ -483,230 +476,43 @@ def test_the_contracts_answers_are_recorded_and_its_derivations_not(tenants: Pat
         assert derived not in recorded, derived
 
 
-def test_a_keyless_multi_tenant_source_renders_the_tenant_shape(
-    template_src: Path, tmp_path: Path, tenants_keyless: Path
-) -> None:
-    """#207, #209: a source whose tenants hold a credential that is no key answers
-    ``tenant_param``, and the template's two servers and ``tests/conftest.py`` render byte
-    for byte as for a source whose tenants hold a key, with the same slug, parameter and
-    write server."""
-    answers = VARIANTS["tenants-keyless"]
-    with_key = {k: v for k, v in answers.items() if k != "tenant_credential_env"}
-    with_key.update(keyed(f"{tenant_prefix(answers)}_API_KEY"))
-    dst = generate(template_src, tmp_path / "keyed", **with_key)
-    pkg = package_dir(answers)
-    for rel in [
-        f"src/xippios/{pkg}/mcp.py",
-        f"src/xippios/{pkg}/mcp_write.py",
-        "tests/conftest.py",
-    ]:
-        assert (tenants_keyless / rel).read_text() == (dst / rel).read_text(), rel
-
-
-def test_a_keyless_multi_tenant_registry_takes_the_credential(tenants_keyless: Path) -> None:
-    """Conventions §7: the registry's prefix and field are those of ``tenant_credential_env``,
-    ``var_prefix`` given where the slug's is another, and ``check_<param>`` checks that
-    field; each tenant's client takes no auth of the template's, the source's own being
-    passed in ``_build``, and the module defines what the keyed shape's does."""
-    answers = VARIANTS["tenants-keyless"]
-    param, prefix, field = tenant_param(answers), tenant_prefix(answers), tenant_field(answers)
-    assert (prefix, field) == ("GOOGLE", "REFRESH_TOKEN"), "the slug would give GOOGLE_MAIL"
-    tree = module(tenants_keyless, answers, "_client.py")
-    registry = assigned(tree, "TENANTS")
-    assert isinstance(registry, ast.Call)
-    assert keywords(registry) == {
-        "var_prefix": repr(prefix),
-        "list_var": repr(f"{prefix}_{param.upper()}S"),
-        "param": repr(param),
-        "fields": repr((field,)),
-        "reserved": "(DEMO,)",
-    }
-    check = function(tree, f"check_{param}")
-    assert ast.unparse(check.body[-1]) == f"TENANTS.field({param}, {field!r})"
-    assert not KEY_AUTHS & imported(tree, "xippios.core"), "the source's auth, none of core's"
-    (returned,) = [n for n in ast.walk(function(tree, "_build")) if isinstance(n, ast.Return)]
-    assert returned.value is not None
-    assert ast.unparse(returned.value) == "AsyncClient(config)"
-    assert ast.literal_eval(assigned(tree, "__all__")) == [
-        "BASE_URL",
-        "DEMO",
-        "ENV_VARS",
-        "RATE_LIMIT",
-        "SOURCE",
-        "TENANTS",
-        f"check_{param}",
-        "classify",
-        "client_for",
-        "config",
-    ]
-
-
-def test_a_keyless_multi_tenant_sources_variables_follow_the_credential(
-    tenants_keyless: Path,
-) -> None:
-    """``ENV_VARS`` lists the tenant list and the credential's pattern, then the live secrets;
-    the plugin pins the reserved tenant's credential offline, the variable that alone
-    declares that tenant, then the live secrets that the source's own auth reads beside it
-    (#241), and ``live.yml`` passes them in that order."""
-    answers = VARIANTS["tenants-keyless"]
-    assert tenant_credential(answers) == "GOOGLE_<NAME>_REFRESH_TOKEN"
-    assert (
-        entries(tenants_keyless, answers)
-        == env_vars(answers)
-        == [
-            ("GOOGLE_ACCOUNTS", False, False),
-            ("GOOGLE_<NAME>_REFRESH_TOKEN", True, True),
-            ("GOOGLE_CLIENT_ID", True, True),
-            ("GOOGLE_CLIENT_SECRET", True, True),
-        ]
-    )
-    ini = tomllib.loads((tenants_keyless / "pyproject.toml").read_text())["tool"]["pytest"]
-    keys = ini["ini_options"]["xippios_placeholder_key_envs"]
-    assert key_envs(answers) == ["GOOGLE_DEMO_REFRESH_TOKEN"]
-    assert (
-        keys
-        == placeholder_envs(answers)
-        == ["GOOGLE_DEMO_REFRESH_TOKEN", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
-    )
-    workflow = yaml.safe_load((tenants_keyless / ".github/workflows/live.yml").read_text())
-    (step,) = [step for step in workflow["jobs"]["live"]["steps"] if "env" in step]
-    assert list(step["env"]) == ["XIPPIOS_LIVE_TESTS", *keys]
-
-
-def test_a_keyless_multi_tenant_sources_dependency_key_stands_between(
+def test_a_multi_tenant_source_without_a_key_names_its_credential_in_the_live_secrets(
     template_src: Path, tmp_path: Path
 ) -> None:
-    """Finding 1 of #269: a keyed dependency's key stands between the reserved tenant's
-    credential and the live secrets, as ``key_envs`` orders them (sdk-core ADR-0021); an
-    open dependency adds none."""
-    dependencies = (
-        '[{name: example-base, minor: "0.3", key_env: ""},'
-        ' {name: example-keyed, minor: "0.1", key_env: EXAMPLE_KEYED_API_KEY}]'
-    )
-    answers = {**VARIANTS["tenants-keyless"], "source_dependencies": dependencies}
-    dst = generate(template_src, tmp_path / "repo", **answers)
-    ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]
-    keys = ini["ini_options"]["xippios_placeholder_key_envs"]
-    assert (
-        keys
-        == placeholder_envs(answers)
-        == [
-            "GOOGLE_DEMO_REFRESH_TOKEN",
-            "EXAMPLE_KEYED_API_KEY",
-            "GOOGLE_CLIENT_ID",
-            "GOOGLE_CLIENT_SECRET",
-        ]
-    )
-
-
-def test_a_keyless_multi_tenant_render_names_no_key_of_its_tenants(tenants_keyless: Path) -> None:
-    """No file of the render names a key the tenants do not hold: the client, the README,
-    the CLAUDE.md and ``/record-fixture`` name the credential's variables, the reserved
-    tenant's among them."""
-    answers = VARIANTS["tenants-keyless"]
-    prefix, field = tenant_prefix(answers), tenant_field(answers)
-    keys = [f"{prefix}_{name}_API_KEY" for name in ["<NAME>", "DEMO", "ACME"]]
-    for path in sorted(tenants_keyless.rglob("*")):
-        if path.is_file() and path.suffix in {".py", ".md", ".toml", ".yml"}:
-            text = path.read_text()
-            named = [key for key in [*keys, '"API_KEY"', "'API_KEY'"] if key in text]
-            assert not named, (path, named)
-    record = (tenants_keyless / ".claude/commands/record-fixture.md").read_text()
-    assert f"`{prefix}_DEMO_{field}`" in record
-    claude = (tenants_keyless / "CLAUDE.md").read_text().splitlines()
-    (credentials,) = [line for line in claude if line.startswith("| Credentials | ")]
-    assert f"`{tenant_credential(answers)}`" in credentials
-    (row,) = [line for line in claude if line.startswith("| Tenants | ")]
-    assert f"`{prefix}_DEMO_{field}`" in row
-    readme = (tenants_keyless / "README.md").read_text()
-    for name in [tenant_credential(answers), f"{prefix}_DEMO_{field}"]:
-        assert f"`{name}`" in readme, name
-
-
-def test_the_credential_is_recorded_where_it_is_asked(render: Callable[[str], Path]) -> None:
-    """``tenant_credential_env`` is asked of a multi-tenant source without a key alone, and
-    recorded there; a key derives it, and the prefix and the field it gives are computed on
-    each render."""
-    for name, answers in VARIANTS.items():
-        recorded = yaml.safe_load((render(name) / ".copier-answers.yml").read_text())
-        assert recorded.get("tenant_credential_env") == answers.get("tenant_credential_env"), name
-        for derived in ["tenant_prefix", "tenant_field", "tenant_list_var"]:
-            assert derived not in recorded, (name, derived)
-
-
-@pytest.mark.parametrize(
-    ("param", "value", "answers"),
-    [
-        ("account", None, keyed("")),
-        ("account", "", keyed("")),
-        ("account", "EX_REFRESH_TOKEN", keyed("")),
-        ("account", "ex_<NAME>_REFRESH_TOKEN", keyed("")),
-        ("account", "<NAME>_REFRESH_TOKEN", keyed("")),
-        ("account", "EX_<NAME>_", keyed("")),
-        ("account", "EX_<NAME>_<NAME>_TOKEN", keyed("")),
-        ("account", "EX_<NAME>_API_KEY", keyed("")),
-        ("account", "EX_<NAME>_REFRESH_TOKEN", keyed("EX_API_KEY")),
-        ("", "EX_<NAME>_REFRESH_TOKEN", keyed("")),
-    ],
-)
-def test_tenant_credential_env_is_one_variable_pattern_of_tenants_without_a_key(
-    template_src: Path, tmp_path: Path, param: str, value: str | None, answers: dict[str, object]
-) -> None:
-    """A multi-tenant source without a key names its tenants' credential, once, as
-    ``<PREFIX>_<NAME>_<FIELD>`` in upper case; a key is ``api_key_env``'s, which derives
-    the pattern, and a source with one tenant names none."""
-    data: dict[str, object] = {"tenant_param": param, **answers}
-    if value is not None:
-        data["tenant_credential_env"] = value
-    with pytest.raises(ValueError, match="tenant_credential_env"):
-        generate(template_src, tmp_path / "repo", source_slug="ex", **data)
-
-
-# The bound copier.yml states for tenant_credential_env.
-TENANT_CREDENTIAL_BOUND = 40
-
-
-@pytest.mark.parametrize(
-    "credential",
-    [
-        "EX_<NAME>_" + "A" * (TENANT_CREDENTIAL_BOUND - 16) + "_TOKEN",
-        "E" * (TENANT_CREDENTIAL_BOUND - 13) + "_<NAME>_TOKEN",
-    ],
-)
-def test_tenant_credential_env_is_bounded_by_the_longest_python_line(
-    template_src: Path, tmp_path: Path, credential: str
-) -> None:
-    """A pattern up to the bound the help states, its field or its prefix at the longest,
-    renders ruff-clean (E501 at 100 columns) with a parameter at its own bound, a write
-    server and a long import path; one more character is refused."""
-    help_text = str(QUESTIONS["tenant_credential_env"]["help"])
-    assert f"At most {TENANT_CREDENTIAL_BOUND} characters" in help_text
-    assert len(credential) == TENANT_CREDENTIAL_BOUND
+    """#301: no question names the credential of tenants that hold no key. Such a source
+    names its variables in ``live_secrets``, the reserved tenant's first: ``live.yml``
+    passes them, the plugin pins each offline, ``/record-fixture`` names each, and the
+    template's servers and ``tests/conftest.py`` render byte for byte as for tenants with a
+    key."""
+    assert "tenant_credential_env" not in QUESTIONS
+    names = ["EXAMPLE_DEMO_REFRESH_TOKEN", "EXAMPLE_CLIENT_ID", "EXAMPLE_CLIENT_SECRET"]
     answers = {
-        "tenant_param": "tenant_of_the_ledger",
+        "source_slug": "example-mail",
         "write_server": True,
+        "tenant_param": "account",
+        "live_secrets": "[" + ", ".join(names) + "]",
         "has_reference_data": False,
         **keyed(""),
     }
-    slug = "example-ledger-books"
-    dst = generate(
-        template_src,
-        tmp_path / "bound",
-        source_slug=slug,
-        tenant_credential_env=credential,
-        **answers,
-    )
-    for args in [("check", "."), ("format", "--check", ".")]:
-        run = ruff(dst, *args)
-        assert run.returncode == 0, run.stdout + run.stderr
-    with pytest.raises(ValueError, match="tenant_credential_env"):
-        generate(
-            template_src,
-            tmp_path / "refused",
-            source_slug=slug,
-            tenant_credential_env="X" + credential,
-            **answers,
-        )
+    dst = generate(template_src, tmp_path / "keyless", **answers)
+    recorded = yaml.safe_load((dst / ".copier-answers.yml").read_text())
+    assert "tenant_credential_env" not in recorded
+    assert key_envs(answers) == []
+    ini = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["pytest"]
+    assert ini["ini_options"]["xippios_placeholder_key_envs"] == placeholder_envs(answers) == names
+    workflow = yaml.safe_load((dst / ".github/workflows/live.yml").read_text())
+    (step,) = [step for step in workflow["jobs"]["live"]["steps"] if "env" in step]
+    assert list(step["env"]) == ["XIPPIOS_LIVE_TESTS", *names]
+    record = (dst / ".claude/commands/record-fixture.md").read_text()
+    assert "`" + "` and `".join(names) + "`" in record
+    with_key = {k: v for k, v in answers.items() if k != "live_secrets"}
+    with_key.update(keyed("EXAMPLE_API_KEY"))
+    keyed_dst = generate(template_src, tmp_path / "keyed", **with_key)
+    pkg = package_dir(answers)
+    for rel in [f"src/xippios/{pkg}/mcp.py", f"src/xippios/{pkg}/mcp_write.py"]:
+        assert (dst / rel).read_text() == (keyed_dst / rel).read_text(), rel
+    conftest = (dst / "tests/conftest.py").read_text()
+    assert conftest == (keyed_dst / "tests/conftest.py").read_text()
 
 
 def test_the_readme_configures_each_server(variant: tuple[str, Path]) -> None:
@@ -779,12 +585,13 @@ def test_an_update_merges_a_sources_own_write_server(template_src: Path, tmp_pat
 def test_an_update_keeps_a_sources_script_and_takes_the_live_secrets(
     template_src: Path, tmp_path: Path
 ) -> None:
-    """#241: a keyless multi-tenant source made by the template before it, which named the
-    reserved tenant's credential alone under ``xippios_placeholder_key_envs`` and said
-    nothing under ``[project.scripts]``, adds a script of its own after the servers' entry
-    points, as sdk-google-mail adds its consent command. The update to the working tree's
-    render brings the live secrets into the list and keeps the script, with no conflict:
-    the file is the render with the source's line."""
+    """#241: a keyless multi-tenant source made by the template before it, whose
+    ``pyproject.toml`` named none of its live secrets under ``xippios_placeholder_key_envs``
+    and said nothing under ``[project.scripts]``, adds a script of its own after the
+    servers' entry points, as sdk-google-mail adds its consent command. The update to the
+    working tree's render brings the live secrets, its tenants' credential first (#301),
+    into the list and keeps the script, with no conflict: the file is the render with the
+    source's line."""
     template = tmp_path / "template"
     shutil.copytree(template_src, template)
     jinja = template / "template/pyproject.toml.jinja"
@@ -803,13 +610,20 @@ def test_an_update_keeps_a_sources_script_and_takes_the_live_secrets(
         git(template, "add", "-A")
         git(template, "commit", "-q", "--no-verify", "-m", tag)
         git(template, "tag", tag)
-    answers = VARIANTS["tenants-keyless"]
+    answers = {
+        "source_slug": "example-mail",
+        "write_server": True,
+        "tenant_param": "account",
+        "live_secrets": "[EXAMPLE_DEMO_REFRESH_TOKEN, EXAMPLE_CLIENT_ID, EXAMPLE_CLIENT_SECRET]",
+        "has_reference_data": False,
+        **keyed(""),
+    }
     dst = tmp_path / "repo"
     data = {**BASE_ANSWERS, **answers}
     run_copy(str(template), str(dst), data=data, defaults=True, vcs_ref="v0.0.1", quiet=True)
     pyproject = dst / "pyproject.toml"
     ini = tomllib.loads(pyproject.read_text())["tool"]["pytest"]["ini_options"]
-    assert ini["xippios_placeholder_key_envs"] == key_envs(answers), "the list before"
+    assert "xippios_placeholder_key_envs" not in ini, "no list before"
     slug, dotted = answers["source_slug"], package_dir(answers).replace("/", ".")
     own = f"xippios-{slug}-auth"
     last = f'xippios-{slug}-mcp-write = "xippios.{dotted}.mcp_write:run"\n'

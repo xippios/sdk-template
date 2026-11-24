@@ -1,6 +1,6 @@
 # ADR-0001: Two answers render the package contract's variants: a write server and a multi-tenant source
 
-Status: Accepted · Date: 2026-11-19 · Decided by https://github.com/xippios/sdk-template/issues/174 · Amended 2026-11-19 by https://github.com/xippios/sdk-template/issues/209 · Amended 2026-11-19 by https://github.com/xippios/sdk-template/issues/221
+Status: Superseded by ADR-0002 · Date: 2026-11-19 · Decided by https://github.com/xippios/sdk-template/issues/174 · Amended 2026-11-19 by https://github.com/xippios/sdk-template/issues/209 · Amended 2026-11-19 by https://github.com/xippios/sdk-template/issues/221
 
 ## Context
 
