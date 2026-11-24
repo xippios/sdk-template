@@ -232,14 +232,14 @@ def identifiers(tree: ast.Module) -> set[str]:
 
 @pytest.mark.parametrize("name", LISTED)
 def test_the_refresh_runs_on_cores_frame(name: str, render: Callable[[str], Path]) -> None:
-    """#64, #239, sdk-core ADR-0051: the rendered script declares its lists in ``LISTS``
-    and hands them to core's frame, ``xippios.core.refresh.run``, with the package, the
-    lists it ships, the package's one client, which its fetches go through, and the quota
-    header. The frame sends each request once and counts it, one that fails in transport
-    too, and takes ``--only`` and ``--render-only``, so the script keeps no retry, meter,
-    option or write of its own, and no branch of a multi-tenant source, which packages no
-    reference data (#301). Its examples name wrappers in snake case, as ``/add-endpoint``
-    names them."""
+    """#64, #239, sdk-core ADR-0062: the rendered script declares its lists in ``LISTS``,
+    core's one ``Lists`` with the package, the lists it ships, the package's one client,
+    which its fetches go through, and the quota header, and hands it to core's frame,
+    ``xippios.core.refresh.run``, with the command line alone. The frame sends each request
+    once and counts it, one that fails in transport too, and takes ``--only`` and
+    ``--render-only``, so the script keeps no retry, meter, option or write of its own, and
+    no branch of a multi-tenant source, which packages no reference data (#301). Its
+    examples name wrappers in snake case, as ``/add-endpoint`` names them."""
     text = (render(name) / "scripts/refresh_reference.py").read_text()
     script = ast.parse(text)
     frame = [
@@ -248,18 +248,26 @@ def test_the_refresh_runs_on_cores_frame(name: str, render: Callable[[str], Path
         if isinstance(node, ast.ImportFrom) and node.module == "xippios.core.refresh"
         for alias in node.names
     ]
-    assert frame == ["Listed", "run"]
+    assert frame == ["Lists", "run"]
     (call,) = [
         node
         for node in ast.walk(script)
         if isinstance(node, ast.Call) and ast.unparse(node.func) == "run"
     ]
     assert [ast.unparse(argument) for argument in call.args] == ["LISTS", "argv"]
-    assert {keyword.arg: ast.unparse(keyword.value) for keyword in call.keywords} == {
+    assert call.keywords == []
+    (declared,) = [
+        node
+        for node in ast.walk(script)
+        if isinstance(node, ast.Call) and ast.unparse(node.func) == "Lists"
+    ]
+    given = {keyword.arg: ast.unparse(keyword.value) for keyword in declared.keywords}
+    assert given.pop("lists") == "()", "no list declared yet"
+    assert given == {
         "package": "PACKAGE",
         "packaged": "PACKAGED_LISTS",
         "client": "client",
-        "quota_header": "QUOTA_HEADER",
+        "quota_header": "'x-ratelimit-remaining'",
     }
     assert {"DEMO", "client_for", "fetches", "sys"} & identifiers(script) == set()
     own = {"RetryPolicy", "replace", "observe", "argparse", "render_enums", "PackagedList"}

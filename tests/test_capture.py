@@ -2,8 +2,8 @@
 it hands core's snapshot frame, the command that fills it, the stub of ``FETCHED.md`` and the
 rule of the render's Never file.
 
-xippios-core 0.4.1's frame, ``xippios.core.refresh``, fetches, checks the attribution, writes
-``FETCHED.md`` and compares with ``--check`` (sdk-core ADR-0046), and core's own tests hold
+xippios-core 0.5.0's frame, ``xippios.core.refresh``, fetches, checks the attribution, writes
+``FETCHED.md`` and compares with ``--check`` (sdk-core ADR-0062), and core's own tests hold
 what it does. These tests read the render, and ``scripts/prove.sh`` runs the rendered script
 on core's frame.
 """
@@ -22,7 +22,7 @@ FORM_MARK = re.compile(r"<!-- form \d+ of the FETCHED\.md that xippios\.core\.re
 # The fields of the declaration a source fills, which the render declares and the command names.
 FILLED = ["pages", "attribution", "not_fetched", "vocabulary", "capture"]
 # The hooks a source adds where it needs them, which the command names and the render leaves to
-# their defaults: a snapshot that links no page declares no linked (sdk-core ADR-0046, decision 6),
+# their defaults: a snapshot that links no page declares no linked (sdk-core ADR-0062),
 # and one whose pages need no converter no reduce, whose default keeps the body as fetched (#300).
 ADDED = ["canonical", "linked", "reduce"]
 
@@ -53,7 +53,7 @@ def keywords(call: ast.Call) -> dict[str, ast.expr]:
 
 
 def test_the_script_declares_its_snapshot_to_core_s_frame(variant: tuple[str, Path]) -> None:
-    """ADR-0046 of sdk-core: the script imports core's frame, assigns its ``Snapshot`` to
+    """ADR-0062 of sdk-core: the script imports core's frame, assigns its ``Snapshot`` to
     ``SNAPSHOT`` at its top level, which imports and declares alone, and runs it under
     ``if __name__ == "__main__":`` alone, so it sends nothing while it loads. Its pages are
     empty until the source fills them, and it declares no ``linked`` while it links no page.
