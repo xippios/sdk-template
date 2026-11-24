@@ -13,18 +13,18 @@ import re
 import sys
 from pathlib import Path
 
-from helpers import BASE_ANSWERS, TABLE_HEADER, VARIANTS
+from helpers import BASE_ANSWERS, VARIANTS
 
-NOT_FETCHED_HEADER = "| URL | HTTP | Redirects to | Reason |"
 FRAME = "xippios.core.refresh"
 # The last line of a FETCHED.md that core's frame wrote, which core's family check judges
 # against the script's SNAPSHOT (sdk-core ADR-0046, decision 6): a fresh render carries none.
 FORM_MARK = re.compile(r"<!-- form \d+ of the FETCHED\.md that xippios\.core\.refresh writes -->")
 # The fields of the declaration a source fills, which the render declares and the command names.
-FILLED = ["pages", "attribution", "not_fetched", "vocabulary", "capture", "reduce"]
+FILLED = ["pages", "attribution", "not_fetched", "vocabulary", "capture"]
 # The hooks a source adds where it needs them, which the command names and the render leaves to
-# their defaults: a snapshot that links no page declares no linked (sdk-core ADR-0046, decision 6).
-ADDED = ["canonical", "linked"]
+# their defaults: a snapshot that links no page declares no linked (sdk-core ADR-0046, decision 6),
+# and one whose pages need no converter no reduce, whose default keeps the body as fetched (#300).
+ADDED = ["canonical", "linked", "reduce"]
 
 
 def flat(text: str) -> str:
@@ -57,7 +57,8 @@ def test_the_script_declares_its_snapshot_to_core_s_frame(variant: tuple[str, Pa
     ``SNAPSHOT`` at its top level, which core's family check reads, and runs it under
     ``if __name__ == "__main__":`` alone, so it sends nothing while it loads. Its pages are
     empty until the source fills them, and it declares no ``linked`` while it links no page.
-    It runs in the project's environment, with no ``# /// script`` block."""
+    It runs in the project's environment, with no ``# /// script`` block, and defines no
+    function of its own: the scaffold's ``reduce`` has left for core's default (#300)."""
     name, dst = variant
     answers = {**BASE_ANSWERS, **VARIANTS[name]}
     script = (dst / "scripts/refresh_upstream.py").read_text()
@@ -77,6 +78,7 @@ def test_the_script_declares_its_snapshot_to_core_s_frame(variant: tuple[str, Pa
         docstring = isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)
         main = isinstance(node, ast.If) and ast.unparse(node.test) == "__name__ == '__main__'"
         assert isinstance(node, allowed) or docstring or main, ast.unparse(node)
+    assert not [node.name for node in body if isinstance(node, ast.FunctionDef)]
     (guard,) = [node for node in body if isinstance(node, ast.If)]
     assert [ast.unparse(node) for node in guard.body] == ["raise SystemExit(run(SNAPSHOT))"]
     call = snapshot_call(body)
@@ -116,17 +118,19 @@ def test_refresh_upstream_command_follows_the_declaration(keyless_flat: Path) ->
     assert "`git add docs/upstream scripts`" in command, "row 35 a"
 
 
-def test_the_stub_lays_out_every_kind_of_row(keyless_flat: Path) -> None:
-    """FETCHED.md's stub names each row the frame writes, the hand-written file's and the
-    samples' among them, and the table of the pages it leaves out (conventions §3). It carries
-    no mark of the frame's form, so core's family check passes a fresh render until its first
-    refresh (sdk-core ADR-0046, decision 6)."""
+def test_the_stub_leaves_the_file_to_core_s_frame(keyless_flat: Path) -> None:
+    """#300: FETCHED.md's stub holds its title and one paragraph, which names the script that
+    writes the file whole, and none of the sections and tables that core's frame writes at
+    the first refresh. It carries no mark of the frame's form, so core's family check passes a
+    fresh render until its first refresh (sdk-core ADR-0046, decision 6)."""
     stub = (keyless_flat / "docs/upstream/FETCHED.md").read_text()
-    assert f"{TABLE_HEADER}\n" in stub
-    assert "## Not fetched" in stub
-    assert f"{NOT_FETCHED_HEADER}\n" in stub
-    assert "| OBSERVED.md |" in stub
-    assert "| samples/" in stub
+    title, *blocks = [block for block in stub.split("\n\n") if block.strip()]
+    assert title.startswith("# "), title
+    assert "\n" not in title, title
+    assert len(blocks) == 1, "one paragraph"
+    assert "`scripts/refresh_upstream.py`" in stub
+    assert "\n## " not in stub
+    assert "|" not in stub, "no table of the frame's"
     assert not FORM_MARK.search(stub)
 
 

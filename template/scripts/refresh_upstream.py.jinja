@@ -11,21 +11,11 @@ Run from the repository's root::
 
 from pathlib import Path
 
-from xippios.core.refresh import Page, Response, Snapshot, run
+from xippios.core.refresh import Snapshot, run
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS_URL = "{{ upstream_docs_url }}"
 """Where the documentation lives: ``upstream_docs_url`` in ``.copier-answers.yml``."""
-
-
-def reduce(page: Page, response: Response) -> bytes:
-    """The content a page's file is written with: the body as fetched by default.
-
-    An HTML page becomes Markdown through the source's converter, its own dependency,
-    such as markdownify in its dev group, a table with merged cells kept as HTML.
-    """
-    return response.body
-
 
 SNAPSHOT = Snapshot(
     name="{{ source_name }}",
@@ -42,7 +32,6 @@ SNAPSHOT = Snapshot(
     vocabulary=(),
     capture="",
     out=ROOT / "docs/upstream",
-    reduce=reduce,
 )
 
 if __name__ == "__main__":
