@@ -13,10 +13,10 @@
   - Hand-apply: `README.md` — in the first paragraph, say that every response carries its
     metadata (source, endpoint, retrieved_at, request), naming `published_at` and `vintage`
     only where every task sets them, and add `## Workflows` before `## Documents` as a render
-    of this release holds it with the source's answers, one paragraph for each file under
-    `.github/workflows/` — core's `Meta` leaves both fields to the task that knows them, and
-    the organization's rule has the README say what each workflow does, since the workflow
-    files carry no comment.
+    of this release holds it with the source's answers, one paragraph for each workflow the
+    repository holds — core's `ResultMeta` leaves both fields to the task that knows them,
+    and the organization's rule has the README say what each workflow does, since the
+    workflow files carry no comment.
     `src/xippios/<import path>/_client.py` — in sdk-eurostat, sdk-faostat, sdk-google-mail,
     sdk-usda-esmis and sdk-usda-wasde, delete the line `API_KEY_ENV: str | None = None` and
     the name `"API_KEY_ENV"` in `__all__` — a source without a key declares no key's

@@ -2270,7 +2270,7 @@ def test_the_readme_promises_no_field_that_core_leaves_optional(
     variant: tuple[str, Path],
 ) -> None:
     """#300: the README's first paragraph names the metadata every response carries, which
-    holds neither ``published_at`` nor ``vintage``: core's ``Meta`` leaves both to the task
+    holds neither ``published_at`` nor ``vintage``: core's ``ResultMeta`` leaves both to the task
     that knows them."""
     _, dst = variant
     readme = (dst / "README.md").read_text()

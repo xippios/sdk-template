@@ -127,14 +127,14 @@ attribution: `docs/upstream/FETCHED.md`.
 
 `ci.yml` runs ruff, its format check, mypy, pytest and pre-commit on Python 3.12, 3.13 and
 3.14, requires a changelog entry of every pull request but Dependabot's and refuses a
-fixture file over 256 KiB that a pull request adds. It runs on every pull request and,
+fixture file over 256 KiB that a pull request adds or changes. It runs on every pull request and,
 called by `publish.yml`, once for a release, and its job `ci` is the check the
 organization's ruleset requires. It is handed no secret, and no variable switches it off.
 
 `publish.yml` is the release train (conventions §12): on a push to `main` whose
 `pyproject.toml` names a version that has no tag yet and has its section in `CHANGELOG.md`,
-it runs `ci.yml`, refuses a core pinned to git, tags the merge commit and, once a reviewer of
-the environment `pypi` approves the run, builds the package and publishes it to PyPI by
+it runs `ci.yml`, refuses a core pinned to git, tags the merge commit, builds the package
+and, once a reviewer of the environment `pypi` approves the run, publishes it to PyPI by
 trusted publishing. Every push to `main` and a dispatch start it, and a push that brings no
 release ends quietly. It is handed no secret: the step that tells a release is handed the
 job's token as `GH_TOKEN`, the tag goes with the job's token and PyPI trusts the workflow
