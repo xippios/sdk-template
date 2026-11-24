@@ -42,7 +42,7 @@ this file.
 | Files | parsed in `parse/`, one module per file kind; the parser tests read the samples under `tests/fixtures/files/`, their provenance in its `README.md` (sdk-core ADR-0020) <!-- each file kind upstream publishes, its format and the library that reads it --> |
 {% endif %}
 {% if depends_on %}
-| Depends on | {% for dep in depends_on %}`xippios-{{ dep.name }}~={{ dep.minor }}.0`{{ ', key `' ~ dep.key_env ~ '`' if dep.key_env else '' }}{{ '; ' if not loop.last else '' }}{% endfor %}: the task layer and its models only, never `api/` or `_client`; this package's servers serve its own tasks, and an agent that wants a dependency's tools runs that package's server (sdk-core ADR-0021) <!-- what this package uses each for, one line (sdk-core ADR-0021 decision 6) --> |
+| Depends on | {% for dep in depends_on %}`xippios-{{ dep.name }}~={{ dep.minor }}.0`{{ ', key `' ~ dep.key_env ~ '`' if dep.key_env else '' }}{{ '; ' if not loop.last else '' }}{% endfor %}: a source package's task layer and its models only, never `api/` or `_client`, and this package's servers serve its own tasks, so an agent that wants that source's tools runs its server (sdk-core ADR-0021); a publisher's shared package's public names (sdk-core ADR-0065 decision 3) <!-- what this package uses each for, one line (sdk-core ADR-0021 decision 6) --> |
 {% endif %}
 
 The snapshot listed in `docs/upstream/FETCHED.md` is the reference for names, parameters and
