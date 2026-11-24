@@ -230,9 +230,10 @@ core_git_ref:
 source_dependencies:
   type: str
   help: >-
-    The source packages this one depends on, using their task layer only
-    (sdk-core ADR-0021): a YAML flow list of {name: <slug>, minor: "X.Y", key_env: <VAR or
-    "">} entries, e.g. [{name: usda-esmis, minor: "0.1", key_env: ""}]. name is the
+    The packages this one depends on: a source package's task layer and models
+    (sdk-core ADR-0021), or a publisher's shared package's public names (sdk-core ADR-0065
+    decision 3). A YAML flow list of {name: <slug>, minor: "X.Y", key_env: <VAR or "">}
+    entries, e.g. [{name: usda-esmis, minor: "0.1", key_env: ""}]. name is the
     dependency's slug, its package xippios-<slug>, imported under xippios as that package's
     import path; minor, in quotes, is the minor depended on, rendered as the bound
     xippios-<slug>~=X.Y.0 (conventions §12); key_env is the dependency's key variable, empty
