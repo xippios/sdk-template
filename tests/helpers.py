@@ -62,28 +62,37 @@ RELEASE_SCRIPTS = ["scripts/changelog_assemble.py", "scripts/release_prepare.py"
 FAKE_CORE_SHA = hashlib.sha1(b"a fixed stand-in for an sdk-core commit").hexdigest()
 
 
-# The names of xippios-core 0.4.1 that /add-endpoint gives a new task where it meets them
-# (#270), each as the command writes its call or its name, as sdk-core's main exports them
-# from xippios.core, and UNNAMED_CODES, the exemption that core's family check reads from a
-# tasks module (sdk-core#406). The two of LIST_HELPERS read a packaged list (sdk-core#384,
-# sdk-core#406), so a render without reference data names neither.
+# The names of xippios-core 0.5.0 that /add-endpoint gives a new task where it meets them
+# (#270, sdk-core#483), each as the command writes its call or its name, as sdk-core's main
+# exports them from xippios.core: the mark of a code field's names (sdk-core#406), the walk of
+# an offset-paged list and the one check of a download's destination. The two of
+# LIST_HELPERS read a packaged list (sdk-core#384, sdk-core#406), so a render without
+# reference data names neither.
 LIST_HELPERS = ["`PackagedList.codes(", "`names_codes`"]
 TASK_HELPERS = [
-    "`UNNAMED_CODES`",
+    "`NamedBy(",
     "`ResultCap(paged=True)`",  # sdk-core#388
     '`ResultCap(keep="last")`',
+    "`fetch_pages(",
     "`newer_than(",  # sdk-core#392
-    "`naive_time`",
     "`fetch_counted(",  # sdk-core#403
     "`QueryTooLarge`",
     "`Ceiling(",  # sdk-core#404
     "`fetch_periods(",
+    "`check_dest(",
 ]
-# The names of core 0.4.1's recorder that /record-fixture gives a recording (#270), as
-# sdk-core's main exports them from xippios.core.testing: the source's rewrite step and the
-# one send that writes nothing (sdk-core#390), and the recording of every exchange of a
-# task (sdk-core#401).
-RECORDER = ["`rewrite=`", "`send_once_sync`", "`record_task`", "`record_task_sync("]
+# The names of core 0.5.0's recorder that /record-fixture gives a recording (#270,
+# sdk-core#483), as sdk-core's main exports them from xippios.core.testing: the source's
+# rewrite step, the sync recorder and the one send that writes nothing under their plain
+# names, and the two by which a source's own capture of a task builds and writes its
+# exchanges.
+RECORDER = [
+    "`rewrite=`",
+    "`record`",
+    "`send_once`",
+    "`fixture_from_response(",
+    "`write_fixture(",
+]
 
 
 def keyed(env: str) -> dict[str, object]:
