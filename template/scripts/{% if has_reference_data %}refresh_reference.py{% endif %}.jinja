@@ -1,16 +1,16 @@
 """Refresh the packaged reference data from upstream (``/refresh-reference-data``).
 
-The source declares its lists in ``LISTS``, one ``Listed`` each, with the wrapper in
-``api/`` that fetches it, never a task that answers from the package, and names each in
-``params.PACKAGED_LISTS``; core's frame, ``xippios.core.refresh``, does the rest
-(sdk-core ADR-0051). It fetches every list before it writes one, through the package's
+The source declares its lists in ``LISTS``, core's ``Lists``, one ``Listed`` each, with the
+wrapper in ``api/`` that fetches it, never a task that answers from the package, and names
+each in ``params.PACKAGED_LISTS``; core's frame, ``xippios.core.refresh``, does the rest
+(sdk-core ADR-0062). It fetches every list before it writes one, through the package's
 client with one attempt per request, so a 5xx or a 429 spends no second call of
-upstream's quota, and prints the requests it sent and the quota left in
-``QUOTA_HEADER``, a failed run's too, a request that ended in a transport error counted
+upstream's quota, and prints the requests it sent and the quota left in the declaration's
+``quota_header``, a failed run's too, a request that ended in a transport error counted
 as sent. Then it writes each ``reference/<name>.json`` by ``PackagedList.write``, the
-list's row of the provenance table in ``reference/README.md`` and ``enums.py``, one
-``render_enums`` call formatted by ``ruff format`` and ``ruff check --fix``
-(sdk-core ADR-0031), as one: a run that fails writes nothing and is run again.
+list's row of the provenance table in ``reference/README.md`` and ``enums.py``, formatted
+by ``ruff format`` and ``ruff check --fix`` (sdk-core ADR-0031), as one: a run that fails
+writes nothing and is run again.
 
 Only lists that are the same for every caller are packaged. Run from the repository root,
 with whatever the list endpoints need in the environment (a key only where they take one)::
@@ -25,51 +25,48 @@ adoption does after a core release changes the renderer (conventions §15, item 
 
 from collections.abc import Sequence
 
-from xippios.core.refresh import Listed, run
+from xippios.core.refresh import Lists, run
 
 from xippios.{{ import_path }}._client import client
 from xippios.{{ import_path }}.params import PACKAGE, PACKAGED_LISTS
 
-QUOTA_HEADER: str | None = "x-ratelimit-remaining"
-"""The response header in which upstream reports the requests left in its quota, as its
-documentation names it, or ``None`` where it reports none."""
-
-LISTS: tuple[Listed, ...] = (
-    # One Listed per list of params.PACKAGED_LISTS, in the order of their enums in
-    # enums.py; import Enumeration from xippios.core.refresh beside Listed, and api from
-    # the package, with the first list that takes them. A list of values, packaged as
-    # records of one field named by the list, makes a StrEnum:
-    # Listed(
-    #     "state_alpha",
-    #     lambda: api.get_param_values("state_alpha"),
-    #     endpoint="get_param_values",
-    #     enum=Enumeration(),
-    # ),
-    # A list of integer ids and names, packaged as upstream's records, makes an IntEnum
-    # named after its id field, unitId making UnitId:
-    # Listed(
-    #     "unitsOfMeasure",
-    #     api.get_units_of_measure,
-    #     endpoint="GetUnitsOfMeasure",
-    #     enum=Enumeration(ids="unitId", names="unitDescription"),
-    # ),
-    # A table, packaged as upstream's records, makes no enum:
-    # Listed("commodities", api.get_commodities, endpoint="GetCommodities"),
+LISTS = Lists(
+    package=PACKAGE,
+    lists=(
+        # One Listed per list of params.PACKAGED_LISTS, in the order of their enums in
+        # enums.py; import Listed and Enumeration from xippios.core.refresh beside Lists,
+        # and api from the package, with the first list that takes them. A list of values,
+        # packaged as records of one field named by the list, makes a StrEnum:
+        # Listed(
+        #     "state_alpha",
+        #     lambda: api.get_param_values("state_alpha"),
+        #     endpoint="get_param_values",
+        #     enum=Enumeration(),
+        # ),
+        # A list of integer ids and names, packaged as upstream's records, makes an IntEnum
+        # named after its id field, unitId making UnitId:
+        # Listed(
+        #     "unitsOfMeasure",
+        #     api.get_units_of_measure,
+        #     endpoint="GetUnitsOfMeasure",
+        #     enum=Enumeration(ids="unitId", names="unitDescription"),
+        # ),
+        # A table, packaged as upstream's records, makes no enum:
+        # Listed("commodities", api.get_commodities, endpoint="GetCommodities"),
+    ),
+    packaged=PACKAGED_LISTS,
+    client=client,
+    quota_header="x-ratelimit-remaining",
 )
 """The packaged lists, one ``Listed`` each: its fetch, its upstream operation, its enum, if
-any, and its ``origin`` where the provenance row names more than that operation."""
+any, and its ``origin`` where the provenance row names more than that operation; and
+``quota_header``, the response header in which upstream reports the requests left in its
+quota, as its documentation names it, or ``None`` where it reports none."""
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run core's frame on ``LISTS``: every list, some with ``--only``, or ``--render-only``."""
-    return run(
-        LISTS,
-        argv,
-        package=PACKAGE,
-        packaged=PACKAGED_LISTS,
-        client=client,
-        quota_header=QUOTA_HEADER,
-    )
+    return run(LISTS, argv)
 
 
 if __name__ == "__main__":

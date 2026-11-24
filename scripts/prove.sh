@@ -15,9 +15,9 @@
 # require none of the reference scaffold where has_reference_data is false; and prove the
 # package contract offline: mcp.py exports build, SOURCE and ENV_VARS, and a server a host
 # builds from build()'s tool set with register_tasks serves the tools, caps and option
-# defaults of the entry point, the write server's too where there is one, which passes
-# core's assert_write_tools with preview_reads=True on a task that returns the scaffold's
-# WritePreview, and in the multi-tenant shape the bound server of --<param>
+# defaults of the entry point, the write server's too where there is one, which core's one
+# entry holds to loopback and which passes core's assert_write_tools on a task that returns
+# the scaffold's WritePreview, and in the multi-tenant shape the bound server of --<param>
 # as well, whose instructions say that no tool takes the tenant. In the general shape, the
 # general part of a repository without tasks and servers (ADR-0003), it requires none of a
 # source's 26 other files and none of the seven answers of an upstream, the repository's name
@@ -40,8 +40,9 @@
 #                      fails where one fails
 #   --dest DIR         where to generate, a path that does not exist yet; default a new
 #                      temporary directory
-#   --core-ref REF     sdk-core commit to depend on, main or a full SHA; default "" = the
-#                      PyPI release, e.g. --core-ref main to prove against unreleased core
+#   --core-ref REF     sdk-core commit to depend on, main or a full SHA, "" for the PyPI
+#                      release; default the full SHA of core 0.5.0's candidate on sdk-core's
+#                      main, until xippios-core 0.5.0 is on PyPI
 #   (no shape flag)    a keyed nested source, sdk-example-api (xippios.example.api)
 #   --keyless          a keyless flat source, sdk-example (xippios.example)
 #   --keyless-nested   a keyless nested source, sdk-example-files (xippios.example.files)
@@ -61,7 +62,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dest=""
-core_ref=""
+core_ref="c62979c5bfcb733b60d53955b507927c70ecc15b" # pragma: allowlist secret (a commit of sdk-core)
 shape=keyed
 keep=0
 all=0
@@ -460,9 +461,11 @@ PY
 # for the write server where it renders, and, for a multi-tenant source, for the server
 # --<param> binds, which stops at startup when its tenant has no key. A bound server's
 # instructions say nowhere that a tool takes the tenant's argument but in core's closing
-# sentence (#219), and the write server passes core's assert_write_tools as /add-endpoint
-# calls it (#220), preview_reads=True holding the scaffold's WritePreview (#271). The entry
-# point runs with its server's run() caught, so nothing is served.
+# sentence (#219), the write server's entry refuses --http beyond loopback without
+# --allow-remote, and it passes core's assert_write_tools as /add-endpoint calls it (#220),
+# which holds the scaffold's WritePreview in every call (#271). Both servers are named
+# xippios-<slug>. The entry point runs with its server's run() caught, so nothing is
+# served.
 echo
 echo "==> the package contract: a host's server from build() serves what the entry point serves"
 (cd "$dest" && uv run python - "xippios.$import_path" "$slug" <<'PY'
@@ -480,7 +483,7 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 from xippios.core import EnvVar, Result, ResultCap, ResultMeta, TenantLock
-from xippios.core.mcp import ToolSet, is_write_server, register_tasks
+from xippios.core.mcp import ToolSet, register_tasks
 from xippios.core.testing import assert_write_tools, mcp_call_text
 
 package, slug = sys.argv[1], sys.argv[2]
@@ -514,16 +517,18 @@ def get_rows({takes.rstrip(", ")}) -> Result[list[int]]:
     {"get_rows": ResultCap(max_rows=2)},
 )
 tasks = importlib.import_module(f"{package}.tasks")
-if param is None:  # core's serve_tenants takes no option of the source's: sdk-core's row
 
-    def mcp_add_options(parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("--example-limit", type=int, default=5)
 
-    def mcp_apply_options(namespace: argparse.Namespace, server: MCPServer) -> MCPServer:
-        return server
+def mcp_add_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--example-limit", type=int, default=5)
 
-    tasks.mcp_add_options = mcp_add_options
-    tasks.mcp_apply_options = mcp_apply_options
+
+def mcp_apply_options(namespace: argparse.Namespace) -> None:
+    seen["applied"] = namespace.example_limit
+
+
+tasks.mcp_add_options = mcp_add_options
+tasks.mcp_apply_options = mcp_apply_options
 
 seen: dict[str, Any] = {}
 parse_args = argparse.ArgumentParser.parse_args
@@ -557,7 +562,7 @@ def host_of(*tool_sets: ToolSet) -> MCPServer:
     for tool_set in tool_sets:
         register_tasks(host, tool_set)
         if tool_set.apply_options is not None:
-            host = tool_set.apply_options(tool_set.option_defaults(), host)
+            tool_set.apply_options(tool_set.option_defaults())
     return host
 
 
@@ -625,8 +630,9 @@ arguments = {param: "demo"} if param else {}
 served = same(mcp, tool_set, arguments)
 cut = asyncio.run(mcp_call_text(served, f"{prefix}_get_rows", arguments))
 assert "narrow the query" in cut, cut
-if param is None:
-    assert vars(tool_set.option_defaults())["example_limit"] == 5, "the source's option"
+assert vars(tool_set.option_defaults())["example_limit"] == 5, "the source's option"
+assert seen["applied"] == 5, "the entry point applied the source's option"
+assert served.name == f"xippios-{slug}", served.name
 print(f"{package}.mcp: {sorted(tools(served))} as a host serves them, the cap and options alike")
 
 if param is not None:
@@ -669,24 +675,27 @@ def create_row({takes}confirm: bool = False) -> Result[WritePreview | dict[str, 
     write_set = mcp_write.build()
     assert not write_set.read_only, "a write server's tool set"
     served = same(mcp_write, write_set, arguments)
-    assert is_write_server(served) and is_write_server(host_of(write_set)), "both held"
+    assert served.name == f"xippios-{slug}", served.name
+    refused = io.StringIO()
+    with contextlib.redirect_stderr(refused), contextlib.suppress(SystemExit):
+        entry(mcp_write, "--http", "--host", "0.0.0.0")
+    assert "is a write server" in refused.getvalue(), refused.getvalue()
+    assert "server" not in seen, "held to loopback: nothing served"
     assert list(tools(served)) == [f"{prefix}_create_row"], "write tools only"
     print(f"{package}.mcp_write: {sorted(tools(served))}, a write server as a host builds it")
     # The test /add-endpoint gives a source's first write task, as it calls it (#220), which
-    # holds the preview's reads on the scaffold's WritePreview (#271).
+    # holds the preview's reads on the scaffold's WritePreview in every call (#271).
     tasks_write = importlib.import_module(f"{package}.tasks_write")
     http = importlib.import_module(f"{package}.http")
     asyncio.run(
         assert_write_tools(
-            mcp_write.server,
+            write_set,
             [getattr(tasks_write, name) for name in tasks_write.__all__],
-            source=client.SOURCE,
             read_server=mcp.server,
             router=http.router,
-            preview_reads=True,
         )
     )
-    print(f"{package}.mcp_write: assert_write_tools(..., preview_reads=True) passed")
+    print(f"{package}.mcp_write: assert_write_tools(...) passed, held to loopback")
     if param is not None:
         print(f"{package}.mcp_write {flag} demo: {bound_text(mcp_write)!r}")
 PY
@@ -694,7 +703,7 @@ PY
 fi
 
 if [ "$has_reference_data" = true ]; then
-# The refresh script's render on core's frame (sdk-core ADR-0051), with --render, the
+# The refresh script's render on core's frame (sdk-core ADR-0062), with --render, the
 # prefix of --render-only that core's parser takes, of two packaged lists fetched on
 # different days, a value list and an id list whose names repeat: one enums.py of a
 # StrEnum and an IntEnum, each with its date, as ruff leaves it (conventions §3,
@@ -703,6 +712,7 @@ if [ "$has_reference_data" = true ]; then
 echo
 echo "==> refresh_reference.py renders a value list and an id list into one enums.py"
 (cd "$dest" && uv run python - "xippios.$import_path" <<'PY'
+import dataclasses
 import importlib
 import importlib.util
 import sys
@@ -717,11 +727,14 @@ assert spec is not None and spec.loader is not None
 script = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(script)
 ids = Enumeration(ids="unitId", names="unitDescription")
-script.LISTS = (
-    Listed("state_alpha", list, endpoint="get_param_values", enum=Enumeration()),
-    Listed("unitsOfMeasure", list, endpoint="GetUnitsOfMeasure", enum=ids),
+script.LISTS = dataclasses.replace(
+    script.LISTS,
+    lists=(
+        Listed("state_alpha", list, endpoint="get_param_values", enum=Enumeration()),
+        Listed("unitsOfMeasure", list, endpoint="GetUnitsOfMeasure", enum=ids),
+    ),
+    packaged=("state_alpha", "unitsOfMeasure"),
 )
-script.PACKAGED_LISTS = ("state_alpha", "unitsOfMeasure")
 reference = Path(importlib.import_module(sys.argv[1]).__file__).parent / "reference"
 for param, endpoint, day, records in [
     ("state_alpha", "get_param_values", 25, [{"state_alpha": "AK"}, {"state_alpha": "C\u00f4te"}]),
@@ -762,6 +775,7 @@ echo
 echo "==> refresh_reference.py sends each request once, counts it, and --only keeps the others"
 (cd "$dest" && uv run python - "xippios.$import_path" <<'PY'
 import contextlib
+import dataclasses
 import importlib
 import importlib.util
 import io
@@ -788,20 +802,22 @@ spec.loader.exec_module(script)
 configured = client.config
 
 
-def values(name: str) -> Callable[[], Coroutine[Any, Any, Sequence[str]]]:
-    async def fetch() -> Sequence[str]:
-        answer = await client.get_json("/get_param_values", params={"param": name})
-        return [str(value) for value in answer]
+def values(name: str) -> Callable[[], Coroutine[Any, Any, Sequence[dict[str, str]]]]:
+    async def fetch() -> Sequence[dict[str, str]]:
+        answer = await client.get_answer("/get_param_values", params={"param": name})
+        return [{name: str(value)} for value in answer.payload]
 
     return fetch
 
 
-script.PACKAGED_LISTS = ("state_alpha", "unit", "county")
-script.LISTS = tuple(
-    Listed(name, values(name), endpoint="get_param_values") for name in script.PACKAGED_LISTS
+packaged = ("state_alpha", "unit", "county")
+script.LISTS = dataclasses.replace(
+    script.LISTS,
+    lists=tuple(Listed(name, values(name), endpoint="get_param_values") for name in packaged),
+    packaged=packaged,
 )
 reference = Path(importlib.import_module(sys.argv[1]).__file__).parent / "reference"
-files = {name: reference / f"{name}.json" for name in script.PACKAGED_LISTS}
+files = {name: reference / f"{name}.json" for name in packaged}
 
 
 def run(*args: str) -> tuple[str, BaseException | None]:

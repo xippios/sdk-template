@@ -157,7 +157,7 @@ tenant_param:
     <PREFIX>_<NAME>_API_KEY, the prefix api_key_env's without _API_KEY. The tenants are
     listed in <PREFIX>_<PARAM>S, and the reserved tenant demo, which fixtures and live
     tests use alone, is declared by its own key; it renders the tenant list task;
-    build(lock) and serve_tenants in mcp.py, whose --<param> binds a server to one tenant;
+    build(lock) and main with TENANTS in mcp.py, whose --<param> binds a server to one tenant;
     and the strip of every other tenant's variables in tests/conftest.py. A source whose
     tenants hold another credential, a refresh token say, answers no key and names that
     credential's variables in live_secrets, the reserved tenant's first. At most 20
@@ -199,11 +199,11 @@ core_version:
     The xippios-core release the package depends on, X.Y.Z, rendered as the bound
     xippios-core~=X.Y.Z, the extras likewise: one core minor, from that release on, Z 0
     unless patch Z shipped what the source adopts (conventions §12, sdk-core ADR-0039
-    decision 1). The default 0.4.1, the core release the template adopts, renders
-    xippios-core~=0.4.1. A source raises it in the adoption PR of a new core minor
+    decision 1). The default 0.5.0, the core release the template adopts, renders
+    xippios-core~=0.5.0. A source raises it in the adoption PR of a new core minor
     (conventions §15). In the general shape it renders the bound at the first render
     alone, since pyproject.toml is the repository's then.
-  default: "0.4.1"
+  default: "0.5.0"
   validator: >-
     {% if not (core_version | regex_search('^\\d+\\.\\d+\\.\\d+\\Z')) %}
     Use a release version, e.g. 0.2.0
@@ -271,8 +271,8 @@ depends_on:
   default: "{{ source_dependencies }}"
   when: false
 
-# Every key variable the package's tests and live run need, the source's own first, then
-# its dependencies', each once: the placeholder in offline tests, the secrets in live.yml.
+# Every key variable the package's live run needs, the source's own first, then its
+# dependencies', each once: the secrets in live.yml.
 # A multi-tenant source's own is the reserved tenant's key, the one its tests and live run
 # read, which alone declares that tenant offline; one whose tenants hold no key names its
 # credential in live_secrets.
@@ -295,8 +295,8 @@ live_secrets:
     or an OAuth client's pair: a YAML flow list of UPPER_SNAKE_CASE names, e.g.
     [FAOSTAT_USERNAME, FAOSTAT_PASSWORD]. live.yml passes each one to its pytest step
     from the secret of the same name, after the keys. A multi-tenant source without a
-    key names its tenants' credential here, the reserved tenant's first, and each name
-    under xippios_placeholder_key_envs too, since its own auth reads them. A key is
+    key names its tenants' credential here, the reserved tenant's first, which
+    _client.py's ENV_VARS then lists for core's plugin, since its own auth reads them. A key is
     api_key_env's or a dependency's key_env, never one of these. The default [] for none.
   default: "[]"
   when: "{{ shape == 'source' }}"

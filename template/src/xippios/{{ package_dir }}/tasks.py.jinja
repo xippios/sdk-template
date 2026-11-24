@@ -1,6 +1,7 @@
 """Task functions, the public API: the adapters serve ``__all__`` (conventions §2).
 
-``/add-endpoint`` adds them.
+``/add-endpoint`` adds them. Core builds the server from this module, which declares what
+the server holds beside its tools (conventions §8, sdk-core ADR-0063, decision 7).
 """
 {% if tenant_param %}
 
@@ -17,13 +18,28 @@ __all__: list[str] = []
 # A task named here is Python-only: no tool, no route; the adapters skip it (sdk-core ADR-0040
 # decision 4).
 BULK_TASKS: frozenset[str] = frozenset()
-{% if tenant_param %}
 
-# Every task takes {{ tenant_param }}, one tenant, required, but the tenant list and the tasks
-# named here, which touch no tenant and are the same for every one (conventions §7,
-# sdk-core ADR-0036):
-#
-# NO_TENANT_TASKS: frozenset[str] = frozenset({"list_<thing>"})
+MCP_INSTRUCTIONS = (
+    "{{ source_name }} via xippios. "
+{% if tenant_param %}
+    "Tools are read-only. "
+    "{{ tool_prefix }}_list_{{ tenant_param }}s lists the declared tenants; "
+    "every other tool takes {{ tenant_param }}, the name of one of them. "
+{% else %}
+    "Tools are read-only. "
+{% endif %}
+    "Where list tools ({{ tool_prefix }}_list_*) exist, call them first to find valid values, "
+    "then query."
+)
+"""The read server's instructions for agents."""
+{% if tenant_param %}
+MCP_BOUND_INSTRUCTIONS = (
+    "{{ source_name }} via xippios. "
+    "Tools are read-only. "
+    "Where list tools ({{ tool_prefix }}_list_*) exist, call them first to find valid values, "
+    "then query."
+)
+"""The text of a server bound to one tenant, whose tools take none: core's sentence says so."""
 {% endif %}
 
 # MCP_CAPS, only where a tool needs a result cap of its own, keyed by the task function's

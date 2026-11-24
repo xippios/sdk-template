@@ -145,11 +145,11 @@ def _build(name: str) -> AsyncClient:
     Every tenant's client has its own rate limiter; ``config`` holds no cache, so the
     clients share settings alone.
     """
-    # The source's first pull request passes the auth that upstream documents, core's
-    # QueryKeyAuth, HeaderKeyAuth, BearerAuth or BasicKeyAuth on the tenant's key, which it
-    # reads on the first request, never at import (conventions §6, §7), for example:
+    # The source's first pull request passes core's KeyAuth on the tenant's key, at the
+    # location and under the name upstream documents, which it reads on the first request,
+    # never at import (conventions §6, §7), for example:
     #
-    # auth = BasicKeyAuth(TENANTS.var(name, "API_KEY"), source=SOURCE)
+    # auth = KeyAuth(TENANTS.var(name, "API_KEY"), location="basic", source=SOURCE)
     # return AsyncClient(config, auth=auth)
     return AsyncClient(config)
 {% endif %}
@@ -168,8 +168,8 @@ def client_for({{ tenant_param }}: str) -> AsyncClient:
 def check_{{ tenant_param }}({{ tenant_param }}: str) -> None:
     """Check a declared tenant at the startup of a server bound to it, before it is built.
 
-    Core's ``serve_tenants`` calls it after ``TENANTS.require``, so a bound server whose
-    tenant has no key stops at startup rather than on its first call.
+    Core's ``main`` calls it after ``TENANTS.require``, so a bound server whose tenant has
+    no key stops at startup rather than on its first call.
 
     Raises:
         ConfigError: ``{{ tenant_prefix }}_<NAME>_{{ tenant_field }}`` is not set; the message names the
@@ -178,11 +178,11 @@ def check_{{ tenant_param }}({{ tenant_param }}: str) -> None:
     TENANTS.field({{ tenant_param }}, "{{ tenant_field }}")
 
 {% elif api_key_env %}
-# The source's first pull request passes the auth that upstream documents, core's
-# QueryKeyAuth, HeaderKeyAuth, BearerAuth or BasicKeyAuth on API_KEY_ENV, which it reads on
-# the first request, never at import (conventions §6), and exports it, for example:
+# The source's first pull request passes core's KeyAuth on API_KEY_ENV, at the location and
+# under the name upstream documents, a query key with source=, which it reads on the first
+# request, never at import (conventions §6), for example:
 #
-# auth = QueryKeyAuth("<parameter>", API_KEY_ENV, source=SOURCE)
+# auth = KeyAuth(API_KEY_ENV, location="query", name="<parameter>", source=SOURCE)
 # client = AsyncClient(config, auth=auth)
 client = AsyncClient(config)
 {% else %}

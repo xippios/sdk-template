@@ -2,7 +2,9 @@
 
 Each takes ``confirm: bool = False`` as its last parameter and returns a dry-run preview
 unless it is true; core refuses a write task without it before anything is registered.
-No HTTP route serves one. ``/add-endpoint`` adds them.
+No HTTP route serves one. ``/add-endpoint`` adds them. Core builds the write server from
+this module, which declares what the server holds beside its tools (sdk-core ADR-0063,
+decision 7).
 
 A preview sends no write and shows the action as the confirmed call would send it, by
 upstream's names, so a task returns ``Result[WritePreview | <answer>]``, and its docstring
@@ -15,6 +17,24 @@ from typing import Literal
 from xippios.core import UpstreamModel
 
 __all__: list[str] = []
+
+MCP_INSTRUCTIONS = (
+    "{{ source_name }} write tools via xippios. "
+{% if tenant_param %}
+    "Every tool takes {{ tenant_param }}, the name of a declared tenant. "
+{% endif %}
+    "Every tool returns a preview and changes nothing unless confirm=true is passed. "
+    "Call it once without confirm, show the preview, then confirm."
+)
+"""The write server's instructions for agents."""
+{% if tenant_param %}
+MCP_BOUND_INSTRUCTIONS = (
+    "{{ source_name }} write tools via xippios. "
+    "Every tool returns a preview and changes nothing unless confirm=true is passed. "
+    "Call it once without confirm, show the preview, then confirm."
+)
+"""The text of a server bound to one tenant, whose tools take none: core's sentence says so."""
+{% endif %}
 
 # MCP_CAPS, only where a write tool needs a result cap of its own, keyed by the task
 # function's name (conventions §8):

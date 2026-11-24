@@ -82,11 +82,11 @@ organization secret whose repository access takes the new repository, never set 
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
 | `api_key_env` | environment variable with the key; empty for open APIs, and for a multi-tenant source whose tenants hold another credential. In the general shape, the key that the package holds, such as the key of a gateway that its sources share, which renders `_client.py` (ADR-0003); empty, the default, for a package that holds none | `NASS_API_KEY` |
 | `write_server` | whether the source writes to the upstream through a server of its own (conventions §8): `true` renders `mcp_write.py`, which serves `tasks_write.__all__` as confirm-gated tools, the `tasks_write.py` scaffold, the source's once rendered, and the entry points `xippios-<slug>-mcp-read` and `xippios-<slug>-mcp-write` in place of `xippios-<slug>-mcp`, with no alias for the old name; default `false` | `true` |
-| `tenant_param` | the task parameter that names a tenant, for a multi-tenant source whose upstream serves each tenant under a credential of its own (conventions §7): it renders core's `Tenants` registry in `_client.py`, a client per tenant with its key in `<PREFIX>_<NAME>_API_KEY`, the prefix `api_key_env`'s without `_API_KEY`, the tenants listed in `<PREFIX>_<PARAM>S` and the reserved tenant `demo`, whose key the offline tests and `live.yml` take in place of `api_key_env`; the tenant list task, `build(lock)` and `serve_tenants` in the servers, whose `--<param>` binds a server to one tenant, and `keep_reserved_tenants` in `tests/conftest.py`. A source whose tenants hold another credential, a refresh token say, answers no key and names that credential's variables in `live_secrets`, the reserved tenant's first, and its own `_client.py` reads them (ADR-0002). At most 20 characters, so every generated Python line stays within 100 columns; default empty, one tenant | `org` |
-| `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, sdk-core ADR-0039 decision 1); default `0.4.1`, the release the template adopts, rendered `~=0.4.1`; in the general shape at the first render alone, since `pyproject.toml` is then the repository's | `0.4.1` |
+| `tenant_param` | the task parameter that names a tenant, for a multi-tenant source whose upstream serves each tenant under a credential of its own (conventions §7): it renders core's `Tenants` registry in `_client.py`, a client per tenant with its key in `<PREFIX>_<NAME>_API_KEY`, the prefix `api_key_env`'s without `_API_KEY`, the tenants listed in `<PREFIX>_<PARAM>S` and the reserved tenant `demo`, whose key the offline tests and `live.yml` take in place of `api_key_env`; the tenant list task, `build(lock)` and core's `main` with the registry in the servers, whose `--<param>` binds a server to one tenant, and `keep_reserved_tenants` in `tests/conftest.py`. A source whose tenants hold another credential, a refresh token say, answers no key and names that credential's variables in `live_secrets`, the reserved tenant's first, and its own `_client.py` reads them (ADR-0002). At most 20 characters, so every generated Python line stays within 100 columns; default empty, one tenant | `org` |
+| `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, sdk-core ADR-0039 decision 1); default `0.5.0`, the release the template adopts, rendered `~=0.5.0`; in the general shape at the first render alone, since `pyproject.toml` is then the repository's | `0.5.0` |
 | `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); empty, the default, for no pin; a release carries none, since `/release-prep` removes it first, in a PR of its own; in the general shape at the first render alone, and the repository removes the pin from its own `pyproject.toml` | `main` |
 | `source_dependencies` | the source packages this one uses the task layer of (sdk-core ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |
-| `live_secrets` | the variables the live tests read beyond the keys, such as a username and a password, a YAML flow list of UPPER_SNAKE_CASE names in a string: `live.yml` passes each one to its pytest step from the secret of the same name, after the keys, and a multi-tenant source without a key names its tenants' credential here, the reserved tenant's first, each under `xippios_placeholder_key_envs` in `pyproject.toml` too, since its own auth reads them, so core's plugin sets them in every test not marked live; each name once, never a key (`api_key_env`'s or a dependency's `key_env`), `XIPPIOS_LIVE_TESTS` or a name with GitHub's `GITHUB_` prefix; default `[]`, none, recorded on one line | `[FAOSTAT_USERNAME, FAOSTAT_PASSWORD]` |
+| `live_secrets` | the variables the live tests read beyond the keys, such as a username and a password, a YAML flow list of UPPER_SNAKE_CASE names in a string: `live.yml` passes each one to its pytest step from the secret of the same name, after the keys, and a multi-tenant source without a key names its tenants' credential here, the reserved tenant's first, each in `_client.py`'s `ENV_VARS` too, since its own auth reads them, so core's plugin sets them in every test not marked live; each name once, never a key (`api_key_env`'s or a dependency's `key_env`), `XIPPIOS_LIVE_TESTS` or a name with GitHub's `GITHUB_` prefix; default `[]`, none, recorded on one line | `[FAOSTAT_USERNAME, FAOSTAT_PASSWORD]` |
 | `has_files` | whether the source parses the files it downloads (sdk-core ADR-0020): `true` renders `parse/`, one module per file kind, and `tests/fixtures/files/README.md`, one provenance row per sample file its parser tests read, both the source's once rendered, and a line of `.gitattributes` that keeps the samples byte for byte; a retrieval-only source, which lists releases and downloads files without parsing them, answers `false`, its download fixture the recorded exchange of the file's URL (sdk-core ADR-0040 decision 5); default `false` | `true` |
 | `has_reference_data` | whether the source packages reference data, the code lists and tables upstream publishes for every caller alike (conventions §3): `true` renders the scaffold, `params.py`, `enums.py`, `reference/`, `scripts/refresh_reference.py` and `/refresh-reference-data`, whether or not a list is packaged yet; a source that packages none answers `false`, which renders none of it: an update with that answer deletes the files the template rendered, the source's lines in them included, leaves a file the source added under `reference/` for the source to delete, and brings none of the scaffold back; a multi-tenant source answers `false`, since the scaffold's refresh fetches through the one client of a source with one tenant; default `true`, which a source that predates the question takes on update | `false` |
 
@@ -107,10 +107,13 @@ sdk-<slug>/
     api/__init__.py    the endpoint wrappers, one module per upstream operation (conventions §2)
     parse/__init__.py  where has_files: the file parsers, one module per file kind
     tasks.py           the task functions: __all__ is what the adapters serve, BULK_TASKS the
-                       Python-only ones, MCP_CAPS the per-tool result caps
-    mcp.py             the MCP server's entry point: build() the tool set, server
+                       Python-only ones, MCP_INSTRUCTIONS the server's text, MCP_CAPS the
+                       per-tool result caps
+    mcp.py             the MCP server's entry point: build() the tool set core builds from
+                       tasks.py, server, run(), core's main; no line of the source's
     http.py            the FastAPI router over the same tasks
-    tasks_write.py     where write_server: the write tasks, each confirm-gated
+    tasks_write.py     where write_server: the write tasks, each confirm-gated, and the write
+                       server's MCP_INSTRUCTIONS
     mcp_write.py       where write_server: the write server's entry point, mcp.py then the
                        read server's
     params.py          where has_reference_data: the packaged lists, read from the files
@@ -120,15 +123,16 @@ sdk-<slug>/
     conftest.py        enables core's plugin, which keeps a run offline; where tenant_param,
                        the strip of every tenant but the reserved one
     test_family.py     core's family check, one line
-    test_built_answers.py  core's check of a built answer's mark
+    test_built_answers.py  core's check of a built answer's mark, one line
     test_tasks.py      the replay test of each task, from its recorded fixtures
     test_live.py       the live smoke test of each task, marked live
     fixtures/files/README.md  where has_files: the samples' provenance table
   scripts/
     refresh_upstream.py    declares SNAPSHOT, the source's pages, which core's frame
                            xippios.core.refresh fetches into docs/upstream/ (/refresh-upstream)
-    refresh_reference.py   where has_reference_data: fetches the packaged lists through api/
-                           and writes their StrEnums again
+    refresh_reference.py   where has_reference_data: declares LISTS, core's Lists, which
+                           core's frame fetches through api/ into the packaged lists and
+                           their StrEnums
     adr_index.py           writes docs/adr.md and docs/adr.json from the records; --check
     release_prepare.py     prepares a release (/release-prep): its CHANGELOG section and the
                            version in pyproject.toml and uv.lock
@@ -169,14 +173,15 @@ before any endpoint is added. `tests/test_family.py`, one line, collects core's 
 check, which then keeps the layout, the adapters, the task shapes, the README status
 table, the template tag and the core bound honest as tasks are added.
 `tests/test_built_answers.py` collects core's check of a built answer's mark the same way,
-its line followed by the source's `READERS` and `ALLOWED`, and fails a place of the
-source's tests that builds an answer without naming its kind of conventions §10
-(sdk-core ADR-0049); the source fills it once rendered. `mcp.py` carries
-the package contract by which a host serves a source (conventions §8, sdk-core ADR-0026,
-amendment 2026-11-18, points c and d): `build()` returns core's `ToolSet`, with the caps
-and the option hooks `tasks.py` defines, `server` is `build_server(build())`, and
-`ENV_VARS`, which `_client.py` declares from the key answers and `live_secrets`, stands
-beside `SOURCE`. A generated package is read-only unless `write_server` answers `true`,
+by its one line, and fails a place of the source's tests that builds an answer without
+naming its kind of conventions §10 (sdk-core ADR-0064); it is the source's once rendered.
+`mcp.py` carries the package contract by which a host serves a source (conventions §8,
+sdk-core ADR-0063): `build()` returns the `ToolSet` that core builds from `tasks.py`,
+whose `MCP_INSTRUCTIONS`, `MCP_CAPS` and option hooks it reads, `server` is
+`build_server(build())`, `run()` calls core's one `main`, and `ENV_VARS`, which
+`_client.py` declares from the key answers and `live_secrets` and which core's plugin
+reads, stands beside `SOURCE`. No line of `mcp.py` or `mcp_write.py` is a source's: what a
+source's server declares stands in its tasks module (ADR-0002). A generated package is read-only unless `write_server` answers `true`,
 and serves one tenant unless `tenant_param` names its parameter. `ci.yml` also requires a
 CHANGELOG entry on every pull request but Dependabot's, an adoption's (conventions §15
 item 9) and a release's included, which changes `CHANGELOG.md` itself, as a fragment
@@ -220,9 +225,9 @@ render's README says the same of each workflow the render holds, one paragraph e
 `## Workflows`: what it checks, when it runs, what the calling file hands over and what
 switches it.
 `scripts/refresh_upstream.py`, the capture script `/refresh-upstream` runs, declares the
-source's `Snapshot` as `SNAPSHOT`, which xippios-core's frame `xippios.core.refresh` runs and
-core's family check reads (sdk-core ADR-0046); the frame refuses to run it until the source
-names its pages, and its first run writes `docs/upstream/FETCHED.md` whole, where the
+source's `Snapshot` as `SNAPSHOT`, which xippios-core's frame `xippios.core.refresh` runs
+(sdk-core ADR-0062), and no check of core reads it without a request; the frame refuses to
+run it until the source names its pages, and its first run writes `docs/upstream/FETCHED.md` whole, where the
 render's stub holds its title and one paragraph. The scaffold declares no `reduce`, so
 core's default keeps each page as fetched until the source adds its converter.
 
@@ -341,8 +346,10 @@ answer's lines by hand in the same pull request, as a render with the new answer
 uv sync
 uv run pytest           # renders the family's five variants and the general shape's two once each, and checks them
 scripts/prove.sh --all  # every shape below, one proof each, as CI runs them; fails where one fails
-scripts/prove.sh        # full proof against the released core: copier copy, uv sync, ruff, mypy, pytest, pre-commit
-scripts/prove.sh --core-ref main   # against unreleased core, --all --core-ref main for every shape
+scripts/prove.sh        # full proof: copier copy, uv sync, ruff, mypy, pytest, pre-commit, on
+                        # the commit of core 0.5.0's candidate that --core-ref names until 0.5.0 is on PyPI
+scripts/prove.sh --core-ref main   # against sdk-core's main, --all --core-ref main for every shape
+scripts/prove.sh --core-ref ""     # against the core release on PyPI
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one
 scripts/prove.sh --keyless-nested  # a keyless nested source
 scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files
