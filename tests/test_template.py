@@ -2126,7 +2126,9 @@ def test_record_fixture_checks_every_file_of_a_tasks_recording(variant: tuple[st
 # the recording of a task, the cut of a JSON object by its key, the readers of JSON beside
 # get_answer, the walks of a page, the reader of a time without a zone, the exemptions of a
 # code's name and of a tenant, the readers of the built-answer check, the declaration of a
-# snapshot's credentials, the shared document's old reader and the bound on a preview's reads.
+# snapshot's credentials and the bound on a preview's reads. The refresh's reader of a shared
+# document left its name, load_json, for read_json in core 0.5.0, while xippios.core still
+# exports load_json as the reader of a packaged file, so no test bars it (finding 4 of #327).
 RETIRED_CORE_NAMES = [
     "record_sync",
     "send_once_sync",
@@ -2142,7 +2144,6 @@ RETIRED_CORE_NAMES = [
     "NO_TENANT_TASKS",
     "READERS",
     "Credentials(",
-    "load_json",
     "preview_reads",
 ]
 
