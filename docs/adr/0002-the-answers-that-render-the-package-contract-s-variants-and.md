@@ -135,9 +135,12 @@ takes its place.
   other, so its options reach its own entry point as they reach a host (amended 2026-11-24,
   by https://github.com/xippios/sdk-core/issues/476, in place of the bound that
   https://github.com/xippios/sdk-core/issues/311 left open).
-- Every source's update writes `mcp.py`, `mcp_write.py` and `http.py` anew (amended
-  2026-11-24). A source moves its instructions from `mcp.py` into `tasks.py` by hand, since
-  the file is its own once rendered; sdk-cashctrl moves its noun for a tenant into its
-  `Tenants` and loses its write server's name of its own, and sdk-google-mail declares its
-  read server held to loopback in its `tasks.py`, each after one more conflict in its two
-  server files, on the lines that move.
+- Every source's update renders `mcp.py`, `mcp_write.py` and `http.py` anew (amended
+  2026-11-24) and merges the source's own lines of its earlier render into them, as a
+  conflict where the release changes the lines around them and silently where it leaves those
+  alone: sdk-cashctrl's update kept its line `server = build_server(build(), name=...)` in
+  `mcp_write.py` without a conflict. So each source compares the three files with the render
+  after the update and takes the render's text. A source moves its instructions from `mcp.py`
+  into `tasks.py` by hand, since the file is its own once rendered; sdk-cashctrl moves its
+  noun for a tenant into its `Tenants` and drops its write server's name of its own, and
+  sdk-google-mail declares its read server held to loopback in its `tasks.py`.
