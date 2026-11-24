@@ -264,6 +264,21 @@ def test_the_variables_take_the_live_secrets(
         assert run.returncode == 0, run.stdout + run.stderr
 
 
+def test_the_package_re_exports_the_tasks_of_its_scaffold(variant: tuple[str, Path]) -> None:
+    """sdk-core ADR-0063, decision 8, which core's family check holds: the package's
+    ``__init__.py`` re-exports every task of ``tasks.__all__`` by its name from ``tasks``, so
+    a multi-tenant render, whose scaffold lists ``list_<param>s``, imports it and lists it in
+    ``__all__`` after ``__version__``, and a render with one tenant lists no task yet."""
+    name, dst = variant
+    answers = VARIANTS[name]
+    listed = ast.literal_eval(assigned(module(dst, answers, "tasks.py"), "__all__"))
+    assert listed == ([f"list_{tenant_param(answers)}s"] if tenant_param(answers) else [])
+    init = module(dst, answers, "__init__.py")
+    dotted = f"xippios.{package_dir(answers).replace('/', '.')}"
+    assert imported(init, f"{dotted}.tasks") == set(listed), name
+    assert ast.literal_eval(assigned(init, "__all__")) == ["__version__", *listed], name
+
+
 def test_a_multi_tenant_source_renders_cores_registry(tenants: Path) -> None:
     """sdk-core ADR-0036, decision 13, and sdk-core ADR-0042, decision 1: ``tenant_param`` renders
     core's ``Tenants`` with the parameter once, a key per tenant under the key's prefix and the
