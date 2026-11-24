@@ -69,8 +69,13 @@ its `ci.yml` carries a job of its own, the image build.
    repository's own beside the rendered ones.
 9. **Two consumers.** `sdk-usda-fas`, nested as `xippios.usda.fas` in the repository
    `sdk-usda-fas`, and `xippios-mcp`, flat as `xippios.mcp` in the repository `xippios-mcp`,
-   take the general shape. A trial render with each one's answers passed its checks, the
-   host's rendered over its own tree.
+   take the general shape. The trial renders with each one's answers, the host's over its
+   own tree, are reported in
+   https://github.com/xippios/sdk-template/blob/main/docs/reports/2026-11-24-trial-renders-of-the-general-shape.md:
+   the shared package's render passes every check. The host keeps every file it owns, and
+   its checks pass once its own `pyproject.toml` leaves the organization's three scripts,
+   `scripts/adr_index.py`, `scripts/changelog_assemble.py` and `scripts/release_prepare.py`,
+   out of ruff, as the rendered manifest does; until then ruff fails on those three.
 
 ## Consequences
 
