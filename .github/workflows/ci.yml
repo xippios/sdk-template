@@ -1,4 +1,3 @@
-# The org ruleset requires a check named `ci` on main.
 name: CI
 
 on:

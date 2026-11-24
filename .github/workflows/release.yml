@@ -1,20 +1,3 @@
-# The template's release train (conventions §12, sdk-core ADR-0039 decision 6): sdk-template
-# publishes nothing to PyPI, so its release is the tag. The release PR turns Unreleased
-# into `## [X.Y.Z] - <date>`; its merge on main runs this workflow, which
-# reads the top `## [X.Y.Z] - ` heading of CHANGELOG.md and, when `vX.Y.Z` has no tag yet,
-# tags the merge commit with that section as the tag's message. Every other push to main
-# finds the top heading tagged and ends quietly. Nobody pushes the tag by hand; generated
-# repositories record it in `.copier-answers.yml`, and `copier update` reaches it.
-#
-# Recovery. A run that fails before its tag push is finished with "Re-run failed jobs"; a
-# re-run once the tag exists ends quietly.
-#
-# Race. Runs are not serialised: GitHub's run groups keep one pending run and cancel it for
-# the next, and the next would tag its own commit. Two pushes to main close together can
-# therefore both find the version untagged: the second run's tag push then fails red, or,
-# if it runs first, it tags the later commit; then the maintainer deletes that tag before
-# a source adopts it and re-runs the release run ("Re-run all jobs"). A release is not merged
-# while another push to main is in flight.
 name: Release
 
 on:
@@ -31,8 +14,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      # The one checkout that keeps its credentials: this job pushes the tag with the token
-      # (conventions §13).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Tag the merge commit from the CHANGELOG's top release heading
         env:

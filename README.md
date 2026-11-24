@@ -286,11 +286,24 @@ sets `version` in `pyproject.toml` to `X.Y.Z` and locks again with `uv lock`, wh
 `uv sync --locked` checks, and sets the update command's `--vcs-ref` above to `vX.Y.Z`.
 No package is built from the manifest, but it names the template's latest release, and
 `tests/test_template.py` holds it to the top release heading of `CHANGELOG.md`.
-Its merge on `main` runs `.github/workflows/release.yml`, which tags `vX.Y.Z` on the
-merge commit with that section as the tag's message; every other push to `main` finds
-the top heading tagged and ends quietly. Nobody pushes the tag by hand.
-Generated repositories record the tag in `.copier-answers.yml`; `copier copy` takes it as
-the latest, and `copier update` reaches it.
+
+The template publishes nothing to PyPI, so its release is the tag (conventions §12,
+sdk-core ADR-0039 decision 6). The release PR's merge on `main` runs
+`.github/workflows/release.yml`, which reads the top `## [X.Y.Z] - ` heading of
+`CHANGELOG.md` and, where `vX.Y.Z` has no tag yet, tags the merge commit with that
+section as the tag's message. Every other push to `main` finds the top heading tagged and
+ends quietly. Nobody pushes the tag by hand. Generated repositories record the tag in
+`.copier-answers.yml`, `copier copy` takes it as the latest, and `copier update` reaches
+it. The run's job `tag` holds the one checkout of the repository without
+`persist-credentials: false`, since it pushes the tag with the job's token
+(conventions §13). A run that fails before its tag push is finished with GitHub's
+"Re-run failed jobs", and a run started again once the tag exists ends quietly. The runs
+are not serialised, since a concurrency group keeps one pending run and cancels it for the
+next, which would tag its own commit. So two pushes to `main` close together can both find the
+version untagged: the second run's tag push then fails red, or, where it runs first, it
+tags the later commit, and the maintainer deletes that tag before a source adopts it and
+runs the release again with "Re-run all jobs". A release is therefore not merged while
+another push to `main` is in flight, which keeps two runs from racing.
 
 ## Documents
 
