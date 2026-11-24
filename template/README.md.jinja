@@ -18,20 +18,15 @@ uv add "xippios-{{ source_slug }}[http]"    # + FastAPI router
 It depends on {% for dep in depends_on %}`xippios-{{ dep.name }}`{{ ', ' if not loop.last else '' }}{% endfor %}, installed with it. <!-- what it uses each for, one line (sdk-core ADR-0021 decision 6) -->
 
 {% endif %}
-{% set tenant_vars = [tenant_list_var, tenant_credential_env] if tenant_param else [] %}
-{% set credential = 'key' if api_key_env else 'credential' %}
+{% set tenant_vars = [tenant_list_var, tenant_prefix ~ '_<NAME>_' ~ tenant_field] if tenant_param else [] %}
 {% set plain_vars = env_vars | map(attribute='name') | reject('in', tenant_vars) | list %}
 {% if tenant_param %}
 Set `{{ tenant_list_var }}` to the {{ tenant_param }}s' names, comma-separated, and per {{ tenant_param }}
-`{{ tenant_credential_env }}`, its {{ credential }}{{ ', and `' ~ (plain_vars | join('` and `')) ~ '`,' if plain_vars else '' }} in the environment;
+`{{ tenant_prefix }}_<NAME>_{{ tenant_field }}`, its key{{ ', and `' ~ (plain_vars | join('` and `')) ~ '`,' if plain_vars else '' }} in the environment;
 the reserved {{ tenant_param }} `demo`, which the tests use, is declared by `{{ tenant_prefix }}_DEMO_{{ tenant_field }}` alone.
 Nothing is read from files.
 {% elif env_vars %}
 Set `{{ plain_vars | join('` and `') }}` in the environment. Nothing is read from files.
-{% if gateway == 'api.data.gov' %}
-`{{ api_key_env }}` holds an api.data.gov key: one key serves every package behind the
-gateway, and they share its hourly quota.
-{% endif %}
 {% else %}
 No API key is needed.
 {% endif %}
@@ -79,7 +74,7 @@ Tools are read-only and named `{{ tool_prefix }}_<verb>_<noun>`. Results are cap
 {% if tenant_param %}
 Without an option a server serves every declared {{ tenant_param }}, and every tool but
 `{{ tool_prefix }}_list_{{ tenant_param }}s` takes `{{ tenant_param }}`; `--{{ tenant_param | replace('_', '-') }} acme` binds it to one, so every tool acts
-on `acme` and takes no `{{ tenant_param }}`, and it stops at startup unless `acme` is declared with its {{ credential }}.
+on `acme` and takes no `{{ tenant_param }}`, and it stops at startup unless `acme` is declared with its key.
 {% endif %}
 {% if write_server %}
 

@@ -40,10 +40,8 @@ uvx --from 'copier>=9.19' copier copy --defaults \
   https://github.com/xippios/sdk-template.git sdk-usda-nass
 ```
 
-A source behind the api.data.gov gateway passes `-d "gateway=api.data.gov"` instead of
-the key answer, which the gateway answer derives. The render passes its checks
-before an endpoint is added; run them in it before anything else, as `scripts/prove.sh`
-does for the template's proofs:
+The render passes its checks before an endpoint is added; run them in it before anything
+else, as `scripts/prove.sh` does for the template's proofs:
 
 ```bash
 cd sdk-usda-nass
@@ -73,18 +71,15 @@ organization secret whose repository access takes the new repository, never set 
 | `import_path` | import path under `xippios`; defaults to the slug with dots, so multi-API providers nest (sdk-core ADR-0006); override for a hyphenated single-API provider | `usda.nass` |
 | `upstream_url` | provider page, linked from the README | `https://quickstats.nass.usda.gov` |
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
-| `gateway` | the shared gateway the API sits behind: `api.data.gov` for an API it fronts, whose key, documented error answers and hourly quota the generated client takes from `xippios.core.data_gov`'s `Gateway` (sdk-core ADR-0032), so `core_version` is 0.3.0 or later; then `api_key_env` below is derived, `DATA_GOV_API_KEY`, which the gateway sends in the `X-Api-Key` header, never asked, and recorded as if answered; default `none` | `none` |
-| `api_key_env` | environment variable with the key; empty for open APIs; behind a gateway, the gateway's | `NASS_API_KEY` |
+| `api_key_env` | environment variable with the key; empty for open APIs, and for a multi-tenant source whose tenants hold another credential | `NASS_API_KEY` |
 | `write_server` | whether the source writes to the upstream through a server of its own (conventions §8): `true` renders `mcp_write.py`, which serves `tasks_write.__all__` as confirm-gated tools, the `tasks_write.py` scaffold, the source's once rendered, and the entry points `xippios-<slug>-mcp-read` and `xippios-<slug>-mcp-write` in place of `xippios-<slug>-mcp`, with no alias for the old name; default `false` | `true` |
-| `tenant_param` | the task parameter that names a tenant, for a multi-tenant source whose upstream serves each tenant under a credential of its own (conventions §7): it renders core's `Tenants` registry in `_client.py`, a client per tenant with its credential in `<PREFIX>_<NAME>_<FIELD>`, a key in `<PREFIX>_<NAME>_API_KEY`, the prefix `api_key_env`'s without `_API_KEY`, or the variable `tenant_credential_env` names, the tenants listed in `<PREFIX>_<PARAM>S` and the reserved tenant `demo`, whose credential the offline tests and `live.yml` take in place of `api_key_env`; the tenant list task, `build(lock)` and `serve_tenants` in the servers, whose `--<param>` binds a server to one tenant, and `keep_reserved_tenants` in `tests/conftest.py`. It refuses a gateway's key, which every package behind it shares, and takes at most 20 characters, so every generated Python line stays within 100 columns; default empty, one tenant | `org` |
-| `tenant_credential_env` | asked of a multi-tenant source without `api_key_env` alone, whose tenants hold another credential, a refresh token say: the variable of each tenant's credential, `<PREFIX>_<NAME>_<FIELD>` in upper case with `<NAME>` as written, its field no `API_KEY`, which is `api_key_env`'s. `Tenants` takes the prefix as its `var_prefix` and the field as its one field, `demo` is declared by `<PREFIX>_DEMO_<FIELD>` alone, and the source's own auth in `_client.py` reads it, where the scaffold passes none. A key derives it, `<PREFIX>_<NAME>_API_KEY`, never recorded; at most 40 characters, so every generated Python line stays within 100 columns | `GOOGLE_<NAME>_REFRESH_TOKEN` |
+| `tenant_param` | the task parameter that names a tenant, for a multi-tenant source whose upstream serves each tenant under a credential of its own (conventions §7): it renders core's `Tenants` registry in `_client.py`, a client per tenant with its key in `<PREFIX>_<NAME>_API_KEY`, the prefix `api_key_env`'s without `_API_KEY`, the tenants listed in `<PREFIX>_<PARAM>S` and the reserved tenant `demo`, whose key the offline tests and `live.yml` take in place of `api_key_env`; the tenant list task, `build(lock)` and `serve_tenants` in the servers, whose `--<param>` binds a server to one tenant, and `keep_reserved_tenants` in `tests/conftest.py`. A source whose tenants hold another credential, a refresh token say, answers no key and names that credential's variables in `live_secrets`, the reserved tenant's first, and its own `_client.py` reads them (ADR-0002). At most 20 characters, so every generated Python line stays within 100 columns; default empty, one tenant | `org` |
 | `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, sdk-core ADR-0039 decision 1); default `0.4.1`, the release the template adopts, rendered `~=0.4.1` | `0.4.1` |
 | `core_git_ref` | development only: depend on sdk-core at `main` or at the full 40-character SHA of a commit on `main` for an unreleased core change (anything else is refused); empty, the default, for no pin; a release carries none, since `/release-prep` removes it first, in a PR of its own | `main` |
 | `source_dependencies` | the source packages this one uses the task layer of (sdk-core ADR-0021; one level, no cycles), a YAML flow list in a string, `{name: <slug>, minor: "X.Y", key_env: <VAR or "">}` per package: rendered as the bound `xippios-<slug>~=X.Y.0` in `pyproject.toml`, its key variable set to the placeholder in offline tests and passed to `live.yml` from its org secret, the package installed and imported beside the wheel by the sibling check; default `[]`, none. A string, so `.copier-answers.yml` records it on one line, `'[]'` at the default | `[{name: usda-esmis, minor: "0.1", key_env: ""}]` |
-| `live_secrets` | the variables the live tests read beyond the keys, such as a username and a password, a YAML flow list of UPPER_SNAKE_CASE names in a string: `live.yml` passes each one to its pytest step from the secret of the same name, after the keys, and a multi-tenant source without a key names each under `xippios_placeholder_key_envs` in `pyproject.toml`, after the reserved tenant's credential, since its own auth reads them, so core's plugin sets them in every test not marked live; each name once, never a key (`api_key_env`'s or a dependency's `key_env`), `XIPPIOS_LIVE_TESTS` or a name with GitHub's `GITHUB_` prefix; default `[]`, none, recorded on one line | `[FAOSTAT_USERNAME, FAOSTAT_PASSWORD]` |
+| `live_secrets` | the variables the live tests read beyond the keys, such as a username and a password, a YAML flow list of UPPER_SNAKE_CASE names in a string: `live.yml` passes each one to its pytest step from the secret of the same name, after the keys, and a multi-tenant source without a key names its tenants' credential here, the reserved tenant's first, each under `xippios_placeholder_key_envs` in `pyproject.toml` too, since its own auth reads them, so core's plugin sets them in every test not marked live; each name once, never a key (`api_key_env`'s or a dependency's `key_env`), `XIPPIOS_LIVE_TESTS` or a name with GitHub's `GITHUB_` prefix; default `[]`, none, recorded on one line | `[FAOSTAT_USERNAME, FAOSTAT_PASSWORD]` |
 | `has_files` | whether the source parses the files it downloads (sdk-core ADR-0020): `true` renders `parse/`, one module per file kind, and `tests/fixtures/files/README.md`, one provenance row per sample file its parser tests read, both the source's once rendered, and a line of `.gitattributes` that keeps the samples byte for byte; a retrieval-only source, which lists releases and downloads files without parsing them, answers `false`, its download fixture the recorded exchange of the file's URL (sdk-core ADR-0040 decision 5); default `false` | `true` |
 | `has_reference_data` | whether the source packages reference data, the code lists and tables upstream publishes for every caller alike (conventions §3): `true` renders the scaffold, `params.py`, `enums.py`, `reference/`, `scripts/refresh_reference.py` and `/refresh-reference-data`, whether or not a list is packaged yet; a source that packages none answers `false`, which renders none of it: an update with that answer deletes the files the template rendered, the source's lines in them included, leaves a file the source added under `reference/` for the source to delete, and brings none of the scaffold back; a multi-tenant source answers `false`, since the scaffold's refresh fetches through the one client of a source with one tenant; default `true`, which a source that predates the question takes on update | `false` |
-| `human` | the GitHub login of the human, without the `@`. `.github/CODEOWNERS` names it as the owner of the paths that steer the repository, `.github/`, `CLAUDE.md`, `.claude/`, `pyproject.toml` and `.copier-answers.yml`, so a change to one waits for that human's review. Default `jdidaskalu`, a literal, which a source that predates the question takes on update | `jdidaskalu` |
 
 ## What gets generated
 
@@ -108,7 +103,7 @@ sdk-<slug>/
                        refresh-reference-data where has_reference_data
   .claude/settings.json  .github/workflows/{ci,publish,live,conventions,adr-index}.yml
   .github/PULL_REQUEST_TEMPLATE.md
-  .github/CODEOWNERS   the paths that steer the repository, each owned by the human answer
+  .github/CODEOWNERS   the paths that steer the repository, each owned by the human, jdidaskalu
   CLAUDE.md  README.md  CHANGELOG.md  LICENSE  pyproject.toml  .pre-commit-config.yaml  .secrets.baseline
   changelog/README.md  the changelog fragments: one file per change, assembled at the release
   .gitattributes       docs/upstream/** -text, and tests/fixtures/files/** -text where has_files,
@@ -146,7 +141,7 @@ answers render, runs every `live` test against the upstream every night and on d
 never on a pull request, with `--tb=short --assert=plain`, so its public log holds neither a
 failing test's frame arguments nor the values a failed assertion compared. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources that
 share a key do not start together; only its pytest step sees the keys, from the org
-secrets named by `api_key_env`, or a multi-tenant source's reserved tenant's credential in
+secrets named by `api_key_env`, or a multi-tenant source's reserved tenant's key in
 its place, and by `source_dependencies`' `key_env`, and the other variables `live_secrets`
 names, each from the secret of the same name, so the checkout, setup-uv and `uv sync` see
 none. Where the import
@@ -187,9 +182,8 @@ uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.4.1 -d core_vers
 git diff                             # review; resolve conflicts
 ```
 
-The template needs copier 9.19.0 or later (`_min_copier_version`), whose `ask` setting
-lets the gateway answer derive the key answer and still record it; `--from
-'copier>=9.19'` keeps a stale tool cache from refusing it.
+The template needs copier 9.19.0 or later (`_min_copier_version`), the release its tests
+and proofs run on; `--from 'copier>=9.19'` keeps a stale tool cache from refusing it.
 Answers are read from `.copier-answers.yml`; pass `-d key=value` to change one, as above
 to raise the core minor and drop a core pin (`--vcs-ref=:current:` changes the answers
 without moving the template). From 0.4.1 on, a release that adds a question or a choice
@@ -250,16 +244,14 @@ answer's lines by hand in the same pull request, as a render with the new answer
 
 ```bash
 uv sync
-uv run pytest           # renders the family's seven variants once each and checks them, ruff included
+uv run pytest           # renders the family's five variants once each and checks them, ruff included
 scripts/prove.sh --all  # every shape below, one proof each, as CI runs them; fails where one fails
 scripts/prove.sh        # full proof against the released core: copier copy, uv sync, ruff, mypy, pytest, pre-commit
 scripts/prove.sh --core-ref main   # against unreleased core, --all --core-ref main for every shape
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one
 scripts/prove.sh --keyless-nested  # a keyless nested source
 scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files
-scripts/prove.sh --gateway         # a nested source behind api.data.gov
 scripts/prove.sh --tenants         # a nested multi-tenant source with a write server and a key per tenant
-scripts/prove.sh --tenants-keyless # one whose tenants hold a refresh token, no key
 scripts/prove.sh -d has_reference_data=false   # a source that packages no reference data
 ```
 

@@ -17,9 +17,8 @@
 # builds from build()'s tool set with register_tasks serves the tools, caps and option
 # defaults of the entry point, the write server's too where there is one, which passes
 # core's assert_write_tools with preview_reads=True on a task that returns the scaffold's
-# WritePreview, and in the multi-tenant shapes the bound server of --<param>
-# as well, whose instructions say that no tool takes the tenant; where the tenants hold no
-# key, the registry takes the prefix and the field of tenant_credential_env.
+# WritePreview, and in the multi-tenant shape the bound server of --<param>
+# as well, whose instructions say that no tool takes the tenant.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
 # suite tests it. --all proves every shape of the list `shapes` below, the keyless nested
 # one again with -d has_files=true, a source that parses the files it downloads
@@ -27,8 +26,7 @@
 # alone, as README.md says a source is generated.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF]
-#                         [--keyless | --keyless-nested | --gateway | --tenants
-#                          | --tenants-keyless] [--keep]
+#                         [--keyless | --keyless-nested | --tenants] [--keep]
 #                         [-d key=value ...]
 #        scripts/prove.sh --all [--core-ref REF] [--keep]
 #   --all              every shape of the list `shapes`, one proof each in a process of its
@@ -41,20 +39,10 @@
 #   (no shape flag)    a keyed nested source, sdk-example-api (xippios.example.api)
 #   --keyless          a keyless flat source, sdk-example (xippios.example)
 #   --keyless-nested   a keyless nested source, sdk-example-files (xippios.example.files)
-#   --gateway          a nested source behind api.data.gov, sdk-example-gov
-#                      (xippios.example.gov): the gateway answer
-#                      derives the key answer, on the default core, 0.4.1; 0.3.0 was
-#                      the first release with xippios.core.data_gov
 #   --tenants          a nested multi-tenant source with a write server and a key per tenant,
 #                      sdk-example-tenants (xippios.example.tenants), its tenants' keys
 #                      EXAMPLE_<NAME>_API_KEY under a prefix other than the slug's:
 #                      write_server, tenant_param=org, no reference data
-#   --tenants-keyless  a nested multi-tenant source whose tenants hold a refresh token, no
-#                      key, with a write server, sdk-example-mail (xippios.example.mail),
-#                      its tenants' variables EXAMPLE_<NAME>_REFRESH_TOKEN under a prefix
-#                      other than the slug's: write_server,
-#                      tenant_param=account, tenant_credential_env, two live secrets,
-#                      no reference data
 #   --keep             leave the generated repository in place
 #   -d key=value       one more copier answer, e.g. -d has_files=true, or
 #                      -d has_reference_data=false for a source that packages none
@@ -74,9 +62,7 @@ while [ $# -gt 0 ]; do
     --core-ref) core_ref="$2"; shift ;;
     --keyless) shape=keyless ;;
     --keyless-nested) shape=keyless-nested ;;
-    --gateway) shape=gateway ;;
     --tenants) shape=tenants ;;
-    --tenants-keyless) shape=tenants-keyless ;;
     --keep) keep=1 ;;
     -d) extra+=(-d "$2"); shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -90,9 +76,7 @@ shapes=(
   "--keyless"
   "--keyless-nested"
   "--keyless-nested -d has_files=true"
-  "--gateway"
   "--tenants"
-  "--tenants-keyless"
 )
 if [ "$all" = 1 ]; then
   if [ -n "$dest" ] || [ "$shape" != keyed ] || [ "${#extra[@]}" -gt 0 ]; then
@@ -118,18 +102,12 @@ if [ "$all" = 1 ]; then
   exit 0
 fi
 # The keyed slug nests (example-api → xippios.example.api) so the proof covers
-# sdk-core ADR-0006; a keyless one is flat or nested, and the gateway one has no key answer
-# of its own.
+# sdk-core ADR-0006; a keyless one is flat or nested.
 case "$shape" in
   keyless) slug="example"; key=() ;;
   keyless-nested) slug="example-files"; key=() ;;
-  gateway) slug="example-gov"; key=(-d "gateway=api.data.gov") ;;
   tenants) slug="example-tenants"; key=(-d "api_key_env=EXAMPLE_API_KEY"
     -d "write_server=true" -d "tenant_param=org" -d "has_reference_data=false") ;;
-  tenants-keyless) slug="example-mail"; key=(-d "write_server=true" -d "tenant_param=account"
-    -d "tenant_credential_env=EXAMPLE_<NAME>_REFRESH_TOKEN"
-    -d "live_secrets=[EXAMPLE_CLIENT_ID, EXAMPLE_CLIENT_SECRET]"
-    -d "has_reference_data=false") ;;
   *) slug="example-api"; key=(-d "api_key_env=EXAMPLE_API_KEY") ;;
 esac
 if [ -n "$dest" ] && [ -e "$dest" ]; then
@@ -235,68 +213,6 @@ else
   for rel in "$parse_dir" tests/fixtures; do
     [ ! -e "$dest/$rel" ] || { echo "error: $rel rendered without has_files" >&2; exit 1; }
   done
-fi
-if [ "$shape" = gateway ]; then
-  # Offline: core's Gateway gives the client its key, its quota hooks and the first say
-  # in classify, here on an answer in the shape the gateway sends to a refused key.
-  echo
-  echo "==> the gateway answer: the client takes xippios.core.data_gov's Gateway"
-  (cd "$dest" && uv run python - "xippios.$import_path._client" <<'PY'
-import importlib
-import sys
-
-import httpx
-from xippios.core import AuthError
-from xippios.core.data_gov import API_KEY_ENV, KEY_HEADER, Gateway
-
-client = importlib.import_module(sys.argv[1])
-assert client.API_KEY_ENV == API_KEY_ENV, client.API_KEY_ENV
-assert client.auth is client.gateway.auth
-assert (client.auth.header, client.auth.env_var) == (KEY_HEADER, API_KEY_ENV)
-assert client.config.before_request == Gateway.policy.before_request
-assert client.config.observe == Gateway.policy.observe
-refused = httpx.Response(
-    403,
-    json={"error": {"code": "API_KEY_INVALID", "message": "An invalid api_key was supplied."}},
-    request=httpx.Request("GET", client.BASE_URL + "/x"),
-)
-assert isinstance(client.classify(refused), AuthError)
-print(f"{sys.argv[1]}: Gateway({client.SOURCE!r}): auth, policy hooks and classify wired")
-PY
-  )
-fi
-# Offline: where the tenants hold no key, core's registry takes the prefix and the field of
-# tenant_credential_env, the reserved tenant is declared by its credential alone, and the
-# tenant's client carries no auth of the template's, which the source passes (#207).
-tenant_credential_env="$(sed -n "s/^tenant_credential_env: //p" "$dest/.copier-answers.yml" \
-  | tr -d "'\"")"
-if [ -n "$tenant_credential_env" ]; then
-  echo
-  echo "==> the credential answer: the registry takes $tenant_credential_env"
-  (cd "$dest" && uv run python - "xippios.$import_path._client" "$tenant_credential_env" <<'PY'
-import asyncio
-import importlib
-import os
-import sys
-
-import respx
-
-client = importlib.import_module(sys.argv[1])
-prefix, field = sys.argv[2].split("_<NAME>_")
-tenants = client.TENANTS
-assert (tenants.var_prefix, tenants.fields) == (prefix, (field,)), tenants
-assert sys.argv[2] in [var.name_or_pattern for var in client.ENV_VARS], client.ENV_VARS
-assert client.DEMO not in tenants.names()
-os.environ[tenants.var(client.DEMO, field)] = "placeholder"  # pragma: allowlist secret
-assert tenants.names() == (client.DEMO,), "declared by its credential alone"
-with respx.mock(base_url=client.BASE_URL) as upstream:
-    route = upstream.get("/x").respond(200, json={})
-    asyncio.run(client.client_for(client.DEMO).get_json("/x"))
-sent = route.calls.last.request
-assert "authorization" not in sent.headers and not sent.url.query, "the source's auth, not ours"
-print(f"{sys.argv[1]}: {tenants!r}; demo declared by {tenants.var(client.DEMO, field)} alone")
-PY
-  )
 fi
 
 echo
@@ -624,7 +540,7 @@ if param is None:
 print(f"{package}.mcp: {sorted(tools(served))} as a host serves them, the cap and options alike")
 
 if param is not None:
-    (field,) = tenants.fields  # API_KEY, or the field tenant_credential_env names
+    (field,) = tenants.fields  # API_KEY
     key = tenants.var(client.DEMO, field)
     os.environ[key] = "placeholder"  # pragma: allowlist secret (a stand-in)
     flag = f"--{param.replace('_', '-')}"
@@ -639,8 +555,7 @@ if param is not None:
     assert tenants.var("acme", field) in refused.getvalue(), refused.getvalue()
     assert "server" not in seen, "stopped before a server ran"
     del os.environ[tenants.list_var]
-    held = "key" if field == "API_KEY" else "credential"
-    print(f"{flag} demo: bound as a host binds it; {flag} acme without its {held}: stopped")
+    print(f"{flag} demo: bound as a host binds it; {flag} acme without its key: stopped")
 
 if importlib.util.find_spec(f"{package}.mcp_write") is not None:
     put(
