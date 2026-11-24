@@ -122,8 +122,10 @@ sdk-<slug>/
     refresh_reference.py   where has_reference_data: fetches the packaged lists through api/
                            and writes their StrEnums again
     adr_index.py           writes docs/adr.md and docs/adr.json from the records; --check
-    release_prepare.py     prepares a release (/release-prep): its CHANGELOG section, by
-    changelog_assemble.py  this script from changelog/, and the version
+    release_prepare.py     prepares a release (/release-prep): its CHANGELOG section and the
+                           version in pyproject.toml and uv.lock
+    changelog_assemble.py  writes a release's CHANGELOG section from changelog/ and removes
+                           the fragments; --notes prints the next section and writes nothing
   docs/upstream/       FETCHED.md, the list of the snapshot that core's frame writes
   docs/adr/README.md   the decision records, laid out; docs/adr.md and docs/adr.json, their
                        index, which scripts/adr_index.py writes

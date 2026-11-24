@@ -30,8 +30,8 @@ lists what they check in an endpoint.
 {% endif %}
 
 3. **Endpoint wrapper** in `src/xippios/{{ package_dir }}/api/<wrapper>.py`, or in the
-   service's module where operation ids repeat across services and the Layout in
-   `CLAUDE.md` keeps one module per service: one async function. The module and the
+   service's module where operation ids repeat across services and `docs/layout.md`
+   keeps one module per service: one async function. The module and the
    function carry the upstream operation name in snake case, from the operation's id in
    the snapshot (an OpenAPI `operationId`, a WADL method id), else from the path, minus a
    controller prefix that every operation of the API shares, so
