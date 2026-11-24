@@ -26,10 +26,6 @@ BASE_ANSWERS: dict[str, object] = {
 }
 
 
-# The table of the files and pages that FETCHED.md lists, as core's snapshot frame writes it.
-TABLE_HEADER = "| File | URL | Fetched | HTTP | Bytes | sha256 | ETag | Last-Modified | Note |"
-
-
 # The template's own lines of the two workflows it copies from sdk-core and extends: in
 # ci.yml the full history for the two steps that read the pull request (core's
 # docs/handover.md, "Template v0.2.1"), in publish.yml the refusal of a git-pinned core

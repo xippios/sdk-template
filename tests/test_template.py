@@ -38,7 +38,6 @@ from helpers import (
     RECORDER,
     RELEASE_SCRIPTS,
     ROOT,
-    TABLE_HEADER,
     TASK_HELPERS,
     VARIANTS,
     dependencies,
@@ -1283,13 +1282,8 @@ def test_copiers_leftovers_stay_untracked(keyed_nested: Path, tmp_path: Path) ->
 
 
 def test_upstream_snapshot_is_kept_byte_for_byte(keyed_nested: Path) -> None:
-    """Git never converts line endings under docs/upstream/: upstream files may carry CRLF.
-    FETCHED.md's stub has the columns and the shell row's marker refresh_upstream.py writes."""
+    """Git never converts line endings under docs/upstream/: upstream files may carry CRLF."""
     assert (keyed_nested / ".gitattributes").read_text() == "docs/upstream/** -text\n"
-    fetched = (keyed_nested / "docs/upstream/FETCHED.md").read_text()
-    assert f"{TABLE_HEADER}\n" in fetched
-    assert "| (no file) |" in fetched
-    assert "## Attribution" in fetched
 
 
 def test_errors_module_and_classify_hook_are_scaffolded(keyed_nested: Path) -> None:
@@ -2222,6 +2216,70 @@ def test_each_workflow_has_its_title_and_its_switch(variant: tuple[str, Path]) -
             assert "WORKFLOW_" not in text, f"{path.name} always runs"
 
 
+# The switch of each workflow that has one, by its file, the two trigger files' among them,
+# whose called workflows read it (https://github.com/xippios/.github/issues/111).
+SWITCHES = {
+    **SWITCHED,
+    "conventions.yml": "WORKFLOW_CONVENTIONS",
+    "adr-index.yml": "WORKFLOW_ADR_INDEX",
+}
+
+
+def readme_workflows(readme: str) -> dict[str, str]:
+    """The paragraphs of a README's ``## Workflows``, each by the workflow file it opens with:
+    a paragraph that opens with none, or a file named twice, fails."""
+    section = readme.split("\n## Workflows\n", 1)[1].split("\n## ", 1)[0]
+    found: dict[str, str] = {}
+    for block in [" ".join(block.split()) for block in section.split("\n\n") if block.strip()]:
+        opening = re.match(r"`([a-z-]+\.yml)`", block)
+        assert opening, block
+        assert opening[1] not in found, opening[1]
+        found[opening[1]] = block
+    return found
+
+
+def test_the_readme_says_what_each_workflow_does(variant: tuple[str, Path]) -> None:
+    """#308: the render's README holds ``## Workflows``, one paragraph for each workflow it
+    renders, as the organization's rule asks: what it checks, when it runs, what the calling
+    file hands over and what switches it (https://github.com/xippios/.github/issues/111).
+    Each names its switch where it has one and none where it always runs, each variable a
+    step is handed from a secret or the job's token, and ``live.yml``'s the time its
+    schedule sets."""
+    _, dst = variant
+    readme = (dst / "README.md").read_text()
+    assert readme.count("\n## Workflows\n") == 1
+    paragraphs = readme_workflows(readme)
+    workflows = dst / ".github/workflows"
+    assert sorted(paragraphs) == sorted(path.name for path in workflows.glob("*.yml"))
+    for file, paragraph in paragraphs.items():
+        switch = {SWITCHES[file]} if file in SWITCHES else set()
+        assert set(re.findall(r"WORKFLOW_[A-Z_]+", paragraph)) == switch, file
+        workflow = yaml.safe_load((workflows / file).read_text())
+        for job in workflow["jobs"].values():
+            for step in job.get("steps", []):
+                for variable, value in step.get("env", {}).items():
+                    if "secrets." in str(value) or "github.token" in str(value):
+                        assert f"`{variable}`" in paragraph, (file, variable)
+    live = yaml.safe_load((workflows / "live.yml").read_text())
+    (schedule,) = live[True]["schedule"]  # YAML 1.1 reads the key `on` as a boolean
+    minute, hour = schedule["cron"].split()[:2]
+    assert f"{int(hour):02d}:{int(minute):02d} UTC" in paragraphs["live.yml"]
+
+
+def test_the_readme_promises_no_field_that_core_leaves_optional(
+    variant: tuple[str, Path],
+) -> None:
+    """#300: the README's first paragraph names the metadata every response carries, which
+    holds neither ``published_at`` nor ``vintage``: core's ``Meta`` leaves both to the task
+    that knows them."""
+    _, dst = variant
+    readme = (dst / "README.md").read_text()
+    lead = readme.split("\n## ", 1)[0]
+    assert "published_at" not in lead
+    assert "vintage" not in lead
+    assert "retrieved_at" in lead
+
+
 def test_the_templates_own_pull_requests_trigger_the_organizations_checks() -> None:
     """#151, #249: this repository triggers the organization's checks on its own pull
     requests from the files it renders into a source, byte for byte, so a pull request of
@@ -2350,7 +2408,7 @@ def test_a_keyed_client_leaves_its_auth_to_the_source(
     """#301: no answer says how the key is sent, so a keyed source's ``_client.py`` imports
     no auth of core's, builds its client without one and exports no ``auth``, which the
     source's first pull request passes, as the comment above the client shows; a keyless
-    client has none, its ``API_KEY_ENV`` none either."""
+    client has none and declares no ``API_KEY_ENV``, which it never reads (#300)."""
     keyed_client = (keyed_nested / "src/xippios/usda/nass/_client.py").read_text()
     keyless = (keyless_flat / "src/xippios/eurostat/_client.py").read_text()
     for client in [keyed_client, keyless]:
@@ -2364,7 +2422,7 @@ def test_a_keyed_client_leaves_its_auth_to_the_source(
         assert '"auth"' not in client
     assert "# auth = " in keyed_client, "the place the source fills"
     assert "Auth" not in keyless
-    assert "API_KEY_ENV: str | None = None" in keyless
+    assert "API_KEY_ENV" not in keyless
 
 
 @pytest.mark.parametrize("ref", ["main", FAKE_CORE_SHA])
@@ -2626,7 +2684,9 @@ def test_import_path_overrides_the_slug_for_every_package_path(
 
 
 def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Path) -> None:
-    """A source's files survive a re-render; the template's own are rendered again.
+    """A source's files survive a re-render; the template's own are rendered again. The
+    conftest and the secrets baseline are the source's from 0.5.0 on, so an update merges no
+    line of the template's into a source's own there (#300).
 
     The slug ends in -api, so the package itself is .../api/: the patterns name the package
     directory, and its mcp.py is the template's while its api/ is the source's, as are the
@@ -2638,8 +2698,8 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
     names = ["tasks.py", "_client.py", "errors.py", "__init__.py", "api/__init__.py"]
     mine = [f"{pkg}/{n}" for n in [*names, "parse/__init__.py"]]
     mine += ["tests/test_tasks.py", "tests/fixtures/files/README.md", "README.md", "CLAUDE.md"]
-    mine += [*FILLED_SCRIPTS, *ADR_INDEX]
-    templates = ["tests/conftest.py", f"{pkg}/mcp.py", ".github/CODEOWNERS"]
+    mine += ["tests/conftest.py", ".secrets.baseline", *FILLED_SCRIPTS, *ADR_INDEX]
+    templates = [f"{pkg}/mcp.py", ".github/CODEOWNERS"]
     templates += [".claude/settings.json", "changelog/README.md", *ADR_TEMPLATE_FILES]
     for rel in [*mine, *templates]:
         (dst / rel).write_text("# edited\n")
