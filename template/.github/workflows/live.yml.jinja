@@ -1,49 +1,10 @@
-# Nightly live smoke tests (conventions §10): every test marked `live` against the real
-# upstream, on a schedule and on demand, never on a pull request.
-{% if tenant_param and not api_key_env %}
-# Rendered by the template (the one workflow that is): the secrets it names are the reserved
-# tenant's credential, from the answer tenant_credential_env, then the keys of the answer
-# source_dependencies (sdk-core ADR-0021) and the variables of the answer live_secrets, and
-# its start time derives from the slug.
-{% elif key_envs == [api_key_env] and not live_secret_names %}
-# Rendered by the template (the one workflow that is): the secret it names is the source's
-# key variable, and its start time derives from the slug.
-{% elif key_envs and not live_secret_names %}
-# Rendered by the template (the one workflow that is): each secret it names is a key
-# variable from the answers api_key_env and source_dependencies, the latter those of the
-# source packages it depends on (sdk-core ADR-0021), and its start time derives from the
-# slug.
-{% elif key_envs %}
-# Rendered by the template (the one workflow that is): the secrets it names are the key
-# variables of the answers api_key_env and source_dependencies (sdk-core ADR-0021), then the
-# other variables its live tests read, from the answer live_secrets, and its start time
-# derives from the slug.
-{% elif live_secret_names %}
-# Rendered by the template (the one workflow that is): each secret it names is a variable
-# its live tests read, from the answer live_secrets, and its start time derives from the
-# slug.
-{% else %}
-# Rendered by the template (the one workflow that is): its start time derives from the slug.
-{% endif %}
 name: Live tests
 
 on:
   schedule:
-{% if key_envs %}
-    # {{ live_schedule.time }} UTC, staggered from the slug (live_schedule in sdk-template's copier.yml)
-    # so that sources sharing a key do not start together.
-{% if gateway == 'api.data.gov' %}
-    # The key is api.data.gov's, shared by every source behind the gateway
-    # (sdk-core ADR-0032).
-{% endif %}
-{% else %}
-    # {{ live_schedule.time }} UTC, derived from the slug (live_schedule in sdk-template's copier.yml).
-{% endif %}
     - cron: "{{ live_schedule.cron }}"
   workflow_dispatch:
 
-# Hardened as every workflow of the family (conventions §13): the actions pinned to the
-# commits ci.yml pins, the checkout keeps no credentials, the token reads only.
 permissions:
   contents: read
 
@@ -60,31 +21,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --all-extras --frozen
-      # --tb=short: a failing test's frame arguments, a raw upstream payload among them,
-      # stay out of a log that is public (conventions §10). --assert=plain: a failed
-      # assertion prints the line and AssertionError alone, never the values it compared,
-      # a record of the upstream among them, here or in the summary of -ra.
       - run: uv run pytest -m live --tb=short --assert=plain
-{% if tenant_param and not api_key_env and key_envs | length == 1 and not live_secret_names %}
-        # The reserved tenant's credential, from the secret of the same name, for this step
-        # only: checkout, setup-uv and uv sync never see it.
-{% elif tenant_param and not api_key_env %}
-        # The reserved tenant's credential, then the other variables the answers name, each
-        # from the secret of the same name, for this step only: checkout, setup-uv and uv
-        # sync never see them.
-{% elif key_envs | length == 1 and not live_secret_names %}
-        # The key, from the org secret, for this step only: checkout, setup-uv and uv sync
-        # never see it.
-{% elif key_envs and not live_secret_names %}
-        # The keys, from the org secrets, for this step only: checkout, setup-uv and uv sync
-        # never see them.
-{% elif key_envs %}
-        # The key variables, then those live_secrets names, each from the secret of the
-        # same name, for this step only: checkout, setup-uv and uv sync never see them.
-{% elif live_secret_names %}
-        # The variables live_secrets names, each from the secret of the same name, for
-        # this step only: checkout, setup-uv and uv sync never see them.
-{% endif %}
         env:
           XIPPIOS_LIVE_TESTS: "1"
 {% for key_env in key_envs %}

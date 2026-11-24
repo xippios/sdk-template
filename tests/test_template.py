@@ -359,8 +359,8 @@ def test_client_exports_one_sorted_name_per_line(variant: tuple[str, Path]) -> N
 def test_the_gateway_answer_renders_cores_gateway(variant: tuple[str, Path]) -> None:
     """T9, sdk-core ADR-0032: behind api.data.gov the client takes ``xippios.core.data_gov``'s
     ``Gateway``, its auth, its policy's hooks through ``install`` and its ``classify``
-    asked first; the facts name ``Gateway`` and its shared policy, and ``live.yml`` the
-    shared key. Any other answer renders none of it."""
+    asked first; the facts name ``Gateway`` and its shared policy, and ``live.yml`` passes
+    the shared key. Any other answer renders none of it."""
     name, dst = variant
     answers = VARIANTS[name]
     behind = gateway_of(answers) == DATA_GOV
@@ -375,7 +375,7 @@ def test_the_gateway_answer_renders_cores_gateway(variant: tuple[str, Path]) -> 
     assert ("`Gateway.policy`" in rate) is behind
     assert rate.count("<!-- ") == (1 if behind else 2), "a quota to name, but the gateway's"
     live = (dst / ".github/workflows/live.yml").read_text()
-    assert (DATA_GOV in live) is behind
+    assert (str(key_answers({"gateway": DATA_GOV})["api_key_env"]) in live) is behind
     readme = (dst / "README.md").read_text()
     assert (DATA_GOV in readme) is behind
     if not behind:
@@ -490,6 +490,28 @@ def test_workflow_actions_are_pinned_by_sha(variant: tuple[str, Path]) -> None:
             assert re.fullmatch(r" # v\d+(\.\d+)*", comment), f"{rel}: {action}{comment}"
     for rel in set(rendered) & {"live.yml", "siblings.yml"}:
         assert set(workflow_uses(workflows / rel)) <= set(workflow_uses(workflows / "ci.yml"))
+
+
+# A YAML comment opens a line or follows a blank; the one a workflow keeps is the version
+# after a pinned action (https://github.com/xippios/.github/issues/111).
+YAML_COMMENT = re.compile(r"(?:^|\s)#")
+PINNED_USES = re.compile(r"\s+(?:- )?uses: [\w.-]+/[\w.-]+@[0-9a-f]{40} # v\d+(?:\.\d+)*")
+
+
+def test_the_templates_workflows_carry_no_comment(variant: tuple[str, Path]) -> None:
+    """https://github.com/xippios/.github/issues/111, #265: ``live.yml`` and, where it
+    renders, ``siblings.yml``, the workflows that are the template's own, carry no comment
+    but the version after a pinned action, whatever the answers; the README says what each
+    checks, when it runs, what it is handed and what switches it. ``ci.yml`` and
+    ``publish.yml`` keep sdk-core's bytes."""
+    _, dst = variant
+    workflows = dst / ".github/workflows"
+    assert (workflows / "live.yml").is_file()
+    for name in ["live.yml", "siblings.yml"]:
+        path = workflows / name
+        for line in path.read_text().splitlines() if path.is_file() else []:
+            if YAML_COMMENT.search(line):
+                assert PINNED_USES.fullmatch(line), f"{name}: {line}"
 
 
 SIBLINGS_SCRIPT = (
@@ -2833,7 +2855,7 @@ def test_the_templates_own_workflows_are_hardened() -> None:
     """Conventions §13 for this repository's own workflows too: SHA pins with the version
     in a comment, but the organization's checks, called at ``@main``, ``contents: read``
     at the top, and no checkout keeps its credentials but the one in a job that pushes,
-    which says so."""
+    whose reason the README's release section gives (#307)."""
     for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
         for action, comment in workflow_uses(path):
             if path.name in TRIGGER_FILES:
@@ -2852,30 +2874,91 @@ def test_the_templates_own_workflows_are_hardened() -> None:
                 if str(step.get("uses", "")).startswith("actions/checkout@"):
                     kept = step.get("with", {}).get("persist-credentials", True)
                     assert kept is pushes, f"{path.name}: {name}"
-            if pushes:
-                assert "The one checkout that keeps its credentials" in text, path.name
 
 
-def test_ci_proves_the_familys_variants() -> None:
-    """T11: the required ``ci`` job runs scripts/prove.sh on the keyed nested, the keyless
-    flat, the keyless nested, the keyless nested shape that parses files (``has_files``,
-    sdk-core ADR-0020), the gateway shape (T9) and the two multi-tenant shapes, a write
-    server with basic auth and tenants that hold no key (#174, #207), so a proof that fails
-    blocks the merge."""
+def test_the_templates_own_workflows_carry_no_comment() -> None:
+    """https://github.com/xippios/.github/issues/111, #307: this repository's own workflows
+    carry no comment but the version after a pinned action, as the ones it renders as its
+    own; its README says what each does."""
+    for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        for line in path.read_text().splitlines():
+            if YAML_COMMENT.search(line):
+                assert PINNED_USES.fullmatch(line), f"{path.name}: {line}"
+
+
+def test_the_readme_says_what_the_release_run_does() -> None:
+    """#307: the README's release section names ``release.yml`` and says what its header
+    said before: how a run that failed is finished and a tag on the wrong commit mended, by
+    GitHub's two re-runs, and why its one checkout keeps its credentials."""
+    readme = (ROOT / "README.md").read_text()
+    section = readme.split("\n## Releasing the template\n", 1)[1].split("\n## ", 1)[0]
+    for name in [
+        "`.github/workflows/release.yml`",
+        '"Re-run failed jobs"',
+        '"Re-run all jobs"',
+        "`persist-credentials: false`",
+    ]:
+        assert name in section, name
+
+
+PROVE = ROOT / "scripts/prove.sh"
+# A proof that --all starts, as it names it, and one that failed.
+PROOF_STARTED = re.compile(r"^==> proof (\d+) of (\d+): scripts/prove\.sh(.*)$", re.MULTILINE)
+PROOF_FAILED = re.compile(r"^failed: scripts/prove\.sh(.*)$", re.MULTILINE)
+
+
+def test_ci_proves_every_shape_by_one_call() -> None:
+    """T11, #304: the required ``ci`` job runs the proofs once, by ``scripts/prove.sh --all``
+    after the tests, so a proof that fails blocks the merge, and a shape added or removed
+    changes the list in ``scripts/``, never the workflow."""
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     (job,) = workflow["jobs"].values()
     assert job["name"] == "ci", "the check the org ruleset requires"
     runs = [str(step.get("run", "")) for step in job["steps"]]
-    proofs = [run for run in runs if run.startswith("scripts/prove.sh")]
-    assert proofs == [
-        "scripts/prove.sh",
-        "scripts/prove.sh --keyless",
-        "scripts/prove.sh --keyless-nested",
-        "scripts/prove.sh --keyless-nested -d has_files=true",
-        "scripts/prove.sh --gateway",
-        "scripts/prove.sh --tenants",
-        "scripts/prove.sh --tenants-keyless",
-    ]
+    proofs = [run for run in runs if "prove" in run]
+    assert proofs == ["scripts/prove.sh --all"]
+    assert runs.index("uv run pytest") < runs.index(proofs[0])
+
+
+def run_every_proof(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """``prove.sh --all`` from a copy of the script alone, in a folder without the template,
+    so that each proof it starts fails at once: what --all does with the proofs' outcomes."""
+    scripts = tmp_path / "bare/scripts"
+    scripts.mkdir(parents=True)
+    shutil.copy2(PROVE, scripts / "prove.sh")
+    env = {**os.environ, "TMPDIR": str(tmp_path)}
+    return subprocess.run(
+        [str(scripts / "prove.sh"), "--all", *args], capture_output=True, text=True, env=env
+    )
+
+
+def test_prove_all_runs_every_shape_and_fails_where_one_fails(tmp_path: Path) -> None:
+    """#304: ``--all`` starts one proof for each shape that ``scripts/prove.sh`` takes by its
+    flag, the keyed nested one with no flag and the keyless nested one again with
+    ``-d has_files=true`` (sdk-core ADR-0020), each once and in a process of its own; it goes
+    on after a proof that failed, names each that failed and fails itself."""
+    flags = re.findall(r"^\s+(--[\w-]+)\) shape=", PROVE.read_text(), re.MULTILINE)
+    assert "--keyless" in flags, "the shapes' flags as the parser reads them"
+    run = run_every_proof(tmp_path)
+    assert run.returncode == 1, run.stdout + run.stderr
+    started = PROOF_STARTED.findall(run.stdout)
+    count = len(started)
+    assert [(int(n), int(of)) for n, of, _ in started] == [(n, count) for n in range(1, count + 1)]
+    shapes = [shape.strip() for _, _, shape in started]
+    assert len(set(shapes)) == count, shapes
+    assert {shape.split(" ")[0] for shape in shapes} == {"", *flags}
+    assert "--keyless-nested -d has_files=true" in shapes
+    assert [shape.strip() for shape in PROOF_FAILED.findall(run.stderr)] == shapes
+
+
+@pytest.mark.parametrize("given", [["--keyless"], ["-d", "has_files=true"], ["--dest", "x"]])
+def test_prove_all_takes_no_shape_answer_or_destination(tmp_path: Path, given: list[str]) -> None:
+    """#304: ``--all`` proves the list as it stands, each shape in a folder of its own, so it
+    refuses a shape's flag, an answer and a destination before it starts a proof."""
+    run = run_every_proof(tmp_path, *given)
+    assert run.returncode == 2, run.stdout + run.stderr
+    assert run.stderr.startswith("error: --all takes "), run.stderr
+    assert not PROOF_STARTED.search(run.stdout)
 
 
 # Instruction files: what a session or a human reads to act. CHANGELOG history is not one.

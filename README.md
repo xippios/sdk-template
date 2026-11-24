@@ -141,18 +141,29 @@ file each, named as the workflow of xippios/.github it calls: `conventions.yml` 
 review of a pull request against the documents the README lists, the check
 `conventions / conventions`, and on a push to `main` the review of a range,
 `range / range`, and `adr-index.yml` the check `adr-index / adr-index`, which runs the
-render's `scripts/adr_index.py --check`. `live.yml` runs every `live` test every night
-and on demand with `--tb=short --assert=plain`, so its public log holds neither a failing
-test's frame arguments nor the values a failed assertion compared. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources that
+render's `scripts/adr_index.py --check`. `live.yml`, the one workflow whose text the
+answers render, runs every `live` test against the upstream every night and on demand,
+never on a pull request, with `--tb=short --assert=plain`, so its public log holds neither a
+failing test's frame arguments nor the values a failed assertion compared. Its start time derives from the slug, between 01:00 and 05:59 UTC, so sources that
 share a key do not start together; only its pytest step sees the keys, from the org
-secrets named by `api_key_env` and by `source_dependencies`' `key_env`, and the other
-variables `live_secrets` names, each from the secret of the same name. Where the import
+secrets named by `api_key_env`, or a multi-tenant source's reserved tenant's credential in
+its place, and by `source_dependencies`' `key_env`, and the other variables `live_secrets`
+names, each from the secret of the same name, so the checkout, setup-uv and `uv sync` see
+none. Where the import
 path nests or the source declares a dependency, `siblings.yml` runs
-`.github/scripts/check-siblings.sh` on every pull request and push to `main`: it installs
+`.github/scripts/check-siblings.sh` on every pull request and push to `main`, handing it
+the job's read-only token for the listing of the organization's repositories, since GitHub
+limits the calls of a runner without one: it installs
 the wheel beside every sibling on PyPI under the same provider namespace that shares its
 core minor and beside the source packages it depends on, at their bound, and proves the
 namespace levels stay portions (sdk-core ADR-0006, sdk-core ADR-0021), a visible check the
-ruleset does not require; a declared dependency on another core minor fails it. A sibling
+ruleset does not require; a declared dependency on another core minor fails it. It is a
+workflow of its own beside `ci.yml`, never a job there, since `ci.yml` is core's file,
+which `publish.yml` calls for a release, and a job there would tie the package's releases
+to its siblings. Both workflows are hardened as every workflow of the family
+(conventions §13): their actions pinned to the commits `ci.yml` pins, the checkout keeping
+no credentials, the token reading only, and neither file carries a comment but the version
+after a pinned action. A sibling
 that depends on the source and pins its previous minor is left out with a warning that
 names the pin, since it takes the new minor in its own adoption (conventions §12), so the
 release of a minor stays green; one that pins another minor of the source fails it.
@@ -240,19 +251,25 @@ answer's lines by hand in the same pull request, as a render with the new answer
 ```bash
 uv sync
 uv run pytest           # renders the family's seven variants once each and checks them, ruff included
+scripts/prove.sh --all  # every shape below, one proof each, as CI runs them; fails where one fails
 scripts/prove.sh        # full proof against the released core: copier copy, uv sync, ruff, mypy, pytest, pre-commit
-scripts/prove.sh --core-ref main   # against unreleased core
+scripts/prove.sh --core-ref main   # against unreleased core, --all --core-ref main for every shape
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one
 scripts/prove.sh --keyless-nested  # a keyless nested source
 scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files
 scripts/prove.sh --gateway         # a nested source behind api.data.gov
 scripts/prove.sh --tenants         # a nested multi-tenant source with a write server and a key per tenant
-scripts/prove.sh --tenants-keyless # one whose tenants hold a refresh token, no key; CI runs these seven proofs
+scripts/prove.sh --tenants-keyless # one whose tenants hold a refresh token, no key
 scripts/prove.sh -d has_reference_data=false   # a source that packages no reference data
 ```
 
-A pull request of the template runs `.github/workflows/ci.yml`, the tests and the seven
-proofs, and `.github/workflows/conventions.yml` and `.github/workflows/adr-index.yml`,
+A pull request of the template runs `.github/workflows/ci.yml`, whose one job `ci` is the
+check the organization's ruleset requires: it runs the tests, then `scripts/prove.sh
+--all`, which proves each shape of the list `shapes` in that script, every shape above but
+the one of `-d has_reference_data=false`, each in a process of its own, goes on after one
+that failed and fails where one fails, so a failing proof blocks the merge. A shape added
+or removed changes that list and the script, never the workflow. It also runs
+`.github/workflows/conventions.yml` and `.github/workflows/adr-index.yml`,
 byte for byte the files it renders into a source: the organization's conventions review,
 which reads a release pull request against the documents listed under
 [Documents](#documents), and the check of the ADR index.
@@ -269,11 +286,24 @@ sets `version` in `pyproject.toml` to `X.Y.Z` and locks again with `uv lock`, wh
 `uv sync --locked` checks, and sets the update command's `--vcs-ref` above to `vX.Y.Z`.
 No package is built from the manifest, but it names the template's latest release, and
 `tests/test_template.py` holds it to the top release heading of `CHANGELOG.md`.
-Its merge on `main` runs `.github/workflows/release.yml`, which tags `vX.Y.Z` on the
-merge commit with that section as the tag's message; every other push to `main` finds
-the top heading tagged and ends quietly. Nobody pushes the tag by hand.
-Generated repositories record the tag in `.copier-answers.yml`; `copier copy` takes it as
-the latest, and `copier update` reaches it.
+
+The template publishes nothing to PyPI, so its release is the tag (conventions §12,
+sdk-core ADR-0039 decision 6). The release PR's merge on `main` runs
+`.github/workflows/release.yml`, which reads the top `## [X.Y.Z] - ` heading of
+`CHANGELOG.md` and, where `vX.Y.Z` has no tag yet, tags the merge commit with that
+section as the tag's message. Every other push to `main` finds the top heading tagged and
+ends quietly. Nobody pushes the tag by hand. Generated repositories record the tag in
+`.copier-answers.yml`, `copier copy` takes it as the latest, and `copier update` reaches
+it. The run's job `tag` holds the one checkout of the repository without
+`persist-credentials: false`, since it pushes the tag with the job's token
+(conventions §13). A run that fails before its tag push is finished with GitHub's
+"Re-run failed jobs", and a run started again once the tag exists ends quietly. The runs
+are not serialised, since a concurrency group keeps one pending run and cancels it for the
+next, which would tag its own commit. So two pushes to `main` close together can both find the
+version untagged: the second run's tag push then fails red, or, where it runs first, it
+tags the later commit, and the maintainer deletes that tag before a source adopts it and
+runs the release again with "Re-run all jobs". A release is therefore not merged while
+another push to `main` is in flight, which keeps two runs from racing.
 
 ## Documents
 

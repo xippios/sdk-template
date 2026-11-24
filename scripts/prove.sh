@@ -21,35 +21,38 @@
 # as well, whose instructions say that no tool takes the tenant; where the tenants hold no
 # key, the registry takes the prefix and the field of tenant_credential_env.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
-# suite tests it. The template's CI runs every shape below, and the keyless nested one
-# again with -d has_files=true, a source that parses the files it downloads
-# (sdk-core ADR-0020). It generates with `copier copy` alone, as README.md says a source
-# is generated.
+# suite tests it. --all proves every shape of the list `shapes` below, the keyless nested
+# one again with -d has_files=true, a source that parses the files it downloads
+# (sdk-core ADR-0020), and the template's CI runs --all. It generates with `copier copy`
+# alone, as README.md says a source is generated.
 #
 # usage: scripts/prove.sh [--dest DIR] [--core-ref REF]
 #                         [--keyless | --keyless-nested | --gateway | --tenants
 #                          | --tenants-keyless] [--keep]
 #                         [-d key=value ...]
+#        scripts/prove.sh --all [--core-ref REF] [--keep]
+#   --all              every shape of the list `shapes`, one proof each in a process of its
+#                      own, going on after a proof that failed; names each that failed and
+#                      fails where one fails
 #   --dest DIR         where to generate, a path that does not exist yet; default a new
 #                      temporary directory
 #   --core-ref REF     sdk-core commit to depend on, main or a full SHA; default "" = the
 #                      PyPI release, e.g. --core-ref main to prove against unreleased core
 #   (no shape flag)    a keyed nested source, sdk-example-api (xippios.example.api)
-#   --keyless          a keyless flat source, sdk-example (xippios.example), as eurostat
-#   --keyless-nested   a keyless nested source, sdk-example-files (xippios.example.files),
-#                      as esmis or wasde
+#   --keyless          a keyless flat source, sdk-example (xippios.example)
+#   --keyless-nested   a keyless nested source, sdk-example-files (xippios.example.files)
 #   --gateway          a nested source behind api.data.gov, sdk-example-gov
-#                      (xippios.example.gov), as psd, esr and gats: the gateway answer
+#                      (xippios.example.gov): the gateway answer
 #                      derives the key answer, on the default core, 0.4.1; 0.3.0 was
 #                      the first release with xippios.core.data_gov
 #   --tenants          a nested multi-tenant source with a write server and a key per tenant,
 #                      sdk-example-tenants (xippios.example.tenants), its tenants' keys
-#                      EXAMPLE_<NAME>_API_KEY under a prefix other than the slug's, as
-#                      cashctrl: write_server, tenant_param=org, no reference data
+#                      EXAMPLE_<NAME>_API_KEY under a prefix other than the slug's:
+#                      write_server, tenant_param=org, no reference data
 #   --tenants-keyless  a nested multi-tenant source whose tenants hold a refresh token, no
 #                      key, with a write server, sdk-example-mail (xippios.example.mail),
 #                      its tenants' variables EXAMPLE_<NAME>_REFRESH_TOKEN under a prefix
-#                      other than the slug's, as google-mail: write_server,
+#                      other than the slug's: write_server,
 #                      tenant_param=account, tenant_credential_env, two live secrets,
 #                      no reference data
 #   --keep             leave the generated repository in place
@@ -62,9 +65,11 @@ dest=""
 core_ref=""
 shape=keyed
 keep=0
+all=0
 extra=()
 while [ $# -gt 0 ]; do
   case "$1" in
+    --all) all=1 ;;
     --dest) dest="$2"; shift ;;
     --core-ref) core_ref="$2"; shift ;;
     --keyless) shape=keyless ;;
@@ -78,10 +83,43 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+# Every shape of the family, one proof each, in the order --all runs them: the arguments
+# that make the proof, its shape's flag and any answer it adds.
+shapes=(
+  ""
+  "--keyless"
+  "--keyless-nested"
+  "--keyless-nested -d has_files=true"
+  "--gateway"
+  "--tenants"
+  "--tenants-keyless"
+)
+if [ "$all" = 1 ]; then
+  if [ -n "$dest" ] || [ "$shape" != keyed ] || [ "${#extra[@]}" -gt 0 ]; then
+    echo "error: --all takes --core-ref and --keep alone: each shape is generated apart" >&2
+    exit 2
+  fi
+  passed=(--core-ref "$core_ref")
+  if [ "$keep" = 1 ]; then passed+=(--keep); fi
+  failed=()
+  for n in "${!shapes[@]}"; do
+    read -r -a flags <<< "${shapes[$n]}"
+    proof="scripts/prove.sh${shapes[$n]:+ ${shapes[$n]}}"
+    echo "==> proof $((n + 1)) of ${#shapes[@]}: $proof"
+    "$here/scripts/prove.sh" "${flags[@]}" "${passed[@]}" || failed+=("$proof")
+    echo
+  done
+  if [ "${#failed[@]}" -gt 0 ]; then
+    echo "==> ${#failed[@]} of ${#shapes[@]} proofs failed" >&2
+    printf 'failed: %s\n' "${failed[@]}" >&2
+    exit 1
+  fi
+  echo "==> all ${#shapes[@]} proofs passed"
+  exit 0
+fi
 # The keyed slug nests (example-api → xippios.example.api) so the proof covers
-# sdk-core ADR-0006; the keyless ones start as the family's keyless sources did, flat as
-# eurostat and nested as esmis or wasde; the gateway one as psd, esr and gats, with no key
-# answer of its own.
+# sdk-core ADR-0006; a keyless one is flat or nested, and the gateway one has no key answer
+# of its own.
 case "$shape" in
   keyless) slug="example"; key=() ;;
   keyless-nested) slug="example-files"; key=() ;;
