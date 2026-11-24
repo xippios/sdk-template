@@ -2109,6 +2109,24 @@ def test_add_endpoint_ends_its_list_of_helpers_on_a_full_stop(variant: tuple[str
     assert [item[-1] for item in items] == [";"] * (len(items) - 1) + ["."], (name, items)
 
 
+def test_add_endpoint_has_a_wrapper_return_an_answer(variant: tuple[str, Path]) -> None:
+    """#333, sdk-core's ``docs/handover.md`` at core 0.5.0, What a source does by hand, item
+    1: the one sentence of ``/add-endpoint`` that names ``get_answer`` has the wrapper return
+    an ``Answer``, the value it derives from the payload as ``Answer(value, ...)``, and cites
+    conventions §4 and §6, with no models returned through ``xippios.core.parse``; the one
+    that names the task's ``ResultMeta`` names the ``retrieved_at`` that the ``Answer``
+    carries."""
+    name, dst = variant
+    add = sentences((dst / ".claude/commands/add-endpoint.md").read_text())
+    (reads,) = [sentence for sentence in add if "`get_answer`" in sentence]
+    for named in ["`Answer`", "`Answer(value, answer.retrieved_at)`", "conventions §4", "§6"]:
+        assert named in reads, f"{name}: {named}: {reads}"
+    assert "xippios.core.parse" not in reads, (name, reads)
+    (meta,) = [sentence for sentence in add if "`ResultMeta`" in sentence]
+    for named in ["`retrieved_at`", "`Answer`"]:
+        assert named in meta, f"{name}: {named}: {meta}"
+
+
 def test_record_fixture_takes_cores_recorder(variant: tuple[str, Path]) -> None:
     """#270, sdk-core#483: ``/record-fixture`` names the source's rewrite step, the recorder
     and the one send that writes nothing under their plain names, and what a source's own
