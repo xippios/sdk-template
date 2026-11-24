@@ -7,7 +7,7 @@
   `/record-fixture` records with a source's own recorder, `scripts/record_fixture.py`, where
   it has one, and its step 1 names the variables of `live_secrets` beside the key, and
   `/refresh-upstream` holds `--check` as the one comparison of the snapshot with upstream,
-  since core no longer checks a committed `FETCHED.md` without a request.
+  since core's family check no longer judges `FETCHED.md` against `SNAPSHOT`.
   (https://github.com/xippios/sdk-template/issues/300,
   https://github.com/xippios/sdk-template/issues/310,
   https://github.com/xippios/sdk-core/issues/483)
