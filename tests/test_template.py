@@ -1915,6 +1915,9 @@ def test_the_templates_own_files_list_the_rendered_commands() -> None:
     own = {path.stem for path in (ROOT / ".claude/commands").glob("*.md")}
     readme = (ROOT / "README.md").read_text()
     assert sorted(layout_commands(readme)) == sorted(RENDERED_COMMANDS)
+    claude = (ROOT / "CLAUDE.md").read_text()
+    layout = re.search(r"^\s*\.claude/commands/[ \t]", claude, re.M)
+    assert layout is None, "CLAUDE.md cites the README's tree and lists no command"
     for name in ["README.md", "CLAUDE.md"]:
         named = set(COMMAND_NAMED.findall((ROOT / name).read_text()))
         assert named <= set(RENDERED_COMMANDS) | own, f"{name}: {named}"
