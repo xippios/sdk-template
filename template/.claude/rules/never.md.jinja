@@ -1,5 +1,5 @@
 {% set credentials = key_envs + live_secret_names %}
-{% set secrets = ([tenant_prefix ~ '_<NAME>_' ~ tenant_field] if tenant_param else []) + credentials %}
+{% set secrets = ([tenant_prefix ~ '_<NAME>_' ~ tenant_field] if tenant_param and api_key_env else []) + credentials %}
 # Never
 
 What no change of `xippios-{{ source_slug }}` does, whoever makes it. The template writes this

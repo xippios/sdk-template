@@ -6,10 +6,13 @@
   `## Never` move into `.claude/rules/never.md`, a file of the template's that every update
   writes again and that Claude Code loads at launch by its place, and the Layout moves into
   `docs/layout.md`, the source's own, which `CLAUDE.md` imports and which holds what the
-  source adds to the family's tree, laid out once in this repository's README. A render's
-  `CLAUDE.md` holds 74 or 75 lines where it held 204 to 210.
+  source adds to the family's tree, laid out once in this repository's README. The Never
+  file's rule on credentials names the tenants' key pattern only where the tenants hold the
+  key, since the template knows no variable of tenants that hold another credential. A
+  render's `CLAUDE.md` holds 74 or 75 lines where it held 204 to 210.
   (https://github.com/xippios/sdk-template/issues/300,
-  https://github.com/xippios/sdk-template/issues/233)
+  https://github.com/xippios/sdk-template/issues/233,
+  https://github.com/xippios/sdk-template/issues/301)
   - Hand-apply: `CLAUDE.md` — delete `## Code rules`, `## When something is unclear` and
     `## Never`, the two paragraphs after the code block of `## Commands` that say the tests
     run offline and send the key's placeholder, the Layout's code block with the paragraph
