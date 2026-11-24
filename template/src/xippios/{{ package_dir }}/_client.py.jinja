@@ -1,3 +1,33 @@
+{% if shape == 'general' %}
+"""The variables the package reads, for a host (conventions §7).
+
+The package keeps here, beside their declaration, the code that reads them, such as the auth
+of a client that it shares.
+"""
+
+from xippios.core import EnvVar
+
+API_KEY_ENV = "{{ api_key_env }}"  # pragma: allowlist secret (a variable name, not a key)
+{% set others = env_vars[1:] %}
+{% if others %}
+ENV_VARS: tuple[EnvVar, ...] = (
+    EnvVar(API_KEY_ENV, secret=True, required=True),
+{% for var in others %}
+    EnvVar("{{ var.name }}", secret={{ var.secret }}, required={{ var.required }}),
+{% endfor %}
+)
+{% else %}
+ENV_VARS: tuple[EnvVar, ...] = (EnvVar(API_KEY_ENV, secret=True, required=True),)
+{% endif %}
+"""The variables the package reads, for a host (conventions §7; sdk-core ADR-0026, amendment
+2026-11-18, point c). An ``EnvVar`` names a variable and reads none; a variable the package
+reads beside these joins the list."""
+
+__all__ = [
+    "API_KEY_ENV",
+    "ENV_VARS",
+]
+{% else %}
 {% if tenant_param %}
 """One configured ``AsyncClient`` per tenant, and the error mapping (conventions §6, §7).
 
@@ -184,3 +214,4 @@ __all__ = [
 {% endif %}
     "config",
 ]
+{% endif %}

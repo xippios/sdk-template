@@ -1,7 +1,7 @@
 """The general part of a repository without tasks and servers, the template's second shape
 (ADR-0003): what its render holds and leaves out, the answers it asks and records, the
-manifest that is the repository's once rendered, the repository's name, and the commands and
-documents it renders without a source's steps.
+manifest that is the repository's once rendered, the repository's name, the client file of a
+package that holds a key, and the commands and documents it renders without a source's steps.
 
 Each test reads the renders of ``conftest.py``, the general shape's two and a source's, or
 renders a template snapshot of its own, and asserts mechanics: a file rendered or not, an
@@ -9,6 +9,7 @@ answer recorded or not, a name present or absent, what an update writes. ``scrip
 proves the two renders with their checks.
 """
 
+import ast
 import re
 import shutil
 import tomllib
@@ -25,8 +26,15 @@ from helpers import (
     RELEASE_SCRIPTS,
     ROOT,
     VARIANTS,
+    assigned,
     copier_patterns,
+    entries,
+    env_vars,
+    generate,
     git,
+    key_answers,
+    keyed,
+    module,
     package_dir,
     ruff,
     skip_matcher,
@@ -71,13 +79,13 @@ GENERAL_FILES = [
 ]
 SIBLING_FILES = [".github/scripts/check-siblings.sh", ".github/workflows/siblings.yml"]
 
-# The eight questions of an upstream and of the package contract's variants, which the general
-# shape does not answer, and the answers it records: the shape, the repository's name and the
-# six that every repository of the family answers.
+# The seven questions of an upstream and of the package contract's variants, which the general
+# shape does not answer, and the answers it records: the shape, the repository's name, the key
+# its package holds, empty where it holds none (sdk-core#538), and the six that every
+# repository of the family answers.
 SOURCE_QUESTIONS = [
     "upstream_url",
     "upstream_docs_url",
-    "api_key_env",
     "write_server",
     "tenant_param",
     "live_secrets",
@@ -90,10 +98,14 @@ GENERAL_ANSWERS = {
     "repository_name",
     "import_path",
     "source_name",
+    "api_key_env",
     "core_version",
     "core_git_ref",
     "source_dependencies",
 }
+# The client file of a package that holds a key (sdk-core#538), at the import path's
+# directories: its key in ENV_VARS, and no client of the template's.
+CLIENT_FILE = "src/xippios/{pkg}/_client.py"
 # The files the general shape renders whose text the answers write for the repository: none
 # names an upstream, since the package wraps none.
 ANSWERED_FILES = [
@@ -117,6 +129,11 @@ def repository(name: str) -> str:
     return str(answers.get("repository_name", f"sdk-{answers['source_slug']}"))
 
 
+def holds_a_key(name: str) -> bool:
+    """Whether a render's package holds a key, by its answer (sdk-core#538)."""
+    return bool(key_answers(GENERAL[name]).get("api_key_env"))
+
+
 def rendered_files(dst: Path) -> list[str]:
     caches = {".ruff_cache", "__pycache__"}
     return sorted(
@@ -130,12 +147,15 @@ def test_the_general_shape_renders_the_general_part_alone(general: tuple[str, Pa
     """#302: the render holds CI, the publish workflow, the organization's two checks, the
     changelog with its scripts, the decision records' files and ``/release-prep`` around a
     package with its version and ``py.typed``, the sibling check where the import path nests,
-    and one test of the package's own; no client, task, server, fixture or live workflow."""
+    the client file where the package holds a key (sdk-core#538), and one test of the
+    package's own; no client, task, server, fixture or live workflow."""
     name, dst = general
     pkg = package_dir(GENERAL[name])
     expected = [path.format(pkg=pkg) for path in GENERAL_FILES]
     if "/" in pkg:
         expected += SIBLING_FILES
+    if holds_a_key(name):
+        expected.append(CLIENT_FILE.format(pkg=pkg))
     assert rendered_files(dst) == sorted(expected)
     empty = [p for p in dst.rglob("*") if p.is_dir() and not any(p.iterdir())]
     assert empty == [], "no directory of a source's file is left empty"
@@ -144,11 +164,16 @@ def test_the_general_shape_renders_the_general_part_alone(general: tuple[str, Pa
 def test_the_shape_leaves_out_the_27_files_of_a_source(render: Callable[[str], Path]) -> None:
     """ADR-0003: one list of ``_exclude`` names the files the general shape leaves out, each a
     file or a directory that a source's render holds, so a step that renames one of them
-    changes the list; a source's render excludes nothing."""
+    changes the list; a source's render excludes nothing. A package that holds a key keeps
+    ``_client.py`` alone of them (sdk-core#538)."""
     pkg = package_dir(VARIANTS["keyed-nested"])
     left_out = copier_patterns("_exclude", pkg, "general")
     assert len(left_out) == 27, left_out
+    client = "/" + CLIENT_FILE.format(pkg=pkg)
+    keyed_left_out = copier_patterns("_exclude", pkg, "general", "EXAMPLE_API_KEY")
+    assert sorted([*keyed_left_out, client]) == sorted(left_out)
     assert copier_patterns("_exclude", pkg, "source") == []
+    assert copier_patterns("_exclude", pkg, "source", "EXAMPLE_API_KEY") == []
     held: set[str] = set()
     for name in ["keyed-nested", "dependency", "tenants"]:
         dst = render(name)
@@ -184,8 +209,9 @@ def test_a_source_records_the_shape_at_its_default(variant: tuple[str, Path]) ->
 
 def test_the_questions_take_the_shape_as_their_condition() -> None:
     """ADR-0003: the shape is a choice of two names, ``source`` by default, asked first; the
-    eight questions of an upstream are a source's and the repository's name the general
-    shape's, each by its ``when``; 16 answers are recorded and 10 computed."""
+    seven questions of an upstream are a source's and the repository's name the general
+    shape's, each by its ``when``, while both shapes ask the key, empty by default
+    (sdk-core#538); 16 answers are recorded and 10 computed."""
     names = [name for name in QUESTIONS if not name.startswith("_")]
     assert names[0] == "shape"
     shape = QUESTIONS["shape"]
@@ -194,6 +220,8 @@ def test_the_questions_take_the_shape_as_their_condition() -> None:
         assert QUESTIONS[name]["when"] == "{{ shape == 'source' }}", name
     assert QUESTIONS["repository_name"]["when"] == "{{ shape == 'general' }}"
     assert QUESTIONS["repository_name"]["default"] == "sdk-{{ source_slug }}"
+    assert "when" not in QUESTIONS["api_key_env"]
+    assert QUESTIONS["api_key_env"]["default"] == ""
     computed = [name for name in names if QUESTIONS[name].get("when") is False]
     assert (len(names) - len(computed), len(computed)) == (16, 10)
 
@@ -228,6 +256,62 @@ def test_the_manifest_holds_no_server_and_is_the_repositorys(general: tuple[str,
     assert skip_matcher(pkg, "general")("pyproject.toml")
     assert not skip_matcher(pkg, "source")("pyproject.toml")
     assert skip_matcher(pkg, "general")("tests/test_package.py"), "the repository's own test"
+
+
+def test_a_package_that_holds_a_key_declares_it_in_its_client(general: tuple[str, Path]) -> None:
+    """sdk-core#538: a package that holds a key renders ``_client.py``, which declares
+    ``ENV_VARS`` with that key, imports ``EnvVar`` alone and holds no client of the template's,
+    and which the repository fills, under ``_skip_if_exists``; the Never file names the key as
+    the package's credential. A package that holds none renders no ``_client.py``."""
+    name, dst = general
+    answers = GENERAL[name]
+    pkg = package_dir(answers)
+    if not holds_a_key(name):
+        assert not (dst / CLIENT_FILE.format(pkg=pkg)).exists()
+        return
+    key = str(answers["api_key_env"])
+    assert entries(dst, answers) == env_vars(answers) == [(key, True, True)]
+    tree = module(dst, answers, "_client.py")
+    imports = [ast.unparse(n) for n in tree.body if isinstance(n, ast.Import | ast.ImportFrom)]
+    assert imports == ["from xippios.core import EnvVar"]
+    assert ast.literal_eval(assigned(tree, "__all__")) == ["API_KEY_ENV", "ENV_VARS"]
+    assert skip_matcher(pkg, "general")(CLIENT_FILE.format(pkg=pkg)), "the repository's"
+    assert f"`{key}`" in (dst / ".claude/rules/never.md").read_text()
+
+
+# A dependency that holds a key, as a source's answer writes it (sdk-core ADR-0021).
+KEYED_DEPENDENCY = '[{name: example-keyed, minor: "0.1", key_env: EXAMPLE_KEYED_API_KEY}]'
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        (
+            "EXAMPLE_API_KEY",
+            [("EXAMPLE_API_KEY", True, True), ("EXAMPLE_KEYED_API_KEY", True, True)],
+        ),
+        ("", None),
+    ],
+)
+def test_the_packages_own_key_decides_its_client(
+    template_src: Path,
+    tmp_path: Path,
+    key: str,
+    expected: list[tuple[str, bool, bool]] | None,
+) -> None:
+    """sdk-core#538: the package's own key decides whether ``_client.py`` renders, and its
+    ``ENV_VARS`` names the keys of the source packages it depends on after its own, as a
+    source's does; a package that holds no key renders none, whatever its dependencies hold.
+    The file passes ruff with several entries too."""
+    answers = {**GENERAL["general-nested"], "source_dependencies": KEYED_DEPENDENCY, **keyed(key)}
+    dst = generate(template_src, tmp_path / "repo", **answers)
+    if expected is None:
+        assert not (dst / CLIENT_FILE.format(pkg=package_dir(answers))).exists()
+        return
+    assert entries(dst, answers) == env_vars(answers) == expected
+    for args in [("check", "."), ("format", "--check", ".")]:
+        result = ruff(dst, *args)
+        assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_an_update_never_writes_the_general_shapes_manifest(
@@ -293,7 +377,7 @@ def test_the_general_render_names_no_upstream(general: tuple[str, Path]) -> None
     hold without one."""
     name, dst = general
     pkg = package_dir(GENERAL[name])
-    for rel in ANSWERED_FILES:
+    for rel in ANSWERED_FILES + ([CLIENT_FILE] if holds_a_key(name) else []):
         text = (dst / rel.format(pkg=pkg)).read_text()
         assert "upstream" not in text.lower(), rel
     never = (dst / ".claude/rules/never.md").read_text()
