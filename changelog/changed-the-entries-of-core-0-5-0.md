@@ -75,5 +75,3 @@
     `changelog/changed-<slug>.md` — The client reads each answer within one read timeout,
     60 s by default, and connects, writes and waits for a connection within 10 s each.
     (https://github.com/xippios/sdk-core/issues/475) — a source whose timeouts change.
-    No entry for the credential names kept for each source — a source's answers change by
-    it only beside another source, which the host's release states.

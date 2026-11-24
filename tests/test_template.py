@@ -1909,13 +1909,17 @@ def test_a_render_names_only_the_commands_it_has(variant: tuple[str, Path]) -> N
 
 
 def test_the_templates_own_files_list_the_rendered_commands() -> None:
-    """#120: this README's generated tree and this CLAUDE.md's layout list the commands a
-    render has, and neither names a command that neither renders nor this repository has."""
+    """#120: this README's generated tree lists the commands a render has, once, since this
+    CLAUDE.md cites the tree (#300), and neither names a command that neither renders nor
+    this repository has."""
     own = {path.stem for path in (ROOT / ".claude/commands").glob("*.md")}
+    readme = (ROOT / "README.md").read_text()
+    assert sorted(layout_commands(readme)) == sorted(RENDERED_COMMANDS)
+    claude = (ROOT / "CLAUDE.md").read_text()
+    layout = re.search(r"^\s*\.claude/commands/[ \t]", claude, re.M)
+    assert layout is None, "CLAUDE.md cites the README's tree and lists no command"
     for name in ["README.md", "CLAUDE.md"]:
-        text = (ROOT / name).read_text()
-        assert sorted(layout_commands(text)) == sorted(RENDERED_COMMANDS), name
-        named = set(COMMAND_NAMED.findall(text))
+        named = set(COMMAND_NAMED.findall((ROOT / name).read_text()))
         assert named <= set(RENDERED_COMMANDS) | own, f"{name}: {named}"
 
 
