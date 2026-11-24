@@ -12,7 +12,10 @@
   - Hand-apply: `scripts/refresh_reference.py` — declare
     `LISTS = Lists(package=PACKAGE, lists=(...), packaged=PACKAGED_LISTS, client=client,
     quota_header=...)` from what it passed to `run`, its `Listed` entries as they stand,
-    and call `run(LISTS, argv)` — core's `run` takes one declaration and no keyword.
+    and call `run(LISTS, argv)` — core's `run` takes one declaration and no keyword. The
+    script is the source's once rendered, so its commented examples reach a new render
+    alone, among them a list of values whose fetch makes its records from the values in
+    its wrapper's `Answer`, since core's frame refuses an `Answer` of plain values.
     `tests/test_built_answers.py` — keep its collecting line alone, deleting `READERS` and
     `ALLOWED`, empty or filled, with the comment above them, and give a place that the
     check then fails a kind of conventions §10 or the input's sentence — the check reads
