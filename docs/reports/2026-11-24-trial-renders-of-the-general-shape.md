@@ -10,13 +10,13 @@ does: before that exclusion ruff fails on those three scripts alone.
 ## Basis
 
 - The template: `copier.yml` and `template/` at
-  https://github.com/xippios/sdk-template/commit/5d5d35601c458a791e744a2d2e8371489d129c51,
+  [5d5d356](https://github.com/xippios/sdk-template/commit/5d5d35601c458a791e744a2d2e8371489d129c51),
   committed into a repository of their own and tagged, since copier renders a git
   repository at a tag. `<template>` below stands for that repository and `<tag>` for its tag.
 - copier 9.19.1 (https://pypi.org/project/copier/9.19.1/), uv and Python 3.12, offline but for
   the packages that `uv sync` installs from PyPI. No upstream was called.
 - The host's tree: a clone of https://github.com/xippios/xippios-mcp at
-  https://github.com/xippios/xippios-mcp/commit/1d3ee79566bbc02b966493df4a3527f6b08dffc0.
+  [1d3ee79](https://github.com/xippios/xippios-mcp/commit/1d3ee79566bbc02b966493df4a3527f6b08dffc0).
 - The shared package has no repository yet, so its answers stand here. Its `source_name` and
   the host's are proposals that no record gives yet.
 - The checks of a render, as the template's `scripts/prove.sh` runs them:
