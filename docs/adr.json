@@ -5,7 +5,7 @@
       "number": 1,
       "title": "Two answers render the package contract's variants: a write server and a multi-tenant source",
       "path": "docs/adr/0001-two-answers-render-the-package-contract-s-variants-a-write.md",
-      "status": "Accepted",
+      "status": "Superseded by ADR-0002",
       "date": "2026-11-19",
       "decided_by": "https://github.com/xippios/sdk-template/issues/174",
       "amended": [
@@ -20,6 +20,22 @@
       ],
       "amends": [],
       "supersedes": [],
+      "other": [],
+      "superseded_by": "ADR-0002"
+    },
+    {
+      "id": "ADR-0002",
+      "number": 2,
+      "title": "The answers that render the package contract's variants, and what the template asks",
+      "path": "docs/adr/0002-the-answers-that-render-the-package-contract-s-variants-and.md",
+      "status": "Accepted",
+      "date": "2026-11-24",
+      "decided_by": "https://github.com/xippios/sdk-template/issues/301",
+      "amended": [],
+      "amends": [],
+      "supersedes": [
+        "ADR-0001"
+      ],
       "other": [],
       "superseded_by": null
     }
