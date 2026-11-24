@@ -25,6 +25,7 @@ import yaml
 from copier import run_copy, run_update
 from helpers import (
     BASE_ANSWERS,
+    KEY_AUTHS,
     QUESTIONS,
     VARIANTS,
     env_vars,
@@ -296,6 +297,10 @@ def test_a_multi_tenant_source_renders_cores_registry(tenants: Path) -> None:
     assert not {"client", "auth", "API_KEY_ENV"} & set(exported), "nothing for one tenant"
     check = function(tree, f"check_{param}")
     assert ast.unparse(check.body[-1]) == f"TENANTS.field({param}, 'API_KEY')"
+    assert not KEY_AUTHS & imported(tree, "xippios.core"), "the source's auth, none of core's"
+    (returned,) = [n for n in ast.walk(function(tree, "_build")) if isinstance(n, ast.Return)]
+    assert returned.value is not None
+    assert ast.unparse(returned.value) == "AsyncClient(config)", "the source passes its auth"
     tasks = module(tenants, answers, "tasks.py")
     assert ast.literal_eval(assigned(tasks, "__all__")) == [f"list_{param}s"]
     listed = ast.unparse(assigned(tasks, f"list_{param}s"))
@@ -393,7 +398,12 @@ def test_a_multi_tenant_source_strips_the_other_tenants(
 def test_the_tenants_prefix_is_the_keys(template_src: Path, tmp_path: Path) -> None:
     """A key whose prefix is not the slug's, as the Google sources share ``GOOGLE_``, gives
     the registry its ``var_prefix``, and every variable follows it."""
-    answers = {"source_slug": "example-ledger", "tenant_param": "account", **keyed("EX_API_KEY")}
+    answers = {
+        "source_slug": "example-ledger",
+        "tenant_param": "account",
+        "has_reference_data": False,
+        **keyed("EX_API_KEY"),
+    }
     dst = generate(template_src, tmp_path / "repo", **answers)
     registry = keywords(assigned(module(dst, answers, "_client.py"), "TENANTS"))
     assert registry["var_prefix"] == "'EX'"
@@ -421,11 +431,16 @@ def test_tenant_param_is_bounded_by_the_longest_python_line(
     template_src: Path, tmp_path: Path, slug: str, name: str
 ) -> None:
     """A parameter up to the bound the help states renders ruff-clean (E501 at 100 columns)
-    with a write server, the reference scaffold and a key prefix of its own, the import of
-    the servers wrapped where a long import path needs it; one more is refused."""
+    with a write server and a key prefix of its own, the import of the servers wrapped where
+    a long import path needs it; one more is refused."""
     assert f"At most {TENANT_PARAM_BOUND} characters" in str(QUESTIONS["tenant_param"]["help"])
     assert len(name) <= TENANT_PARAM_BOUND
-    answers = {"tenant_param": name, "write_server": True, **keyed("EX_BOOKS_API_KEY", "basic")}
+    answers = {
+        "tenant_param": name,
+        "write_server": True,
+        "has_reference_data": False,
+        **keyed("EX_BOOKS_API_KEY"),
+    }
     dst = generate(template_src, tmp_path / "bound", source_slug=slug, **answers)
     for args in [("check", "."), ("format", "--check", ".")]:
         run = ruff(dst, *args)
@@ -468,11 +483,6 @@ def test_the_contracts_answers_are_recorded_and_its_derivations_not(tenants: Pat
         assert derived not in recorded, derived
 
 
-# The auths of core's that a key answer renders: a source whose tenants hold no key passes
-# its own in _build (#175, #209).
-KEY_AUTHS = {"QueryKeyAuth", "HeaderKeyAuth", "BearerAuth", "BasicKeyAuth"}
-
-
 def test_a_keyless_multi_tenant_source_renders_the_tenant_shape(
     template_src: Path, tmp_path: Path, tenants_keyless: Path
 ) -> None:
@@ -482,7 +492,7 @@ def test_a_keyless_multi_tenant_source_renders_the_tenant_shape(
     write server."""
     answers = VARIANTS["tenants-keyless"]
     with_key = {k: v for k, v in answers.items() if k != "tenant_credential_env"}
-    with_key.update(keyed(f"{tenant_prefix(answers)}_API_KEY", "bearer"))
+    with_key.update(keyed(f"{tenant_prefix(answers)}_API_KEY"))
     dst = generate(template_src, tmp_path / "keyed", **with_key)
     pkg = package_dir(answers)
     for rel in [
@@ -643,8 +653,8 @@ def test_tenant_credential_env_is_one_variable_pattern_of_tenants_without_a_key(
     template_src: Path, tmp_path: Path, param: str, value: str | None, answers: dict[str, object]
 ) -> None:
     """A multi-tenant source without a key names its tenants' credential, once, as
-    ``<PREFIX>_<NAME>_<FIELD>`` in upper case; a key is ``api_key_env``'s, which renders its
-    auth and derives the pattern, and a source with one tenant names none."""
+    ``<PREFIX>_<NAME>_<FIELD>`` in upper case; a key is ``api_key_env``'s, which derives
+    the pattern, and a source with one tenant names none."""
     data: dict[str, object] = {"tenant_param": param, **answers}
     if value is not None:
         data["tenant_credential_env"] = value
@@ -672,7 +682,12 @@ def test_tenant_credential_env_is_bounded_by_the_longest_python_line(
     help_text = str(QUESTIONS["tenant_credential_env"]["help"])
     assert f"At most {TENANT_CREDENTIAL_BOUND} characters" in help_text
     assert len(credential) == TENANT_CREDENTIAL_BOUND
-    answers = {"tenant_param": "tenant_of_the_ledger", "write_server": True, **keyed("")}
+    answers = {
+        "tenant_param": "tenant_of_the_ledger",
+        "write_server": True,
+        "has_reference_data": False,
+        **keyed(""),
+    }
     slug = "example-ledger-books"
     dst = generate(
         template_src,

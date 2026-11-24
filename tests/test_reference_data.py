@@ -8,9 +8,8 @@ on core's frame, which sends each request once, counts what it sent and takes ``
 import ast
 import re
 import shutil
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 import pytest
 from copier import run_copy, run_update
@@ -23,9 +22,9 @@ from helpers import (
     VARIANTS,
     generate,
     git,
+    has_reference_data,
     package_dir,
     ruff,
-    tenant_param,
 )
 
 # The scaffold of a source that packages reference data, ``{pkg}`` its package directory:
@@ -59,6 +58,8 @@ NAMED = re.compile(
 # What a module's top level must not call: the family check loads tests/test_live.py to read
 # its declarations and fails one that skips, fails or exits at its import (sdk-core ADR-0055).
 STOPS = {"pytest.skip", "pytest.importorskip", "pytest.fail", "pytest.exit", "sys.exit", "exit"}
+# The variants that package reference data: every one but the multi-tenant ones (#301).
+LISTED = [name for name, answers in VARIANTS.items() if has_reference_data(answers)]
 
 
 def paths(rels: list[str], answers: dict[str, object]) -> list[str]:
@@ -75,16 +76,31 @@ def without_reference(template_src: Path, tmp_path_factory: pytest.TempPathFacto
 def test_the_answer_is_true_unless_a_source_says_otherwise(variant: tuple[str, Path]) -> None:
     """``has_reference_data`` is a bool whose default, true, is one plain scalar, so every
     source that predates the question takes it on update and keeps its scaffold; each
-    variant renders the scaffold whole and records the answer."""
+    variant renders the scaffold whole and records the answer, but a multi-tenant one, which
+    answers false (#301) and renders none of it."""
     name, dst = variant
     question = QUESTIONS["has_reference_data"]
     assert (question["type"], question["default"]) == ("bool", True)
     raw = (ROOT / "copier.yml").read_text().split("\nhas_reference_data:\n", 1)[1]
     block = raw[: re.search(r"^\S", raw, re.MULTILINE).start()]
     assert "\n  default: true\n" in block, "one plain scalar, a literal"
-    assert "\nhas_reference_data: true\n" in (dst / ".copier-answers.yml").read_text()
+    listed = has_reference_data(VARIANTS[name])
+    recorded = f"\nhas_reference_data: {'true' if listed else 'false'}\n"
+    assert recorded in (dst / ".copier-answers.yml").read_text()
     for rel in paths(SCAFFOLD, VARIANTS[name]):
-        assert (dst / rel).exists(), f"{name}: {rel}"
+        assert (dst / rel).exists() is listed, f"{name}: {rel}"
+
+
+@pytest.mark.parametrize("name", ["tenants", "tenants-keyless"])
+def test_a_multi_tenant_source_packages_no_reference_data(
+    template_src: Path, tmp_path: Path, name: str
+) -> None:
+    """#301: the reference scaffold's refresh fetches through the one client of a source
+    with one tenant, so copier refuses a multi-tenant source that answers true, the default,
+    rather than render a script that imports no client."""
+    answers = {**VARIANTS[name], "has_reference_data": True}
+    with pytest.raises(ValueError, match="has_reference_data"):
+        generate(template_src, tmp_path / "repo", **answers)
 
 
 def test_a_source_without_reference_data_renders_none_of_it(without_reference: Path) -> None:
@@ -215,18 +231,17 @@ def identifiers(tree: ast.Module) -> set[str]:
     return found
 
 
-def test_the_refresh_runs_on_cores_frame(variant: tuple[str, Path]) -> None:
+@pytest.mark.parametrize("name", LISTED)
+def test_the_refresh_runs_on_cores_frame(name: str, render: Callable[[str], Path]) -> None:
     """#64, #239, sdk-core ADR-0051: the rendered script declares its lists in ``LISTS``
     and hands them to core's frame, ``xippios.core.refresh.run``, with the package, the
-    lists it ships, the client its fetches go through, the reserved tenant's in a
-    multi-tenant source, and the quota header. The frame sends each request once and
-    counts it, one that fails in transport too, and takes ``--only`` and
-    ``--render-only``, so the script keeps no retry, meter, option or write of its own.
-    A multi-tenant script takes the reserved tenant's client only for a run that fetches,
-    so ``--render-only`` and ``--help`` need none of its variables, as at 0.4.0. Its
-    examples name wrappers in snake case, as ``/add-endpoint`` names them."""
-    name, dst = variant
-    text = (dst / "scripts/refresh_reference.py").read_text()
+    lists it ships, the package's one client, which its fetches go through, and the quota
+    header. The frame sends each request once and counts it, one that fails in transport
+    too, and takes ``--only`` and ``--render-only``, so the script keeps no retry, meter,
+    option or write of its own, and no branch of a multi-tenant source, which packages no
+    reference data (#301). Its examples name wrappers in snake case, as ``/add-endpoint``
+    names them."""
+    text = (render(name) / "scripts/refresh_reference.py").read_text()
     script = ast.parse(text)
     frame = [
         alias.name
@@ -240,17 +255,14 @@ def test_the_refresh_runs_on_cores_frame(variant: tuple[str, Path]) -> None:
         for node in ast.walk(script)
         if isinstance(node, ast.Call) and ast.unparse(node.func) == "run"
     ]
-    tenants = bool(tenant_param(VARIANTS[name]))
-    argv = "arguments" if tenants else "argv"
-    assert [ast.unparse(argument) for argument in call.args] == ["LISTS", argv]
-    client = "client_for(DEMO) if fetches(arguments) else AsyncClient(config)"
-    client = client if tenants else "client"
+    assert [ast.unparse(argument) for argument in call.args] == ["LISTS", "argv"]
     assert {keyword.arg: ast.unparse(keyword.value) for keyword in call.keywords} == {
         "package": "PACKAGE",
         "packaged": "PACKAGED_LISTS",
-        "client": client,
+        "client": "client",
         "quota_header": "QUOTA_HEADER",
     }
+    assert {"DEMO", "client_for", "fetches", "sys"} & identifiers(script) == set()
     own = {"RetryPolicy", "replace", "observe", "argparse", "render_enums", "PackagedList"}
     assert own & identifiers(script) == set(), "core's frame does them"
     wrappers = re.findall(r"\bapi\.(\w+)", text)
@@ -258,49 +270,14 @@ def test_the_refresh_runs_on_cores_frame(variant: tuple[str, Path]) -> None:
     assert [name for name in wrappers if not re.fullmatch(r"[a-z][a-z0-9_]*", name)] == []
 
 
-@pytest.mark.parametrize("name", ["tenants", "tenants-keyless"])
-def test_a_multi_tenant_refresh_that_fetches_nothing_takes_no_tenant(
-    name: str, render: Callable[[str], Path]
-) -> None:
-    """Finding 1 of the review of #287: core's parser takes an option by an unambiguous
-    prefix, ``--render`` for ``--render-only`` and ``--he`` for ``--help``, so the rendered
-    multi-tenant script's ``fetches`` counts ``-h`` and every prefix of either long option
-    longer than ``--`` as a run that fetches nothing, which takes no reserved tenant's
-    client; ``scripts/prove.sh`` runs ``--render`` and ``--he`` with no tenant variable."""
-    script = ast.parse((render(name) / "scripts/refresh_reference.py").read_text())
-    (helper,) = [
-        node for node in script.body if isinstance(node, ast.FunctionDef) and node.name == "fetches"
-    ]
-    namespace: dict[str, Any] = {"Sequence": Sequence}
-    exec(
-        compile(ast.Module(body=[helper], type_ignores=[]), "refresh_reference.py", "exec"),
-        namespace,
-    )
-    fetches = namespace["fetches"]
-    nothing = [
-        ["--render-only"],
-        ["--render"],
-        ["--rend"],
-        ["--r"],
-        ["--help"],
-        ["--he"],
-        ["--h"],
-        ["-h"],
-        ["--only", "unit", "--help"],
-    ]
-    fetching = [[], ["--only", "unit"], ["--o"], ["--"], ["unit"]]
-    assert [arguments for arguments in nothing if fetches(arguments)] == []
-    assert [arguments for arguments in fetching if not fetches(arguments)] == []
-
-
-def test_the_live_tests_collect_cores_comparison(variant: tuple[str, Path]) -> None:
+@pytest.mark.parametrize("name", LISTED)
+def test_the_live_tests_collect_cores_comparison(name: str, render: Callable[[str], Path]) -> None:
     """#252, sdk-core ADR-0055: the rendered ``tests/test_live.py`` collects core's nightly
     comparison of the packaged lists by one star import of ``xippios.core.testing.live``,
     with ``LIVE_LISTS`` and ``NO_LIVE_LIST`` declared empty at its top level, where core's
     family check reads them, and its top level skips, fails and exits nowhere. A render
     without reference data collects none of it, as ``NAMED`` holds."""
-    _, dst = variant
-    tree = ast.parse((dst / "tests/test_live.py").read_text())
+    tree = ast.parse((render(name) / "tests/test_live.py").read_text())
     stars = [
         node.module
         for node in tree.body
