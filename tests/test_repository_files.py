@@ -14,7 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from helpers import ROOT, VARIANTS, dependencies, git, has_files
+from helpers import ROOT, VARIANTS, dependencies, git, has_files, kinds_unnamed
 
 # A dependency's item in the scaffold's entry: the package, the release its bound starts at,
 # and the bound, as pyproject.toml declares it.
@@ -39,6 +39,17 @@ def test_the_scaffold_entry_names_each_dependencys_release_and_bound(
     pyproject = (dst / "pyproject.toml").read_text()
     for package, _, bound in expected:
         assert f'"{package}~={bound}",' in pyproject
+
+
+def test_the_scaffold_entry_names_each_kind_of_dependency(render: Callable[[str], Path]) -> None:
+    """#335: each dependency's item of the scaffold's entry says what each kind of dependency
+    serves, a source package's task layer and a publisher's shared package's public names, each
+    kind with its record of sdk-core, since the answers do not tell them apart."""
+    changelog = (render("dependency") / "CHANGELOG.md").read_text()
+    items = changelog.split("\n- Depends on ")[1:]
+    assert len(items) == len(dependencies(VARIANTS["dependency"]))
+    for item in items:
+        assert kinds_unnamed(item.split("\n- ", 1)[0]) == [], item
 
 
 SNAPSHOT_LINE = "docs/upstream/** -text"

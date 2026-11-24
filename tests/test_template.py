@@ -52,6 +52,7 @@ from helpers import (
     key_answers,
     key_envs,
     keyed,
+    kinds_unnamed,
     live_secrets,
     package_dir,
     ruff,
@@ -737,15 +738,17 @@ def test_the_depends_on_row_says_what_each_kind_of_dependency_serves(
     """The answers do not tell a source package from a publisher's shared package, so the
     source's CLAUDE.md says what each kind serves in its "Depends on" row (#335): a source
     package's task layer by sdk-core ADR-0021 and a shared package's public names by sdk-core
-    ADR-0065, decision 3, each kind in a clause of the row with its record."""
+    ADR-0065, decision 3, each kind with its record."""
     claude = (render("dependency") / "CLAUDE.md").read_text()
     (row,) = [line for line in claude.splitlines() if line.startswith("| Depends on | ")]
-    clauses = row.split("; ")
-    for kind, record in [
-        ("source package", "(sdk-core ADR-0021)"),
-        ("shared package", "(sdk-core ADR-0065 decision 3)"),
-    ]:
-        assert [c for c in clauses if kind in c and record in c], (kind, record, row)
+    assert kinds_unnamed(row) == [], row
+
+
+def test_the_question_of_dependencies_names_each_kind() -> None:
+    """The help of ``source_dependencies`` says what each kind of dependency serves, each kind
+    with its record of sdk-core, as the "Depends on" row of a render does (#335)."""
+    help_text = QUESTIONS["source_dependencies"]["help"]
+    assert kinds_unnamed(help_text) == [], help_text
 
 
 def test_generated_tree_names_no_source_and_no_workspace_file(variant: tuple[str, Path]) -> None:

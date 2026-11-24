@@ -8,6 +8,7 @@ imports what it reads from here.
 
 import ast
 import hashlib
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -192,6 +193,26 @@ def dependencies(answers: dict[str, object]) -> list[dict[str, str]]:
     parsed = yaml.safe_load(str(answers.get("source_dependencies", "[]")))
     assert isinstance(parsed, list)
     return parsed
+
+
+# The two kinds of package a source may depend on, each with the record of sdk-core that says
+# what it serves: a source package its task layer, a publisher's shared package its public
+# names (#335). The answers do not tell them apart, so a text on a dependency names both.
+DEPENDENCY_KINDS = {
+    "source package": "sdk-core ADR-0021",
+    "shared package": "sdk-core ADR-0065 decision 3",
+}
+
+
+def kinds_unnamed(text: str) -> list[str]:
+    """The kinds of dependency that ``text`` does not name with their record: the kind, then
+    its record in the next parentheses, its lines joined."""
+    flat = " ".join(text.split())
+    return [
+        kind
+        for kind, record in DEPENDENCY_KINDS.items()
+        if not re.search(rf"{kind}[^()]*\({re.escape(record)}\b[^()]*\)", flat)
+    ]
 
 
 def has_files(answers: dict[str, object]) -> bool:
