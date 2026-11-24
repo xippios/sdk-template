@@ -2072,6 +2072,18 @@ def test_add_endpoint_names_cores_helpers_where_a_task_meets_them(
         assert "check(" in sentence, sentence
 
 
+def test_add_endpoint_ends_its_list_of_helpers_on_a_full_stop(variant: tuple[str, Path]) -> None:
+    """Finding 3 of #327: the list of core's helpers in ``/add-endpoint`` ends on a full stop
+    in every render, with reference data or without, and each item before the last on a
+    semicolon."""
+    name, dst = variant
+    text = (dst / ".claude/commands/add-endpoint.md").read_text()
+    block = text.split("it takes core's helper and writes none by hand:\n")[1].split("\n\n")[0]
+    items = [" ".join(item.split()) for item in re.split(r"\n   - ", "\n" + block)[1:]]
+    assert len(items) > 1, (name, block)
+    assert [item[-1] for item in items] == [";"] * (len(items) - 1) + ["."], (name, items)
+
+
 def test_record_fixture_takes_cores_recorder(variant: tuple[str, Path]) -> None:
     """#270, sdk-core#483: ``/record-fixture`` names the source's rewrite step, the recorder
     and the one send that writes nothing under their plain names, and what a source's own
