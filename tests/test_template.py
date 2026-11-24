@@ -2855,7 +2855,7 @@ def test_the_templates_own_workflows_are_hardened() -> None:
     """Conventions §13 for this repository's own workflows too: SHA pins with the version
     in a comment, but the organization's checks, called at ``@main``, ``contents: read``
     at the top, and no checkout keeps its credentials but the one in a job that pushes,
-    which says so."""
+    whose reason the README's release section gives (#307)."""
     for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
         for action, comment in workflow_uses(path):
             if path.name in TRIGGER_FILES:
@@ -2874,8 +2874,31 @@ def test_the_templates_own_workflows_are_hardened() -> None:
                 if str(step.get("uses", "")).startswith("actions/checkout@"):
                     kept = step.get("with", {}).get("persist-credentials", True)
                     assert kept is pushes, f"{path.name}: {name}"
-            if pushes:
-                assert "The one checkout that keeps its credentials" in text, path.name
+
+
+def test_the_templates_own_workflows_carry_no_comment() -> None:
+    """https://github.com/xippios/.github/issues/111, #307: this repository's own workflows
+    carry no comment but the version after a pinned action, as the ones it renders as its
+    own; its README says what each does."""
+    for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        for line in path.read_text().splitlines():
+            if YAML_COMMENT.search(line):
+                assert PINNED_USES.fullmatch(line), f"{path.name}: {line}"
+
+
+def test_the_readme_says_what_the_release_run_does() -> None:
+    """#307: the README's release section names ``release.yml`` and says what its header
+    said before: how a run that failed is finished and a tag on the wrong commit mended, by
+    GitHub's two re-runs, and why its one checkout keeps its credentials."""
+    readme = (ROOT / "README.md").read_text()
+    section = readme.split("\n## Releasing the template\n", 1)[1].split("\n## ", 1)[0]
+    for name in [
+        "`.github/workflows/release.yml`",
+        '"Re-run failed jobs"',
+        '"Re-run all jobs"',
+        "`persist-credentials: false`",
+    ]:
+        assert name in section, name
 
 
 PROVE = ROOT / "scripts/prove.sh"
