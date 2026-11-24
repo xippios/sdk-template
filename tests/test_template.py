@@ -31,7 +31,9 @@ from helpers import (
     FAKE_CORE_SHA,
     FETCH_DEPTH,
     KEY_AUTHS,
+    LAYOUT_FILE,
     LIST_HELPERS,
+    NEVER_FILE,
     PINNED,
     PUBLISH_STEP,
     QUESTIONS,
@@ -87,6 +89,7 @@ REPOSITORY_FILES = [
     "docs/adr.md",
     "docs/adr.json",
     "docs/reports/README.md",
+    "docs/layout.md",
     "tests/conftest.py",
     "tests/test_family.py",
     "tests/test_tasks.py",
@@ -111,6 +114,7 @@ REPOSITORY_FILES = [
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/CODEOWNERS",
     ".claude/settings.json",
+    ".claude/rules/never.md",
     ".claude/commands/add-endpoint.md",
     ".claude/commands/record-fixture.md",
     ".claude/commands/refresh-upstream.md",
@@ -309,24 +313,20 @@ def test_the_client_leaves_base_url_and_pace_to_the_source(variant: tuple[str, P
         assert row.startswith(f"| {fact} | <!-- "), row
 
 
-def test_claude_md_and_add_endpoint_state_one_limiter_per_host(variant: tuple[str, Path]) -> None:
-    """#172, conventions §2 and §6: the rendered ``CLAUDE.md`` and ``/add-endpoint`` each
-    state the rule in one paragraph, the one that names ``RateLimit``: it names
-    ``_client.py``, where a second host's client and pace go, ``classify``, whose path
-    checks name a second base on the first host, and ``docs/upstream/``, which names a
-    mirror's host beside its canonical one; ``/add-endpoint``'s names ``CLAUDE.md``, where
-    the host's row goes."""
+def test_add_endpoint_states_one_limiter_per_host(variant: tuple[str, Path]) -> None:
+    """#172, conventions §2 and §6: ``/add-endpoint`` states the rule in one paragraph, the
+    one that names ``RateLimit``: it names ``_client.py``, where a second host's client and
+    pace go, ``classify``, whose path checks name a second base on the first host,
+    ``docs/upstream/``, which names a mirror's host beside its canonical one, and
+    ``CLAUDE.md``, where the host's row goes. The rendered ``CLAUDE.md`` restates it no
+    longer, since the conventions hold it (#300)."""
     name, dst = variant
-    for rel, names in [
-        ("CLAUDE.md", ["`_client.py`", "`classify`", "`docs/upstream/`"]),
-        (
-            ".claude/commands/add-endpoint.md",
-            ["`_client.py`", "`classify`", "`docs/upstream/`", "`CLAUDE.md`"],
-        ),
-    ]:
-        (rule,) = [block for block in blocks((dst / rel).read_text()) if "`RateLimit`" in block]
-        for named in ["conventions §2", "§6", *names]:
-            assert named in rule, f"{name}: {rel}: {named}"
+    rel = ".claude/commands/add-endpoint.md"
+    names = ["`_client.py`", "`classify`", "`docs/upstream/`", "`CLAUDE.md`"]
+    (rule,) = [block for block in blocks((dst / rel).read_text()) if "`RateLimit`" in block]
+    for named in ["conventions §2", "§6", *names]:
+        assert named in rule, f"{name}: {rel}: {named}"
+    assert "`RateLimit`" not in (dst / "CLAUDE.md").read_text(), name
 
 
 def blocks(text: str) -> list[str]:
@@ -388,8 +388,9 @@ FILES_TABLE = "| File | Release | URL | Bytes | sha256 | Fetched | Kept |"
 def test_has_files_renders_the_parsers_and_the_samples_table(variant: tuple[str, Path]) -> None:
     """sdk-core ADR-0020: a source that parses the files it downloads gets ``parse/``, a package of
     one docstring, and ``tests/fixtures/files/README.md``, the samples' provenance table,
-    both skip-listed, and its CLAUDE.md names them in a Files row and in the Layout; every
-    other source renders none of it, a retrieval-only one included (row 57)."""
+    both skip-listed, and its CLAUDE.md names them in a Files row; every other source
+    renders none of it, a retrieval-only one included (row 57). This README's tree lays
+    both out for every source that parses files (#300)."""
     name, dst = variant
     answers = VARIANTS[name]
     parses, pkg = has_files(answers), package_dir(answers)
@@ -399,9 +400,6 @@ def test_has_files_renders_the_parsers_and_the_samples_table(variant: tuple[str,
     assert samples.exists() is parses
     claude = (dst / "CLAUDE.md").read_text().splitlines()
     assert len([line for line in claude if line.startswith("| Files | ")]) == parses
-    layout = [line.split()[0] for line in claude if line.startswith("  ") and line.strip()]
-    assert ("parse/" in layout) is parses
-    assert ("fixtures/files/" in layout) is parses
     if not parses:
         return
     assert [path.name for path in parse.iterdir()] == ["__init__.py"]
@@ -490,7 +488,6 @@ def test_siblings_check_renders_where_the_import_path_nests(variant: tuple[str, 
     rendered = "/" in package_dir(answers) or bool(dependencies(answers))
     assert (dst / ".github/workflows/siblings.yml").is_file() is rendered
     assert (dst / ".github/scripts").exists() is rendered, "no empty directory where flat"
-    assert ("siblings.yml" in (dst / "CLAUDE.md").read_text()) is rendered
     if rendered:
         assert_the_sibling_check(dst, package_dir(answers))
 
@@ -503,19 +500,6 @@ def test_a_flat_source_with_a_dependency_has_the_sibling_check(
     answers = {**VARIANTS["keyless-flat"], "source_dependencies": DEPENDS_ON_BASE}
     dst = generate(template_src, tmp_path / "repo", **answers)
     assert_the_sibling_check(dst, package_dir(answers))
-    claude = (dst / "CLAUDE.md").read_text()
-    assert "siblings.yml" in claude, "the line of .github/scripts/ names it"
-    layout = claude.split("\n## Layout\n", 1)[1].split("```", 2)[1].splitlines()
-    start = next(i for i, line in enumerate(layout) if line.startswith(".github/workflows/"))
-    workflows = [layout[start]]
-    for line in layout[start + 1 :]:
-        if not line.startswith(" "):
-            break
-        workflows.append(line)
-    assert [line for line in workflows if "siblings.yml" in line] == [], (
-        "a shape no source takes: the source writes its own entry (#301)"
-    )
-    assert workflows[-1].endswith(")"), "the list closes on its last workflow"
 
 
 DEPENDS_ON_BASE = '[{name: example-base, minor: "0.3", key_env: ""}]'
@@ -701,11 +685,12 @@ def test_every_live_run_keeps_payloads_out_of_tracebacks(variant: tuple[str, Pat
 SDK_CORE_DOCS = "https://github.com/xippios/sdk-core/blob/main/docs/"
 
 
-def test_claude_md_holds_the_facts_and_imports_nothing(variant: tuple[str, Path]) -> None:
-    """The source's CLAUDE.md links the README's documents in its intro and imports no
-    file (#128), and names its own import path, the provider level where it nests, the key's
-    ini option only where there is a key (row 61), and a "Depends on" row naming each bound
-    only where it declares a dependency (sdk-core ADR-0021)."""
+def test_claude_md_holds_the_facts_and_imports_the_layout(variant: tuple[str, Path]) -> None:
+    """The source's CLAUDE.md links the README's documents in its intro, names the Never
+    file there, and imports one file, its layout (#128, #233), which names its own import
+    path and the provider level where it nests; it says nothing of the key's ini option,
+    which the conventions hold (#300), and holds a "Depends on" row naming each bound only
+    where it declares a dependency (sdk-core ADR-0021)."""
     name, dst = variant
     answers = VARIANTS[name]
     slug, pkg = answers["source_slug"], package_dir(answers)
@@ -714,11 +699,14 @@ def test_claude_md_holds_the_facts_and_imports_nothing(variant: tuple[str, Path]
     assert title.startswith(f"# sdk-{slug} "), title
     assert intro.startswith(f"`xippios-{slug}`"), intro
     assert "(README.md#documents)" in intro, "the README's section, linked"
-    assert not [line for line in claude.splitlines() if line.startswith("@")], "no import"
-    assert f"`xippios.{pkg.replace('/', '.')}`" in claude
+    assert f"`{NEVER_FILE}`" in intro, "named, never imported: Claude Code loads it"
+    imports = [line for line in claude.splitlines() if line.startswith("@")]
+    assert imports == [f"@{LAYOUT_FILE}"], "the layout alone"
+    layout = (dst / LAYOUT_FILE).read_text()
+    assert f"`xippios.{pkg.replace('/', '.')}`" in layout
     if "/" in pkg:
-        assert f"`src/xippios/{pkg.rsplit('/', 1)[0]}/`" in claude, "the provider level"
-    assert ("xippios_placeholder_key_envs" in claude) is bool(key_envs(answers))
+        assert f"`src/xippios/{pkg.rsplit('/', 1)[0]}/`" in layout, "the provider level"
+    assert "xippios_placeholder_key_envs" not in claude, "the conventions' (#300)"
     rows = [line for line in claude.splitlines() if line.startswith("| Depends on | ")]
     depended = [f"`xippios-{d['name']}~={d['minor']}.0`" for d in dependencies(answers)]
     assert len(rows) == bool(depended)
@@ -760,8 +748,9 @@ def test_readme_mcp_snippet_is_json(variant: tuple[str, Path]) -> None:
 # The render's documents and instructions (#128). The README lists the repository's
 # documents under `## Documents`, each by its file on GitHub, and links nothing relative,
 # since PyPI shows it with no repository around it. The CLAUDE.md links that section instead
-# of repeating it, says what the package wraps, its layout, its commands and its code rules,
-# and names nothing around the repository, nor does any file under .claude/.
+# of repeating it, says what the package wraps, its commands and its specifics, imports its
+# layout and states no rule the conventions hold (#300), and names nothing around the
+# repository, nor does its layout or any file under .claude/, the Never file among them.
 DOCUMENT_ITEM = re.compile(
     r"- (?P<repository>[\w-]+): \[(?P<path>[^\]]+)\]"
     r"\(https://github\.com/xippios/(?P<on>[\w-]+)/blob/main/(?P<file>[^)\s]+)\) — \S"
@@ -805,17 +794,8 @@ def documents(readme: str) -> list[tuple[str, str]]:
     return found
 
 
-def layout_entries(claude: str) -> list[str]:
-    """The first word of each entry of the CLAUDE.md's Layout block: a line at the left
-    margin or two spaces in, never a description's continuation."""
-    block = claude.split("\n## Layout\n", 1)[1].split("```\n", 2)[1]
-    lines = [line for line in block.splitlines() if line.strip()]
-    return [line.split()[0] for line in lines if len(line) - len(line.lstrip()) <= 2]
-
-
-def secrecy_rule(claude: str) -> str:
-    """The rule of the Never list on what is never read or printed, its lines joined."""
-    never = claude.split("\n## Never\n", 1)[1].split("\n## ", 1)[0]
+def secrecy_rule(never: str) -> str:
+    """The rule of the Never file on what is never read or printed, its lines joined."""
     (rule,) = [item for item in never.split("\n- ") if "`.envrc`" in item]
     return " ".join(rule.split())
 
@@ -860,15 +840,18 @@ def test_the_status_table_comment_names_both_task_lists(keyless_flat: Path) -> N
 def test_claude_md_and_its_commands_name_nothing_around_the_repository(
     variant: tuple[str, Path],
 ) -> None:
-    """The CLAUDE.md and every file under ``.claude/`` name no tooling, session, claim,
-    numbered rule or pull request's class around the repository, and the CLAUDE.md no branch, no
+    """The CLAUDE.md, its layout and every file under ``.claude/`` name no tooling, session,
+    claim, numbered rule or pull request's class around the repository, and what a session
+    loads at launch, the CLAUDE.md, the layout it imports and the Never file, no branch, no
     GitHub CLI, no merge, no reviewer and no person; no ``.claude/family.md`` is left."""
     _, dst = variant
     found = []
     claude = dst / "CLAUDE.md"
-    paths = [claude, *sorted(p for p in (dst / ".claude").rglob("*") if p.is_file())]
+    loaded = [claude, dst / LAYOUT_FILE, dst / NEVER_FILE]
+    paths = [*loaded[:2], *sorted(p for p in (dst / ".claude").rglob("*") if p.is_file())]
+    assert loaded[2] in paths, "the Never file stands under .claude/"
     for path in paths:
-        patterns = [AROUND, CHANGE_LANDING] if path == claude else [AROUND]
+        patterns = [AROUND, CHANGE_LANDING] if path in loaded else [AROUND]
         for number, line in enumerate(path.read_text().splitlines(), 1):
             if any(pattern.search(line) for pattern in patterns):
                 found.append(f"{path.relative_to(dst)}:{number}: {line}")
@@ -890,11 +873,11 @@ def test_claude_md_links_the_documents_and_repeats_none(variant: tuple[str, Path
 
 
 def test_the_secrecy_rule_names_every_credential_variable(variant: tuple[str, Path]) -> None:
-    """#82, #169: the Never list's secrecy rule names each credential variable of the source,
+    """#82, #169: the Never file's secrecy rule names each credential variable of the source,
     its keys and its dependencies' (none in a keyless render), and the endings of every other
     credential's variable that sdk-core's conventions §7 and review checklist name."""
     name, dst = variant
-    rule = secrecy_rule((dst / "CLAUDE.md").read_text())
+    rule = secrecy_rule((dst / NEVER_FILE).read_text())
     for variable in [*key_envs(VARIANTS[name]), *live_secrets(VARIANTS[name])]:
         assert f"`{variable}`" in rule, variable
     for suffix in SECRET_SUFFIXES:
@@ -903,8 +886,9 @@ def test_the_secrecy_rule_names_every_credential_variable(variant: tuple[str, Pa
 
 @pytest.mark.parametrize("key", ["", "EX_API_KEY"])
 def test_claude_md_names_the_live_secrets(template_src: Path, tmp_path: Path, key: str) -> None:
-    """#108, #82: the variables ``live_secrets`` names stand in the live run's paragraph after
-    the key, in the answer's order, and in the secrecy rule beside the key."""
+    """#108, #82: the variables ``live_secrets`` names stand in the live run's paragraph of
+    the CLAUDE.md after the key, in the answer's order, and in the Never file's secrecy rule
+    beside the key."""
     dst = generate(
         template_src,
         tmp_path / "repo",
@@ -914,7 +898,7 @@ def test_claude_md_names_the_live_secrets(template_src: Path, tmp_path: Path, ke
     )
     claude = (dst / "CLAUDE.md").read_text()
     names = [*([key] if key else []), "A_B", "C_D"]
-    rule = secrecy_rule(claude)
+    rule = secrecy_rule((dst / NEVER_FILE).read_text())
     (live,) = [p for p in claude.split("\n\n") if p.startswith("`.github/workflows/live.yml`")]
     live = " ".join(live.split())
     for name in names:
@@ -924,49 +908,118 @@ def test_claude_md_names_the_live_secrets(template_src: Path, tmp_path: Path, ke
     assert places == sorted(places), "the keys first, then the answer's order"
 
 
-def test_claude_md_lays_out_the_decisions_and_the_fragments(variant: tuple[str, Path]) -> None:
-    """#135: the Layout lists ``scripts/adr_index.py``, ``docs/adr/`` with its index and
-    ``docs/reports/``, which the render holds, and ``changelog/``, and the two release
-    scripts (#247); where ``siblings.yml`` renders, the entry it continues ends with a comma
-    (#35)."""
+def claude_section(claude: str, heading: str) -> str:
+    """The text of a CLAUDE.md's ``## <heading>``, up to the next heading."""
+    return claude.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
+def readme_tree() -> str:
+    """The tree of the family's files under this README's ``## What gets generated``."""
+    readme = (ROOT / "README.md").read_text()
+    return readme.split("\n## What gets generated\n", 1)[1].split("```", 2)[1]
+
+
+def test_this_readme_lays_out_every_file_a_render_holds(variant: tuple[str, Path]) -> None:
+    """#300, #135, #145: the family's files are described once, in this README's tree, so
+    each file a render holds stands there by its name, a command by its own, the decisions'
+    and the changelog's files, the release scripts, every workflow, the Never file and the
+    layout among them; the render describes them nowhere (#233)."""
     _, dst = variant
+    tree = readme_tree()
+    caches = {".ruff_cache", "__pycache__"}
+    missing = []
+    for path in sorted(dst.rglob("*")):
+        rel = path.relative_to(dst)
+        if not path.is_file() or caches & set(rel.parts):
+            continue
+        name = path.stem if rel.parent.as_posix() == ".claude/commands" else path.name
+        if not re.search(rf"(?<![\w.-]){re.escape(name)}(?![\w-])", tree):
+            missing.append(rel.as_posix())
+    assert missing == []
+
+
+# The sections a render's CLAUDE.md keeps, in their order, before the source's specifics:
+# the rules of `## Code rules`, `## When something is unclear` and `## Never` are the
+# conventions', the last in the Never file (#300).
+CLAUDE_SECTIONS = ["What this package wraps", "Layout", "Commands", "Template updates"]
+# The names the offline paragraphs of `## Commands` gave the plugin, which conventions §10
+# and sdk-core ADR-0035 hold.
+OFFLINE_NAMES = ["`rate_limited`", "`network`", "xippios_placeholder_key_envs"]
+COPIER_YML = "https://github.com/xippios/sdk-template/blob/main/copier.yml"
+TEMPLATE_TREE = "https://github.com/xippios/sdk-template/blob/main/README.md#what-gets-generated"
+
+
+def test_claude_md_restates_no_rule_the_conventions_hold(variant: tuple[str, Path]) -> None:
+    """#300: the rendered CLAUDE.md keeps what the package wraps, its layout, its commands,
+    how a template release reaches it and its specifics, in that order. ``## Code rules``,
+    ``## When something is unclear`` and ``## Never`` leave it, and so do the offline
+    paragraphs of ``## Commands``, with the plugin's names, and the two file lists of
+    ``## Template updates``: the section names ``_skip_if_exists`` of the template's
+    ``copier.yml``, linked, and none of the paths it holds, nor a list of the files an
+    update writes again."""
+    name, dst = variant
+    pkg = package_dir(VARIANTS[name])
     claude = (dst / "CLAUDE.md").read_text()
-    entries = layout_entries(claude)
-    scripts = [rel.removeprefix("scripts/") for rel in RELEASE_SCRIPTS]
-    for entry in ["adr_index.py", *scripts, "adr/", "adr.md", "adr.json", "reports/", "changelog/"]:
-        assert entry in entries, entry
-    block = claude.split("\n## Layout\n", 1)[1].split("```\n", 2)[1].splitlines()
-    siblings = [n for n, line in enumerate(block) if line.lstrip().startswith("siblings.yml")]
-    for number in siblings:
-        assert block[number - 1].rstrip().endswith(","), block[number - 1]
+    headings = [line[3:] for line in claude.splitlines() if line.startswith("## ")]
+    assert headings[:-1] == CLAUDE_SECTIONS, headings
+    assert headings[-1].endswith(" specifics"), headings
+    commands = claude_section(claude, "Commands")
+    assert [offline for offline in OFFLINE_NAMES if offline in commands] == []
+    updates = " ".join(claude_section(claude, "Template updates").split())
+    assert "`_skip_if_exists`" in updates
+    assert f"({COPIER_YML})" in updates, "the list stands in the template's questions"
+    spans = set(re.findall(r"`([^`]+)`", updates))
+    protected = {
+        p.removeprefix("src/xippios/{{ package_dir }}/").lstrip("/").replace("/**", "/")
+        for p in QUESTIONS["_skip_if_exists"]
+    }
+    assert sorted(spans & protected) == [], "the files a source fills"
+    package = dst / "src/xippios" / pkg
+    rendered = [s for s in spans if (dst / s).is_file() or (package / s).is_file()]
+    assert len(rendered) <= 4, f"no list of the files an update writes again: {rendered}"
 
 
-def test_claude_md_lays_out_every_workflow(variant: tuple[str, Path]) -> None:
-    """#145: the Layout's ``.github/workflows/`` entry names each workflow the render has,
-    the trigger files of the organization's checks among them, and none it lacks."""
-    _, dst = variant
-    claude = (dst / "CLAUDE.md").read_text()
-    block = claude.split("\n## Layout\n", 1)[1].split("```\n", 2)[1].splitlines()
-    start = next(n for n, line in enumerate(block) if line.startswith(".github/workflows/"))
-    end = next((n for n in range(start + 1, len(block)) if block[n][:1].strip()), len(block))
-    named = set(re.findall(r"\b[\w-]+\.yml\b", " ".join(block[start:end])))
-    rendered = {path.name for path in (dst / ".github/workflows").glob("*.yml")}
-    assert named == rendered
+def test_the_never_file_is_the_templates_and_loads_by_its_place(variant: tuple[str, Path]) -> None:
+    """#300: the nine rules of the former ``## Never`` stand in ``.claude/rules/never.md``,
+    the template's file, which every update writes again. Claude Code loads each markdown
+    file of ``.claude/rules/`` that has no ``paths`` frontmatter at launch, with the
+    priority of ``.claude/CLAUDE.md``, so no line of the source's CLAUDE.md, which no update
+    writes, imports it: the CLAUDE.md names it, and the test above holds that it imports the
+    layout alone."""
+    name, dst = variant
+    never = (dst / NEVER_FILE).read_text()
+    assert never.split("\n\n", 1)[0] == "# Never", "a title, no frontmatter"
+    rules = never.split("\n- ")[1:]
+    assert len(rules) == 9, rules
+    assert [rule for rule in rules if not rule.startswith("Never ")] == []
+    assert not [line for line in never.splitlines() if line.startswith("@")], "no import"
+    assert not skip_matcher(package_dir(VARIANTS[name]))(NEVER_FILE), "the template's"
 
 
-def test_claude_md_asks_for_a_fragment_and_takes_a_release_with_copier(
-    keyed_nested: Path,
-) -> None:
-    """#130: a change's changelog entry is a fragment under ``changelog/``, as
-    ``changelog/README.md`` lays it out; a template release is taken with one ``copier
-    update`` at its tag."""
+def test_the_layout_is_the_sources_and_holds_no_family_tree(variant: tuple[str, Path]) -> None:
+    """#233, #300: ``docs/layout.md``, which the CLAUDE.md imports, is the source's once
+    rendered, so an update creates it where the repository has none and never writes it
+    again, and holds what the source adds to the family's tree: a render, which has added
+    nothing, holds no tree, links this README's tree of the family's files and imports
+    nothing, and the CLAUDE.md's Layout holds no tree either."""
+    name, dst = variant
+    assert skip_matcher(package_dir(VARIANTS[name]))(LAYOUT_FILE), "the source's"
+    layout = (dst / LAYOUT_FILE).read_text()
+    assert layout.startswith("# "), "a title, no frontmatter"
+    assert TEMPLATE_TREE in " ".join(layout.split())
+    assert "```" not in layout, "the family's tree stands in the template's README"
+    assert not [line for line in layout.splitlines() if line.startswith("@")], "no import"
+    assert "```" not in claude_section((dst / "CLAUDE.md").read_text(), "Layout")
+
+
+def test_claude_md_takes_a_release_with_copier(keyed_nested: Path) -> None:
+    """#130: a template release is taken with one ``copier update`` at its tag. The rule
+    on a change's changelog fragment is conventions §12's and the pull-request template's,
+    which the CLAUDE.md restates no longer (#300)."""
     claude = " ".join((keyed_nested / "CLAUDE.md").read_text().split())
-    for name in [
-        "`changelog/`",
-        "`changelog/README.md`",
-        "`uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=<tag>`",
-    ]:
-        assert name in claude, name
+    command = "`uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=<tag>`"
+    assert command in claude
+    assert "`changelog/README.md`" not in claude
 
 
 def commit_rule(claude: str) -> str:
@@ -976,13 +1029,15 @@ def commit_rule(claude: str) -> str:
     return rule
 
 
-def test_both_claude_mds_say_which_commits_follow_conventional_commits(
+def test_the_templates_claude_md_says_which_commits_follow_conventional_commits(
     keyed_nested: Path,
 ) -> None:
     """#149: the rule on Conventional Commits binds a pull request's own commits, and the
-    template's CLAUDE.md and the rendered one say so where they state it."""
-    for claude in [ROOT / "CLAUDE.md", keyed_nested / "CLAUDE.md"]:
-        assert "a pull request's own commits" in commit_rule(claude.read_text()), claude
+    template's CLAUDE.md says so where it states it. A render states the rule in no file
+    that Claude Code loads, since conventions §13 holds it (#300)."""
+    assert "a pull request's own commits" in commit_rule((ROOT / "CLAUDE.md").read_text())
+    for rel in ["CLAUDE.md", LAYOUT_FILE, NEVER_FILE]:
+        assert "Conventional Commits" not in (keyed_nested / rel).read_text(), rel
 
 
 # A citation of a decision record by its bare number, which a source keeps for its own.
@@ -991,14 +1046,15 @@ BARE_ADR = re.compile(r"(?<!sdk-core )\bADR-\d{4}\b")
 
 def test_the_render_cites_sdk_cores_records_as_sdk_cores(variant: tuple[str, Path]) -> None:
     """#152: a source cites its own records as ``ADR-NNNN`` (its ``docs/adr/README.md``), so
-    its CLAUDE.md and README cite each of sdk-core's as ``sdk-core ADR-NNNN``."""
+    its CLAUDE.md, its layout, its Never file and its README cite each of sdk-core's as
+    ``sdk-core ADR-NNNN``."""
     _, dst = variant
     assert "cited as `ADR-NNNN`" in " ".join((dst / "docs/adr/README.md").read_text().split())
-    for rel in ["CLAUDE.md", "README.md"]:
+    for rel in ["CLAUDE.md", LAYOUT_FILE, NEVER_FILE, "README.md"]:
         flat = " ".join((dst / rel).read_text().split())
         assert BARE_ADR.findall(flat) == [], rel
-    claude = " ".join((dst / "CLAUDE.md").read_text().split())
-    assert "sdk-core ADR-0001" in claude, "the three layers"
+    never = " ".join((dst / NEVER_FILE).read_text().split())
+    assert "sdk-core ADR-0001" in never, "the adapters register the tasks"
 
 
 def test_every_documented_live_run_asserts_plain(variant: tuple[str, Path]) -> None:
@@ -1768,10 +1824,10 @@ def test_every_command_points_at_the_process(keyless_flat: Path) -> None:
 
 
 def test_a_render_names_only_the_commands_it_has(variant: tuple[str, Path]) -> None:
-    """#120: every ``/<command>`` a render's files name is one it has, and its
-    ``CLAUDE.md`` lists them all in its layout, so a retired command leaves no mention;
-    a render without reference data, a multi-tenant one (#301), has no
-    ``/refresh-reference-data``."""
+    """#120: every ``/<command>`` a render's files name is one it has, so a retired command
+    leaves no mention; a render without reference data, a multi-tenant one (#301), has no
+    ``/refresh-reference-data``. This README's tree lists them all, as the test below holds,
+    and the render's layout no longer does (#300)."""
     name, dst = variant
     rendered = commands_of(VARIANTS[name])
     named: set[str] = set()
@@ -1779,7 +1835,7 @@ def test_a_render_names_only_the_commands_it_has(variant: tuple[str, Path]) -> N
         if path.is_file() and path.suffix in TEXT_SUFFIXES:
             named |= set(COMMAND_NAMED.findall(path.read_text()))
     assert named <= set(rendered), named - set(rendered)
-    assert sorted(layout_commands((dst / "CLAUDE.md").read_text())) == rendered
+    assert sorted(path.stem for path in (dst / ".claude/commands").glob("*.md")) == rendered
 
 
 def test_the_templates_own_files_list_the_rendered_commands() -> None:
@@ -2008,62 +2064,6 @@ def test_readme_status_table_has_the_columns_the_family_check_reads(keyless_flat
     status = readme[readme.index("\n## Status\n") :]
     status = status[: status.index("\n## ", 1)]
     assert "| Upstream operation | Task function | MCP tool | Status |" in status
-
-
-def written_again(claude: str) -> list[str]:
-    """What the CLAUDE.md's ``## Template updates`` names as the files an update writes
-    again: the code spans of its second paragraph's first sentence after the colon, written
-    as one list, ``a``, ``b`` and ``c``."""
-    section = claude.split("\n## Template updates\n", 1)[1].split("\n## ", 1)[0]
-    paragraph = " ".join(section.strip().split("\n\n")[1].split())
-    listed = paragraph.split(". ", 1)[0].split(": ", 1)[1]
-    names = re.findall(r"`([^`]+)`", listed)
-    assert listed == ", ".join(f"`{n}`" for n in names[:-1]) + f" and `{names[-1]}`", listed
-    return names
-
-
-def test_the_files_an_update_writes_again_are_one_list(variant: tuple[str, Path]) -> None:
-    """#244: beside the files a source fills, the CLAUDE.md names the files an update writes
-    again, and they are every file of the render outside ``_skip_if_exists``, by path. A name
-    stands at the root or in the package, never both, and one that ends in a slash is a
-    directory whose every file is the template's, so a file the template adds there or
-    renames keeps the list true."""
-    name, dst = variant
-    pkg = package_dir(VARIANTS[name])
-    skipped = skip_matcher(pkg)
-    caches = {".ruff_cache", "__pycache__"}
-    rendered = {
-        path.relative_to(dst).as_posix()
-        for path in dst.rglob("*")
-        if path.is_file() and not caches & set(path.relative_to(dst).parts)
-    }
-    owned = {rel for rel in rendered if not skipped(rel)}
-    covered: set[str] = set()
-    for entry in written_again((dst / "CLAUDE.md").read_text()):
-        places = [rel for rel in [entry, f"src/xippios/{pkg}/{entry}"] if (dst / rel).exists()]
-        assert len(places) == 1, f"{entry}: {places}"
-        (place,) = places
-        directory = place.endswith("/")
-        under = {rel for rel in rendered if rel.startswith(place)} if directory else {place}
-        assert under, f"{entry}: no file of the render"
-        assert under <= owned, f"{entry}: {sorted(under - owned)} the source fills"
-        assert not under & covered, f"{entry}: named twice"
-        covered |= under
-    assert sorted(owned - covered) == [], "rendered outside _skip_if_exists, not named"
-
-
-def test_the_files_a_source_fills_are_one_list(keyless_flat: Path) -> None:
-    """The CLAUDE.md names every protected path, in skip order, where it says what a
-    template release re-renders; a pattern anchored at the root by its slash is named
-    without it."""
-    names = [
-        f"`{p.removeprefix('src/xippios/{{ package_dir }}/').lstrip('/').replace('/**', '/')}`"
-        for p in QUESTIONS["_skip_if_exists"]
-    ]
-    listing = ", ".join(names[:-1]) + f" and {names[-1]}"
-    assert names[-1] == "`CLAUDE.md`", "the facts are the source's"
-    claude = (keyless_flat / "CLAUDE.md").read_text()
-    assert listing in " ".join(claude.split())
 
 
 # The render's .github/ (#129): a pull-request template that links sdk-core's definition of
@@ -2686,7 +2686,8 @@ def test_import_path_overrides_the_slug_for_every_package_path(
 def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Path) -> None:
     """A source's files survive a re-render; the template's own are rendered again. The
     conftest and the secrets baseline are the source's from 0.5.0 on, so an update merges no
-    line of the template's into a source's own there (#300).
+    line of the template's into a source's own there, and so is the layout, while the Never
+    file is the template's (#300, #233).
 
     The slug ends in -api, so the package itself is .../api/: the patterns name the package
     directory, and its mcp.py is the template's while its api/ is the source's, as are the
@@ -2698,8 +2699,8 @@ def test_skip_if_exists_protects_content_files(template_src: Path, tmp_path: Pat
     names = ["tasks.py", "_client.py", "errors.py", "__init__.py", "api/__init__.py"]
     mine = [f"{pkg}/{n}" for n in [*names, "parse/__init__.py"]]
     mine += ["tests/test_tasks.py", "tests/fixtures/files/README.md", "README.md", "CLAUDE.md"]
-    mine += ["tests/conftest.py", ".secrets.baseline", *FILLED_SCRIPTS, *ADR_INDEX]
-    templates = [f"{pkg}/mcp.py", ".github/CODEOWNERS"]
+    mine += ["tests/conftest.py", ".secrets.baseline", LAYOUT_FILE, *FILLED_SCRIPTS, *ADR_INDEX]
+    templates = [f"{pkg}/mcp.py", ".github/CODEOWNERS", NEVER_FILE]
     templates += [".claude/settings.json", "changelog/README.md", *ADR_TEMPLATE_FILES]
     for rel in [*mine, *templates]:
         (dst / rel).write_text("# edited\n")

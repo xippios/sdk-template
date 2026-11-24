@@ -130,7 +130,7 @@ def test_the_render_collects_the_built_answer_check(variant: tuple[str, Path]) -
     """#271: a render collects core's check of a built answer's mark by its one line, first in
     ``tests/test_built_answers.py``, and below it the source's ``READERS`` and ``ALLOWED``,
     empty, which the check reads from that module. The module is the source's once rendered,
-    and the generated ``CLAUDE.md`` and ``/add-endpoint`` name it."""
+    and ``/add-endpoint`` names it, as the template's README lays it out (#300)."""
     name, dst = variant
     text = (dst / BUILT_ANSWERS).read_text()
     assert text.splitlines()[0] == BUILT_ANSWERS_LINE, name
@@ -146,9 +146,6 @@ def test_the_render_collects_the_built_answer_check(variant: tuple[str, Path]) -
         declared[ast.unparse(target)] = ast.unparse(node.value)
     assert declared == {"READERS": "frozenset()", "ALLOWED": "{}"}, name
     assert skip_matcher(package_dir(VARIANTS[name]))(BUILT_ANSWERS), "the source's declarations"
-    claude = (dst / "CLAUDE.md").read_text().splitlines()
-    layout = [line.split()[0] for line in claude if line.startswith("  ") and line.strip()]
-    assert "test_built_answers.py" in layout, name
     assert f"`{BUILT_ANSWERS}`" in (dst / ".claude/commands/add-endpoint.md").read_text(), name
 
 

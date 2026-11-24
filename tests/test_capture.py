@@ -1,6 +1,6 @@
 """The capture script, ``scripts/refresh_upstream.py``, as a render holds it: the declaration
 it hands core's snapshot frame, the command that fills it, the stub of ``FETCHED.md`` and the
-rule of the render's ``CLAUDE.md``.
+rule of the render's Never file.
 
 xippios-core 0.4.1's frame, ``xippios.core.refresh``, fetches, checks the attribution, writes
 ``FETCHED.md`` and compares with ``--check`` (sdk-core ADR-0046), and core's own tests hold
@@ -13,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 
-from helpers import BASE_ANSWERS, VARIANTS
+from helpers import BASE_ANSWERS, NEVER_FILE, ROOT, VARIANTS
 
 FRAME = "xippios.core.refresh"
 # The last line of a FETCHED.md that core's frame wrote, which core's family check judges
@@ -135,17 +135,18 @@ def test_the_stub_leaves_the_file_to_core_s_frame(keyless_flat: Path) -> None:
 
 
 def test_the_rule_on_the_snapshot_leaves_the_notes_to_the_hand(keyless_flat: Path) -> None:
-    """Conventions §3: the render's CLAUDE.md forbids a hand edit of ``docs/upstream/`` but
-    for OBSERVED.md, which the command and core's frame name as the one file so written. Its
-    Layout names the declaration the script holds for core's frame (#240)."""
-    claude = flat((keyless_flat / "CLAUDE.md").read_text())
-    (rule,) = [
-        line for line in claude.split("- Never ") if line.startswith("edit `docs/upstream/`")
-    ]
+    """Conventions §3: the render's Never file forbids a hand edit of ``docs/upstream/`` but
+    for OBSERVED.md, which the command and core's frame name as the one file so written. The
+    template's README, whose tree lays out the family's files, names the declaration the
+    script holds for core's frame (#240, #300)."""
+    never = flat((keyless_flat / NEVER_FILE).read_text())
+    (rule,) = [line for line in never.split("- Never ") if line.startswith("edit `docs/upstream/`")]
     assert "`docs/upstream/OBSERVED.md`" in rule
-    layout = claude.split("refresh_upstream.py ", 1)[1].split(" adr_index.py ", 1)[0]
-    assert "SNAPSHOT" in layout, layout
-    assert FRAME in layout, layout
+    readme = (ROOT / "README.md").read_text()
+    tree = flat(readme.split("\n## What gets generated\n", 1)[1].split("```", 2)[1])
+    entry = tree.split("refresh_upstream.py ", 1)[1].split(" adr_index.py ", 1)[0]
+    assert "SNAPSHOT" in entry, entry
+    assert FRAME in entry, entry
 
 
 def test_no_rendered_test_reads_observed_md(variant: tuple[str, Path]) -> None:

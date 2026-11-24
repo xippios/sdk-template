@@ -105,7 +105,7 @@ def test_a_multi_tenant_source_packages_no_reference_data(
 
 def test_a_source_without_reference_data_renders_none_of_it(without_reference: Path) -> None:
     """#40: ``has_reference_data: false`` renders none of the scaffold, no file of the render
-    names it, its CLAUDE.md's code rules among them (#243), and the generated code stays
+    names it, its CLAUDE.md and its Never file among them (#243), and the generated code stays
     lint and format clean."""
     dst = without_reference
     rendered = [rel for rel in paths(SCAFFOLD, VARIANTS["keyed-nested"]) if (dst / rel).exists()]
