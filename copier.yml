@@ -235,7 +235,8 @@ source_dependencies:
     decision 3). A YAML flow list of {name: <slug>, minor: "X.Y", key_env: <VAR or "">}
     entries, e.g. [{name: usda-esmis, minor: "0.1", key_env: ""}]. name is the
     dependency's slug, its package xippios-<slug>, imported under xippios as that package's
-    import path; minor, in quotes, is the minor depended on, rendered as the bound
+    import path, the slug with dots as import_path's default, which ruff's isort groups name
+    beside core's; minor, in quotes, is the minor depended on, rendered as the bound
     xippios-<slug>~=X.Y.0 (conventions §12); key_env is the dependency's key variable, empty
     for an open API, which the offline tests set to the placeholder and live.yml passes from
     its org secret. One level, no cycles: a dependency depends on no other source. The
