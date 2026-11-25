@@ -117,15 +117,16 @@ upstream_docs_url:
   validator: "{% if not upstream_docs_url.startswith('https://') %}Must start with https://{% endif %}"
 
 # The key, asked in both shapes: in the general shape the key that the package holds, a
-# gateway's that its sources share say, which renders _client.py with ENV_VARS alone, and
-# empty, the default, renders none (ADR-0003, decision 10).
+# gateway's that its sources share say, which renders _client.py with ENV_VARS alone and the
+# built-answer check, and empty, the default, renders neither (ADR-0003, decisions 10 and 11).
 api_key_env:
   type: str
   help: >-
     Environment variable holding the API key, e.g. NASS_API_KEY. Leave empty if the API needs
     no key. In the general shape, the key that the package holds, such as the key of a
     gateway that its sources share: _client.py renders, declaring it in ENV_VARS with no
-    client, and the package fills that file; empty, the default, renders none (ADR-0003).
+    client, and the package fills that file, beside tests/test_built_answers.py, core's
+    check of a built answer's mark; empty, the default, renders neither (ADR-0003).
   default: ""
   validator: >-
     {% if api_key_env and not (api_key_env | regex_search('^[A-Z][A-Z0-9_]*_API_KEY$')) %}
@@ -408,15 +409,18 @@ _envops:
   lstrip_blocks: true
 # What the general shape leaves out (ADR-0003): the 27 files of a source, its client, models,
 # tasks, servers, reference scaffold, snapshot, fixtures, live workflow, tests and the four
-# commands that serve them; _client.py only where the package holds no key, since a package
-# that holds one declares it there (ADR-0003, decision 10). Copier renders each exclusion and
-# matches its lines, as gitignore lines, against the rendered paths, so a source's render
-# excludes nothing and the files keep their names, which steps of their own change.
+# commands that serve them; _client.py and the built-answer check only where the package
+# holds no key, since a package that holds one declares it there and builds answers in its
+# tests, which core's check holds to their marks (ADR-0003, decisions 10 and 11). Copier
+# renders each exclusion and matches its lines, as gitignore lines, against the rendered
+# paths, so a source's render excludes nothing and the files keep their names, which steps of
+# their own change.
 _exclude:
   - |-
     {% if shape == 'general' %}
     {% if not api_key_env %}
     /src/xippios/{{ package_dir }}/_client.py
+    /tests/test_built_answers.py
     {% endif %}
     /src/xippios/{{ package_dir }}/errors.py
     /src/xippios/{{ package_dir }}/models.py
@@ -440,7 +444,6 @@ _exclude:
     /.claude/commands/refresh-upstream.md
     /.claude/commands/refresh-reference-data.md
     /tests/test_family.py
-    /tests/test_built_answers.py
     /tests/test_live.py
     /tests/test_tasks.py
     /tests/fixtures
@@ -461,7 +464,8 @@ _exclude:
 # imports; the rules of .claude/rules/never.md are the template's and update with it.
 # In the general shape pyproject.toml is the repository's too, its manifest once rendered,
 # and tests/test_package.py, which only that shape renders, is the repository's own test;
-# _client.py, rendered there where the package holds a key, is the package's as a source's is.
+# _client.py and tests/test_built_answers.py, rendered there where the package holds a key,
+# are the package's as a source's are.
 _skip_if_exists:
   - src/xippios/{{ package_dir }}/__init__.py
   - src/xippios/{{ package_dir }}/_client.py

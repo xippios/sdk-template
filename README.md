@@ -75,7 +75,7 @@ replaces the list.
 | `import_path` | import path under `xippios`; defaults to the slug with dots, so multi-API providers nest (sdk-core ADR-0006); override for a hyphenated single-API provider | `usda.nass` |
 | `upstream_url` | a source's, as are the six questions after it but `api_key_env`, `core_version`, `core_git_ref` and `source_dependencies`: provider page, linked from the README | `https://quickstats.nass.usda.gov` |
 | `upstream_docs_url` | where `/refresh-upstream` fetches the documentation from | `https://quickstats.nass.usda.gov/api` |
-| `api_key_env` | environment variable with the key; empty for open APIs, and for a multi-tenant source whose tenants hold another credential. In the general shape, the key that the package holds, such as the key of a gateway that its sources share, which renders `_client.py` (ADR-0003); empty, the default, for a package that holds none | `NASS_API_KEY` |
+| `api_key_env` | environment variable with the key; empty for open APIs, and for a multi-tenant source whose tenants hold another credential. In the general shape, the key that the package holds, such as the key of a gateway that its sources share, which renders `_client.py` and `tests/test_built_answers.py` (ADR-0003); empty, the default, for a package that holds none | `NASS_API_KEY` |
 | `write_server` | whether the source writes to the upstream through a server of its own (conventions §8): `true` renders `mcp_write.py`, which serves `tasks_write.__all__` as confirm-gated tools, the `tasks_write.py` scaffold, the source's once rendered, and the entry points `xippios-<slug>-mcp-read` and `xippios-<slug>-mcp-write` in place of `xippios-<slug>-mcp`, with no alias for the old name; default `false` | `true` |
 | `tenant_param` | the task parameter that names a tenant, for a multi-tenant source whose upstream serves each tenant under a credential of its own (conventions §7): it renders core's `Tenants` registry in `_client.py`, a client per tenant with its key in `<PREFIX>_<NAME>_API_KEY`, the prefix `api_key_env`'s without `_API_KEY`, the tenants listed in `<PREFIX>_<PARAM>S` and the reserved tenant `demo`, whose key the offline tests and `live.yml` take in place of `api_key_env`; the tenant list task, `build(lock)` and core's `main` with the registry in the servers, whose `--<param>` binds a server to one tenant, and `keep_reserved_tenants` in `tests/conftest.py`. A source whose tenants hold another credential, a refresh token say, answers no key and names that credential's variables in `live_secrets`, the reserved tenant's first, and its own `_client.py` reads them (ADR-0002). At most 20 characters, so every generated Python line stays within 100 columns; default empty, one tenant | `org` |
 | `core_version` | the xippios-core release depended on, `X.Y.Z`, rendered as the bound `xippios-core~=X.Y.Z`, the extras likewise: one core minor, `Z` 0 unless patch `Z` shipped what the source adopts (conventions §12, sdk-core ADR-0039 decision 1); default `0.5.0`, the release the template adopts, rendered `~=0.5.0`; in the general shape at the first render alone, since `pyproject.toml` is then the repository's | `0.5.0` |
@@ -262,11 +262,14 @@ version with its distribution's. Where the package holds a key, which `api_key_e
 the render keeps `_client.py`, the package's under `_skip_if_exists` as a source's is: it
 declares `ENV_VARS` with the key, the keys of the packages it depends on after it, and
 holds no client, configuration, pace or auth, and the package fills it with the code that
-reads the key; a package that holds none renders no `_client.py` (ADR-0003). It renders
-none of a source's 26 other files, which the list `_exclude` of `copier.yml` names with
-`_client.py`: no model, task, server, router, reference scaffold, snapshot, fixture, live
+reads the key. Beside it the render keeps `tests/test_built_answers.py`, the package's under
+`_skip_if_exists` as a source's is, whose one line collects core's check of a built
+answer's mark, since such a package builds answers in its tests, which conventions §12
+holds to §10 (sdk-core ADR-0064); a package that holds none renders neither (ADR-0003). It
+renders none of a source's 25 other files, which the list `_exclude` of `copier.yml` names
+with those two: no model, task, server, router, reference scaffold, snapshot, fixture, live
 workflow, `.gitattributes`, and none of the commands that add an endpoint, record a fixture
-or refresh. A nested render holds 35 files, a flat one 33, and one more where the package
+or refresh. A nested render holds 35 files, a flat one 33, and two more where the package
 holds a key.
 Its `pyproject.toml` declares the family's tables with the `testing` extra alone and no
 entry point, and is the repository's once rendered, so the package keeps its own

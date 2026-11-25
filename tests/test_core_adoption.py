@@ -19,7 +19,15 @@ import sys
 from pathlib import Path
 
 import yaml
-from helpers import CORE_DEFAULT, VARIANTS, generate, package_dir, skip_matcher
+from helpers import (
+    BUILT_ANSWERS,
+    BUILT_ANSWERS_LINE,
+    CORE_DEFAULT,
+    VARIANTS,
+    generate,
+    package_dir,
+    skip_matcher,
+)
 
 # SHA-256 of sdk-core's files that a render copies byte for byte, at the commit of core
 # 0.5.0's candidate that scripts/prove.sh names, the core release the template adopts:
@@ -119,12 +127,6 @@ def test_the_reference_refresh_takes_cores_default_class_name(keyless_flat: Path
     assert not {"class_name", "class_names"} & keywords
     names = {node.id for node in ast.walk(script) if isinstance(node, ast.Name)}
     assert "class_names" not in names
-
-
-# Core 0.5.0's check of a built answer's mark (sdk-core ADR-0064): the module that core's
-# handover names for it, and its collecting line as core's docstring gives it, alone.
-BUILT_ANSWERS = "tests/test_built_answers.py"
-BUILT_ANSWERS_LINE = "from xippios.core.testing.built_answers import *  # noqa: F403"
 
 
 def test_the_render_collects_the_built_answer_check(variant: tuple[str, Path]) -> None:
