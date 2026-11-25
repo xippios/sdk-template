@@ -13,7 +13,375 @@ This file holds the releases after 0.4.0. The sections of 0.4.0 and of every rel
 it stand in `CHANGELOG.md` at the tag `v0.4.0`:
 https://github.com/xippios/sdk-template/blob/v0.4.0/CHANGELOG.md.
 
-## [Unreleased]
+## [0.5.0] - 2026-11-25
+
+### Added
+
+- `copier.yml` asks `shape`, `source` by default, and `general` renders the general part of a
+  repository alone, its CI, release train, changelog, decision records, organization's checks
+  and `/release-prep` around a package with its version, for a package of the family that
+  wraps no API: none of a source's other files and none of its seven questions of an
+  upstream, a `repository_name` that defaults to `sdk-<slug>`, and a `pyproject.toml` that is
+  the repository's once rendered. Where its package holds a key, which `api_key_env` names in
+  this shape too, it renders `_client.py`, which declares the key in `ENV_VARS`, holds no
+  client and is the package's to fill, and beside it `tests/test_built_answers.py`, the one
+  line that collects core's check of a built answer's mark, the package's too, since such a
+  package builds answers in its tests (conventions §12, sdk-core ADR-0064). A source's update
+  records `shape: source` and changes no other file. (ADR-0003,
+  https://github.com/xippios/sdk-template/issues/302,
+  https://github.com/xippios/sdk-core/issues/538,
+  https://github.com/xippios/sdk-template/issues/351)
+
+### Changed
+
+- The rendered `pyproject.toml` names the import path of each package of
+  `source_dependencies` beside `xippios.core` in ruff's `known-third-party`, the slug with
+  dots as `import_path`'s default, so a dependency's imports sort with core's by the
+  template's line. In the general shape, whose `pyproject.toml` is the repository's, the line
+  comes at the first render. A source that added the line by hand takes it from the update,
+  which renders it the same. (https://github.com/xippios/sdk-template/issues/317)
+- The generated `CLAUDE.md`'s "Depends on" row says what each kind of dependency serves: a
+  source package's task layer and its models, and a publisher's shared package's public
+  names, since a shared package has no tasks. The help of `source_dependencies` and its row
+  in this repository's README say the same, and so does a new source's first `CHANGELOG.md`
+  entry for each dependency, which reaches new repositories only. (sdk-core ADR-0021,
+  sdk-core ADR-0065, https://github.com/xippios/sdk-template/issues/335)
+  - Hand-apply: `CLAUDE.md` — sdk-usda-psd and sdk-usda-gats, which declare their dependency
+    on the shared package `xippios-usda-fas` at their adoption of core 0.5.0, write the row
+    as a render of this release has it, and sdk-usda-esr keeps the row it has worded — the
+    update never writes a source's `CLAUDE.md`, and the row said that a dependency serves its
+    task layer alone.
+- This repository's `README.md` and `CLAUDE.md` say each thing once: the README tells the
+  questions, the files that both shapes render, the workflows of a render, the tests' variants
+  and the proofs, and `CLAUDE.md` lays out the repository and holds the rules a change of the
+  template follows, citing the README for the rest. `CHANGELOG.md` holds the releases after
+  0.4.0 and names the tag whose file holds the older sections, and nothing that a source
+  renders changes. (https://github.com/xippios/sdk-template/issues/300)
+- An adoption of this release brings xippios-core 0.5.0, and the Hand-apply note below
+  carries, ready to adapt, the entries that a source's changelog takes for it, first the
+  adoption's own, `breaking` with its three versions, since a core minor is a breaking
+  change of the source, then for each change of core 0.5.0 that the source's callers see
+  the entries that the list "The changes that a source's callers see" under "Adopting core
+  0.5.0" of sdk-core's `docs/handover.md` at its tag `v0.5.0` names, each in its group.
+  The pull request that brings a change, the adoption's or a later one of the source's
+  patch, copies the entry where it holds, as a fragment of its own, and words it for the
+  source's own tasks and names. Where an entry and the handover's list part, the list
+  holds. (https://github.com/xippios/sdk-core/issues/485)
+  - Hand-apply: `changelog/breaking-<slug>.md` — The package depends on
+    `xippios-core~=0.5.0`, its extras likewise, is updated to sdk-template v0.5.0 and
+    applies conventions 1.30. (`https://github.com/xippios/<repository>/issues/<n>`) —
+    every source's adoption, by conventions §15 item 9, its citation the URL of the
+    adoption's issue.
+    `changelog/changed-<slug>.md` — Every refusal of a call as given says `Nothing was
+    sent.` after its first sentence, the MCP adapter's refusal of an argument among them,
+    while a refusal after a request says what was sent, and a list of codes is checked by
+    one call, which names the first code it refuses and refuses an empty list. The
+    refusals' classes are unchanged.
+    (https://github.com/xippios/sdk-core/issues/481) — every source, its own refusals and
+    core's.
+    `changelog/changed-<slug>.md` — `<write task>` is sent once, after a 429 or a renewing
+    bearer's 401 too: its error after a 5xx or a failure in transit says that the request
+    was sent once and that its outcome is unknown, or that nothing was sent where the
+    connection failed, while a 4xx keeps upstream's words, and its docstring names the read
+    that shows whether a failed write was applied. `<billed read>`, which upstream bills, is
+    sent once too, a 5xx no longer repeating it.
+    (https://github.com/xippios/sdk-core/issues/480) — each write task, and each read that
+    upstream bills.
+    `changelog/changed-<slug>.md` — The description of `<tool>` is its task's docstring
+    before `Args:`, under 1,000 characters, and the text of each of its arguments stands
+    in its input schema. (https://github.com/xippios/sdk-core/issues/485) — each tool whose
+    description the adoption trims.
+    `changelog/breaking-<slug>.md` — `<tool>` takes no `offset`: its task pages upstream
+    itself, and a caller pages it by the task's own `start`.
+    (https://github.com/xippios/sdk-core/issues/476) — each tool of a task that takes
+    `start` whose cap was paged.
+    `changelog/added-<slug>.md` — The answer of `<task>` names the codes of its rows in
+    `meta.names`, and a row's code that the packaged list lacks is left out of the names and
+    said in `meta.notes`, so no answer is withheld for it. `meta.notes` holds one sentence
+    for each fact the task says about its answer.
+    (https://github.com/xippios/sdk-core/issues/478) — each task whose record's code field
+    declares its packaged list or the field in which upstream sends the name, and each
+    task's notes.
+    `changelog/changed-<slug>.md` — A decimal without fractional digits is a JSON integer
+    in the answers, `16217` where it read `16217.0`.
+    (https://github.com/xippios/sdk-core/issues/478) — each task whose answer holds such a
+    decimal.
+    `changelog/changed-<slug>.md` — `meta.retrieved_at` of `<task>` is the client's time of
+    the answer, the oldest where it assembles several.
+    (https://github.com/xippios/sdk-core/issues/479) — each task whose `retrieved_at` read
+    another time.
+    `changelog/changed-<slug>.md` — `<task>` sends no request at or past upstream's count,
+    and where it needs more than `<n>` pages it refuses with `InvalidRequestError` and
+    returns nothing, naming the count, the bound, the paging argument, the requests sent,
+    the page reached and the total of pages. (https://github.com/xippios/sdk-core/issues/480)
+    — each task that walks offset pages, with its bound.
+    `changelog/breaking-<slug>.md` — `<task>` is renamed, takes the arguments that
+    identify a record by position in the order of upstream's path and every other by
+    keyword, or leaves, by the boundary of a source package. `<field>` holds a time that
+    upstream prints in the type that keeps all it sends, naive where upstream states no
+    zone, with no text beside it. (https://github.com/xippios/sdk-core/issues/474,
+    https://github.com/xippios/sdk-usda-esr/issues/60) — each task, argument or field
+    renamed or removed.
+    `changelog/changed-<slug>.md` — The answers are kept in core's cache, each for the
+    lifetime of the longest path prefix that its path starts with, none where no prefix
+    matches, an expired answer dropped and the bodies held under a bound of bytes.
+    (https://github.com/xippios/sdk-core/issues/479) — a read-only source of public
+    data, in `added` where it kept no cache before.
+    `changelog/changed-<slug>.md` — The refusal before a request into a spent quota says
+    "quota" with the policy's source and no longer names the key's variable.
+    (https://github.com/xippios/sdk-core/issues/485) — a source whose quota other sources
+    share under one key.
+    `changelog/changed-<slug>.md` — A tenant's client is kept until the registry is reset,
+    so a tenant's changed variable takes effect at the next start, and a value that the
+    source checks is refused by its own `ConfigError`, which names the variable and no
+    value. (https://github.com/xippios/sdk-core/issues/475) — a multi-tenant source whose
+    running server built a new client when a variable changed.
+    `changelog/changed-<slug>.md` — Both servers are named `xippios-<source>`, the help of
+    `--allow-remote` takes core's one wording, and the server's instructions come from the
+    tasks module. (https://github.com/xippios/sdk-core/issues/476) — a source whose server
+    took another name, the write server of a source that named it.
+    `changelog/changed-<slug>.md` — The client reads each answer within one read timeout,
+    60 s by default, and connects, writes and waits for a connection within 10 s each.
+    (https://github.com/xippios/sdk-core/issues/475) — a source whose timeouts change.
+- The five commands keep their steps and cite, for each mechanism, the section of sdk-core's
+  conventions and the name of xippios-core 0.5.0 that serves it, in place of restating them:
+  213 of their 790 lines leave. They name the `Answer` of `get_answer` that a wrapper
+  returns, `record` and `send_once` under their plain names, a task's recording by the
+  source's own capture, the walk `fetch_pages`, `check` with one code or a list, `NamedBy`,
+  `check_dest`, `read_json`, `Lists` and `run`, and no longer `record_task`, `naive_time`,
+  `array_key`, `UNNAMED_CODES` or `NO_TENANT_TASKS`.
+  `/record-fixture` records with a source's own recorder, `scripts/record_fixture.py`, where
+  it has one, and its step 1 names the variables of `live_secrets` beside the key, and
+  `/refresh-upstream` holds `--check` as the one comparison of the snapshot with upstream,
+  since core's family check no longer judges `FETCHED.md` against `SNAPSHOT`.
+  (https://github.com/xippios/sdk-template/issues/300,
+  https://github.com/xippios/sdk-template/issues/310,
+  https://github.com/xippios/sdk-template/issues/333,
+  https://github.com/xippios/sdk-core/issues/483)
+- The generated `CLAUDE.md` keeps what the package wraps, its layout, its commands with the
+  live run, how a template release reaches it and its specifics, and restates no rule that
+  sdk-core's conventions hold: `## Code rules`, `## When something is unclear`, the offline
+  paragraphs of `## Commands` and the two file lists of `## Template updates` leave it, the
+  section naming `_skip_if_exists` of `copier.yml` in place of the lists. The nine rules of
+  `## Never` move into `.claude/rules/never.md`, a file of the template's that every update
+  writes again and that Claude Code loads at launch by its place, and the Layout moves into
+  `docs/layout.md`, the source's own, which `CLAUDE.md` imports and which holds what the
+  source adds to the family's tree, laid out once in this repository's README. The Never
+  file's rule on credentials names the tenants' key pattern only where the tenants hold the
+  key, since the template knows no variable of tenants that hold another credential.
+  (https://github.com/xippios/sdk-template/issues/300,
+  https://github.com/xippios/sdk-template/issues/233,
+  https://github.com/xippios/sdk-template/issues/301)
+  - Hand-apply: `CLAUDE.md` — delete `## Code rules`, `## When something is unclear` and
+    `## Never`, the paragraph after the code block of `## Commands` that says the tests run
+    offline and, where the source has a key, the one after it on the key's placeholder, the
+    Layout's code block with the paragraph below it and the two file lists of
+    `## Template updates`, then write the intro, `## Layout` with its import line
+    `@docs/layout.md` and `## Template updates` as a render of this release has them, and
+    move each line of the source's own from what leaves into its
+    `## <source name> specifics` and each entry of its Layout that this repository's README
+    does not lay out, a module of `api/` or `parse/` or a script or test of its own, into
+    `docs/layout.md`, which takes about 130 lines out of a render's file and about 1,680 out
+    of the twelve sources' files together, an estimate. Then search what stays, and the
+    lines moved into `docs/layout.md`, for each name below, which a render of v0.4.0 or
+    v0.4.1, the template's proofs or a source's own tests held and which this release or
+    core 0.5.0's family check takes out, and reword or delete each line that names one the
+    source no longer holds: `organization.yml`, `xippios_placeholder_key_envs`, the answers
+    `api_base_url`, `api_key_location`, `api_key_name`, `rate_limit_per_minute`,
+    `rate_limit_burst`, `rate_limit_provenance`, `gateway`, `tenant_credential_env` and
+    `human`, `INSTRUCTIONS` and `BOUND_INSTRUCTIONS` of `mcp.py`, `READERS` and `ALLOWED`
+    of `tests/test_built_answers.py`, `test_upstream_answers` of `tests/test_live.py`,
+    `LEVEL` of `ci.yml`, `tests/test_contract.py`, whose package contract core's family
+    check holds, and the proof shapes `--gateway` and `--tenants-keyless`. The names that
+    leave core stand in core's list, "The names that left" under "Adopting core 0.5.0" of
+    sdk-core's `docs/handover.md` at its tag `v0.5.0`, which names
+    `xippios_placeholder_key_envs` too, as the render held it —
+    sdk-core's conventions hold the rules, the template's Never file keeps the rules no
+    change breaks in what Claude Code loads, a change that adds a module then updates a
+    file of the source's own, and a line that names what left points its reader to nothing.
+    `docs/layout.md` — fill it with what the package adds to the family's tree, which this
+    repository's README lays out once, in a code block laid out as that tree is, a line per
+    file or directory with what it holds, from the entries that the item above moves out of
+    the Layout of `CLAUDE.md`, each module of `api/` or `parse/` and each script or test of
+    the source's own among them — the update creates the file where the repository has
+    none, holding the render's stub, which says what the file holds and that the change
+    that adds a module updates it, and it is the source's from this release on, so no later
+    update writes it again.
+- `tests/conftest.py` and `.secrets.baseline` are the source's from this release on: they
+  stand under `_skip_if_exists`, so an update merges no line of the template's into a
+  source's own there, and a later change of core's baseline or of the plugin's line reaches a
+  source by a Hand-apply note. The render's README names neither `published_at` nor `vintage`
+  among what every response carries and says under `## Workflows`, for each workflow the
+  render holds, what it checks, when it runs, what the calling file hands over and what
+  switches it, and a keyless `_client.py` declares no `API_KEY_ENV`. For new repositories
+  only, the stub of `docs/upstream/FETCHED.md` keeps its title and one paragraph, since core's
+  frame writes the file whole at the first refresh, and `scripts/refresh_upstream.py`
+  declares no `reduce` of its own, so core's default keeps each page as fetched.
+  (https://github.com/xippios/sdk-template/issues/300,
+  https://github.com/xippios/sdk-template/issues/308)
+  - Hand-apply: `README.md` — in the first paragraph, say that every response carries its
+    metadata (source, endpoint, retrieved_at, request), naming `published_at` and `vintage`
+    only where every task sets them, and add `## Workflows` before `## Documents` as a render
+    of this release holds it with the source's answers, one paragraph for each workflow the
+    repository holds — core's `ResultMeta` leaves both fields to the task that knows them,
+    and the organization's rule has the README say what each workflow does, since the
+    workflow files carry no comment.
+    `src/xippios/<import path>/_client.py` — in sdk-eurostat, sdk-faostat, sdk-google-mail,
+    sdk-usda-esmis and sdk-usda-wasde, delete the line `API_KEY_ENV: str | None = None` and
+    the name `"API_KEY_ENV"` in `__all__` — a source without a key declares no key's
+    variable, and `ENV_VARS` names what a host sets.
+    `src/xippios/<import path>/errors.py` — delete it where it still holds the scaffold's
+    `__all__: list[str] = []` and no class — a stub that the source never filled says
+    nothing, and an update leaves it deleted.
+    `src/xippios/<import path>/enums.py` — delete it where it still holds the scaffold's
+    `__all__ = []` and no enum — the same.
+    `tests/conftest.py` — nothing to port: the file is the source's from this release on —
+    an update no longer merges the template's lines into it.
+    `.secrets.baseline` — nothing to port: the file is the source's from this release on —
+    an update no longer merges the template's lines into the entries the source audited.
+- The template's own CI proves every shape by one call, `scripts/prove.sh --all`, which
+  holds the list of the shapes, runs each proof in a process of its own, goes on after one
+  that failed and fails where one fails, so a shape added or removed changes the script,
+  never the workflow. Its steps and the script no longer liken a shape to a source of the
+  family. (https://github.com/xippios/sdk-template/issues/302,
+  https://github.com/xippios/sdk-template/issues/304)
+- The template's own workflows carry no comment but the version after a pinned action,
+  as the workflows it renders as its own, and its README says what the release run does,
+  how a run that failed is finished, why a release waits for no other push to `main` and
+  why the run's one checkout keeps its credentials.
+  (https://github.com/xippios/sdk-template/issues/307)
+- The generated `live.yml` and `siblings.yml` carry no comment but the version after a
+  pinned action, as the organization decided for every workflow file, and the template's
+  README says what their comments said: what each checks, when it runs, what it is handed
+  and why `siblings` is a workflow of its own beside `ci.yml`. `copier update` takes the
+  comments out, and `ci.yml` and `publish.yml` keep sdk-core's bytes.
+  (https://github.com/xippios/.github/issues/111,
+  https://github.com/xippios/sdk-template/issues/265)
+
+### Removed
+
+- `copier.yml` no longer asks `gateway`, `tenant_credential_env` or `human`: an update drops
+  the three recorded answers from `.copier-answers.yml` and copies `.github/CODEOWNERS` as it
+  stands, each path that steers a source owned by `jdidaskalu`. The scaffold's `_client.py`
+  renders no gateway, so a source behind api.data.gov keeps `api_key_env` and imports the
+  gateway from its publisher's shared package, `xippios.usda.fas`. A multi-tenant source whose
+  tenants hold no key names that credential's variables in `live_secrets`, the reserved
+  tenant's first, as sdk-google-mail's update passes them,
+  `-d "live_secrets=[GOOGLE_DEMO_REFRESH_TOKEN, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET]"`, by
+  the release's list of the answers each source passes, which keeps the bytes of its
+  `live.yml`. (ADR-0002,
+  https://github.com/xippios/sdk-template/issues/301,
+  https://github.com/xippios/sdk-template/issues/302)
+  - Hand-apply: `src/xippios/<import path>/_client.py` — in sdk-usda-psd, sdk-usda-esr and
+    sdk-usda-gats, import `Gateway` from `xippios.usda.fas` in place of
+    `xippios.core.data_gov` — the gateway leaves core for its publisher's shared package, and
+    the file is the source's once rendered.
+- `copier.yml` no longer asks `api_base_url`, `api_key_location`, `api_key_name`,
+  `rate_limit_per_minute`, `rate_limit_burst` and `rate_limit_provenance`, and refuses
+  `has_reference_data: true` beside `tenant_param`: an update drops the recorded answers from
+  `.copier-answers.yml` and the fixture cap's `LEVEL` variable from `ci.yml`, and changes no
+  file a source fills. A new repository's `_client.py` keeps a marked place for the base URL,
+  the key's auth and the pace, as its `CLAUDE.md` does for their rows, and its first pull
+  request fills them from upstream's documentation as it fills `tasks.py`, which matters to
+  new repositories only. The reference script's multi-tenant branch and the Layout entry of
+  a flat source with a dependency in the generated `CLAUDE.md` leave with them.
+  (https://github.com/xippios/sdk-template/issues/301)
+
+### Breaking
+
+- A render depends on xippios-core 0.5.0, `core_version`'s default, by the bound
+  `xippios-core~=0.5.0`, its extras likewise, and the six files it copies from sdk-core,
+  `ci.yml`, `publish.yml`, `.pre-commit-config.yaml`, `.secrets.baseline`, `.python-version`
+  and `LICENSE`, follow core's bytes at 0.5.0. `ci.yml` and `publish.yml` carry no comment
+  but the version after a pinned action, the template's own lines among them, as core's
+  bytes carry none (conventions §13), and the render's `pyproject.toml` names no
+  `xippios_placeholder_key_envs`, since core's plugin sets each secret variable of the
+  package's `ENV_VARS` in `_client.py` to its placeholder. A source takes them by its
+  adoption, whose update passes `-d core_version=0.5.0`.
+  (https://github.com/xippios/sdk-template/issues/312, https://github.com/xippios/sdk-core/issues/475,
+  https://github.com/xippios/sdk-core/issues/505)
+  - Hand-apply: `pyproject.toml` — in sdk-faostat, delete the line
+    `xippios_placeholder_key_envs = [...]` that it wrote by hand under
+    `[tool.pytest.ini_options]`, with its comment, which the update keeps as the source's
+    own line — core's plugin reads `ENV_VARS`, which declares both variables, and no longer
+    reads the option.
+    `README.md` — in the paragraph on `publish.yml` under `## Workflows`, say that its job
+    `tag` holds the one checkout of the repository that keeps its credentials, since it
+    pushes the tag with the job's token, and that every other checkout sets
+    `persist-credentials: false` — conventions §13 has the README name that exception, which
+    the workflow's comment named before.
+    `tests/conftest.py` — where its comment says that a key's variable is named under
+    `xippios_placeholder_key_envs` in `pyproject.toml`, say that core's plugin reads it from
+    `ENV_VARS` in `_client.py` — the option leaves core.
+- The rendered `scripts/refresh_reference.py` declares its lists in one `Lists` of
+  xippios-core, with the package, the lists it ships, its client and the quota header, and
+  its `main` calls core's `run(LISTS, argv)`, while its commented examples, which reach a
+  new render alone, hold a list of values whose fetch makes its records from the values in
+  its wrapper's `Answer`, since core's frame refuses an `Answer` of plain values.
+  `tests/test_built_answers.py` is its collecting line alone, without `READERS` and
+  `ALLOWED`, which core's check no longer reads, and `tests/test_live.py` holds no probe of
+  upstream's base URL,
+  `test_upstream_answers`, and imports neither `httpx` nor the client's `BASE_URL` and
+  `config`. A render without reference data therefore holds no live test until its first
+  task brings its smoke test, and its nightly run exits with pytest's status 5 until then,
+  as the probe of the scaffold's host that never resolves failed it before.
+  (https://github.com/xippios/sdk-core/issues/482, https://github.com/xippios/sdk-core/issues/483,
+  https://github.com/xippios/sdk-core/issues/477, https://github.com/xippios/sdk-template/issues/342,
+  https://github.com/xippios/sdk-template/issues/343)
+  - Hand-apply: `scripts/refresh_reference.py` — declare
+    `LISTS = Lists(package=PACKAGE, lists=(...), packaged=PACKAGED_LISTS, client=client,
+    quota_header=...)` from what it passed to `run`, its `Listed` entries as they stand,
+    and call `run(LISTS, argv)` — core's `run` takes one declaration and no keyword.
+    `tests/test_built_answers.py` — keep its collecting line alone, deleting `READERS` and
+    `ALLOWED`, empty or filled, with the comment above them, and give a place that the
+    check then fails a kind of conventions §10 or the input's sentence — the check reads
+    neither.
+    `tests/test_live.py` — delete `test_upstream_answers` and its imports of `httpx` and of
+    `BASE_URL` and `config` where nothing else uses them — core's family check and each
+    task's smoke test hold what the probe held.
+    `src/xippios/<import path>/reference/README.md` — where the provenance table's header
+    is not `| File | Origin | Fetched |`, take that one — core's frame knows that header
+    alone.
+- The rendered `mcp.py` and `mcp_write.py` hold no line of a source: `build()` returns the
+  tool set that xippios-core builds from the tasks module, `ToolSet.from_tasks`, `run()`
+  calls core's one `main`, with the registry and the check for a multi-tenant source, and
+  `http.py` passes `tool_functions(tasks)`, the list that `mcp.py` serves. An update renders
+  the three files again and merges a source's own edit of its earlier render into them, as
+  into every file of the template's, silently where this release leaves the lines around the
+  edit alone and as a conflict where it changes them, so a source takes the render's text by
+  hand. The scaffolds of `tasks.py` and `tasks_write.py` hold the server's instructions as
+  `MCP_INSTRUCTIONS`, and a multi-tenant source's bound text as `MCP_BOUND_INSTRUCTIONS`, the
+  scaffold of `__init__.py` re-exports the tenant list task where `tasks.py` lists it, and
+  for new repositories only the comments of `_client.py` name core's one `KeyAuth`.
+  (ADR-0002, https://github.com/xippios/sdk-core/issues/476)
+  - Hand-apply: `src/xippios/<import path>/tasks.py` — move the instructions that `mcp.py`
+    held, `INSTRUCTIONS`, into `MCP_INSTRUCTIONS`, and a multi-tenant source's
+    `BOUND_INSTRUCTIONS` into `MCP_BOUND_INSTRUCTIONS`, declare in sdk-google-mail
+    `MCP_LOOPBACK_ONLY = True` for its read server held to loopback, and give
+    `mcp_apply_options` where it is declared, as in sdk-usda-gats and sdk-usda-nass, core's
+    signature, `mcp_apply_options(namespace) -> None`, without the server — core reads them
+    from the tasks module, and the render's `mcp.py` holds none of them.
+    `src/xippios/<import path>/tasks_write.py` — move the write server's instructions into
+    `MCP_INSTRUCTIONS` likewise, and a multi-tenant source's bound text into
+    `MCP_BOUND_INSTRUCTIONS` — the same, for `mcp_write.py`.
+    `src/xippios/<import path>/_client.py` — in sdk-cashctrl, pass its noun for a tenant
+    as `Tenants(noun=...)` — core's `main` reads the noun from the registry.
+    `src/xippios/<import path>/__init__.py` — import and list in `__all__` each task of
+    `tasks.__all__` and `tasks_write.__all__` that it does not re-export yet — core's
+    family check holds that every task is the package's own.
+    `src/xippios/<import path>/mcp.py` — after the update, compare it with a render of this
+    release with the source's answers and take the render's text wherever the two part, a
+    line of the source's that the update kept without a conflict included — the update
+    merges a source's own edit into the render and says nothing where this release leaves
+    the lines around it alone, and no line of the file is a source's (ADR-0002, decision 9).
+    `src/xippios/<import path>/mcp_write.py` — the same, where the source has a write
+    server, and in sdk-cashctrl, whose update keeps its line
+    `server = build_server(build(), name=...)`, take the render's line
+    `server = build_server(build())`, so that its write server takes the name
+    `xippios-cashctrl` and keeps none of its own —
+    the same, and both servers of a source are named `xippios-<source>`.
+    `src/xippios/<import path>/http.py` — compare it with the render likewise and take the
+    render's text — the same.
 
 ### Answers each source passes
 
