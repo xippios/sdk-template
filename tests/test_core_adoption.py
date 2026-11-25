@@ -1,5 +1,5 @@
-"""The adoption of core 0.5.0: the files a render copies whole from sdk-core, at the commit
-of its candidate, the secret scan's rule for the line on which core's recorder writes a cut body's
+"""The adoption of core 0.5.0: the files a render copies whole from sdk-core, at its tag
+v0.5.0, the secret scan's rule for the line on which core's recorder writes a cut body's
 sha256, the reference refresh on core's default class name (#42, #167, #190), and the
 collecting line of core's check of a built answer's mark (#271).
 
@@ -29,11 +29,11 @@ from helpers import (
     skip_matcher,
 )
 
-# SHA-256 of sdk-core's files that a render copies byte for byte, at the commit of core
-# 0.5.0's candidate that scripts/prove.sh names, the core release the template adopts:
-# git -C <workspace root>/sdk-core show <commit>:<path> | sha256sum (digests, not secrets);
-# the four bytes stand as they stood at v0.4.1. ci.yml and publish.yml, which the template
-# extends by its own lines, are pinned by test_template.py once those lines are taken out.
+# SHA-256 of sdk-core's files that a render copies byte for byte, at its tag v0.5.0, the
+# core release the template adopts: git -C <workspace root>/sdk-core show v0.5.0:<path> |
+# sha256sum (digests, not secrets); the four bytes stand as they stood at v0.4.1. ci.yml and
+# publish.yml, which the template extends by its own lines, are pinned by test_template.py
+# once those lines are taken out.
 CORE_VERBATIM = {
     # pragma: allowlist nextline secret
     ".pre-commit-config.yaml": "214aa7ed6b8bd72a40f1fe3a7e7060e90e6e0e47d3f06415e6804fb16189cd7e",
@@ -47,8 +47,8 @@ CORE_VERBATIM = {
 
 
 def test_the_copies_are_cores_bytes_at_its_tag(keyed_nested: Path) -> None:
-    """#190: the files a render copies whole from sdk-core are core's at the candidate of
-    0.5.0, the release ``core_version`` defaults to."""
+    """#190: the files a render copies whole from sdk-core are core's at its tag v0.5.0,
+    the release ``core_version`` defaults to."""
     assert CORE_DEFAULT == "0.5.0", "the core release the template adopts, its copies'"
     for rel, digest in CORE_VERBATIM.items():
         assert hashlib.sha256((keyed_nested / rel).read_bytes()).hexdigest() == digest, rel

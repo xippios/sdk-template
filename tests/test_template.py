@@ -1506,9 +1506,9 @@ def test_the_live_tests_hold_no_probe_of_the_base_url(
     assert not {m for m in modules if m and m.endswith("._client")}
 
 
-# SHA-256 of sdk-core's files the template departs from, at the commit of core 0.5.0's
-# candidate that scripts/prove.sh names: git -C <workspace root>/sdk-core show
-# <commit>:<path> | sha256sum (digests, not secrets). A render is core's bytes once the
+# SHA-256 of sdk-core's files the template departs from, at its tag v0.5.0, the core release
+# the template adopts: git -C <workspace root>/sdk-core show v0.5.0:<path> | sha256sum
+# (digests, not secrets). A render is core's bytes once the
 # template's own lines, named in CLAUDE.md's Rules, are taken out. Core's gates.yml is no
 # file of the template's (#99), and the PR template links core's definition of done where it
 # copied it (#129). The files a render copies whole are pinned in test_core_adoption.py.
@@ -3159,6 +3159,21 @@ def test_prove_all_takes_no_shape_answer_or_destination(tmp_path: Path, given: l
     assert run.returncode == 2, run.stdout + run.stderr
     assert run.stderr.startswith("error: --all takes "), run.stderr
     assert not PROOF_STARTED.search(run.stdout)
+
+
+# The core reference that scripts/prove.sh passes when it is given none, and its line in the
+# script's usage.
+CORE_REF_DEFAULT = re.compile(r'^core_ref="([^"]*)"', re.MULTILINE)
+
+
+def test_the_proofs_install_the_core_release_from_pypi() -> None:
+    """#355: xippios-core 0.5.0, ``core_version``'s default, is on PyPI, so every proof
+    installs that release with no pin of a core commit: ``scripts/prove.sh`` passes an
+    empty ``core_git_ref`` unless ``--core-ref`` names one, and its usage says so. A later
+    package that proves on a candidate of core sets the default and this test together."""
+    text = PROVE.read_text()
+    assert CORE_REF_DEFAULT.findall(text) == [""]
+    assert '--core-ref REF     sdk-core commit to depend on, main or a full SHA; default ""' in text
 
 
 # Instruction files: what a session or a human reads to act. CHANGELOG history is not one.
