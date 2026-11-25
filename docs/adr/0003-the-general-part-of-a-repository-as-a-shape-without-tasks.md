@@ -1,6 +1,6 @@
 # ADR-0003: The general part of a repository as a shape without tasks and servers
 
-Status: Accepted · Date: 2026-11-24 · Decided by https://github.com/xippios/sdk-template/issues/302 · Amended 2026-11-24 by https://github.com/xippios/sdk-core/issues/538
+Status: Accepted · Date: 2026-11-24 · Decided by https://github.com/xippios/sdk-template/issues/302 · Amended 2026-11-24 by https://github.com/xippios/sdk-core/issues/538 · Amended 2026-11-25 by https://github.com/xippios/sdk-core/issues/485
 
 ## Context
 
@@ -38,7 +38,8 @@ its `ci.yml` carries a job of its own, the image build.
    and refresh. One conditional entry of `_exclude` in `copier.yml` names the 27 paths, which
    copier 9.19 renders and matches against the rendered paths, so a source excludes nothing and
    no file of the template changes its name. Where the package holds a key, the entry leaves
-   `_client.py` out of the 27 and the render keeps it, by decision 10 (amended 2026-11-24).
+   `_client.py` out of the 27 and the render keeps it, by decision 10 (amended 2026-11-24),
+   and `tests/test_built_answers.py` with it, by decision 11 (amended 2026-11-25).
 3. **The questions of an upstream are hidden by their condition.** `upstream_url`,
    `upstream_docs_url`, `write_server`, `tenant_param`, `live_secrets`, `has_files` and
    `has_reference_data` are asked where `shape` is `source` alone, never answered by a default,
@@ -90,6 +91,17 @@ its `ci.yml` carries a job of its own, the image build.
     `_client.py` and sets the placeholder of each secret variable of its `ENV_VARS`, as it
     does for a source. A package that holds no key, as `xippios-mcp`, records the answer
     empty and renders no `_client.py`, whatever its dependencies hold.
+11. **A package that holds a key collects core's built-answer check beside its client file**
+    (amended 2026-11-25). Such a package builds HTTP answers in its tests, the gateway's 404
+    that its `classify` reads say, and conventions §12 holds a publisher's shared package to
+    §10 (sdk-core ADR-0065, decision 3), whose marks of a built answer core's check holds
+    (sdk-core ADR-0064). Where the package holds a key, and so renders `_client.py` by
+    decision 10, the render keeps `tests/test_built_answers.py`, the one line that collects
+    that check, as a source's does, under `_skip_if_exists`, so the package does not keep the
+    module by hand. The check reads the repository's `tests/` and takes its census through
+    core's plugin, which the rendered `tests/conftest.py` enables, so a render with no built
+    answer of its own passes it. A package that holds no key renders no such module, and the
+    host's render is unchanged.
 
 ## Consequences
 
@@ -109,6 +121,9 @@ its `ci.yml` carries a job of its own, the image build.
   does.
 - `sdk-usda-fas` is made from the template by the general shape and answers its gateway's
   key, `DATA_GOV_API_KEY`, as its `api_key_env`, which its `_client.py` declares and its Never
-  file names; no file of the template names a gateway's key (amended 2026-11-24).
+  file names; no file of the template names a gateway's key (amended 2026-11-24). Its first
+  render collects core's built-answer check, which holds the answers its tests build to
+  their marks (amended 2026-11-25).
 - Core's family check holds no repository of the general shape, which renders no
-  `tests/test_family.py`.
+  `tests/test_family.py`; core's built-answer check holds one whose package holds a key
+  (amended 2026-11-25).
