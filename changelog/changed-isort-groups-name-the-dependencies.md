@@ -1,4 +1,4 @@
-- The rendered `pyproject.toml` names the import path of each source package of
+- The rendered `pyproject.toml` names the import path of each package of
   `source_dependencies` beside `xippios.core` in ruff's `known-third-party`, the slug with
   dots as `import_path`'s default, so a dependency's imports sort with core's by the
   template's line. In the general shape, whose `pyproject.toml` is the repository's, the line
