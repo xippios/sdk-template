@@ -21,6 +21,8 @@ import yaml
 from copier import run_copy, run_update
 from helpers import (
     BASE_ANSWERS,
+    BUILT_ANSWERS,
+    BUILT_ANSWERS_LINE,
     GENERAL,
     QUESTIONS,
     RELEASE_SCRIPTS,
@@ -147,15 +149,16 @@ def test_the_general_shape_renders_the_general_part_alone(general: tuple[str, Pa
     """#302: the render holds CI, the publish workflow, the organization's two checks, the
     changelog with its scripts, the decision records' files and ``/release-prep`` around a
     package with its version and ``py.typed``, the sibling check where the import path nests,
-    the client file where the package holds a key (sdk-core#538), and one test of the
-    package's own; no client, task, server, fixture or live workflow."""
+    the client file and core's built-answer check where the package holds a key
+    (sdk-core#538, #351), and one test of the package's own; no client, task, server, fixture
+    or live workflow."""
     name, dst = general
     pkg = package_dir(GENERAL[name])
     expected = [path.format(pkg=pkg) for path in GENERAL_FILES]
     if "/" in pkg:
         expected += SIBLING_FILES
     if holds_a_key(name):
-        expected.append(CLIENT_FILE.format(pkg=pkg))
+        expected += [CLIENT_FILE.format(pkg=pkg), BUILT_ANSWERS]
     assert rendered_files(dst) == sorted(expected)
     empty = [p for p in dst.rglob("*") if p.is_dir() and not any(p.iterdir())]
     assert empty == [], "no directory of a source's file is left empty"
@@ -165,13 +168,13 @@ def test_the_shape_leaves_out_the_27_files_of_a_source(render: Callable[[str], P
     """ADR-0003: one list of ``_exclude`` names the files the general shape leaves out, each a
     file or a directory that a source's render holds, so a step that renames one of them
     changes the list; a source's render excludes nothing. A package that holds a key keeps
-    ``_client.py`` alone of them (sdk-core#538)."""
+    ``_client.py`` and ``tests/test_built_answers.py`` alone of them (sdk-core#538, #351)."""
     pkg = package_dir(VARIANTS["keyed-nested"])
     left_out = copier_patterns("_exclude", pkg, "general")
     assert len(left_out) == 27, left_out
-    client = "/" + CLIENT_FILE.format(pkg=pkg)
+    kept = ["/" + CLIENT_FILE.format(pkg=pkg), "/" + BUILT_ANSWERS]
     keyed_left_out = copier_patterns("_exclude", pkg, "general", "EXAMPLE_API_KEY")
-    assert sorted([*keyed_left_out, client]) == sorted(left_out)
+    assert sorted([*keyed_left_out, *kept]) == sorted(left_out)
     assert copier_patterns("_exclude", pkg, "source") == []
     assert copier_patterns("_exclude", pkg, "source", "EXAMPLE_API_KEY") == []
     held: set[str] = set()
@@ -277,6 +280,22 @@ def test_a_package_that_holds_a_key_declares_it_in_its_client(general: tuple[str
     assert ast.literal_eval(assigned(tree, "__all__")) == ["API_KEY_ENV", "ENV_VARS"]
     assert skip_matcher(pkg, "general")(CLIENT_FILE.format(pkg=pkg)), "the repository's"
     assert f"`{key}`" in (dst / ".claude/rules/never.md").read_text()
+
+
+def test_a_package_that_holds_a_key_collects_the_built_answer_check(
+    general: tuple[str, Path],
+) -> None:
+    """#351: a package that holds a key, and so renders ``_client.py``, builds HTTP answers in
+    its tests, which conventions §12 binds a shared package to mark by §10 (sdk-core
+    ADR-0064): its render collects core's built-answer check by the one line a source's does,
+    ``tests/test_built_answers.py`` whole, the repository's under ``_skip_if_exists``. A
+    package that holds none renders no such module."""
+    name, dst = general
+    if not holds_a_key(name):
+        assert not (dst / BUILT_ANSWERS).exists()
+        return
+    assert (dst / BUILT_ANSWERS).read_text() == BUILT_ANSWERS_LINE + "\n"
+    assert skip_matcher(package_dir(GENERAL[name]), "general")(BUILT_ANSWERS), "the repository's"
 
 
 # A dependency that holds a key, as a source's answer writes it (sdk-core ADR-0021).

@@ -59,6 +59,13 @@ LAYOUT_FILE = "docs/layout.md"
 RELEASE_SCRIPTS = ["scripts/changelog_assemble.py", "scripts/release_prepare.py"]
 
 
+# Core 0.5.0's check of a built answer's mark (sdk-core ADR-0064): the module that core's
+# handover names for it, and its collecting line as core's docstring gives it, alone. A
+# source renders it, and so does a package of the general shape that holds a key.
+BUILT_ANSWERS = "tests/test_built_answers.py"
+BUILT_ANSWERS_LINE = "from xippios.core.testing.built_answers import *  # noqa: F403"
+
+
 # A stand-in for a 40-character sdk-core commit, never fetched: hex of high entropy, as a
 # real SHA is, computed so that no literal in this file looks like a secret.
 FAKE_CORE_SHA = hashlib.sha1(b"a fixed stand-in for an sdk-core commit").hexdigest()
