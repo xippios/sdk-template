@@ -3,10 +3,11 @@
   adoption's own, `breaking` with its three versions, since a core minor is a breaking
   change of the source, then for each change of core 0.5.0 that the source's callers see
   the entries that the list "The changes that a source's callers see" under "Adopting core
-  0.5.0" of sdk-core's `docs/handover.md` at its tag `v0.5.0` names, each in its group. The pull request that brings a change, the adoption's or a
-  later one of the source's patch, copies the entry where it holds, as a fragment of its
-  own, and words it for the source's own tasks and names. Where an entry and the
-  handover's list part, the list holds. (https://github.com/xippios/sdk-core/issues/485)
+  0.5.0" of sdk-core's `docs/handover.md` at its tag `v0.5.0` names, each in its group.
+  The pull request that brings a change, the adoption's or a later one of the source's
+  patch, copies the entry where it holds, as a fragment of its own, and words it for the
+  source's own tasks and names. Where an entry and the handover's list part, the list
+  holds. (https://github.com/xippios/sdk-core/issues/485)
   - Hand-apply: `changelog/breaking-<slug>.md` — The package depends on
     `xippios-core~=0.5.0`, its extras likewise, is updated to sdk-template v0.5.0 and
     applies conventions 1.30. (`https://github.com/xippios/<repository>/issues/<n>`) —
@@ -38,9 +39,10 @@
     `changelog/added-<slug>.md` — The answer of `<task>` names the codes of its rows in
     `meta.names`, and a row's code that the packaged list lacks is left out of the names and
     said in `meta.notes`, so no answer is withheld for it. `meta.notes` holds one sentence
-    for each fact the task says about its answer. (https://github.com/xippios/sdk-core/issues/478) — each task whose record's
-    code field declares its packaged list or the field in which upstream sends the name,
-    and each task's notes.
+    for each fact the task says about its answer.
+    (https://github.com/xippios/sdk-core/issues/478) — each task whose record's code field
+    declares its packaged list or the field in which upstream sends the name, and each
+    task's notes.
     `changelog/changed-<slug>.md` — A decimal without fractional digits is a JSON integer
     in the answers, `16217` where it read `16217.0`.
     (https://github.com/xippios/sdk-core/issues/478) — each task whose answer holds such a
