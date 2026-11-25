@@ -62,7 +62,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dest=""
-core_ref="d2642353117ad27b3073e767a5a9e9a455d50174" # pragma: allowlist secret (a commit of sdk-core)
+core_ref="4060d9615012b09487d87a51064c610de34be069" # pragma: allowlist secret (a commit of sdk-core)
 shape=keyed
 keep=0
 all=0

@@ -6,9 +6,11 @@ on core's frame, which sends each request once, counts what it sent and takes ``
 """
 
 import ast
+import asyncio
+import inspect
 import re
 import shutil
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 
 import pytest
@@ -60,6 +62,57 @@ NAMED = re.compile(
 STOPS = {"pytest.skip", "pytest.importorskip", "pytest.fail", "pytest.exit", "sys.exit", "exit"}
 # The variants that package reference data: every one but the multi-tenant ones (#301).
 LISTED = [name for name, answers in VARIANTS.items() if has_reference_data(answers)]
+# A line of code that the refresh script's examples hold in a comment, the comment's text
+# after its "# ": a definition or a Listed opened, a call closed, or a line indented under one.
+COMMENTED_CODE = re.compile(r"(?:async def |def |Listed\()|\)| {4}")
+# What the wrappers that the examples name answer, an Answer as every api/ wrapper's: plain
+# values where the wrapper's name says values, records otherwise.
+VALUES = {"get_param_values": ["AL", "AK"]}
+RECORDS = [{"unitId": 1, "unitDescription": "1,000 metric tons"}]
+
+
+class Answer:
+    """A stand-in for core's ``Answer``, which an ``api/`` wrapper returns."""
+
+    def __init__(self, payload: object) -> None:
+        self.payload = payload
+
+
+class Wrappers:
+    """The ``api`` of the examples: each wrapper async, answering an ``Answer``."""
+
+    def __getattr__(self, name: str) -> Callable[..., Awaitable[Answer]]:
+        async def wrapper(*_: object) -> Answer:
+            return Answer(VALUES.get(name, RECORDS))
+
+        return wrapper
+
+
+def commented_code(text: str) -> list[str]:
+    """The blocks of code that ``text``'s comments hold, uncommented, in their order."""
+    blocks: list[list[str]] = []
+    after_code = False
+    for line in text.splitlines():
+        comment = line.lstrip()
+        code = comment.startswith("# ") and COMMENTED_CODE.match(comment[2:]) is not None
+        if code and not after_code:
+            blocks.append([])
+        if code:
+            blocks[-1].append(comment[2:])
+        after_code = code
+    return ["\n".join(block) for block in blocks]
+
+
+def records(handed: object) -> bool:
+    """Whether a fetch handed what core's reference frame takes from these wrappers: records,
+    or a wrapper's ``Answer`` of them, read by its ``payload``."""
+    if isinstance(handed, Answer):
+        handed = handed.payload
+    return (
+        isinstance(handed, Sequence)
+        and not isinstance(handed, str | bytes)
+        and all(isinstance(record, Mapping) for record in handed)
+    )
 
 
 def paths(rels: list[str], answers: dict[str, object]) -> list[str]:
@@ -276,6 +329,30 @@ def test_the_refresh_runs_on_cores_frame(name: str, render: Callable[[str], Path
     wrappers = re.findall(r"\bapi\.(\w+)", text)
     assert wrappers, "the examples name wrappers"
     assert [name for name in wrappers if not re.fullmatch(r"[a-z][a-z0-9_]*", name)] == []
+
+
+def test_the_examples_fetch_what_cores_frame_takes(keyless_flat: Path) -> None:
+    """#343, sdk-core ADR-0062, decision 11: each list that the rendered script's commented
+    examples declare, uncommented, has a fetch that hands what core's reference frame takes
+    from wrappers that answer an ``Answer`` as ``api/``'s do, records or an ``Answer`` of
+    records, since the frame refuses an ``Answer`` of plain values (sdk-core#578): a list of
+    values makes its records from the values its wrapper answers."""
+    text = (keyless_flat / "scripts/refresh_reference.py").read_text()
+    declared: list[tuple[str, Callable[[], object]]] = []
+    scope: dict[str, object] = {
+        "api": Wrappers(),
+        "Enumeration": lambda **_: None,
+        "Listed": lambda name, fetch, **_: declared.append((name, fetch)),
+    }
+    for block in commented_code(text):
+        exec(block, scope)
+    assert declared, "the examples declare lists"
+    handed = {name: fetch() for name, fetch in declared}
+    handed = {
+        name: asyncio.run(answer) if inspect.iscoroutine(answer) else answer
+        for name, answer in handed.items()
+    }
+    assert [name for name, answer in handed.items() if not records(answer)] == []
 
 
 @pytest.mark.parametrize("name", LISTED)

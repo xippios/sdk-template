@@ -30,21 +30,31 @@ from xippios.core.refresh import Lists, run
 from xippios.{{ import_path }}._client import client
 from xippios.{{ import_path }}.params import PACKAGE, PACKAGED_LISTS
 
+# A list of values is fetched by a function that makes its records, of one field named by
+# the list, from the values in its wrapper's Answer, since core's frame takes records or an
+# Answer of records and refuses plain values:
+# async def state_alpha() -> list[dict[str, str]]:
+#     """The values of ``state_alpha``, as records of one field named by the list."""
+#     answer = await api.get_param_values("state_alpha")
+#     return [{"state_alpha": value} for value in answer.payload]
+
 LISTS = Lists(
     package=PACKAGE,
     lists=(
         # One Listed per list of params.PACKAGED_LISTS, in the order of their enums in
         # enums.py; import Listed and Enumeration from xippios.core.refresh beside Lists,
         # and api from the package, with the first list that takes them. A list of values,
-        # packaged as records of one field named by the list, makes a StrEnum:
+        # packaged as records of one field named by the list, makes a StrEnum, its fetch the
+        # function above:
         # Listed(
         #     "state_alpha",
-        #     lambda: api.get_param_values("state_alpha"),
+        #     state_alpha,
         #     endpoint="get_param_values",
         #     enum=Enumeration(),
         # ),
         # A list of integer ids and names, packaged as upstream's records, makes an IntEnum
-        # named after its id field, unitId making UnitId:
+        # named after its id field, unitId making UnitId; a wrapper that takes no argument
+        # is its fetch as it stands, its Answer of records read by its payload:
         # Listed(
         #     "unitsOfMeasure",
         #     api.get_units_of_measure,
