@@ -1,8 +1,8 @@
 - The rendered `scripts/refresh_reference.py` declares its lists in one `Lists` of
   xippios-core, with the package, the lists it ships, its client and the quota header, and
-  its `main` calls core's `run(LISTS, argv)`; its commented examples reach a new render
-  alone, among them a list of values whose fetch makes its records from the values in its
-  wrapper's `Answer`, since core's frame refuses an `Answer` of plain values.
+  its `main` calls core's `run(LISTS, argv)`, while its commented examples, which reach a
+  new render alone, hold a list of values whose fetch makes its records from the values in
+  its wrapper's `Answer`, since core's frame refuses an `Answer` of plain values.
   `tests/test_built_answers.py` is its collecting line alone, without `READERS` and
   `ALLOWED`, which core's check no longer reads, and `tests/test_live.py` holds no probe of
   upstream's base URL,
