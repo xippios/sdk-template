@@ -72,77 +72,77 @@ https://github.com/xippios/sdk-template/blob/v0.4.0/CHANGELOG.md.
     applies conventions 1.30. (`https://github.com/xippios/<repository>/issues/<n>`) —
     every source's adoption, by conventions §15 item 9, its citation the URL of the
     adoption's issue.
-    - `changelog/changed-<slug>.md` — Every refusal of a call as given says `Nothing was
-      sent.` after its first sentence, the MCP adapter's refusal of an argument among them,
-      while a refusal after a request says what was sent, and a list of codes is checked by
-      one call, which names the first code it refuses and refuses an empty list. The
-      refusals' classes are unchanged.
-      (https://github.com/xippios/sdk-core/issues/481) — every source, its own refusals and
-      core's.
-    - `changelog/changed-<slug>.md` — `<write task>` is sent once, after a 429 or a renewing
-      bearer's 401 too: its error after a 5xx or a failure in transit says that the request
-      was sent once and that its outcome is unknown, or that nothing was sent where the
-      connection failed, while a 4xx keeps upstream's words, and its docstring names the read
-      that shows whether a failed write was applied. `<billed read>`, which upstream bills, is
-      sent once too, a 5xx no longer repeating it.
-      (https://github.com/xippios/sdk-core/issues/480) — each write task, and each read that
-      upstream bills.
-    - `changelog/changed-<slug>.md` — The description of `<tool>` is its task's docstring
-      before `Args:`, under 1,000 characters, and the text of each of its arguments stands
-      in its input schema. (https://github.com/xippios/sdk-core/issues/485) — each tool whose
-      description the adoption trims.
-    - `changelog/breaking-<slug>.md` — `<tool>` takes no `offset`: its task pages upstream
-      itself, and a caller pages it by the task's own `start`.
-      (https://github.com/xippios/sdk-core/issues/476) — each tool of a task that takes
-      `start` whose cap was paged.
-    - `changelog/added-<slug>.md` — The answer of `<task>` names the codes of its rows in
-      `meta.names`, and a row's code that the packaged list lacks is left out of the names and
-      said in `meta.notes`, so no answer is withheld for it. `meta.notes` holds one sentence
-      for each fact the task says about its answer.
-      (https://github.com/xippios/sdk-core/issues/478) — each task whose record's code field
-      declares its packaged list or the field in which upstream sends the name, and each
-      task's notes.
-    - `changelog/changed-<slug>.md` — A decimal without fractional digits is a JSON integer
-      in the answers, `16217` where it read `16217.0`.
-      (https://github.com/xippios/sdk-core/issues/478) — each task whose answer holds such a
-      decimal.
-    - `changelog/changed-<slug>.md` — `meta.retrieved_at` of `<task>` is the client's time of
-      the answer, the oldest where it assembles several.
-      (https://github.com/xippios/sdk-core/issues/479) — each task whose `retrieved_at` read
-      another time.
-    - `changelog/changed-<slug>.md` — `<task>` sends no request at or past upstream's count,
-      and where it needs more than `<n>` pages it refuses with `InvalidRequestError` and
-      returns nothing, naming the count, the bound, the paging argument, the requests sent,
-      the page reached and the total of pages. (https://github.com/xippios/sdk-core/issues/480)
-      — each task that walks offset pages, with its bound.
-    - `changelog/breaking-<slug>.md` — `<task>` is renamed, takes the arguments that
-      identify a record by position in the order of upstream's path and every other by
-      keyword, or leaves, by the boundary of a source package. `<field>` holds a time that
-      upstream prints in the type that keeps all it sends, naive where upstream states no
-      zone, with no text beside it. (https://github.com/xippios/sdk-core/issues/474,
-      https://github.com/xippios/sdk-usda-esr/issues/60) — each task, argument or field
-      renamed or removed.
-    - `changelog/changed-<slug>.md` — The answers are kept in core's cache, each for the
-      lifetime of the longest path prefix that its path starts with, none where no prefix
-      matches, an expired answer dropped and the bodies held under a bound of bytes.
-      (https://github.com/xippios/sdk-core/issues/479) — a read-only source of public
-      data, in `added` where it kept no cache before.
-    - `changelog/changed-<slug>.md` — The refusal before a request into a spent quota says
-      "quota" with the policy's source and no longer names the key's variable.
-      (https://github.com/xippios/sdk-core/issues/485) — a source whose quota other sources
-      share under one key.
-    - `changelog/changed-<slug>.md` — A tenant's client is kept until the registry is reset,
-      so a tenant's changed variable takes effect at the next start, and a value that the
-      source checks is refused by its own `ConfigError`, which names the variable and no
-      value. (https://github.com/xippios/sdk-core/issues/475) — a multi-tenant source whose
-      running server built a new client when a variable changed.
-    - `changelog/changed-<slug>.md` — Both servers are named `xippios-<source>`, the help of
-      `--allow-remote` takes core's one wording, and the server's instructions come from the
-      tasks module. (https://github.com/xippios/sdk-core/issues/476) — a source whose server
-      took another name, the write server of a source that named it.
-    - `changelog/changed-<slug>.md` — The client reads each answer within one read timeout,
-      60 s by default, and connects, writes and waits for a connection within 10 s each.
-      (https://github.com/xippios/sdk-core/issues/475) — a source whose timeouts change.
+    `changelog/changed-<slug>.md` — Every refusal of a call as given says `Nothing was
+    sent.` after its first sentence, the MCP adapter's refusal of an argument among them,
+    while a refusal after a request says what was sent, and a list of codes is checked by
+    one call, which names the first code it refuses and refuses an empty list. The
+    refusals' classes are unchanged.
+    (https://github.com/xippios/sdk-core/issues/481) — every source, its own refusals and
+    core's.
+    `changelog/changed-<slug>.md` — `<write task>` is sent once, after a 429 or a renewing
+    bearer's 401 too: its error after a 5xx or a failure in transit says that the request
+    was sent once and that its outcome is unknown, or that nothing was sent where the
+    connection failed, while a 4xx keeps upstream's words, and its docstring names the read
+    that shows whether a failed write was applied. `<billed read>`, which upstream bills, is
+    sent once too, a 5xx no longer repeating it.
+    (https://github.com/xippios/sdk-core/issues/480) — each write task, and each read that
+    upstream bills.
+    `changelog/changed-<slug>.md` — The description of `<tool>` is its task's docstring
+    before `Args:`, under 1,000 characters, and the text of each of its arguments stands
+    in its input schema. (https://github.com/xippios/sdk-core/issues/485) — each tool whose
+    description the adoption trims.
+    `changelog/breaking-<slug>.md` — `<tool>` takes no `offset`: its task pages upstream
+    itself, and a caller pages it by the task's own `start`.
+    (https://github.com/xippios/sdk-core/issues/476) — each tool of a task that takes
+    `start` whose cap was paged.
+    `changelog/added-<slug>.md` — The answer of `<task>` names the codes of its rows in
+    `meta.names`, and a row's code that the packaged list lacks is left out of the names and
+    said in `meta.notes`, so no answer is withheld for it. `meta.notes` holds one sentence
+    for each fact the task says about its answer.
+    (https://github.com/xippios/sdk-core/issues/478) — each task whose record's code field
+    declares its packaged list or the field in which upstream sends the name, and each
+    task's notes.
+    `changelog/changed-<slug>.md` — A decimal without fractional digits is a JSON integer
+    in the answers, `16217` where it read `16217.0`.
+    (https://github.com/xippios/sdk-core/issues/478) — each task whose answer holds such a
+    decimal.
+    `changelog/changed-<slug>.md` — `meta.retrieved_at` of `<task>` is the client's time of
+    the answer, the oldest where it assembles several.
+    (https://github.com/xippios/sdk-core/issues/479) — each task whose `retrieved_at` read
+    another time.
+    `changelog/changed-<slug>.md` — `<task>` sends no request at or past upstream's count,
+    and where it needs more than `<n>` pages it refuses with `InvalidRequestError` and
+    returns nothing, naming the count, the bound, the paging argument, the requests sent,
+    the page reached and the total of pages. (https://github.com/xippios/sdk-core/issues/480)
+    — each task that walks offset pages, with its bound.
+    `changelog/breaking-<slug>.md` — `<task>` is renamed, takes the arguments that
+    identify a record by position in the order of upstream's path and every other by
+    keyword, or leaves, by the boundary of a source package. `<field>` holds a time that
+    upstream prints in the type that keeps all it sends, naive where upstream states no
+    zone, with no text beside it. (https://github.com/xippios/sdk-core/issues/474,
+    https://github.com/xippios/sdk-usda-esr/issues/60) — each task, argument or field
+    renamed or removed.
+    `changelog/changed-<slug>.md` — The answers are kept in core's cache, each for the
+    lifetime of the longest path prefix that its path starts with, none where no prefix
+    matches, an expired answer dropped and the bodies held under a bound of bytes.
+    (https://github.com/xippios/sdk-core/issues/479) — a read-only source of public
+    data, in `added` where it kept no cache before.
+    `changelog/changed-<slug>.md` — The refusal before a request into a spent quota says
+    "quota" with the policy's source and no longer names the key's variable.
+    (https://github.com/xippios/sdk-core/issues/485) — a source whose quota other sources
+    share under one key.
+    `changelog/changed-<slug>.md` — A tenant's client is kept until the registry is reset,
+    so a tenant's changed variable takes effect at the next start, and a value that the
+    source checks is refused by its own `ConfigError`, which names the variable and no
+    value. (https://github.com/xippios/sdk-core/issues/475) — a multi-tenant source whose
+    running server built a new client when a variable changed.
+    `changelog/changed-<slug>.md` — Both servers are named `xippios-<source>`, the help of
+    `--allow-remote` takes core's one wording, and the server's instructions come from the
+    tasks module. (https://github.com/xippios/sdk-core/issues/476) — a source whose server
+    took another name, the write server of a source that named it.
+    `changelog/changed-<slug>.md` — The client reads each answer within one read timeout,
+    60 s by default, and connects, writes and waits for a connection within 10 s each.
+    (https://github.com/xippios/sdk-core/issues/475) — a source whose timeouts change.
 - The five commands keep their steps and cite, for each mechanism, the section of sdk-core's
   conventions and the name of xippios-core 0.5.0 that serves it, in place of restating them:
   213 of their 790 lines leave. They name the `Answer` of `get_answer` that a wrapper
@@ -199,14 +199,14 @@ https://github.com/xippios/sdk-template/blob/v0.4.0/CHANGELOG.md.
     sdk-core's conventions hold the rules, the template's Never file keeps the rules no
     change breaks in what Claude Code loads, a change that adds a module then updates a
     file of the source's own, and a line that names what left points its reader to nothing.
-    - `docs/layout.md` — fill it with what the package adds to the family's tree, which this
-      repository's README lays out once, in a code block laid out as that tree is, a line per
-      file or directory with what it holds, from the entries that the item above moves out of
-      the Layout of `CLAUDE.md`, each module of `api/` or `parse/` and each script or test of
-      the source's own among them — the update creates the file where the repository has
-      none, holding the render's stub, which says what the file holds and that the change
-      that adds a module updates it, and it is the source's from this release on, so no later
-      update writes it again.
+    `docs/layout.md` — fill it with what the package adds to the family's tree, which this
+    repository's README lays out once, in a code block laid out as that tree is, a line per
+    file or directory with what it holds, from the entries that the item above moves out of
+    the Layout of `CLAUDE.md`, each module of `api/` or `parse/` and each script or test of
+    the source's own among them — the update creates the file where the repository has
+    none, holding the render's stub, which says what the file holds and that the change
+    that adds a module updates it, and it is the source's from this release on, so no later
+    update writes it again.
 - `tests/conftest.py` and `.secrets.baseline` are the source's from this release on: they
   stand under `_skip_if_exists`, so an update merges no line of the template's into a
   source's own there, and a later change of core's baseline or of the plugin's line reaches a
@@ -226,19 +226,19 @@ https://github.com/xippios/sdk-template/blob/v0.4.0/CHANGELOG.md.
     repository holds — core's `ResultMeta` leaves both fields to the task that knows them,
     and the organization's rule has the README say what each workflow does, since the
     workflow files carry no comment.
-    - `src/xippios/<import path>/_client.py` — in sdk-eurostat, sdk-faostat, sdk-google-mail,
-      sdk-usda-esmis and sdk-usda-wasde, delete the line `API_KEY_ENV: str | None = None` and
-      the name `"API_KEY_ENV"` in `__all__` — a source without a key declares no key's
-      variable, and `ENV_VARS` names what a host sets.
-    - `src/xippios/<import path>/errors.py` — delete it where it still holds the scaffold's
-      `__all__: list[str] = []` and no class — a stub that the source never filled says
-      nothing, and an update leaves it deleted.
-    - `src/xippios/<import path>/enums.py` — delete it where it still holds the scaffold's
-      `__all__ = []` and no enum — the same.
-    - `tests/conftest.py` — nothing to port: the file is the source's from this release on —
-      an update no longer merges the template's lines into it.
-    - `.secrets.baseline` — nothing to port: the file is the source's from this release on —
-      an update no longer merges the template's lines into the entries the source audited.
+    `src/xippios/<import path>/_client.py` — in sdk-eurostat, sdk-faostat, sdk-google-mail,
+    sdk-usda-esmis and sdk-usda-wasde, delete the line `API_KEY_ENV: str | None = None` and
+    the name `"API_KEY_ENV"` in `__all__` — a source without a key declares no key's
+    variable, and `ENV_VARS` names what a host sets.
+    `src/xippios/<import path>/errors.py` — delete it where it still holds the scaffold's
+    `__all__: list[str] = []` and no class — a stub that the source never filled says
+    nothing, and an update leaves it deleted.
+    `src/xippios/<import path>/enums.py` — delete it where it still holds the scaffold's
+    `__all__ = []` and no enum — the same.
+    `tests/conftest.py` — nothing to port: the file is the source's from this release on —
+    an update no longer merges the template's lines into it.
+    `.secrets.baseline` — nothing to port: the file is the source's from this release on —
+    an update no longer merges the template's lines into the entries the source audited.
 - The template's own CI proves every shape by one call, `scripts/prove.sh --all`, which
   holds the list of the shapes, runs each proof in a process of its own, goes on after one
   that failed and fails where one fails, so a shape added or removed changes the script,
@@ -262,7 +262,7 @@ https://github.com/xippios/sdk-template/blob/v0.4.0/CHANGELOG.md.
 
 - `copier.yml` no longer asks `gateway`, `tenant_credential_env` or `human`: an update drops
   the three recorded answers from `.copier-answers.yml` and copies `.github/CODEOWNERS` as it
-  stands, each path that steers a source owned by the maintainer. The scaffold's `_client.py`
+  stands, each path that steers a source owned by `jdidaskalu`. The scaffold's `_client.py`
   renders no gateway, so a source behind api.data.gov keeps `api_key_env` and imports the
   gateway from its publisher's shared package, `xippios.usda.fas`. A multi-tenant source whose
   tenants hold no key names that credential's variables in `live_secrets`, the reserved
@@ -332,16 +332,16 @@ https://github.com/xippios/sdk-template/blob/v0.4.0/CHANGELOG.md.
     `LISTS = Lists(package=PACKAGE, lists=(...), packaged=PACKAGED_LISTS, client=client,
     quota_header=...)` from what it passed to `run`, its `Listed` entries as they stand,
     and call `run(LISTS, argv)` — core's `run` takes one declaration and no keyword.
-    - `tests/test_built_answers.py` — keep its collecting line alone, deleting `READERS` and
-      `ALLOWED`, empty or filled, with the comment above them, and give a place that the
-      check then fails a kind of conventions §10 or the input's sentence — the check reads
-      neither.
-    - `tests/test_live.py` — delete `test_upstream_answers` and its imports of `httpx` and of
-      `BASE_URL` and `config` where nothing else uses them — core's family check and each
-      task's smoke test hold what the probe held.
-    - `src/xippios/<import path>/reference/README.md` — where the provenance table's header
-      is not `| File | Origin | Fetched |`, take that one — core's frame knows that header
-      alone.
+    `tests/test_built_answers.py` — keep its collecting line alone, deleting `READERS` and
+    `ALLOWED`, empty or filled, with the comment above them, and give a place that the
+    check then fails a kind of conventions §10 or the input's sentence — the check reads
+    neither.
+    `tests/test_live.py` — delete `test_upstream_answers` and its imports of `httpx` and of
+    `BASE_URL` and `config` where nothing else uses them — core's family check and each
+    task's smoke test hold what the probe held.
+    `src/xippios/<import path>/reference/README.md` — where the provenance table's header
+    is not `| File | Origin | Fetched |`, take that one — core's frame knows that header
+    alone.
 - The rendered `mcp.py` and `mcp_write.py` hold no line of a source: `build()` returns the
   tool set that xippios-core builds from the tasks module, `ToolSet.from_tasks`, `run()`
   calls core's one `main`, with the registry and the check for a multi-tenant source, and
@@ -361,27 +361,27 @@ https://github.com/xippios/sdk-template/blob/v0.4.0/CHANGELOG.md.
     `mcp_apply_options` where it is declared, as in sdk-usda-gats and sdk-usda-nass, core's
     signature, `mcp_apply_options(namespace) -> None`, without the server — core reads them
     from the tasks module, and the render's `mcp.py` holds none of them.
-    - `src/xippios/<import path>/tasks_write.py` — move the write server's instructions into
-      `MCP_INSTRUCTIONS` likewise, and a multi-tenant source's bound text into
-      `MCP_BOUND_INSTRUCTIONS` — the same, for `mcp_write.py`.
-    - `src/xippios/<import path>/_client.py` — in sdk-cashctrl, pass its noun for a tenant
-      as `Tenants(noun=...)` — core's `main` reads the noun from the registry.
-    - `src/xippios/<import path>/__init__.py` — import and list in `__all__` each task of
-      `tasks.__all__` and `tasks_write.__all__` that it does not re-export yet — core's
-      family check holds that every task is the package's own.
-    - `src/xippios/<import path>/mcp.py` — after the update, compare it with a render of this
-      release with the source's answers and take the render's text wherever the two part, a
-      line of the source's that the update kept without a conflict included — the update
-      merges a source's own edit into the render and says nothing where this release leaves
-      the lines around it alone, and no line of the file is a source's (ADR-0002, decision 9).
-    - `src/xippios/<import path>/mcp_write.py` — the same, where the source has a write
-      server, and in sdk-cashctrl, whose update keeps its line
-      `server = build_server(build(), name=...)`, take the render's line
-      `server = build_server(build())`, so that its write server takes the name
-      `xippios-cashctrl` and keeps none of its own —
-      the same, and both servers of a source are named `xippios-<source>`.
-    - `src/xippios/<import path>/http.py` — compare it with the render likewise and take the
-      render's text — the same.
+    `src/xippios/<import path>/tasks_write.py` — move the write server's instructions into
+    `MCP_INSTRUCTIONS` likewise, and a multi-tenant source's bound text into
+    `MCP_BOUND_INSTRUCTIONS` — the same, for `mcp_write.py`.
+    `src/xippios/<import path>/_client.py` — in sdk-cashctrl, pass its noun for a tenant
+    as `Tenants(noun=...)` — core's `main` reads the noun from the registry.
+    `src/xippios/<import path>/__init__.py` — import and list in `__all__` each task of
+    `tasks.__all__` and `tasks_write.__all__` that it does not re-export yet — core's
+    family check holds that every task is the package's own.
+    `src/xippios/<import path>/mcp.py` — after the update, compare it with a render of this
+    release with the source's answers and take the render's text wherever the two part, a
+    line of the source's that the update kept without a conflict included — the update
+    merges a source's own edit into the render and says nothing where this release leaves
+    the lines around it alone, and no line of the file is a source's (ADR-0002, decision 9).
+    `src/xippios/<import path>/mcp_write.py` — the same, where the source has a write
+    server, and in sdk-cashctrl, whose update keeps its line
+    `server = build_server(build(), name=...)`, take the render's line
+    `server = build_server(build())`, so that its write server takes the name
+    `xippios-cashctrl` and keeps none of its own —
+    the same, and both servers of a source are named `xippios-<source>`.
+    `src/xippios/<import path>/http.py` — compare it with the render likewise and take the
+    render's text — the same.
 
 ### Answers each source passes
 
