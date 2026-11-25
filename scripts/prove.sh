@@ -20,10 +20,11 @@
 # the scaffold's WritePreview, and in the multi-tenant shape the bound server of --<param>
 # as well, whose instructions say that no tool takes the tenant. In the general shape, the
 # general part of a repository without tasks and servers (ADR-0003), it requires none of a
-# source's 26 other files and none of the seven answers of an upstream, the repository's name
+# source's 25 other files and none of the seven answers of an upstream, the repository's name
 # in the answers and the manifest, and, as the answers record the package's key, a
-# _client.py whose ENV_VARS declares that key and that holds no client, or none where the
-# package holds no key (sdk-core#538), and runs the checks of the render and the sibling check.
+# _client.py whose ENV_VARS declares that key and that holds no client, beside core's
+# built-answer check, which passes on the render, or neither where the package holds no key
+# (sdk-core#538, ADR-0003), and runs the checks of the render and the sibling check.
 # No GitHub involved. The placeholder key is core's plugin's to guarantee, and its own
 # suite tests it. --all proves every shape of the list `shapes` below, the keyless nested
 # one again with -d has_files=true, a source that parses the files it downloads
@@ -200,7 +201,7 @@ recorded_shape="$(sed -n 's/^shape: //p' "$dest/.copier-answers.yml")"
 has_reference_data="$(sed -n 's/^has_reference_data: //p' "$dest/.copier-answers.yml")"
 echo
 if [ "$recorded_shape" = general ]; then
-  echo "==> the general shape: none of a source's 26 other files, nothing of an upstream asked"
+  echo "==> the general shape: none of a source's 25 other files, nothing of an upstream asked"
   for rel in "$package_dir/errors.py" "$package_dir/models.py" \
     "$package_dir/api" "$package_dir/parse" "$package_dir/tasks.py" "$package_dir/tasks_write.py" \
     "$package_dir/mcp.py" "$package_dir/mcp_write.py" "$package_dir/http.py" \
@@ -209,7 +210,7 @@ if [ "$recorded_shape" = general ]; then
     .github/workflows/live.yml .claude/commands/add-endpoint.md \
     .claude/commands/record-fixture.md .claude/commands/refresh-upstream.md \
     .claude/commands/refresh-reference-data.md tests/test_family.py \
-    tests/test_built_answers.py tests/test_live.py tests/test_tasks.py tests/fixtures; do
+    tests/test_live.py tests/test_tasks.py tests/fixtures; do
     [ ! -e "$dest/$rel" ] || { echo "error: the general shape rendered $rel" >&2; exit 1; }
   done
   for answer in upstream_url upstream_docs_url write_server tenant_param \
@@ -226,16 +227,18 @@ if [ "$recorded_shape" = general ]; then
   echo "none of them; the answers name the repository $repository, as pyproject.toml does"
 
   # The package's key, which both shapes ask, as copier recorded it, '' for none: it decides
-  # the client file (sdk-core#538).
+  # the client file (sdk-core#538) and the built-answer check beside it (ADR-0003, decision 11).
   recorded_key="$(sed -n 's/^api_key_env: //p' "$dest/.copier-answers.yml")"
   [ "$recorded_key" = "${given_key:-''}" ] \
     || { echo "error: the answers record api_key_env: $recorded_key" >&2; exit 1; }
   echo
   if [ -z "$given_key" ]; then
-    echo "==> the package holds no key, so no _client.py rendered"
-    [ ! -e "$dest/$package_dir/_client.py" ] \
-      || { echo "error: a package without a key rendered _client.py" >&2; exit 1; }
-    echo "none"
+    echo "==> the package holds no key, so neither _client.py nor the built-answer check rendered"
+    for rel in "$package_dir/_client.py" tests/test_built_answers.py; do
+      [ ! -e "$dest/$rel" ] \
+        || { echo "error: a package without a key rendered $rel" >&2; exit 1; }
+    done
+    echo "neither"
   else
     echo "==> the package holds a key: _client.py declares it in ENV_VARS and holds no client"
     (cd "$dest" && uv run python - "xippios.$import_path" "$given_key" <<'PY'
@@ -252,6 +255,9 @@ assert held == [], held
 print(f"ENV_VARS = {client.ENV_VARS!r}; no client and no client's configuration")
 PY
     )
+    echo
+    echo "==> the package holds a key: core's built-answer check, collected, passes on the render"
+    (cd "$dest" && uv run pytest -q tests/test_built_answers.py)
   fi
 elif [ "$has_reference_data" = true ]; then
   # Core's frame stops before anything is read or written while LISTS declares no list.
