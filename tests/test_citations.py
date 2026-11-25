@@ -36,11 +36,10 @@ CORE_BYTES = {
 # form of a citation, and the organization's one index script, whose bytes no repository edits.
 NO_CITATIONS = {"docs/adr/README.md", "scripts/adr_index.py"}
 
-# The records that sdk-core's index, docs/adr.md at the commit of core 0.5.0's candidate
-# that scripts/prove.sh names, the core release the template adopts, lists as superseded,
-# each with the record that stands in its place. The adoption of another core release brings
-# the map to that release's index and SUPERSEDED_AT to its version, which
-# test_the_superseded_records_are_those_of_the_adopted_core asks.
+# The records that sdk-core's index, docs/adr.md at its tag v0.5.0, the core release the
+# template adopts, lists as superseded, each with the record that stands in its place. The
+# adoption of another core release brings the map to that release's index and SUPERSEDED_AT
+# to its version, which test_the_superseded_records_are_those_of_the_adopted_core asks.
 SUPERSEDED_AT = "0.5.0"
 SUPERSEDED = {
     "0003": "0028",

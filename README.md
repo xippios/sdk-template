@@ -219,8 +219,9 @@ Where the import path nests or the source declares a dependency, `siblings.yml` 
 `.github/scripts/check-siblings.sh` on every pull request and push to `main`, handing it
 the job's read-only token for the listing of the organization's repositories, since GitHub
 limits the calls of a runner without one: it installs the wheel beside every sibling on PyPI
-under the same provider namespace that shares its core minor and beside the source packages
-it depends on, at their bound, and proves the namespace levels stay portions
+under the same provider namespace that shares its core minor and beside the packages it
+depends on, source packages or a publisher's shared package, at their bound, and proves the
+namespace levels stay portions
 (sdk-core ADR-0006, sdk-core ADR-0021), a visible check the ruleset does not require; a
 declared dependency on another core minor fails it. A sibling that depends on the source and
 pins its previous minor is left out with a warning that names the pin, since it takes the
@@ -286,7 +287,7 @@ in one adoption PR before its next release (conventions §15, sdk-core ADR-0039)
 `copier update` run inside the generated repository:
 
 ```bash
-uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.4.1 -d core_version=0.4.1 -d core_git_ref=
+uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.5.0 -d core_version=0.5.0 -d core_git_ref=
 git diff                             # review; resolve conflicts
 ```
 
@@ -364,11 +365,11 @@ uv sync
 uv run pytest           # renders each variant below once and checks the renders
 uv run ruff check . && uv run ruff format --check .
 python3 -I scripts/adr_index.py --check   # the ADR index matches the records in docs/adr/
-scripts/prove.sh --all  # every shape below, one proof each, as CI runs them; fails where one fails
+scripts/prove.sh --all  # every shape below but -d has_reference_data=false, one proof each, as CI
+                        # runs them; fails where one fails
 scripts/prove.sh        # full proof: copier copy, uv sync, ruff, mypy, pytest, pre-commit, on
-                        # the commit of core 0.5.0's candidate that --core-ref names until 0.5.0 is on PyPI
+                        # the core release on PyPI that core_version names
 scripts/prove.sh --core-ref main   # against sdk-core's main, --all --core-ref main for every shape
-scripts/prove.sh --core-ref ""     # against the core release on PyPI
 scripts/prove.sh --keyless         # a keyless flat source instead of the keyed nested one
 scripts/prove.sh --keyless-nested  # a keyless nested source
 scripts/prove.sh --keyless-nested -d has_files=true   # one that parses files

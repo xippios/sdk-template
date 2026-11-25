@@ -41,9 +41,9 @@
 #                      fails where one fails
 #   --dest DIR         where to generate, a path that does not exist yet; default a new
 #                      temporary directory
-#   --core-ref REF     sdk-core commit to depend on, main or a full SHA, "" for the PyPI
-#                      release; default the full SHA of core 0.5.0's candidate on sdk-core's
-#                      main, until xippios-core 0.5.0 is on PyPI
+#   --core-ref REF     sdk-core commit to depend on, main or a full SHA; default "", the
+#                      release on PyPI that core_version names, e.g. --core-ref main to prove
+#                      against unreleased core
 #   (no shape flag)    a keyed nested source, sdk-example-api (xippios.example.api)
 #   --keyless          a keyless flat source, sdk-example (xippios.example)
 #   --keyless-nested   a keyless nested source, sdk-example-files (xippios.example.files)
@@ -63,7 +63,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dest=""
-core_ref="4060d9615012b09487d87a51064c610de34be069" # pragma: allowlist secret (a commit of sdk-core)
+core_ref=""
 shape=keyed
 keep=0
 all=0

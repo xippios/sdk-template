@@ -13,6 +13,16 @@ This file holds the releases after 0.4.0. The sections of 0.4.0 and of every rel
 it stand in `CHANGELOG.md` at the tag `v0.4.0`:
 https://github.com/xippios/sdk-template/blob/v0.4.0/CHANGELOG.md.
 
+## [Unreleased]
+
+### Answers each source passes
+
+- sdk-google-mail: `uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.5.0 -d core_version=0.5.0 -d core_git_ref= -d "live_secrets=[GOOGLE_DEMO_REFRESH_TOKEN, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET]"`
+- sdk-usda-esr: `uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.5.0 -d core_version=0.5.0 -d core_git_ref= -d 'source_dependencies=[{name: usda-fas, minor: "0.1", key_env: DATA_GOV_API_KEY}]'`
+- sdk-usda-gats: `uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.5.0 -d core_version=0.5.0 -d core_git_ref= -d 'source_dependencies=[{name: usda-fas, minor: "0.1", key_env: DATA_GOV_API_KEY}]'`
+- sdk-usda-psd: `uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.5.0 -d core_version=0.5.0 -d core_git_ref= -d 'source_dependencies=[{name: usda-fas, minor: "0.1", key_env: DATA_GOV_API_KEY}]'`
+- sdk-usda-wasde: `uvx --from 'copier>=9.19' copier update --defaults --vcs-ref=v0.5.0 -d core_version=0.5.0 -d core_git_ref= -d 'source_dependencies=[{name: usda-esmis, minor: "0.4", key_env: ""}]'`
+
 ## [0.4.1] - 2026-11-23
 
 A generated repository takes xippios-core 0.4.1 with this release, and its scripts run on

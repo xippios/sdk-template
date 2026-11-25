@@ -22,9 +22,28 @@
     `## <source name> specifics` and each entry of its Layout that this repository's README
     does not lay out, a module of `api/` or `parse/` or a script or test of its own, into
     `docs/layout.md`, which takes about 130 lines out of a render's file and about 1,680 out
-    of the twelve sources' files together, an estimate — sdk-core's conventions hold the
-    rules, the template's Never file keeps the rules no change breaks in what Claude Code
-    loads, and a change that adds a module then updates a file of the source's own.
-    `docs/layout.md` — nothing to port, since the update creates it where the repository
-    has none and the hand edit of `CLAUDE.md` above fills it — it is the source's from this
-    release on, so no later update writes it again.
+    of the twelve sources' files together, an estimate. Then search what stays, and the
+    lines moved into `docs/layout.md`, for each name below, which a render of v0.4.0 or
+    v0.4.1, the template's proofs or a source's own tests held and which this release or
+    core 0.5.0's family check takes out, and reword or delete each line that names one the
+    source no longer holds: `organization.yml`, `xippios_placeholder_key_envs`, the answers
+    `api_base_url`, `api_key_location`, `api_key_name`, `rate_limit_per_minute`,
+    `rate_limit_burst`, `rate_limit_provenance`, `gateway`, `tenant_credential_env` and
+    `human`, `INSTRUCTIONS` and `BOUND_INSTRUCTIONS` of `mcp.py`, `READERS` and `ALLOWED`
+    of `tests/test_built_answers.py`, `test_upstream_answers` of `tests/test_live.py`,
+    `LEVEL` of `ci.yml`, `tests/test_contract.py`, whose package contract core's family
+    check holds, and the proof shapes `--gateway` and `--tenants-keyless`. The names that
+    leave core stand in core's list, "The names that left" under "Adopting core 0.5.0" of
+    sdk-core's `docs/handover.md` at its tag `v0.5.0`, which names
+    `xippios_placeholder_key_envs` too, as the render held it —
+    sdk-core's conventions hold the rules, the template's Never file keeps the rules no
+    change breaks in what Claude Code loads, a change that adds a module then updates a
+    file of the source's own, and a line that names what left points its reader to nothing.
+    `docs/layout.md` — fill it with what the package adds to the family's tree, which this
+    repository's README lays out once, in a code block laid out as that tree is, a line per
+    file or directory with what it holds, from the entries that the item above moves out of
+    the Layout of `CLAUDE.md`, each module of `api/` or `parse/` and each script or test of
+    the source's own among them — the update creates the file where the repository has
+    none, holding the render's stub, which says what the file holds and that the change
+    that adds a module updates it, and it is the source's from this release on, so no later
+    update writes it again.
