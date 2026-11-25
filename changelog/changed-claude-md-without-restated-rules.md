@@ -34,7 +34,8 @@
     `LEVEL` of `ci.yml`, `tests/test_contract.py`, whose package contract core's family
     check holds, and the proof shapes `--gateway` and `--tenants-keyless`. The names that
     leave core stand in core's list, "The names that left" under "Adopting core 0.5.0" of
-    sdk-core's `docs/handover.md` at its tag `v0.5.0`, and this note repeats none of them —
+    sdk-core's `docs/handover.md` at its tag `v0.5.0`, which names
+    `xippios_placeholder_key_envs` too, as the render held it —
     sdk-core's conventions hold the rules, the template's Never file keeps the rules no
     change breaks in what Claude Code loads, a change that adds a module then updates a
     file of the source's own, and a line that names what left points its reader to nothing.
