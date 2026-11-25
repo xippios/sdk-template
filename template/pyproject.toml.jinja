@@ -130,7 +130,7 @@ convention = "google"
 
 [tool.ruff.lint.isort]
 known-first-party = ["xippios.{{ import_path }}"]
-known-third-party = ["xippios.core"]
+known-third-party = ["xippios.core"{% for dep in depends_on %}, "xippios.{{ dep.name | replace('-', '.') }}"{% endfor %}]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D", "ANN"]

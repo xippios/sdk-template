@@ -30,6 +30,7 @@ from helpers import (
     CORE_DEFAULT,
     FAKE_CORE_SHA,
     FETCH_DEPTH,
+    GENERAL,
     KEY_AUTHS,
     LAYOUT_FILE,
     LIST_HELPERS,
@@ -389,6 +390,45 @@ def test_core_dependency_is_one_minor(variant: tuple[str, Path]) -> None:
     assert project["optional-dependencies"] == {
         extra: [f"xippios-core[{extra}]~={version}"] for extra in ["mcp", "http", "testing"]
     }
+
+
+def assert_the_isort_groups(dst: Path, answers: dict[str, object]) -> None:
+    """#317: ruff's isort groups name the package's own import path first-party and core's and
+    each dependency's third-party, a dependency's the slug with dots, as ``import_path``'s
+    default, so ruff sorts a dependency's import with core's, never with the package's own."""
+    own = "xippios." + package_dir(answers).replace("/", ".")
+    depended = ["xippios." + d["name"].replace("-", ".") for d in dependencies(answers)]
+    isort = tomllib.loads((dst / "pyproject.toml").read_text())["tool"]["ruff"]["lint"]["isort"]
+    assert isort["known-first-party"] == [own]
+    assert isort["known-third-party"] == ["xippios.core", *depended]
+    third = "".join(f"import {name}\n" for name in sorted(["xippios.core", *depended]))
+    probe = f"src/xippios/{package_dir(answers)}/probe.py"
+    args = ("check", "--select", "I", "--stdin-filename", probe, "-")
+    result = ruff(dst, *args, stdin=f"{third}\nimport {own}\n")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_ruffs_isort_groups_name_each_dependency(variant: tuple[str, Path]) -> None:
+    """#317: a source's render, nested with two dependencies or without one."""
+    name, dst = variant
+    assert_the_isort_groups(dst, VARIANTS[name])
+
+
+def test_the_general_shapes_isort_groups_name_core(general: tuple[str, Path]) -> None:
+    """#317: a render of the general shape without a dependency (ADR-0003)."""
+    name, dst = general
+    assert_the_isort_groups(dst, GENERAL[name])
+
+
+@pytest.mark.parametrize("base", ["keyless-flat", "general-nested"])
+def test_a_dependents_isort_groups_name_its_dependency(
+    template_src: Path, tmp_path: Path, base: str
+) -> None:
+    """#317: a flat source with a dependency, and the general shape with one, whose
+    ``pyproject.toml`` is the repository's once rendered."""
+    answers = {**VARIANTS, **GENERAL}[base] | {"source_dependencies": DEPENDS_ON_BASE}
+    dst = generate(template_src, tmp_path / "repo", **answers)
+    assert_the_isort_groups(dst, answers)
 
 
 FILES_TABLE = "| File | Release | URL | Bytes | sha256 | Fetched | Kept |"
